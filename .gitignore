@@ -8,3 +8,6 @@ test_sfs
 test_sfs_dbg
 build/
 .gdb_history
+*.so
+build/
+src/_expm.cpp
