@@ -1,0 +1,10 @@
+*.pyc
+__pycache__
+*.swp
+archive
+_pypsmcpp.so
+_pypsmcpp.cpp
+test_sfs
+test_sfs_dbg
+build/
+.gdb_history
