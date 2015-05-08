@@ -1,0 +1,62 @@
+#ifndef COMMON_H
+#define COMMON_H
+
+#include <iostream>
+#include <Eigen/Dense>
+
+#define AUTODIFF 1
+
+#ifdef NDEBUG
+#define _DEBUG(x)
+#else
+#define _DEBUG(x) x
+#endif
+
+#ifdef AUTODIFF
+#include <unsupported/Eigen/AutoDiff>
+typedef Eigen::AutoDiffScalar<Eigen::VectorXd> adouble;
+namespace Eigen {
+    // Allow for casting of adouble matrices to double
+    namespace internal 
+    {
+        template <>
+            struct cast_impl<adouble, double>
+            {
+                static inline double run(const adouble &x)
+                {
+                    return x.value();
+                }
+            };
+    }
+
+// Copied from Eigen's AutoDiffScalar.h
+#define EIGEN_AUTODIFF_DECLARE_GLOBAL_UNARY(FUNC,CODE) \
+  template<typename DerType> \
+  inline const Eigen::AutoDiffScalar<Eigen::CwiseUnaryOp<Eigen::internal::scalar_multiple_op<typename Eigen::internal::traits<typename Eigen::internal::remove_all<DerType>::type>::Scalar>, const typename Eigen::internal::remove_all<DerType>::type> > \
+  FUNC(const Eigen::AutoDiffScalar<DerType>& x) { \
+    using namespace Eigen; \
+    typedef typename Eigen::internal::traits<typename Eigen::internal::remove_all<DerType>::type>::Scalar Scalar; \
+    typedef AutoDiffScalar<CwiseUnaryOp<Eigen::internal::scalar_multiple_op<Scalar>, const typename Eigen::internal::remove_all<DerType>::type> > ReturnType; \
+    CODE; \
+  }
+
+EIGEN_AUTODIFF_DECLARE_GLOBAL_UNARY(expm1,
+  Scalar expm1x = std::expm1(x.value());
+  Scalar expx = std::exp(x.value());
+  return ReturnType(expm1x,x.derivatives() * expx);
+)
+
+#undef EIGEN_AUTODIFF_DECLARE_GLOBAL_UNARY
+};
+ 
+
+#else
+
+typedef double adouble;
+
+#endif
+
+typedef Eigen::Matrix<adouble, Eigen::Dynamic, Eigen::Dynamic> AdMatrix;
+typedef Eigen::Matrix<adouble, Eigen::Dynamic, 1> AdVector;
+
+#endif
