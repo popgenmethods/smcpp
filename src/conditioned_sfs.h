@@ -17,14 +17,18 @@ class ConditionedSFS
     void compute(int, int, double*, std::vector<double*>, int*, double*);
     void store_results(double*, double*);
     AdMatrix& matrix();
+    void set_seed(int);
 
     private:
     // Methods
     void fill_matrices();
     void construct_ad_vars();
     void compute_ETnk_below(const AdVector&);
+    double exp1();
 
     // Variables
+    std::random_device rd;  // only used once to initialise (seed) engine
+    std::mt19937 gen;
     PiecewiseExponential *eta;
     const int n;
     Eigen::MatrixXd D_subtend_above, D_not_subtend_above, D_subtend_below, D_not_subtend_below, Wnbj, P_dist, P_undist, tK;

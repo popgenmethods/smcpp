@@ -16,7 +16,7 @@ cdef class PiecewiseExponentialWrapper:
         del self.pexp
 
     def inverse_rate(self, double y):
-        return self.pexp.inverse_rate(y, 0, 1)
+        return self.pexp.double_inverse_rate(y, 0, 1)
 
     def print_debug(self):
         self.pexp.print_debug()
@@ -48,11 +48,13 @@ def exp1_conditional(double a, double b, size):
     else:
         return a - np.log1p(np.expm1(-(b - a)) * unif)
 
-def sfs(demo, int S, int M, int n, float tau1, float tau2, extract_output=False):
+def sfs(demo, int S, int M, int n, float tau1, float tau2, extract_output=False, seed=None):
     logging.debug("in sfs")
     # Create stuff needed for computation
     # Sample conditionally; populate the interpolating rate matrices
     t1, t2 = [demo.eta.inverse_rate(x) for x in (tau1, tau2)]
+    if seed:
+        np.random.seed(seed)
     y = aca(exp1_conditional(t1, t2, M))
     mats, ts = moran_model.interpolators(n)
     ts = aca(ts)
@@ -68,6 +70,8 @@ def sfs(demo, int S, int M, int n, float tau1, float tau2, extract_output=False)
     ts = aca(ts)
     cdef PiecewiseExponentialWrapper eta = demo.eta
     cdef ConditionedSFS* csfs = new ConditionedSFS(eta.pexp, n)
+    if seed:
+        csfs.set_seed(seed)
     csfs.compute(S, M, &my[0], eM, &mei[0], &mts[0])
     cdef ConditionedSFSWrapper ret
 

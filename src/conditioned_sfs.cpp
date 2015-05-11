@@ -5,11 +5,6 @@
 
 #define EIGEN_NO_AUTOMATIC_RESIZING 1
 
-std::random_device rd;  // only used once to initialise (seed) engine
-unsigned int seed = rd();
-// unsigned int seed = 997547904;
-std::mt19937 gen(seed);
-
 std::map<std::array<int, 3>, double> _Wnbj_memo;
 double calculate_Wnbj(int n, int b, int j)
 {
@@ -80,21 +75,9 @@ inline adouble fmin(adouble a, adouble b)
 #endif
 }
 
-inline double unif(void)
-{
-    return std::uniform_real_distribution<double>{0.0, 1.0}(gen);
-}
-
-inline double exp1(void)
+double ConditionedSFS:: exp1(void)
 {
     return std::exponential_distribution<double>{1.0}(gen);
-}
-
-inline int randint(int a)
-{
-    // random int 0 <= x < a
-    assert(a >= 1);
-    return std::uniform_int_distribution<int>{0, a - 1}(gen);
 }
 
 void ConditionedSFS::compute_ETnk_below(const AdVector &etjj)
@@ -225,6 +208,7 @@ void ConditionedSFS::store_results(double* outsfs, double* outjac)
 }
 
 ConditionedSFS::ConditionedSFS(PiecewiseExponential *eta, int n) :
+    gen(rd()),
     eta(eta), n(n),
     D_subtend_above(n, n), D_not_subtend_above(n, n),
 	D_subtend_below(n + 1, n + 1), D_not_subtend_below(n + 1, n + 1),
@@ -234,6 +218,11 @@ ConditionedSFS::ConditionedSFS(PiecewiseExponential *eta, int n) :
     // feenableexcept(FE_ALL_EXCEPT & ~FE_INEXACT & ~FE_UNDERFLOW);
     // printf("seed: %u\n", seed);
     fill_matrices();
+}
+
+void ConditionedSFS::set_seed(int seed)
+{
+    gen.seed(seed);
 }
 
 void ConditionedSFS::fill_matrices(void)

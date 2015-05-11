@@ -23,7 +23,7 @@ ctypedef ConditionedSFS* ConditionedSFSptr
 cdef extern from "piecewise_exponential.h":
     cdef cppclass PiecewiseExponential:
         PiecewiseExponential(const vector[double]&,  const vector[double]&, const vector[double]&)
-        double inverse_rate(double, double, double)
+        double double_inverse_rate(double, double, double)
         void print_debug()
 
 cdef extern from "conditioned_sfs.h":
@@ -31,6 +31,7 @@ cdef extern from "conditioned_sfs.h":
         ConditionedSFS(PiecewiseExponential*, int)
         void compute(int, int, double*, vector[double*], int*, double*)
         void store_results(double*, double*)
+        void set_seed(int)
 
 cdef extern from "transition.h":
     cdef cppclass Transition:
