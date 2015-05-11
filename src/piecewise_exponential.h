@@ -65,7 +65,9 @@ class PiecewiseExponential
         return log((Rt0 - Rc[ip]) / Ra[ip]) / Rb[ip] + ts[ip] - t;
     }
 
-    double inverse_rate(double y, double t, double coalescence_rate)
+    // Don't overload this: keeps leading to problems with the derivatives()
+    // getting blown away at various points.
+    double double_inverse_rate(double y, double t, double coalescence_rate)
     {
         return inverse_rate(y, (adouble)t, coalescence_rate).value();
     }
