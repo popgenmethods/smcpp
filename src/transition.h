@@ -1,8 +1,10 @@
 #ifndef TRANSITION_H
 #define TRANSITION_H
 
-#include <unsupported/Eigen/MatrixFunctions>
 #include <map>
+#include <unsupported/Eigen/MatrixFunctions>
+#include <Eigen/QR>
+
 #include "common.h"
 #include "piecewise_exponential.h"
 

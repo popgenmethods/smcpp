@@ -185,13 +185,19 @@ AdMatrix Transition::expm(int i, int j)
         {
             c_rho = rho * (_hs[j] - _hs[i]);
             c_eta = eta->R(_hs[j]) - eta->R(_hs[i]);
+            /*
+            AdMatrix A = c_rho * A_rho.cast<adouble>() + c_eta * A_eta.cast<adouble>();
+            Eigen::HouseholderQR<AdMatrix> qr(A);
+            AdMatrix Q = qr.householderQ();
+            AdMatrix R = qr.matrixQR().block(0,0,A.cols(),A.cols()).triangularView<Eigen::Upper>();
+            std::cout << Q.cast<double>() << std::endl;
+            std::cout << R.cast<double>() << std::endl;
+            std::cout << (Q * R).cast<double>() << std::endl;
+            std::cout << A.cast<double>() << std::endl;
+            */
             ret = transition_exp(c_rho, c_eta);
         }
         _expm_memo[key] = ret;
-        /*
-        std::cout << key << std::endl;
-        std::cout << ret.cast<double>() << std::endl;
-        */
     }
     return _expm_memo[key];
 }
