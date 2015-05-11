@@ -5,14 +5,14 @@ const double A_rho_data[] = {
      0, -.5, .5, 0,
      0, 0, 0, 0,
      0, 0, 0, 0};
-static Eigen::Matrix4d A_rho(A_rho_data);
+static Eigen::Matrix<double, 4, 4, Eigen::RowMajor> A_rho(A_rho_data);
 
 const double A_eta_data[] = {
     0, 0, 0, 0,
     1, -2, 0, 1,
     0, 4, -5, 1,
     0, 0, 0, 0};
-static Eigen::Matrix4d A_eta(A_eta_data);
+static Eigen::Matrix<double, 4, 4, Eigen::RowMajor> A_eta(A_eta_data);
 
 std::array<adouble, 3> eigenvalues(double c_rho, adouble c_eta)
 {
@@ -25,7 +25,9 @@ std::array<adouble, 3> eigenvalues(double c_rho, adouble c_eta)
     double x[3] = {0, 2 * M_PI, -2 * M_PI};
     std::array<adouble, 3> ret;
     for (int i = 0; i < 3; ++i)
+    {
         ret[i] = -(2 * pow(Q, 0.5) * cos((theta + x[i])/ 3)) - a / 3;
+    }
     return ret;
 }
 
@@ -95,14 +97,27 @@ AdMatrix transition_exp(double c_rho, adouble c_eta)
     AdMatrix Pinv = eig[2];
     for (int i = 0; i < 4; ++i)
         D(i, i) = exp(D(i, i));
-    return P * D * Pinv;
+    AdMatrix ret = P * D * Pinv;
+    /*
+    Eigen::Matrix4d check = c_rho * A_rho + c_eta.value() * A_eta;
+    Eigen::Matrix4d expcheck = check.exp();
+    Eigen::Matrix4d ret_check = ret.cast<double>();
+    std::cout << "check" 
+        << std::endl << check << std::endl << "expcheck"
+        << std::endl << expcheck << std::endl 
+        << "ret_check" << std::endl << ret_check << std::endl << std::endl;
+        */
+    return ret;
 }
 
-Transition::Transition(PiecewiseExponential *eta, const std::vector<double> &hidden_states, double rho) :
+Transition::Transition(PiecewiseExponential *eta, 
+        const std::vector<double> &hidden_states, 
+        double rho) :
     eta(eta), _hs(hidden_states), rho(rho), M(hidden_states.size()), I(M, M), Phi(M - 1, M - 1)
 {
     I.setIdentity();
     Phi.setZero();
+    compute();
 }
 
 void Transition::compute(void)
@@ -112,9 +127,13 @@ void Transition::compute(void)
         for (int k = 1; k < M; ++k)
         {
             if (k < j)
+            {
                 r = expm(0, k)(0, 3) - expm(0, k - 1)(0, 3);
-            else if (k == j and j == M - 1)
+            }
+            else if (k == j && j == M - 1)
+            {
                 r = 1. - expm(0, k - 1)(0, 3);
+            }
             else if (k == j)
             {
                 r = expm(0, k)(0, 0);
@@ -125,13 +144,17 @@ void Transition::compute(void)
             {
                 p_coal = exp(-(eta->R(_hs[k - 1]) - eta->R(_hs[j])));
                 if (k < M - 1)
+                {
                     // Else d[k] = +inf, coalescence in [d[k-1], +oo) is assured.
-                    p_coal *= 1. - exp(-(eta->R(_hs[k]) - eta->R(_hs[k - 1])));
-                r = expm(0, j).block(0, 1, 1, 3).sum() * p_coal;
+                    p_coal *= -expm1(-(eta->R(_hs[k]) - eta->R(_hs[k - 1])));
+                }
+                r = expm(0, j).block(0, 1, 1, 2).sum() * p_coal;
             }
         Phi(j - 1, k - 1) = r;
         }
 }
+
+AdMatrix& Transition::matrix(void) { return Phi; }
 
 void Transition::store_results(double* outtrans, double* outjac)
 {
@@ -142,7 +165,7 @@ void Transition::store_results(double* outtrans, double* outjac)
         for (int j = 0; j < M - 1; ++j)
         {
             Eigen::VectorXd d = Phi(i, j).derivatives();
-            _DEBUG(printf("i:%i j:%i dsfs/da[0]:%f\n", i, j, d(0)));
+            // printf("i:%i j:%i dtransition/da[0]:%f\n", i, j, d(0));
             for (int k = 0; k < d.rows(); ++k)
                 outjac[m++] = d(k);
         }
@@ -150,17 +173,27 @@ void Transition::store_results(double* outtrans, double* outjac)
 
 AdMatrix Transition::expm(int i, int j)
 {
-    double c_rho;
-    adouble c_eta;
-    AdMatrix ret(M, M);
-    if (i == j)
-        return I;
-    else
+    std::pair<int, int> key = {i, j};
+    if (_expm_memo.count(key) == 0)
     {
-        c_rho = rho * (_hs[j] - _hs[i]);
-        c_eta = eta->R(_hs[j]) - eta->R(_hs[i]);
-        return transition_exp(c_rho, c_eta);
+        double c_rho;
+        adouble c_eta;
+        AdMatrix ret(M, M);
+        if (i == j)
+            ret = I;
+        else
+        {
+            c_rho = rho * (_hs[j] - _hs[i]);
+            c_eta = eta->R(_hs[j]) - eta->R(_hs[i]);
+            ret = transition_exp(c_rho, c_eta);
+        }
+        _expm_memo[key] = ret;
+        /*
+        std::cout << key << std::endl;
+        std::cout << ret.cast<double>() << std::endl;
+        */
     }
+    return _expm_memo[key];
 }
 
 /*

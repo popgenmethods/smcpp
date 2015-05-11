@@ -2,26 +2,34 @@ cimport numpy as np
 import numpy as np
 import logging
 import moran_model
-from libcpp.string cimport string
 
-cdef void pylogger(const string &msg, const string& lvl):
-    loglvl = logging.getattr(lvl)
-    loglvl(msg)
+# cdef void pylogger(const string &msg, const string& lvl):
+    # loglvl = logging.getattr(lvl)
+    # loglvl(msg)
 
 cdef class PiecewiseExponentialWrapper:
     cdef PiecewiseExponential* pexp
     def __init__(self, sqrt_a, b, sqrt_s):
         assert len(sqrt_a) == len(b) == len(sqrt_s)
         self.pexp = new PiecewiseExponential(sqrt_a, b, sqrt_s)
+    def __dealloc__(self):
+        del self.pexp
 
-    def inverse_rate(self, double x):
-        return self.pexp.inverse_rate(x, 0, 1)
+    def inverse_rate(self, double y):
+        return self.pexp.inverse_rate(y, 0, 1)
+
+    def print_debug(self):
+        self.pexp.print_debug()
 
 cdef class ConditionedSFSWrapper:
-    cdef ConditionedSFS* csfs
+    cdef ConditionedSFSptr csfs
+    def __dealloc__(self):
+        del self.csfs
 
 cdef class TransitionWrapper:
     cdef Transition* transition
+    def __dealloc__(self):
+        del self.transition
 
 # Everything needs to be C-order contiguous to pass in as
 # flat arrays
@@ -88,8 +96,8 @@ def sfs(demo, int S, int M, int n, float tau1, float tau2, extract_output=False)
 def transition(demo, hidden_states, double rho, extract_output=False):
     cdef PiecewiseExponentialWrapper eta = demo.eta
     cdef vector[double] hs = hidden_states
-    assert hs[0] == 0.0
-    assert hs[-1] == np.inf
+    assert hidden_states[0] == 0.0
+    assert hidden_states[-1] == np.inf
     cdef Transition* trans = new Transition(eta.pexp, hs, rho)
     trans.compute()
     cdef TransitionWrapper ret
@@ -98,66 +106,33 @@ def transition(demo, hidden_states, double rho, extract_output=False):
         ret.trans = transition
         return ret
     M = len(hidden_states)
-    tmat = aca(np.zeros(M - 1, M - 1))
-    tjac = aca(np.zeros(M - 1, M - 1, 3, demo.K))
+    tmat = aca(np.zeros((M - 1, M - 1)))
+    tjac = aca(np.zeros((M - 1, M - 1, 3, demo.K)))
     cdef double[:, ::1] tmatv = tmat
     cdef double[:, :, :, ::1] tjacv = tjac
     trans.store_results(&tmatv[0, 0], &tjacv[0, 0, 0, 0])
     del trans
     return (tmat, tjac)
 
-# def hmm(sqrt_a, b, sqrt_s, n, obs, 
-#         pi, emission, transition, 
-#         pi_jac, emission_jac, transition_jac, viterbi=False):
-#     print("in hmm")
-#     sqrt_a = aca(sqrt_a)
-#     b = aca(b)
-#     sqrt_s = aca(sqrt_s)
-#     assert len(sqrt_a) == len(b) == len(sqrt_s)
-#     K = len(sqrt_a)
-#     cdef double[::1] m_sqrt_a = sqrt_a
-#     cdef double[::1] m_b = b
-#     cdef double[::1] m_sqrt_s = sqrt_s
-# 
-#     obs = aca(obs, dtype=np.int32)
-#     L = obs.shape[0]
-#     assert obs.shape == (L, 2)
-# 
-#     pi = aca(pi, dtype=np.double)
-#     M = pi.shape[0]
-#     assert pi.shape == (M,)
-# 
-#     emission = aca(emission, dtype=np.double)
-#     assert emission.shape == (M, 3, n)
-# 
-#     transition = aca(transition, dtype=np.double)
-#     assert transition.shape == (M, M)
-# 
-#     pi_jac = aca(pi_jac, dtype=np.double)
-#     assert pi_jac.shape == (3, K, M)
-# 
-#     emission_jac = aca(emission_jac, dtype=np.double)
-#     assert emission_jac.shape == (3, K, M, 3, n)
-# 
-#     transition_jac = aca(transition_jac, dtype=np.double)
-#     assert transition_jac.shape == (3, K, M, M)
-# 
-#     jac = np.zeros([3 * K], dtype=np.double)
-#     cdef double[::1] m_jac = jac
-#     
-#     logging.debug("constructing hmm")
-#     cdef HMM *myHmm = new HMM(K, &m_sqrt_a[0], &m_b[0], &m_sqrt_s[0], L, 
-#             <PyObject*>obs, M, n, <PyObject*>pi, <PyObject*>emission, <PyObject*>transition,
-#             <PyObject*>pi_jac, <PyObject*>emission_jac, <PyObject*>transition_jac)
-#     logging.debug("done hmm")
-# 
-#     cdef double logp
-#     try:
-#         logging.debug("running forward algorithm")
-#         logp = myHmm.logp(&m_jac[0])
-#         ret = [logp, jac.reshape([3, K])]
-#         if (viterbi):
-#             ret.append(myHmm.viterbi())
-#         return ret
-#     finally:
-#         del myHmm
+def hmm(demo, sfs_list, obs, hidden_states, rho, theta, viterbi=False):
+    print("in hmm")
+    obs = aca(obs, dtype=np.int32)
+    L = obs.shape[0]
+    assert obs.shape == (L, 2)
+    cdef int[:, ::1] mobs = obs
+    cdef PiecewiseExponentialWrapper eta = demo.eta
+    logging.debug("constructing hmm")
+    cdef vector[vector[ConditionedSFSptr]] csfs
+    cdef ConditionedSFSWrapper cw
+    for k, sfs in enumerate(sfs_list):
+        csfs.emplace_back()
+        for sample in sfs:
+            cw = sample
+            csfs[k].push_back(cw.csfs)
+    cdef HMM *myHmm = new HMM(eta.pexp, csfs, hidden_states, L, &mobs[0, 0], rho, theta)
+    logging.debug("running forward algorithm")
+    jac = aca(np.zeros((3, demo.K)))
+    cdef double[:, ::1] mjac = jac
+    logp = myHmm.logp(&mjac[0, 0])
+    del myHmm
+    return (logp, jac)

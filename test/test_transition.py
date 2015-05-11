@@ -1,72 +1,44 @@
 import pytest
 import numpy as np
+import demography
+import _pypsmcpp
 
 @pytest.fixture
-def pexp():
-    K = 3
-    ts = np.cumsum(ad.adnumber(np.array([0.] + sorted(np.random.exponential(2., size=K - 1)))))
-    pc = np.zeros((1, K))
-    qc = np.ones((1, K))
-    b = ad.adnumber(np.random.normal(size=K))
-    return PExp(ts, pc, qc, b)
+def demo():
+    a = np.array([1.0, 2.0, 3.0, 4.0])
+    b = np.array([.00001, -.001, -.01, .01])
+    s = np.array([0.0, .3, .8, 1.0])
+    demo = demography.Demography(a, b, s, [0.0, 1.0, 2.0, 3.0, np.inf])
+    return demo
 
-def test_derivative_t():
-    K = 3
-    ts = ad.adnumber(np.array([0.] + sorted(np.random.exponential(2., size=K - 1))))
-    pc = np.zeros((1, K))
-    qc = np.ones((1, K))
-    b = ad.adnumber(np.random.normal(size=K))
-    pexp = PExp(np.cumsum(ts), pc, qc, b)
-    R = pexp.integral0()
-    d = np.array([0.0, 1.0, 2.0, 3.0, np.inf])
-    rho = 1e-6
-    tm = TransitionMatrix(rho, R, d)
-    for i in range(tm.A.shape[0]):
-        for j in range(tm.A.shape[0]):
-            for k in range(1, pexp.ts.shape[0] - 1):
-                db = tm.A[i, j].d(ts[k])
-                eps = 2.0
-                z = np.eye(ts.shape[0])[k] * eps
-                # pexp = PExp(PPoly(pexp.p.c, tsp), PPoly(pexp.q.c, tsp), pexp.a, pexp.b)
-                R2 = PExp(np.cumsum(ts + z), pc, qc, b).integral0()
-                tm2 = TransitionMatrix(rho, R2, d)
-                print(i, j, k, db, tm2.A[i, j], tm.A[i, j] + eps * db)
-                diff = tm2.A[i, j] - (tm.A[i, j] + eps * db)
-                if db == 0.0:
-                    assert tm2.A[i, j] == tm.A[i, j]
-                else:
-                    assert -1e-3 < diff / eps < 1e-3
+@pytest.fixture
+def hs():
+    return np.array([0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 8.0, 10.0, 13.0, np.inf])
 
-def test_derivative_b(pexp):
-    R = pexp.integral0()
-    d = np.array([0.0, 1.0, 2.0, 3.0, np.inf])
-    rho = 1e-6
-    tm = TransitionMatrix(rho, R, d)
-    for i in range(tm.A.shape[0]):
-        for j in range(tm.A.shape[0]):
-            for k in range(pexp.b.shape[0]):
-                db = tm.A[i, j].d(pexp.b[k])
-                eps = 1.0
-                z = np.eye(pexp.b.shape[0])[k] * eps
-                # pexp = PExp(PPoly(pexp.p.c, tsp), PPoly(pexp.q.c, tsp), pexp.a, pexp.b)
-                R2 = PExp(pexp.ts, pexp.p.c, pexp.q.c, pexp.b + z).integral0()
-                tm2 = TransitionMatrix(rho, R2, d)
-                print(i, j, k, db, tm2.A[i, j], tm.A[i, j] + eps * db)
-                diff = tm2.A[i, j] - (tm.A[i, j] + eps * db)
-                if db == 0.0:
-                    assert tm2.A[i, j] == tm.A[i, j]
-                else:
-                    assert -1e-3 < diff / eps < 1e-3
+def test_derivative(demo, hs):
+    mat, jac = _pypsmcpp.transition(demo, hs, 1e-8, True)
+    a = demo.sqrt_a
+    b = demo.b
+    s = demo.sqrt_s
+    M = mat.shape[0]
+    eps = .1
+    K = demo.K
+    I = np.eye(K)
+    for ind in (0, 1, 2):
+        for k in range(K):
+            args = [a, b, s, [0.0, 1.0, 2.0, 3.0, np.inf]]
+            if ind == 2 and k == 0:
+                pass
+            args[ind] = args[ind] + eps * I[k]
+            demo2 = demography.Demography(*args)
+            mat2, _ = _pypsmcpp.transition(demo2, hs, 1e-8, True)
+            for i in range(M):
+                for j in range(M):
+                    jaca = jac[i, j, ind, k]
+                    j1 = mat2[i, j]
+                    j2 = mat[i, j] + eps * jaca
+                    assert abs(j1 - j2) < eps
 
-def test_jacobian(pexp):
-    R = pexp.integral0()
-    d = np.array([0.0, 1.0, 2.0, 3.0, np.inf])
-    rho = 1e-4
-    tm = TransitionMatrix(rho, R, d)
-    tm.jacobian(R.a)
-
-def test_sum_to_one(pexp):
-    R = pexp.integral0()
-    d = np.array([0.0, 1.0, 2.0, 3.0, np.inf])
-    tm = TransitionMatrix(1e-6, R, d)
-    assert np.all(np.abs(tm.A.sum(axis=1) - 1) < 1e-6)
+def test_sum_to_one(demo, hs):
+    mat, jac = _pypsmcpp.transition(demo, hs, 1e-8, True)
+    assert np.all(np.abs(mat.sum(axis=1) - 1) < 1e-5)

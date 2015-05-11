@@ -5,14 +5,12 @@ import logging
 
 logging.getLogger().setLevel("INFO")
 
-import fpectl
-fpectl.turnon_sigfpe()
-
 from demography import Demography
 import inference
 
-N = 50
-L = 100
+N = 10
+L = 10000
+hidden_states = np.array([0.0, 1.0, 2.0, np.inf])
 
 @pytest.fixture
 def demo():
@@ -26,29 +24,23 @@ def fake_obs():
     return ret.T
 
 def test_inference(demo, fake_obs):
-    prb = inference.log_p(demo, N, 100, fake_obs, 1e-7, 1e-8)
+    logp, jac = inference.log_p(demo, 500, 100, N, fake_obs, 1e-8, 1e-8, hidden_states)
+    print(logp)
+    print(jac)
     # Well, that worked
 
-def test_ds(demo, fake_obs):
-    p = multiprocessing.Pool(16)
-    logp, jac = inference.log_p(demo, N, 100000, fake_obs, 1e-7, 1e-8, p)
-    eps = np.array([0, .02])
-    demo2 = Demography(demo.sqrt_a, demo.b, demo.sqrt_s + eps, demo.hs)
-    logp2, _ = inference.log_p(demo2, N, 100000, fake_obs, 1e-7, 1e-8, p)
-    print(logp2, logp, jac, logp2 - (logp + eps[1] * jac[2, 1]))
-
-def test_da(demo, fake_obs):
-    p = multiprocessing.Pool(16)
-    logp, jac = inference.log_p(demo, N, 100000, fake_obs, 1e-7, 1e-8, p)
-    eps = .02
-    demo2 = Demography(demo.sqrt_a + eps, demo.b, demo.sqrt_s, demo.hs)
-    logp2, _ = inference.log_p(demo2, N, 100000, fake_obs, 1e-7, 1e-8, p)
-    print(logp2, logp, jac, logp2 - (logp + eps * jac[0, 0]))
-
-def test_db(demo, fake_obs):
-    p = multiprocessing.Pool(16)
-    logp, jac = inference.log_p(demo, N, 100000, fake_obs, 1e-7, 1e-8, p)
-    eps = .02
-    demo2 = Demography(demo.sqrt_a, demo.b + eps, demo.sqrt_s, demo.hs)
-    logp2, _ = inference.log_p(demo2, N, 100000, fake_obs, 1e-7, 1e-8, p)
-    print(logp2, logp, jac, logp2 - (logp + eps * jac[1, 0]))
+def test_derivatives(demo, fake_obs):
+    logp, jac = inference.log_p(demo, 100, 1000, N, fake_obs, 1e-8, 1e-8, hidden_states)
+    print(jac)
+    eps = 0.01
+    I = np.eye(demo.K)
+    for k in [0, 1, 2]:
+        for ell in range(demo.K):
+            if k == 2 and ell == 0:
+                continue
+            args = [demo.sqrt_a, demo.b, demo.sqrt_s, demo.hs]
+            delta = args[k][ell] * eps
+            args[k][ell] *= (1 + eps)
+            demo2 = Demography(*args)
+            logp2, _ = inference.log_p(demo2, 100, 1000, N, fake_obs, 1e-8, 1e-8, hidden_states)
+            print(k, ell, logp2, logp, delta, logp2 - (logp + delta * jac[k, ell]))

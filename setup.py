@@ -1,3 +1,4 @@
+import numpy as np
 from distutils.core import setup, Extension
 from Cython.Build import cythonize
 from distutils.command.build_ext import build_ext as _build_ext
@@ -7,18 +8,20 @@ extensions = [
         Extension(
             "_pypsmcpp",
             # sources=["src/_pypsmcpp.pyx", "src/conditioned_sfs.cpp", "src/hmm.cpp"],
-            sources=["src/_pypsmcpp.pyx", "src/transition.cpp", "src/conditioned_sfs.cpp"],
+            sources=["src/_pypsmcpp.pyx", "src/transition.cpp", "src/conditioned_sfs.cpp", "src/hmm.cpp"],
             language="c++",
-            extra_compile_args=["-O3", "-DNDEBUG", "-std=c++11", "-Wfatal-errors", "-I/usr/include/eigen3"],
-            # extra_compile_args=["-O0", "-g", "-std=c++11", "-Wfatal-errors", "-I/usr/include/eigen3"],
-            libraries=['profiler'],
+            include_dirs=["/usr/include/eigen3", "/usr/local/include/eigen3", np.get_include()],
+            # extra_compile_args=["-O3", "-DNDEBUG", "-std=c++11", "-Wfatal-errors", "-I/usr/include/eigen3"],
+            extra_compile_args=["-O3", "-std=c++11", "-Wfatal-errors", "-Wno-unused-variable", "-Wno-unused-function"], 
+            # extra_compile_args=["-O0", "-g", "-std=c++11", "-Wfatal-errors", "-Wno-unused-variable", "-Wno-unused-function"], 
             ),
         Extension(
             "_expm",
             # sources=["src/_pypsmcpp.pyx", "src/conditioned_sfs.cpp", "src/hmm.cpp"],
             sources=["src/_expm.pyx"],
             language="c++",
-            extra_compile_args=["-O3", "-DNDEBUG", "-std=c++11", "-Wfatal-errors", "-I/usr/include/eigen3"],
+            include_dirs=["/usr/include/eigen3", "/usr/local/include/eigen3", np.get_include()],
+            extra_compile_args=["-O3", "-DNDEBUG", "-std=c++11", "-Wfatal-errors", "-Wno-unused-variable", "-Wno-unused-function"],
             ),
         ]
 

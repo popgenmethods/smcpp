@@ -2,7 +2,12 @@
 #define COMMON_H
 
 #include <iostream>
+#include <vector>
+#include <array>
+#include <random>
 #include <Eigen/Dense>
+
+#include "prettyprint.hpp"
 
 #define AUTODIFF 1
 

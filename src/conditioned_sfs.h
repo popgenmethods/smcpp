@@ -16,6 +16,7 @@ class ConditionedSFS
     ConditionedSFS(PiecewiseExponential*, int);
     void compute(int, int, double*, std::vector<double*>, int*, double*);
     void store_results(double*, double*);
+    AdMatrix& matrix();
 
     private:
     // Methods

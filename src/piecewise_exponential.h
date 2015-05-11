@@ -32,6 +32,11 @@ class PiecewiseExponential
         _compute_antiderivative();
     }
 
+    int num_derivatives(void)
+    {
+        return 3 * _K;
+    }
+
     int K(void)
     {
         return _K;
@@ -39,7 +44,8 @@ class PiecewiseExponential
 
     adouble R(adouble t)
     {
-        ip = insertion_point(t);
+        ip = insertion_point(t, ts, 0, _K);
+        // std::cout << "insertion point: " << ip << std::endl;
         return Ra[ip] * exp(Rb[ip] * (t - ts[ip])) + Rc[ip];
     }
 
@@ -47,11 +53,13 @@ class PiecewiseExponential
     // so we do not pass them as adouble. 
     adouble inverse_rate(double y, adouble t, double coalescence_rate)
     {
+        if (isinf(y))
+            return INFINITY;
         // Return x such that rate * \int_t^{t + x} eta(s) ds = y
         adouble Rt0 = y / coalescence_rate;
         if (t > 0)
             Rt0 += R(t);
-        ip = insertion_point(Rt0);
+        ip = insertion_point(Rt0, Rrng, 0, _K);
         if (Rb[ip] == 0.0)
             throw std::domain_error("b cannot be zero");
         return log((Rt0 - Rc[ip]) / Ra[ip]) / Rb[ip] + ts[ip] - t;
@@ -62,17 +70,25 @@ class PiecewiseExponential
         return inverse_rate(y, (adouble)t, coalescence_rate).value();
     }
 
+    void print_debug()
+    {
+        std::vector<std::pair<std::string, std::vector<adouble>>> arys = 
+            {{"adasq", adasq}, {"adb", adb}, {"ts", ts}, {"Ra", Ra}, 
+                {"Rb", Rb}, {"Rc", Rc}, {"Rrng", Rrng}};
+        for (auto p : arys)
+        {
+            std::cout << p.first << std::endl;
+            for (adouble x : p.second)
+                std::cout << x.value() << " ";
+            std::cout << std::endl << std::endl;
+        }
+    }
+
     private:
     int _K, ip;
     std::vector<adouble> adasq, adb, ts, Ra, Rb, Rc, Rrng;
 
-    // Search sorted array for insertion point
-    int insertion_point(adouble x)
-    {
-        return _insertion_point(x, Rrng, 0, _K);
-    }
-
-    int _insertion_point(adouble x, const std::vector<adouble>& ary, int first, int last)
+    int insertion_point(adouble x, const std::vector<adouble>& ary, int first, int last)
     {
         int mid;
         while(first + 1 < last)
@@ -100,6 +116,7 @@ class PiecewiseExponential
                 Rrng[k + 1] = Rrng[k] + Ra[k] * expm1(Rb[k] * (ts[k + 1] - ts[k]));
         }
     }
+
 };
 
 #endif
