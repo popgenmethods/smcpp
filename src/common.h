@@ -64,4 +64,24 @@ typedef double adouble;
 typedef Eigen::Matrix<adouble, Eigen::Dynamic, Eigen::Dynamic> AdMatrix;
 typedef Eigen::Matrix<adouble, Eigen::Dynamic, 1> AdVector;
 
+typedef struct AdMatrixWrapper {
+    AdMatrix mat;
+} AdMatrixWrapper;
+
+
+template <typename T>
+int insertion_point(T x, const std::vector<T>& ary, int first, int last)
+{
+    int mid;
+    while(first + 1 < last)
+    {
+        mid = (int)((first + last) / 2);
+        if (ary[mid] > x)
+            last = mid;
+        else    
+            first = mid;
+    }
+    return first;
+}
+
 #endif

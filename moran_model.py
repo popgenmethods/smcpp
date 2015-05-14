@@ -12,7 +12,7 @@ import sys
 
 from _expm import expm
 
-logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 @memoize
 def moran_states(N, a):
@@ -60,7 +60,7 @@ def interpolators(N):
     _interp_memo = shelve.open(".moran.dat", protocol=2)
     key = str(N)
     if key not in _interp_memo:
-        logging.info("Constructing interpolating matrix exponentials (only needs to happen once)")
+        logger.info("Constructing interpolating matrix exponentials (only needs to happen once)")
         Q = rate_matrix(N, 2).todense()
         t = 1e-8
         # for a=2, absorbing state is N
@@ -74,13 +74,13 @@ def interpolators(N):
         u = []
         x = []
         while eps > 1e-8:
-            logging.info("Interpolation progress: %.2f%%" % (1e-6 / eps));
+            logger.info("Interpolation progress: %.2f%%" % (1e-6 / eps));
             u.append(t)
             x.append(M)
             t += 0.05
             M = expm(Q * t)
             eps = np.linalg.norm(M - A)
-        logging.info("Interpolation progress: Completed")
+        logger.info("Interpolation progress: Completed")
         u = np.array([0] + u + [np.inf])
         x = np.array([np.eye(N + 1)] + x + [A])
         _interp_memo[key] = (x, u)

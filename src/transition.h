@@ -11,14 +11,14 @@
 class Transition
 {
     public:
-        Transition(PiecewiseExponential*, const std::vector<double>&, double);
+        Transition(const PiecewiseExponential &eta, const std::vector<double>&, double);
         void compute(void);
         void store_results(double*, double*);
         AdMatrix& matrix(void);
 
     private:
         AdMatrix expm(int, int);
-        PiecewiseExponential *eta;
+        PiecewiseExponential eta;
         const std::vector<double>& _hs;
         double rho;
         int M;

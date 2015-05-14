@@ -1,5 +1,4 @@
-# from libcpp.vector cimport vector
-from libcpp.map cimport map
+from libcpp.vector cimport vector
 
 cdef extern from "<vector>" namespace "std":
     cdef cppclass vector[T]:
@@ -9,6 +8,7 @@ cdef extern from "<vector>" namespace "std":
             bint operator==(iterator)
             bint operator!=(iterator)
         vector()
+        int size()
         void push_back(T&)
         void emplace_back()
         T& operator[](int)
@@ -16,34 +16,31 @@ cdef extern from "<vector>" namespace "std":
         iterator begin()
         iterator end()
         
-
-# Necessary to work around a bug
-ctypedef ConditionedSFS* ConditionedSFSptr
+cdef extern from "common.h":
+    ctypedef struct AdMatrix:
+        pass
+    struct AdMatrixWrapper:
+        pass
 
 cdef extern from "piecewise_exponential.h":
     cdef cppclass PiecewiseExponential:
-        PiecewiseExponential(const vector[double]&,  const vector[double]&, const vector[double]&)
+        PiecewiseExponential(const vector[double]&, const vector[double]&, const vector[double]&)
         double double_inverse_rate(double, double, double)
         void print_debug()
 
 cdef extern from "conditioned_sfs.h":
-    cdef cppclass ConditionedSFS:
-        ConditionedSFS(PiecewiseExponential*, int)
-        void compute(int, int, double*, vector[double*], int*, double*)
-        void store_results(double*, double*)
-        void set_seed(int)
+    AdMatrix calculate_sfs(PiecewiseExponential eta, int n, int S, int M, const vector[double] &ts, 
+            const vector[double*] &expM, double t1, double t2, int numthreads, double theta)
+    void store_sfs_results(const AdMatrix&, double*, double*)
 
 cdef extern from "transition.h":
     cdef cppclass Transition:
-        Transition(PiecewiseExponential*, const vector[double]&, double)
+        Transition(const PiecewiseExponential&, const vector[double]&, double)
         void compute()
         void store_results(double*, double*)
 
 cdef extern from "hmm.h":
-    cdef cppclass HMM:
-        HMM(PiecewiseExponential *eta, 
-            vector[vector[ConditionedSFSptr]] &csfs,
-            const vector[double] hidden_states,
-            int L, int* obs, double rho, double theta)
-        double logp(double* jac)
-        # vector[int]& viterbi()
+    double compute_hmm_likelihood(double*, const PiecewiseExponential &eta,
+            const vector[AdMatrix]& emission, int L, const vector[int*] obs, 
+            const vector[double] &hidden_states, const double rho, int numthreads)
+    # vector[int]& viterbi()

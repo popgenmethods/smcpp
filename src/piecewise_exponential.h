@@ -7,8 +7,13 @@
 class PiecewiseExponential
 {
     public:
-    PiecewiseExponential(const std::vector<double> &sqrt_a, const std::vector<double> &b, const std::vector<double> &sqrt_s) :
-        _K(sqrt_a.size()), adasq(_K), adb(_K), ts(_K), Ra(_K), Rb(_K), Rc(_K), Rrng(_K)
+    PiecewiseExponential(
+            const std::vector<double> &sqrt_a,
+            const std::vector<double> &b,
+            const std::vector<double> &sqrt_s) :
+        _K(sqrt_a.size()),
+        sqrt_a(sqrt_a), b(b), sqrt_s(sqrt_s),
+        adasq(_K), adb(_K), ts(_K), Ra(_K), Rb(_K), Rc(_K), Rrng(_K)
     {
         // First, set correct derivative dependences
         auto I = Eigen::MatrixXd::Identity(3 * _K, 3 * _K);
@@ -42,16 +47,16 @@ class PiecewiseExponential
         return _K;
     }
 
-    adouble R(adouble t)
+    adouble R(adouble t) const
     {
-        ip = insertion_point(t, ts, 0, _K);
+        int ip = insertion_point(t, ts, 0, _K);
         // std::cout << "insertion point: " << ip << std::endl;
         return Ra[ip] * exp(Rb[ip] * (t - ts[ip])) + Rc[ip];
     }
 
     // y and coalescence rate will never depend (continuously) on model parameters
     // so we do not pass them as adouble. 
-    adouble inverse_rate(double y, adouble t, double coalescence_rate)
+    adouble inverse_rate(double y, adouble t, double coalescence_rate) const
     {
         if (isinf(y))
             return INFINITY;
@@ -59,7 +64,7 @@ class PiecewiseExponential
         adouble Rt0 = y / coalescence_rate;
         if (t > 0)
             Rt0 += R(t);
-        ip = insertion_point(Rt0, Rrng, 0, _K);
+        int ip = insertion_point(Rt0, Rrng, 0, _K);
         if (Rb[ip] == 0.0)
             throw std::domain_error("b cannot be zero");
         return log((Rt0 - Rc[ip]) / Ra[ip]) / Rb[ip] + ts[ip] - t;
@@ -67,12 +72,12 @@ class PiecewiseExponential
 
     // Don't overload this: keeps leading to problems with the derivatives()
     // getting blown away at various points.
-    double double_inverse_rate(double y, double t, double coalescence_rate)
+    double double_inverse_rate(double y, double t, double coalescence_rate) const
     {
         return inverse_rate(y, (adouble)t, coalescence_rate).value();
     }
 
-    void print_debug()
+    void print_debug() const
     {
         std::vector<std::pair<std::string, std::vector<adouble>>> arys = 
             {{"adasq", adasq}, {"adb", adb}, {"ts", ts}, {"Ra", Ra}, 
@@ -87,22 +92,9 @@ class PiecewiseExponential
     }
 
     private:
-    int _K, ip;
+    int _K;
+    const std::vector<double> sqrt_a, b, sqrt_s;
     std::vector<adouble> adasq, adb, ts, Ra, Rb, Rc, Rrng;
-
-    int insertion_point(adouble x, const std::vector<adouble>& ary, int first, int last)
-    {
-        int mid;
-        while(first + 1 < last)
-        {
-            mid = (int)((first + last) / 2);
-            if (ary[mid] > x)
-                last = mid;
-            else    
-                first = mid;
-        }
-        return first;
-    }
 
     void _compute_antiderivative()
     {

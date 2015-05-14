@@ -110,9 +110,7 @@ AdMatrix transition_exp(double c_rho, adouble c_eta)
     return ret;
 }
 
-Transition::Transition(PiecewiseExponential *eta, 
-        const std::vector<double> &hidden_states, 
-        double rho) :
+Transition::Transition(const PiecewiseExponential &eta, const std::vector<double> &hidden_states, double rho) :
     eta(eta), _hs(hidden_states), rho(rho), M(hidden_states.size()), I(M, M), Phi(M - 1, M - 1)
 {
     I.setIdentity();
@@ -142,11 +140,11 @@ void Transition::compute(void)
             }
             else
             {
-                p_coal = exp(-(eta->R(_hs[k - 1]) - eta->R(_hs[j])));
+                p_coal = exp(-(eta.R(_hs[k - 1]) - eta.R(_hs[j])));
                 if (k < M - 1)
                 {
                     // Else d[k] = +inf, coalescence in [d[k-1], +oo) is assured.
-                    p_coal *= -expm1(-(eta->R(_hs[k]) - eta->R(_hs[k - 1])));
+                    p_coal *= -expm1(-(eta.R(_hs[k]) - eta.R(_hs[k - 1])));
                 }
                 r = expm(0, j).block(0, 1, 1, 2).sum() * p_coal;
             }
@@ -184,7 +182,7 @@ AdMatrix Transition::expm(int i, int j)
         else
         {
             c_rho = rho * (_hs[j] - _hs[i]);
-            c_eta = eta->R(_hs[j]) - eta->R(_hs[i]);
+            c_eta = eta.R(_hs[j]) - eta.R(_hs[i]);
             /*
             AdMatrix A = c_rho * A_rho.cast<adouble>() + c_eta * A_eta.cast<adouble>();
             Eigen::HouseholderQR<AdMatrix> qr(A);

@@ -1,17 +1,43 @@
+import random
+import sys
+from libc.stdlib cimport malloc, free
 cimport numpy as np
 import numpy as np
 import logging
 import moran_model
 
+logger = logging.getLogger(__name__)
+
 # cdef void pylogger(const string &msg, const string& lvl):
     # loglvl = logging.getattr(lvl)
     # loglvl(msg)
 
-cdef class PiecewiseExponentialWrapper:
-    cdef PiecewiseExponential* pexp
+cdef class Demography:
+    cdef PiecewiseExponential *pexp
+    cdef vector[double] _sqrt_a
+    cdef vector[double] _b
+    cdef vector[double] _sqrt_s
+    cdef int K
     def __init__(self, sqrt_a, b, sqrt_s):
         assert len(sqrt_a) == len(b) == len(sqrt_s)
+        self._sqrt_a = sqrt_a
+        self._b = b
+        self._sqrt_s = sqrt_s
         self.pexp = new PiecewiseExponential(sqrt_a, b, sqrt_s)
+        self.K = len(sqrt_a)
+
+    @property
+    def sqrt_a(self):
+        return self._sqrt_a
+
+    @property
+    def b(self):
+        return self._b
+
+    @property
+    def sqrt_s(self):
+        return self._sqrt_s
+
     def __dealloc__(self):
         del self.pexp
 
@@ -21,10 +47,8 @@ cdef class PiecewiseExponentialWrapper:
     def print_debug(self):
         self.pexp.print_debug()
 
-cdef class ConditionedSFSWrapper:
-    cdef ConditionedSFSptr csfs
-    def __dealloc__(self):
-        del self.csfs
+cdef class PyAdMatrix:
+    cdef AdMatrix A
 
 cdef class TransitionWrapper:
     cdef Transition* transition
@@ -35,52 +59,33 @@ cdef class TransitionWrapper:
 # flat arrays
 aca = np.ascontiguousarray
 
-def exp1_conditional(double a, double b, size):
-    # If X ~ Exp(1), 
-    # P(X < x | a <= X <= b) = (e^-a - e^-x) / (e^-a - e^-b)
-    # so P^-1(y) = -log(e^-a - (e^-a - e^-b) * y)
-    #            = -log(e^-a(1 - (1 - e^-(b-a)) * y)
-    #            = a - log(1 - (1 - e^-(b-a)) * y)
-    #            = a - log(1 + expm1(-(b-a)) * y)
-    unif = np.random.random(size)
-    if (b == np.inf):
-        return a - np.log1p(-unif)
-    else:
-        return a - np.log1p(np.expm1(-(b - a)) * unif)
-
-def sfs(demo, int S, int M, int n, float tau1, float tau2, extract_output=False, seed=None):
-    logging.debug("in sfs")
+def sfs(Demography demo, int S, int M, int n, float tau1, float tau2, double theta, extract_output=False, seed=None, int numthreads=1):
+    logger.debug("in sfs")
     # Create stuff needed for computation
     # Sample conditionally; populate the interpolating rate matrices
-    t1, t2 = [demo.eta.inverse_rate(x) for x in (tau1, tau2)]
+    mats, ts = moran_model.interpolators(n)
+    logger.debug("Constructing ConditionedSFS object")
+    cdef double t1, t2
+    t1, t2 = [demo.inverse_rate(x) for x in (tau1, tau2)]
     if seed:
         np.random.seed(seed)
-    y = aca(exp1_conditional(t1, t2, M))
-    mats, ts = moran_model.interpolators(n)
-    ts = aca(ts)
-    ei = aca(np.searchsorted(ts, y), dtype=np.int32)
-    cdef double[::1] my = y
-    cdef int[::1] mei = ei
-    cdef double[::1] mts = ts
-    cdef vector[double*] eM
+    cdef vector[double*] expM
     cdef double[:, :, ::1] mmats = aca(mats)
     cdef int i
     for i in range(mats.shape[0]):
-        eM.push_back(&mmats[i, 0, 0])
-    ts = aca(ts)
-    cdef PiecewiseExponentialWrapper eta = demo.eta
-    cdef ConditionedSFS* csfs = new ConditionedSFS(eta.pexp, n)
-    if seed:
-        csfs.set_seed(seed)
-    csfs.compute(S, M, &my[0], eM, &mei[0], &mts[0])
-    cdef ConditionedSFSWrapper ret
+        expM.push_back(&mmats[i, 0, 0])
+    cdef vector[double] vts = ts
+    logging.info("Calculating SFS for interval [%f, %f) using %d threads" % (tau1, tau2, numthreads))
+    cdef AdMatrix mat = calculate_sfs(demo.pexp[0], n, S, M, ts, expM, t1, t2, numthreads, theta)
+    logging.debug("Done")
+    cdef PyAdMatrix ret
 
     # If we are not extracting output (i.e., for testing purposes)
     # then return a (wrapped) pointer to the csfs object for use
     # later on in the forward algorithm.
     if not extract_output:
-        ret = ConditionedSFSWrapper()
-        ret.csfs = csfs
+        ret = PyAdMatrix()
+        ret.A = mat
         return ret
 
     K = len(demo.sqrt_a)
@@ -88,8 +93,7 @@ def sfs(demo, int S, int M, int n, float tau1, float tau2, extract_output=False,
     jac = aca(np.zeros((3, n + 1, 3, K)))
     cdef double[:, ::1] msfs = sfs
     cdef double[:, :, :, ::1] mjac = jac
-    csfs.store_results(&msfs[0, 0], &mjac[0, 0, 0, 0])
-    del csfs
+    store_sfs_results(mat, &msfs[0, 0], &mjac[0, 0, 0, 0])
     reduced_sfs = np.zeros(n + 1)
     for i in range(3):
         for j in range(n + 1):
@@ -97,46 +101,43 @@ def sfs(demo, int S, int M, int n, float tau1, float tau2, extract_output=False,
                 reduced_sfs[i + j] += sfs[i][j]
     return (reduced_sfs, sfs, jac)
 
-def transition(demo, hidden_states, double rho, extract_output=False):
-    cdef PiecewiseExponentialWrapper eta = demo.eta
-    cdef vector[double] hs = hidden_states
-    assert hidden_states[0] == 0.0
-    assert hidden_states[-1] == np.inf
-    cdef Transition* trans = new Transition(eta.pexp, hs, rho)
-    trans.compute()
-    cdef TransitionWrapper ret
-    if not extract_output:
-        ret = TransitionWrapper()
-        ret.trans = transition
-        return ret
-    M = len(hidden_states)
-    tmat = aca(np.zeros((M - 1, M - 1)))
-    tjac = aca(np.zeros((M - 1, M - 1, 3, demo.K)))
-    cdef double[:, ::1] tmatv = tmat
-    cdef double[:, :, :, ::1] tjacv = tjac
-    trans.store_results(&tmatv[0, 0], &tjacv[0, 0, 0, 0])
-    del trans
-    return (tmat, tjac)
+#def transition(Demography demo, hidden_states, double rho, extract_output=False):
+#    cdef vector[double] hs = hidden_states
+#    assert hidden_states[0] == 0.0
+#    assert hidden_states[-1] == np.inf
+#    cdef Transition* trans = new Transition(demo.pexp[0], hs, rho)
+#    trans.compute()
+#    cdef TransitionWrapper ret
+#    if not extract_output:
+#        ret = TransitionWrapper()
+#        ret.trans = transition
+#        return ret
+#    M = len(hidden_states)
+#    tmat = aca(np.zeros((M - 1, M - 1)))
+#    tjac = aca(np.zeros((M - 1, M - 1, 3, demo.K)))
+#    cdef double[:, ::1] tmatv = tmat
+#    cdef double[:, :, :, ::1] tjacv = tjac
+#    trans.store_results(&tmatv[0, 0], &tjacv[0, 0, 0, 0])
+#    del trans
+#    return (tmat, tjac)
 
-def hmm(demo, sfs_list, obs, hidden_states, rho, theta, viterbi=False):
+def hmm(Demography demo, sfs_list, obs_list, hidden_states, rho, theta, numthreads=1, viterbi=False):
     print("in hmm")
-    obs = aca(obs, dtype=np.int32)
-    L = obs.shape[0]
-    assert obs.shape == (L, 2)
-    cdef int[:, ::1] mobs = obs
-    cdef PiecewiseExponentialWrapper eta = demo.eta
-    logging.debug("constructing hmm")
-    cdef vector[vector[ConditionedSFSptr]] csfs
-    cdef ConditionedSFSWrapper cw
-    for k, sfs in enumerate(sfs_list):
-        csfs.emplace_back()
-        for sample in sfs:
-            cw = sample
-            csfs[k].push_back(cw.csfs)
-    cdef HMM *myHmm = new HMM(eta.pexp, csfs, hidden_states, L, &mobs[0, 0], rho, theta)
-    logging.debug("running forward algorithm")
+    cdef int[:, ::1] mobs
+    cdef vector[int*] vobs
+    L = obs_list[0].shape[0]
+    contig_obs = [aca(ob, dtype=np.int32) for ob in obs_list]
+    for ob in contig_obs:
+        assert ob.shape == (L, 3)
+        mobs = ob
+        vobs.push_back(&mobs[0, 0])
+    cdef vector[AdMatrix] emission
+    cdef PyAdMatrix wrap
+    for sfs in sfs_list:
+        wrap = sfs
+        emission.push_back(wrap.A)
+    logger.info("Computing HMM likelihood for %d data sets using %d threads" % (len(sfs_list), numthreads))
     jac = aca(np.zeros((3, demo.K)))
     cdef double[:, ::1] mjac = jac
-    logp = myHmm.logp(&mjac[0, 0])
-    del myHmm
+    cdef double logp = compute_hmm_likelihood(&mjac[0, 0], demo.pexp[0], emission, L, vobs, hidden_states, rho, numthreads)
     return (logp, jac)

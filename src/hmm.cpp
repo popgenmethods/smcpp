@@ -2,65 +2,34 @@
 
 double mylog(double x) { return log(x); }
 
-HMM::HMM(PiecewiseExponential *eta, 
-        const std::vector<std::vector<ConditionedSFS*>> &csfs,
-        const std::vector<double> hidden_states,
-        int L, int* obs,
-        double rho, double theta) : 
-    M(hidden_states.size() - 1), pi(M), eta(eta), 
-    L(L), obs(obs, L, 2), hidden_states(hidden_states),
-    c(L), rho(rho), theta(theta)
+HMM::HMM(const AdMatrix &pi, const AdMatrix &transition, const std::vector<AdMatrix> &emission,
+        const std::vector<double> hidden_states, const int L, const int* obs, double rho) :
+    pi(pi), transition(transition), emission(emission), M(hidden_states.size() - 1), 
+    L(L), obs(obs, L, 3), hidden_states(hidden_states), rho(rho)
 { 
     feraiseexcept(FE_ALL_EXCEPT & ~FE_UNDERFLOW & ~FE_INEXACT);
-    average_sfs(csfs);
-    compute_initial_distribution();
-    compute_transition();
 }
 
-void HMM::compute_initial_distribution(void)
+AdMatrix compute_initial_distribution(const PiecewiseExponential &eta, const std::vector<double> &hidden_states)
 {
+    int M = hidden_states.size() - 1;
+    AdVector pi(M);
     for (int m = 0; m < M - 1; ++m)
-        pi(m) = exp(-eta->inverse_rate(hidden_states[m], 0.0, 1.0)) - 
-            exp(-eta->inverse_rate(hidden_states[m + 1], 0.0, 1.0));
-    pi(M - 1) = exp(-eta->inverse_rate(hidden_states[M - 1], 0.0, 1.0));
+        pi(m) = exp(-eta.inverse_rate(hidden_states[m], 0.0, 1.0)) - 
+            exp(-eta.inverse_rate(hidden_states[m + 1], 0.0, 1.0));
+    pi(M - 1) = exp(-eta.inverse_rate(hidden_states[M - 1], 0.0, 1.0));
+    return pi;
 }
 
-void HMM::compute_transition(void)
+AdMatrix compute_transition(const PiecewiseExponential &eta, const std::vector<double> &hidden_states, double rho)
 {
     Transition trans(eta, hidden_states, rho);
-    transition = trans.matrix();
+    return trans.matrix();
 }
 
-void HMM::average_sfs(const std::vector<std::vector<ConditionedSFS*>> &csfs)
+adouble HMM::logp()
 {
-    int n = csfs[0][0]->matrix().cols();
-    adouble s;
-    for (int m = 0; m < csfs.size(); ++m)
-    {
-        emission.emplace_back(3, n);
-        emission[m].setZero();
-        for (int ell = 0; ell < csfs[m].size(); ++ell)
-        {
-            emission[m] += csfs[m][ell]->matrix();
-        }
-        emission[m] /= csfs[m].size();
-        s = emission[m].sum();
-        emission[m] *= theta;
-        emission[m](0, 0) = (1 - theta) * s;
-    }
-}
-
-double HMM::logp(double* jac)
-{
-    int r = std::feraiseexcept(FE_UNDERFLOW);
-    // Add jacobian dependence
-    adouble lp = 0.0;
-    forward();
-    for (int ell = 0; ell < L; ++ell)
-        lp += log(c[ell]);
-    Eigen::Map<Eigen::Matrix<double, Eigen::Dynamic, 1>, Eigen::RowMajor> _jac(jac, lp.derivatives().rows());
-    _jac = lp.derivatives();
-    return lp.value();
+    return std::accumulate(logc.begin(), logc.end(), (adouble)0.0);
 }
 
 std::vector<int>& HMM::viterbi(void)
@@ -117,10 +86,10 @@ std::vector<int>& HMM::viterbi(void)
     return viterbi_path;
 }
 
-/*
-AdMatrix HMM::O0Tpow(int pp)
+
+AdMatrix HMM::matpow(const AdMatrix &T, int pp)
 {
-    AdMatrix m_tmp = O0T;
+    AdMatrix m_tmp = T;
     AdMatrix res = AdMatrix::Identity(M, M);
     while (pp >= 1) {
         if (std::fmod(pp, 2) >= 1)
@@ -128,40 +97,64 @@ AdMatrix HMM::O0Tpow(int pp)
         m_tmp *= m_tmp;
         pp /= 2;
     }
+    return res;
 }
-*/
+
+template <typename T, int s>
+void HMM::diag_obs(Eigen::DiagonalMatrix<T, s> &D, int a, int b)
+{
+    for (int m = 0; m < M; ++m)
+        D.diagonal()(m) = emission[m](a, b);
+}
 
 void HMM::forward(void)
 {
+    adouble c0;
     AdVector alpha_hat(M);
     Eigen::DiagonalMatrix<adouble, Eigen::Dynamic> D(M);
     D.setZero();
-    /*
-    // The unsegregating state will be emitted a lot so store its Schur decomposition
-    // for easy powering
-    AdMatrix O0 = AdMatrix::Zero(M, M);
-    for (int m = 0; m < M; ++m)
-        O0.diagonal(m) = emission[m](0, 0);
-    O0T = emission * O0;
-    */
-
+    int p;
     // M x M transition matrix
     // Initialize alpha hat
-#define DIAG_OBS(a, b) \
-    for (int m = 0; m < M; ++m) \
-        D.diagonal()(m) = emission[m](a, b);
-    DIAG_OBS(obs(0,0), obs(0,1));
+    diag_obs(D, obs(0,1), obs(0,2));
     alpha_hat = D * pi;
-    c[0] = alpha_hat.sum();
-    alpha_hat /= c[0];
-    // Now proceed with forward recursion
+    p = obs(0,0) - 1; 
+    alpha_hat = matpow(D * transition.transpose(), p) * alpha_hat;
+    c0 = alpha_hat.sum();
+    alpha_hat /= c0;
+    logc.push_back(log(c0));
     for (int ell = 1; ell < L; ++ell)
     {
-        DIAG_OBS(obs(ell,0), obs(ell,1));
-        alpha_hat = D * transition.transpose() * alpha_hat;
-        c[ell] = alpha_hat.sum();
-        alpha_hat /= c[ell];
+        p = obs(ell, 0);
+        diag_obs(D, obs(ell, 1), obs(ell, 2));
+        alpha_hat = matpow(D * transition.transpose(), p);
+        c0 = alpha_hat.sum();
+        alpha_hat /= c0;
+        logc.push_back(log(c0));
     }
-#undef DIAG_OBS
 }
 
+double compute_hmm_likelihood(double *jac, 
+        const PiecewiseExponential &eta, const std::vector<AdMatrix>& emission, 
+        const int L, const std::vector<int*> obs, const std::vector<double> &hidden_states, 
+        const double rho, int numthreads)
+{
+    AdMatrix pi = compute_initial_distribution(eta, hidden_states);
+    AdMatrix transition = compute_transition(eta, hidden_states, rho);
+    ThreadPool tp(numthreads);
+    std::vector<HMM> hmms;
+    std::vector<std::thread> t;
+    std::vector<std::future<adouble>> results;
+    for (auto ob : obs)
+        hmms.emplace_back(pi, transition, emission, hidden_states, L, ob, rho);
+    for (auto &hmm : hmms)
+        results.emplace_back(tp.enqueue([&] { hmm.forward(); return hmm.logp(); }));
+    adouble ret = 0.0;
+    for (auto &&res : results)
+        ret += res.get();
+    Eigen::Map<Eigen::Matrix<double, Eigen::Dynamic, 1>, Eigen::RowMajor> _jac(jac, ret.derivatives().rows());
+    _jac = ret.derivatives();
+    return ret.value();
+}
+
+void HMM::printobs() { std::cout << obs << std::endl; }
