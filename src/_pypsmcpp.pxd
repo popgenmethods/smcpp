@@ -1,21 +1,5 @@
 from libcpp.vector cimport vector
 
-cdef extern from "<vector>" namespace "std":
-    cdef cppclass vector[T]:
-        cppclass iterator:
-            T operator*()
-            iterator operator++()
-            bint operator==(iterator)
-            bint operator!=(iterator)
-        vector()
-        int size()
-        void push_back(T&)
-        void emplace_back()
-        T& operator[](int)
-        T& at(int)
-        iterator begin()
-        iterator end()
-        
 cdef extern from "common.h":
     ctypedef struct AdMatrix:
         pass
@@ -26,6 +10,7 @@ cdef extern from "piecewise_exponential.h":
     cdef cppclass PiecewiseExponential:
         PiecewiseExponential(const vector[double]&, const vector[double]&, const vector[double]&)
         double double_inverse_rate(double, double, double)
+        double double_R(double)
         void print_debug()
 
 cdef extern from "conditioned_sfs.h":
@@ -42,5 +27,7 @@ cdef extern from "transition.h":
 cdef extern from "hmm.h":
     double compute_hmm_likelihood(double*, const PiecewiseExponential &eta,
             const vector[AdMatrix]& emission, int L, const vector[int*] obs, 
-            const vector[double] &hidden_states, const double rho, int numthreads)
+            const vector[double] &hidden_states, const double rho, int numthreads,
+            vector[vector[int]] &viterbi_paths, bint viterbi,
+            double reg_a, double reg_b, double reg_s)
     # vector[int]& viterbi()

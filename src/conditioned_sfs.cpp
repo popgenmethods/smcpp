@@ -328,6 +328,7 @@ AdMatrix average_csfs(std::vector<ConditionedSFS> &csfs, double theta)
         ++m;
     }
     ret /= (double)m;
+    // std::cout << ret.cast<double>() << std::endl << std::endl;
     ret *= theta;
     ret(0, 0) = 1.0 - ret.sum();
     return ret;

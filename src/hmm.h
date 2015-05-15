@@ -32,6 +32,7 @@ class HMM
     AdMatrix matpow(const AdMatrix&, int);
     template <typename T, int s>
     void diag_obs(Eigen::DiagonalMatrix<T, s> &D, int a, int b);
+    AdMatrix O0Tpow(int);
 
     // Instance variables
     AdVector pi;
@@ -43,12 +44,16 @@ class HMM
     std::vector<adouble> logc;
     double rho;
     std::vector<int> viterbi_path;
+    AdMatrix O0T;
+    std::map<int, AdMatrix> O0Tpow_memo;
 };
 
 AdMatrix compute_initial_distribution(const PiecewiseExponential &eta, const std::vector<double> &hidden_states);
 AdMatrix compute_transition(const PiecewiseExponential &eta, const std::vector<double> &hidden_states, double rho);
 double compute_hmm_likelihood(double*, const PiecewiseExponential &eta,
         const std::vector<AdMatrix>& emission, const int L, const std::vector<int*> obs, 
-        const std::vector<double> &hidden_states, const double rho, int numthreads);
+        const std::vector<double> &hidden_states, const double rho, int numthreads, 
+        std::vector<std::vector<int>> &viterbi_paths,
+        bool viterbi, double reg_a, double reg_b, double reg_s);
 //
 #endif

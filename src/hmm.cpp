@@ -7,7 +7,11 @@ HMM::HMM(const AdMatrix &pi, const AdMatrix &transition, const std::vector<AdMat
     pi(pi), transition(transition), emission(emission), M(hidden_states.size() - 1), 
     L(L), obs(obs, L, 3), hidden_states(hidden_states), rho(rho)
 { 
-    feraiseexcept(FE_ALL_EXCEPT & ~FE_UNDERFLOW & ~FE_INEXACT);
+    feenableexcept(FE_INVALID | FE_OVERFLOW);
+    Eigen::DiagonalMatrix<adouble, Eigen::Dynamic> D(M);
+    D.setZero();
+    diag_obs(D, 0, 0);
+    O0T = D * transition.transpose();
 }
 
 AdMatrix compute_initial_distribution(const PiecewiseExponential &eta, const std::vector<double> &hidden_states)
@@ -15,8 +19,10 @@ AdMatrix compute_initial_distribution(const PiecewiseExponential &eta, const std
     int M = hidden_states.size() - 1;
     AdVector pi(M);
     for (int m = 0; m < M - 1; ++m)
+    {
         pi(m) = exp(-eta.inverse_rate(hidden_states[m], 0.0, 1.0)) - 
             exp(-eta.inverse_rate(hidden_states[m + 1], 0.0, 1.0));
+    }
     pi(M - 1) = exp(-eta.inverse_rate(hidden_states[M - 1], 0.0, 1.0));
     return pi;
 }
@@ -24,6 +30,7 @@ AdMatrix compute_initial_distribution(const PiecewiseExponential &eta, const std
 AdMatrix compute_transition(const PiecewiseExponential &eta, const std::vector<double> &hidden_states, double rho)
 {
     Transition trans(eta, hidden_states, rho);
+    // std::cout << "** Transition" << std::endl << trans.matrix().cast<double>() << std::endl << std::endl;
     return trans.matrix();
 }
 
@@ -35,8 +42,8 @@ adouble HMM::logp()
 std::vector<int>& HMM::viterbi(void)
 {
     // Compute logs of transition and emission matrices 
-    // Do not bother to record derivatives since we don't use them for MAP decoding
-    std::vector<Eigen::MatrixXd> log_emission;
+    // Do not bother to record derivatives since we don't use them for Viterbi algorithm
+    std::vector<Eigen::MatrixXd> log_emission(L);
     Eigen::ArrayXd log_transition = transition.cast<double>().array().log();
     std::transform(emission.begin(), emission.end(), log_emission.begin(), [](AdMatrix &x){return x.cast<double>().array().log().matrix();});
     std::vector<double> V(M), V1(M);
@@ -86,6 +93,28 @@ std::vector<int>& HMM::viterbi(void)
     return viterbi_path;
 }
 
+AdMatrix HMM::O0Tpow(int p)
+{
+    AdMatrix A;
+    if (p == 0)
+        return AdMatrix::Identity(M, M);
+    if (p == 1)
+        return O0T;
+    if (O0Tpow_memo.count(p) == 0)
+    {
+        if (p % 2 == 0)
+        {
+            A = O0Tpow(p / 2);
+            O0Tpow_memo[p] = A * A;
+        }
+        else
+        {
+            A = O0Tpow(p - 1);
+            O0Tpow_memo[p] = O0T * A;
+        }
+    }
+    return O0Tpow_memo[p];
+}
 
 AdMatrix HMM::matpow(const AdMatrix &T, int pp)
 {
@@ -104,7 +133,10 @@ template <typename T, int s>
 void HMM::diag_obs(Eigen::DiagonalMatrix<T, s> &D, int a, int b)
 {
     for (int m = 0; m < M; ++m)
+    {
         D.diagonal()(m) = emission[m](a, b);
+        assert(emission[m](a,b)>=0);
+    }
 }
 
 void HMM::forward(void)
@@ -126,8 +158,14 @@ void HMM::forward(void)
     for (int ell = 1; ell < L; ++ell)
     {
         p = obs(ell, 0);
-        diag_obs(D, obs(ell, 1), obs(ell, 2));
-        alpha_hat = matpow(D * transition.transpose(), p);
+        if (obs(ell, 1) == 0 && obs(ell, 2) == 0)
+            alpha_hat = O0Tpow(p) * alpha_hat;
+        else    
+        {
+            diag_obs(D, obs(ell, 1), obs(ell, 2));
+            alpha_hat = matpow(D * transition.transpose(), p) * alpha_hat;
+        }
+        // std::cout << obs.block(ell, 0, 1, 3) << " :: " << alpha_hat.cast<double>().transpose() << std::endl;
         c0 = alpha_hat.sum();
         alpha_hat /= c0;
         logc.push_back(log(c0));
@@ -137,7 +175,8 @@ void HMM::forward(void)
 double compute_hmm_likelihood(double *jac, 
         const PiecewiseExponential &eta, const std::vector<AdMatrix>& emission, 
         const int L, const std::vector<int*> obs, const std::vector<double> &hidden_states, 
-        const double rho, int numthreads)
+        const double rho, int numthreads, std::vector<std::vector<int>> &viterbi_paths, bool do_viterbi,
+        double reg_a, double reg_b, double reg_s)
 {
     AdMatrix pi = compute_initial_distribution(eta, hidden_states);
     AdMatrix transition = compute_transition(eta, hidden_states, rho);
@@ -152,8 +191,24 @@ double compute_hmm_likelihood(double *jac,
     adouble ret = 0.0;
     for (auto &&res : results)
         ret += res.get();
-    Eigen::Map<Eigen::Matrix<double, Eigen::Dynamic, 1>, Eigen::RowMajor> _jac(jac, ret.derivatives().rows());
+    // Add in regularizers
+    int K = eta.K();
+    for (int k = 0; k < K; ++k)
+    {
+        ret += reg_a * pow(eta.adsqrt_a[k], 2);
+        ret += reg_b * pow(eta.adb[k], 2);
+        ret += reg_s * pow(eta.adsqrt_s[k], 2);
+    }
+    Eigen::Map<Eigen::Matrix<double, Eigen::Dynamic, 1>, Eigen::RowMajor> _jac(jac, 3 * K);
     _jac = ret.derivatives();
+    std::vector<std::future<std::vector<int>>> viterbi_results;
+    if (do_viterbi)
+    {
+        for (auto &hmm : hmms)
+            viterbi_results.emplace_back(tp.enqueue([&] { return hmm.viterbi(); }));
+        for (auto &&res : viterbi_results)
+            viterbi_paths.push_back(res.get());
+    }
     return ret.value();
 }
 

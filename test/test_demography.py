@@ -5,7 +5,14 @@ import pytest
 # import warnings
 # warnings.filterwarnings("error")
 
-from demography import Demography
+from _pypsmcpp import Demography
+
+def test_bug1():
+    sqrt_a = np.array([ 0.0316228 ,  0.03162278,  0.04361865])
+    b = np.array([  1.00000086e-04,   1.00000000e-04,  -3.22445023e-01])
+    sqrt_s = np.array([ 0.        ,  0.70710678,  0.99999996])
+    demo = Demography(sqrt_a, b, sqrt_s)
+    assert not np.isnan(demo.inverse_rate(1.25))
 
 @pytest.fixture
 def constant_demo():

@@ -8,7 +8,6 @@ from _pypsmcpp import Demography
 def test_correct_const_1000(constant_demo_1000):
     # Make as close to constant as possible
     for n in (2, 3, 10, 20):
-        oaeu
         rsfs, sfs, jac = _pypsmcpp.sfs(constant_demo_1000, 500, 100, n, 0., np.inf, 
                 1.0, extract_output=True, numthreads=8)
         print(n)

@@ -1,10 +1,10 @@
 import random
 import sys
-from libc.stdlib cimport malloc, free
 cimport numpy as np
 import numpy as np
 import logging
 import moran_model
+import collections
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +47,9 @@ cdef class Demography:
     def print_debug(self):
         self.pexp.print_debug()
 
+    def R(self, double y):
+        return self.pexp.double_R(y)
+
 cdef class PyAdMatrix:
     cdef AdMatrix A
 
@@ -66,7 +69,8 @@ def sfs(Demography demo, int S, int M, int n, float tau1, float tau2, double the
     mats, ts = moran_model.interpolators(n)
     logger.debug("Constructing ConditionedSFS object")
     cdef double t1, t2
-    t1, t2 = [demo.inverse_rate(x) for x in (tau1, tau2)]
+    t1, t2 = [demo.R(x) for x in (tau1, tau2)]
+    assert all([not(np.isnan(x)) for x in (t1, t2)])
     if seed:
         np.random.seed(seed)
     cdef vector[double*] expM
@@ -121,7 +125,8 @@ def sfs(Demography demo, int S, int M, int n, float tau1, float tau2, double the
 #    del trans
 #    return (tmat, tjac)
 
-def hmm(Demography demo, sfs_list, obs_list, hidden_states, rho, theta, numthreads=1, viterbi=False):
+def hmm(Demography demo, sfs_list, obs_list, hidden_states, rho, theta, numthreads=1, 
+        viterbi=False, double reg_a=1, double reg_b=1, double reg_s=1):
     print("in hmm")
     cdef int[:, ::1] mobs
     cdef vector[int*] vobs
@@ -136,8 +141,16 @@ def hmm(Demography demo, sfs_list, obs_list, hidden_states, rho, theta, numthrea
     for sfs in sfs_list:
         wrap = sfs
         emission.push_back(wrap.A)
-    logger.info("Computing HMM likelihood for %d data sets using %d threads" % (len(sfs_list), numthreads))
+    logger.info("Computing HMM likelihood for %d data sets using %d threads" % (len(obs_list), numthreads))
     jac = aca(np.zeros((3, demo.K)))
     cdef double[:, ::1] mjac = jac
-    cdef double logp = compute_hmm_likelihood(&mjac[0, 0], demo.pexp[0], emission, L, vobs, hidden_states, rho, numthreads)
-    return (logp, jac)
+    cdef vector[vector[int]] paths
+    cdef double logp = compute_hmm_likelihood(&mjac[0, 0], demo.pexp[0], emission, L, vobs, hidden_states, rho, 
+            numthreads, paths, viterbi, reg_a, reg_b, reg_s)
+    ret = (logp, jac)
+    if viterbi:
+        c = collections.Counter()
+        for i in range(paths.size()):
+            c.update(collections.Counter(paths[i]))
+        ret += (c,)
+    return ret
