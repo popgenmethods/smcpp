@@ -1,9 +1,10 @@
 #include "piecewise_exponential.h"
 
-PiecewiseExponential::PiecewiseExponential(const std::vector<double> &sqrt_a, 
-        const std::vector<double> &b, const std::vector<double> &sqrt_s) :
-    _K(sqrt_a.size()),
-    sqrt_a(sqrt_a), b(b), sqrt_s(sqrt_s),
+PiecewiseExponential::PiecewiseExponential(
+        std::vector<double> sqrt_a, 
+        std::vector<double> b, 
+        std::vector<double> sqrt_s) :
+    sqrt_a(sqrt_a), b(b), sqrt_s(sqrt_s), _K(sqrt_a.size()),
     adsqrt_a(_K), adb(_K), adsqrt_s(_K), adasq(_K), ts(_K), Ra(_K), Rb(_K), Rc(_K), Rrng(_K)
 {
     // First, set correct derivative dependences
@@ -125,4 +126,9 @@ void PiecewiseExponential::_compute_antiderivative()
         if (k < _K - 1)
             Rrng[k + 1] = Rrng[k] + Ra[k] * expm1(Rb[k] * (ts[k + 1] - ts[k]));
     }
+}
+
+std::vector<std::vector<adouble>> PiecewiseExponential::ad_vars(void) const
+{
+    return {adsqrt_a, adb, adsqrt_s};
 }

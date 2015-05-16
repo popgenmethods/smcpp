@@ -3,6 +3,8 @@ import numpy as np
 import psmcpp.scrm, psmcpp.inference
 import pprint
 
+NTHREADS=2
+
 # 1. Generate some data. 
 # We'll focus on the **simplest** # case of inferring a 
 # **constant** demography to start.
@@ -61,7 +63,7 @@ def logp(x):
                 obs_list, # List of the observations datasets we prepared above
                 N0 * theta, N0 * rho, # Same parameters as above
                 hidden_states,
-                numthreads=16, # Using multiple threads speeds everything up.
+                numthreads=NTHREADS, # Using multiple threads speeds everything up.
                 viterbi=True,
                 reg_a=10, reg_b=10, reg_s=10
                 )
@@ -102,9 +104,9 @@ def fprime(x):
     return -np.array(rescale(dx))
 
 np.set_printoptions(suppress=True)
-x0 = (np.array([sqrt_a, b, sqrt_s]) * scales[:, None]).reshape(3 * K)
-print("x0")
-print(x0.reshape(3, K))
-ret = scipy.optimize.minimize(f, x0, jac=True)
-print(ret)
-
+x = (np.array([sqrt_a, b, sqrt_s]) * scales[:, None]).reshape(3 * K)
+alpha = 0.01
+while True:
+    print(x)
+    print(f(x))
+    x += fprime(x) / np.linalg.norm(x) * alpha

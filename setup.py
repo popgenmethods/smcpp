@@ -8,10 +8,10 @@ extensions = [
         Extension(
             "_pypsmcpp",
             # sources=["src/_pypsmcpp.pyx", "src/conditioned_sfs.cpp", "src/hmm.cpp"],
-            sources=["src/_pypsmcpp.pyx", "src/transition.cpp", "src/conditioned_sfs.cpp", "src/hmm.cpp"],
+            sources=["src/_pypsmcpp.pyx", "src/transition.cpp", "src/conditioned_sfs.cpp", "src/hmm.cpp", "src/piecewise_exponential.cpp"],
             language="c++",
             include_dirs=["/usr/include/eigen3", "/usr/local/include/eigen3", np.get_include()],
-            extra_compile_args=["-Og", "-g", "-std=c++11", "-Wfatal-errors", "-Wno-unused-variable", "-Wno-unused-function"], 
+            extra_compile_args=["-O0", "-g", "-std=c++11", "-Wfatal-errors", "-Wno-unused-variable", "-Wno-unused-function"], 
             # extra_compile_args=["-O0", "-g", "-std=c++11", "-Wfatal-errors", "-Wno-unused-variable", "-Wno-unused-function"], 
             ),
         Extension(

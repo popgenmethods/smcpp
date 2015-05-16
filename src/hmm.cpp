@@ -7,7 +7,7 @@ HMM::HMM(const AdMatrix &pi, const AdMatrix &transition, const std::vector<AdMat
     pi(pi), transition(transition), emission(emission), M(hidden_states.size() - 1), 
     L(L), obs(obs, L, 3), hidden_states(hidden_states), rho(rho)
 { 
-    feenableexcept(FE_INVALID | FE_OVERFLOW);
+    // feenableexcept(FE_INVALID | FE_OVERFLOW);
     Eigen::DiagonalMatrix<adouble, Eigen::Dynamic> D(M);
     D.setZero();
     diag_obs(D, 0, 0);
@@ -193,11 +193,12 @@ double compute_hmm_likelihood(double *jac,
         ret += res.get();
     // Add in regularizers
     int K = eta.K();
+    std::vector<std::vector<adouble>> ad = eta.ad_vars();
     for (int k = 0; k < K; ++k)
     {
-        ret += reg_a * pow(eta.adsqrt_a[k], 2);
-        ret += reg_b * pow(eta.adb[k], 2);
-        ret += reg_s * pow(eta.adsqrt_s[k], 2);
+        ret += reg_a * pow(ad[0][k], 2);
+        ret += reg_b * pow(ad[1][k], 2);
+        ret += reg_s * pow(ad[2][k], 2);
     }
     Eigen::Map<Eigen::Matrix<double, Eigen::Dynamic, 1>, Eigen::RowMajor> _jac(jac, 3 * K);
     _jac = ret.derivatives();

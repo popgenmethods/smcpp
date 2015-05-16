@@ -7,7 +7,7 @@
 class PiecewiseExponential
 {
     public:
-    PiecewiseExponential(const std::vector<double> &sqrt_a, const std::vector<double> &b, const std::vector<double> &sqrt_s);
+    PiecewiseExponential(std::vector<double> sqrt_a, std::vector<double> b, std::vector<double> sqrt_s);
     int num_derivatives(void);
     int K(void) const;
     adouble R(adouble t) const;
@@ -17,12 +17,13 @@ class PiecewiseExponential
     double double_inverse_rate(double y, double t, double coalescence_rate) const;
     double double_R(double t) const;
     void print_debug() const;
-    std::vector<adouble> adsqrt_a, adb, adsqrt_s;
+    std::vector<std::vector<adouble>> ad_vars() const;
 
     private:
-    std::vector<adouble> adasq, ts, Ra, Rb, Rc, Rrng;
-    int _K;
     const std::vector<double> sqrt_a, b, sqrt_s;
+    int _K;
+    std::vector<adouble> adsqrt_a, adb, adsqrt_s;
+    std::vector<adouble> adasq, ts, Ra, Rb, Rc, Rrng;
     void _compute_antiderivative();
 };
 
