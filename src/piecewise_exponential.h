@@ -7,7 +7,8 @@
 class PiecewiseExponential
 {
     public:
-    PiecewiseExponential(std::vector<double> sqrt_a, std::vector<double> b, std::vector<double> sqrt_s);
+    PiecewiseExponential(std::vector<double> sqrt_a, std::vector<double> b, 
+            std::vector<double> sqrt_s, double T_max);
     int num_derivatives(void);
     int K(void) const;
     adouble R(adouble t) const;

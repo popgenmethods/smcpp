@@ -18,12 +18,13 @@ cdef class Demography:
     cdef vector[double] _b
     cdef vector[double] _sqrt_s
     cdef int K
-    def __init__(self, sqrt_a, b, sqrt_s):
+    def __init__(self, sqrt_a, b, sqrt_s, T_max):
         assert len(sqrt_a) == len(b) == len(sqrt_s)
         self._sqrt_a = sqrt_a
         self._b = b
         self._sqrt_s = sqrt_s
-        self.pexp = new PiecewiseExponential(sqrt_a, b, sqrt_s)
+        # self._T_max = T_max
+        self.pexp = new PiecewiseExponential(sqrt_a, b, sqrt_s, T_max)
         self.K = len(sqrt_a)
 
     @property
@@ -62,7 +63,7 @@ cdef class TransitionWrapper:
 # flat arrays
 aca = np.ascontiguousarray
 
-def sfs(Demography demo, int S, int M, int n, float tau1, float tau2, double theta, extract_output=False, seed=None, int numthreads=1):
+def sfs(Demography demo, int S, int M, int n, float tau1, float tau2, double theta, extract_output=False, int numthreads=1):
     logger.debug("in sfs")
     # Create stuff needed for computation
     # Sample conditionally; populate the interpolating rate matrices
@@ -71,8 +72,7 @@ def sfs(Demography demo, int S, int M, int n, float tau1, float tau2, double the
     cdef double t1, t2
     t1, t2 = [demo.R(x) for x in (tau1, tau2)]
     assert all([not(np.isnan(x)) for x in (t1, t2)])
-    if seed:
-        np.random.seed(seed)
+    set_seed(np.random.randint(0, sys.maxint))
     cdef vector[double*] expM
     cdef double[:, :, ::1] mmats = aca(mats)
     cdef int i
@@ -145,12 +145,10 @@ def hmm(Demography demo, sfs_list, obs_list, hidden_states, rho, theta, numthrea
     jac = aca(np.zeros((3, demo.K)))
     cdef double[:, ::1] mjac = jac
     cdef vector[vector[int]] paths
-    cdef double logp = compute_hmm_likelihood(&mjac[0, 0], demo.pexp[0], emission, L, vobs, hidden_states, rho, 
+    cdef double logp = compute_hmm_likelihood(&mjac[0, 0], demo.pexp[0], 
+            emission, L, vobs, hidden_states, rho, 
             numthreads, paths, viterbi, reg_a, reg_b, reg_s)
     ret = (logp, jac)
     if viterbi:
-        c = collections.Counter()
-        for i in range(paths.size()):
-            c.update(collections.Counter(paths[i]))
-        ret += (c,)
+        ret += (np.sum(paths, axis=0),)
     return ret

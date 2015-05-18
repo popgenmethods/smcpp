@@ -6,17 +6,17 @@ logger = logging.getLogger(__name__)
 
 import _pypsmcpp
 
-def logp(sqrt_a, b, sqrt_s, S, M, n, obs_list, theta, rho, hidden_states, numthreads=1, 
+def logp(sqrt_a, b, sqrt_s, T_max, S, M, n, obs_list, theta, rho, hidden_states, numthreads=1, 
         viterbi=False, reg_a=1, reg_b=1, reg_s=1):
     '''Return probability of observing <obs> under demography <demo>, as
     computed by forward algorithm.'''
-    demo = _pypsmcpp.Demography(sqrt_a, b, sqrt_s)
+    demo = _pypsmcpp.Demography(sqrt_a, b, sqrt_s, T_max)
     sfss = [_pypsmcpp.sfs(demo, S, M, n, tau1, tau2, theta, numthreads=numthreads)
             for tau1, tau2 in zip(hidden_states[:-1], hidden_states[1:])]
     for obs in obs_list:
         _validate_obs(n, obs)
-    return _pypsmcpp.hmm(demo, sfss, obs_list, hidden_states, rho, theta, numthreads, viterbi,
-            reg_a, reg_b, reg_s)
+    return _pypsmcpp.hmm(demo, sfss, obs_list, hidden_states, rho, theta, 1, 
+            viterbi, reg_a, reg_b, reg_s)
 
 def _validate_obs(n, obs):
     sfs = obs[:, 1:]

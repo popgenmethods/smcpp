@@ -26,7 +26,7 @@ std::array<adouble, 3> eigenvalues(double c_rho, adouble c_eta)
     std::array<adouble, 3> ret;
     for (int i = 0; i < 3; ++i)
     {
-        ret[i] = -(2 * pow(Q, 0.5) * cos((theta + x[i])/ 3)) - a / 3;
+        ret[i] = -(2 * sqrt(Q) * cos((theta + x[i])/ 3)) - a / 3;
     }
     return ret;
 }
@@ -89,6 +89,7 @@ std::array<AdMatrix, 3> eigensystem(double c_rho, adouble c_eta)
     return {R, D, Rinv};
 }
 
+/*
 AdMatrix transition_exp(double c_rho, adouble c_eta)
 {
     std::array<AdMatrix, 3> eig = eigensystem(c_rho, c_eta);
@@ -98,16 +99,16 @@ AdMatrix transition_exp(double c_rho, adouble c_eta)
     for (int i = 0; i < 4; ++i)
         D(i, i) = exp(D(i, i));
     AdMatrix ret = P * D * Pinv;
-    /*
-    Eigen::Matrix4d check = c_rho * A_rho + c_eta.value() * A_eta;
-    Eigen::Matrix4d expcheck = check.exp();
-    Eigen::Matrix4d ret_check = ret.cast<double>();
-    std::cout << "check" 
-        << std::endl << check << std::endl << "expcheck"
-        << std::endl << expcheck << std::endl 
-        << "ret_check" << std::endl << ret_check << std::endl << std::endl;
-        */
     return ret;
+}
+*/
+// FIXME: this ignores the derivative dependency
+// of the matrix exponential itself
+AdMatrix transition_exp(double c_rho, adouble c_eta)
+{
+    AdMatrix M = (c_rho * A_rho).cast<adouble>();
+    M += c_eta * A_eta.cast<adouble>();
+    return M.cast<double>().exp().cast<adouble>();
 }
 
 Transition::Transition(const PiecewiseExponential &eta, const std::vector<double> &hidden_states, double rho) :

@@ -21,7 +21,6 @@ class ConditionedSFS
             const std::vector<Eigen::Map<const Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>> &,
             double, double);
     AdMatrix matrix() const;
-    void set_seed(long long);
 
     private:
     // Methods
@@ -43,5 +42,6 @@ class ConditionedSFS
 void store_sfs_results(const AdMatrix&, double*, double*);
 AdMatrix calculate_sfs(PiecewiseExponential eta, int n, int S, int M, const std::vector<double> &ts, 
         const std::vector<double*> &expM, double t1, double t2, int numthreads, double theta);
+void set_seed(long long);
 
 #endif

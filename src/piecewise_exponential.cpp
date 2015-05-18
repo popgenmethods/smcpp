@@ -3,7 +3,8 @@
 PiecewiseExponential::PiecewiseExponential(
         std::vector<double> sqrt_a, 
         std::vector<double> b, 
-        std::vector<double> sqrt_s) :
+        std::vector<double> sqrt_s,
+        double T_max) :
     sqrt_a(sqrt_a), b(b), sqrt_s(sqrt_s), _K(sqrt_a.size()),
     adsqrt_a(_K), adb(_K), adsqrt_s(_K), adasq(_K), ts(_K), Ra(_K), Rb(_K), Rc(_K), Rrng(_K)
 {
@@ -25,6 +26,8 @@ PiecewiseExponential::PiecewiseExponential(
         ts[k] = ts[k - 1] + pow(adsqrt_s[k], 2);
         adasq[k] = pow(adsqrt_a[k], 2);
     }
+    for (int k = 0; k < _K; ++k)
+        ts[k] *= T_max / ts[_K - 1];
     _compute_antiderivative();
 }
 

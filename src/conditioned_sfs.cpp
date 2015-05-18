@@ -3,7 +3,7 @@
 
 #define EIGEN_NO_AUTOMATIC_RESIZING 1
 
-std::random_device rd;  // only used once to initialise (seed) engine
+std::mt19937 sfs_gen;
 
 std::map<std::array<int, 3>, double> _Wnbj_memo;
 double calculate_Wnbj(int n, int b, int j)
@@ -68,23 +68,27 @@ double pnkb_undist(int n, int m, int l3)
 
 inline adouble fmin(adouble a, adouble b)
 {
-#ifdef AUTODIFF
     return (a + b - Eigen::abs(a - b)) / 2;
-#else
-    return (a + b - std::abs(a - b)) / 2;
-#endif
+}
+
+inline adouble fmax(adouble a, adouble b)
+{
+    return (a + b + Eigen::abs(a - b)) / 2;
 }
 
 ConditionedSFS::ConditionedSFS(PiecewiseExponential eta, int n) :
-    gen(rd()),
     eta(eta), n(n),
     D_subtend_above(n, n), D_not_subtend_above(n, n),
 	D_subtend_below(n + 1, n + 1), D_not_subtend_below(n + 1, n + 1),
 	Wnbj(n, n), P_dist(n + 1, n + 1), 
-    P_undist(n + 1, n), tK(n + 1, n + 1), csfs(3, n + 1), csfs_above(3, n + 1), csfs_below(3, n + 1), ETnk_below(n + 1, n + 1)
+    P_undist(n + 1, n), tK(n + 1, n + 1), csfs(3, n + 1), 
+    csfs_above(3, n + 1), csfs_below(3, n + 1), ETnk_below(n + 1, n + 1)
 {
     // feenableexcept(FE_ALL_EXCEPT & ~FE_INEXACT & ~FE_UNDERFLOW);
     // printf("seed: %u\n", seed);
+    long long seed = std::uniform_int_distribution<long long>{}(sfs_gen);
+    // std::cout << seed << std::endl;
+    gen.seed(seed);
     fill_matrices();
 }
 
@@ -246,9 +250,9 @@ void store_sfs_results(const AdMatrix &csfs, double* outsfs, double* outjac)
         }
 }
 
-void ConditionedSFS::set_seed(long long seed)
+void set_seed(long long seed)
 {
-    gen.seed(seed);
+    sfs_gen.seed(seed);
 }
 
 void ConditionedSFS::fill_matrices(void)
@@ -349,7 +353,12 @@ AdMatrix calculate_sfs(PiecewiseExponential eta, int n, int S, int M, const std:
         t.push_back(c.compute_threaded(S, M, ts, _expM, t1, t2));
     std::for_each(t.begin(), t.end(), [](std::thread &t) {t.join();});
     AdMatrix ret = average_csfs(csfs, theta);
-    // std::cout << std::endl << ret.cast<double>() << std::endl << std::endl;
+    // FIXME: teeny negative numbers can sometimes occur which
+    // leads to problems in the HMM computations.
+    for (int i = 0; i < ret.rows(); ++i)
+        for (int j = 0; j < ret.cols(); ++j)
+            ret(i, j) = abs(ret(i, j)); // fmax(ret(i, j), 1e-10);
+    std::cout << std::endl << ret.cast<double>() << std::endl << std::endl;
     return ret;
 }
 /*

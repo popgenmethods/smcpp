@@ -7,7 +7,7 @@ HMM::HMM(const AdMatrix &pi, const AdMatrix &transition, const std::vector<AdMat
     pi(pi), transition(transition), emission(emission), M(hidden_states.size() - 1), 
     L(L), obs(obs, L, 3), hidden_states(hidden_states), rho(rho)
 { 
-    // feenableexcept(FE_INVALID | FE_OVERFLOW);
+    feraiseexcept(FE_ALL_EXCEPT & ~FE_INEXACT);
     Eigen::DiagonalMatrix<adouble, Eigen::Dynamic> D(M);
     D.setZero();
     diag_obs(D, 0, 0);
@@ -24,6 +24,7 @@ AdMatrix compute_initial_distribution(const PiecewiseExponential &eta, const std
             exp(-eta.inverse_rate(hidden_states[m + 1], 0.0, 1.0));
     }
     pi(M - 1) = exp(-eta.inverse_rate(hidden_states[M - 1], 0.0, 1.0));
+    // std::cout << pi.cast<double>().transpose() << std::endl;
     return pi;
 }
 
@@ -31,12 +32,14 @@ AdMatrix compute_transition(const PiecewiseExponential &eta, const std::vector<d
 {
     Transition trans(eta, hidden_states, rho);
     // std::cout << "** Transition" << std::endl << trans.matrix().cast<double>() << std::endl << std::endl;
+    // std::cout << trans.matrix().cast<double>() << std::endl;
     return trans.matrix();
 }
 
 adouble HMM::logp()
 {
-    return std::accumulate(logc.begin(), logc.end(), (adouble)0.0);
+    adouble ret = std::accumulate(logc.begin(), logc.end(), (adouble)0.0);
+    return ret;
 }
 
 std::vector<int>& HMM::viterbi(void)
@@ -45,27 +48,33 @@ std::vector<int>& HMM::viterbi(void)
     // Do not bother to record derivatives since we don't use them for Viterbi algorithm
     std::vector<Eigen::MatrixXd> log_emission(L);
     Eigen::ArrayXd log_transition = transition.cast<double>().array().log();
-    std::transform(emission.begin(), emission.end(), log_emission.begin(), [](AdMatrix &x){return x.cast<double>().array().log().matrix();});
+    std::transform(emission.begin(), emission.end(), log_emission.begin(), 
+            [](AdMatrix &x){return x.cast<double>().array().log().matrix();});
     std::vector<double> V(M), V1(M);
     std::vector<std::vector<int>> path(M), newpath(M);
     Eigen::MatrixXd pid = pi.cast<double>();
+    std::vector<int> zeros(M, 0);
     double p, p2, lemit;
     int st;
     for (int m = 0; m < M; ++m)
     {
-        V[m] = log(pid(m)) + log_emission[m](obs(0,0), obs(0,1));
-        path[m] = {m};
+        V[m] = log(pid(m)) + log_emission[m](obs(0,1), obs(0,2));
+        path[m] = zeros;
+        path[m][m] = 1;
     }
-    for (int ell = 1; ell < L; ++ell)
+    for (int ell = 0; ell < L; ++ell)
     {
+        int r = obs(ell, 0);
+        if (ell == 0)
+            r--;
         for (int m = 0; m < M; ++m)
         {
-            lemit = log_emission[m](obs(ell,0), obs(ell,1));
-            p = V[0] + log_transition(0,m) + lemit;
+            lemit = log_emission[m](obs(ell, 1), obs(ell, 2));
+            p = V[0] + log_transition(0, m) + lemit;
             st = 0;
             for (int m2 = 1; m2 < M; ++m2)
             {
-                p2 = V[m2] + log_transition(m2,m) + lemit;
+                p2 = V[m2] + log_transition(m2, m) + lemit;
                 if (p2 > p)
                 {
                     p = p2;
@@ -73,8 +82,8 @@ std::vector<int>& HMM::viterbi(void)
                 }
             }
             V1[m] = p;
-            newpath[m].assign(path[st].begin(), path[st].end());
-            newpath[m].push_back(m);
+            newpath[m] = path[st];
+            newpath[m][m] += r;
         }
         path = newpath;
         V = V1;
@@ -154,6 +163,7 @@ void HMM::forward(void)
     alpha_hat = matpow(D * transition.transpose(), p) * alpha_hat;
     c0 = alpha_hat.sum();
     alpha_hat /= c0;
+    assert(c0 > 0);
     logc.push_back(log(c0));
     for (int ell = 1; ell < L; ++ell)
     {
@@ -163,11 +173,18 @@ void HMM::forward(void)
         else    
         {
             diag_obs(D, obs(ell, 1), obs(ell, 2));
+            if (ell == 165)
+            {
+                std::cout << transition.cast<double>() << std::endl << std::endl;
+                std::cout << D.diagonal().cast<double>().transpose() << std::endl << std::endl;
+                std::cout << alpha_hat.transpose().cast<double>() << std::endl << std::endl;
+            }
             alpha_hat = matpow(D * transition.transpose(), p) * alpha_hat;
         }
         // std::cout << obs.block(ell, 0, 1, 3) << " :: " << alpha_hat.cast<double>().transpose() << std::endl;
         c0 = alpha_hat.sum();
         alpha_hat /= c0;
+        assert(c0 > 0);
         logc.push_back(log(c0));
     }
 }

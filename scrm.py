@@ -5,6 +5,7 @@ import os
 import sh
 import itertools
 import logging
+import sys
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +32,8 @@ def parse_scrm(n, L, output):
 def simulate(n, N0, theta, rho, L, demography=[]):
     r = 4 * N0 * rho * (L - 1)
     t = 4 * N0 * theta * L
-    args = [n, 1, '-p', int(math.log10(L)) + 1, '-t', t, '-r', r, L, '-l', 10000] + demography
+    args = [n, 1, '-p', int(math.log10(L)) + 1, '-t', t, '-r', r, L, '-l', 
+            10000, '-seed', np.random.randint(0, sys.maxint)] + demography
     output = scrm(*args, _iter=True)
     return parse_scrm(n, L, output)
 

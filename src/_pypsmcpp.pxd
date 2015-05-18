@@ -8,7 +8,7 @@ cdef extern from "common.h":
 
 cdef extern from "piecewise_exponential.h":
     cdef cppclass PiecewiseExponential:
-        PiecewiseExponential(const vector[double]&, const vector[double]&, const vector[double]&)
+        PiecewiseExponential(vector[double], vector[double], vector[double], double)
         double double_inverse_rate(double, double, double)
         double double_R(double)
         void print_debug()
@@ -17,6 +17,7 @@ cdef extern from "conditioned_sfs.h":
     AdMatrix calculate_sfs(PiecewiseExponential eta, int n, int S, int M, const vector[double] &ts, 
             const vector[double*] &expM, double t1, double t2, int numthreads, double theta)
     void store_sfs_results(const AdMatrix&, double*, double*)
+    void set_seed(long long)
 
 cdef extern from "transition.h":
     cdef cppclass Transition:
