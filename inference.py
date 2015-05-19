@@ -15,7 +15,7 @@ def logp(sqrt_a, b, sqrt_s, T_max, S, M, n, obs_list, theta, rho, hidden_states,
             for tau1, tau2 in zip(hidden_states[:-1], hidden_states[1:])]
     for obs in obs_list:
         _validate_obs(n, obs)
-    return _pypsmcpp.hmm(demo, sfss, obs_list, hidden_states, rho, theta, 1, 
+    return _pypsmcpp.hmm(demo, sfss, obs_list, hidden_states, rho, theta, numthreads,
             viterbi, reg_a, reg_b, reg_s)
 
 def _validate_obs(n, obs):
