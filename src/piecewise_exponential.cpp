@@ -1,50 +1,44 @@
 #include "piecewise_exponential.h"
 
-PiecewiseExponential::PiecewiseExponential(
-        std::vector<double> sqrt_a, 
-        std::vector<double> b, 
-        std::vector<double> sqrt_s,
-        double T_max) :
-    sqrt_a(sqrt_a), b(b), sqrt_s(sqrt_s), _K(sqrt_a.size()),
-    adsqrt_a(_K), adb(_K), adsqrt_s(_K), adasq(_K), ts(_K), Ra(_K), Rb(_K), Rc(_K), Rrng(_K)
+PiecewiseExponential::PiecewiseExponential(std::vector<double> logu, std::vector<double> logv, std::vector<double> logs) :
+    K(logu.size()), logu(logu), logv(logv), logs(logs), adlogu(K), adlogv(K), adlogs(K),
+    ada(K), adb(K), ts(K), Ra(K), Rb(K), Rc(K), Rrng(K)
 {
     // First, set correct derivative dependences
-    auto I = Eigen::MatrixXd::Identity(3 * _K, 3 * _K);
-    for (int k = 0; k < _K; ++k)
+    auto I = Eigen::MatrixXd::Identity(3 * K, 3 * K);
+    for (int k = 0; k < K; ++k)
     {
-        adsqrt_a[k] = sqrt_a[k];
-        adsqrt_a[k].derivatives() = I.row(k);
-        adb[k] = b[k];
-        adb[k].derivatives() = I.row(_K + k);
-        adsqrt_s[k] = sqrt_s[k];
-        adsqrt_s[k].derivatives() = I.row(2 * _K + k);
+        adlogu[k] = logu[k];
+        adlogu[k].derivatives() = I.row(k);
+        adlogv[k] = logv[k];
+        adlogv[k].derivatives() = I.row(K + k);
+        adlogs[k] = logs[k];
+        adlogs[k].derivatives() = I.row(2 * K + k);
     }
     ts[0] = 0;
-    adasq[0] = pow(adsqrt_a[0], 2);
-    for (int k = 1; k < _K; ++k)
+    ada[0] = exp(logu[0]);
+    for (int k = 1; k < K; ++k)
     {
-        ts[k] = ts[k - 1] + pow(adsqrt_s[k], 2);
-        adasq[k] = pow(adsqrt_a[k], 2);
+        ts[k] = ts[k - 1] + exp(adlogs[k]);
+        ada[k] = exp(logu[k]);
+        adb[k - 1] = (logv[k - 1] - logu[k - 1]) / (ts[k] - ts[k - 1]);
+        // Purposely leave adb[K - 1] undefined here since we require
+        // the last piece to be flat.
     }
-    for (int k = 0; k < _K; ++k)
-        ts[k] *= T_max / ts[_K - 1];
-    _compute_antiderivative();
+    compute_antiderivative();
 }
 
 int PiecewiseExponential::num_derivatives(void)
 {
-    return 3 * _K;
-}
-
-int PiecewiseExponential::K(void) const
-{
-    return _K;
+    return 3 * K;
 }
 
 adouble PiecewiseExponential::R(adouble t) const
 {
-    int ip = insertion_point(t, ts, 0, _K);
-    // std::cout << "insertion point: " << ip << std::endl;
+    // Require flat final piece
+    if (t >= ts[K - 1])
+        return Rrng[K - 1] + ada[K - 1] * (t - ts[K - 1]);
+    int ip = insertion_point(t, ts, 0, K);
     return Ra[ip] * exp(Rb[ip] * (t - ts[ip])) + Rc[ip];
 }
 
@@ -64,35 +58,14 @@ adouble PiecewiseExponential::inverse_rate(double y, adouble t, double coalescen
     adouble Rt0 = y / coalescence_rate;
     if (t > 0)
         Rt0 += R(t);
-    int ip = insertion_point(Rt0, Rrng, 0, _K);
-    if (Rb[ip] == 0.0)
-        throw std::domain_error("b cannot be zero");
-    adouble ret = log((Rt0 - Rc[ip]) / Ra[ip]) / Rb[ip] + ts[ip] - t;
-    /*
-    if (y == 1.25)
-    {
-        std::vector<double> ra(_K), rb(_K), rc(_K), tt(_K), rr(_K);
-        std::transform(Ra.begin(), Ra.end(), ra.begin(), [](adouble x){return x.value();});
-        std::transform(Rb.begin(), Rb.end(), rb.begin(), [](adouble x){return x.value();});
-        std::transform(Rc.begin(), Rc.end(), rc.begin(), [](adouble x){return x.value();});
-        std::transform(Rrng.begin(), Rrng.end(), rr.begin(), [](adouble x){return x.value();});
-        std::transform(ts.begin(), ts.end(), tt.begin(), [](adouble x){return x.value();});
-        std::cout << std::endl << "Ra " << ra << std::endl;
-        std::cout << "Rb " << rb << std::endl;
-        std::cout << "Rc " << rc << std::endl;
-        std::cout << "Rrng " << rr << std::endl;
-        std::cout << "ts " << tt << std::endl;
-        std::cout << t << std::endl;
-        std::cout << Rt0 << std::endl;
-        std::cout << Ra[ip] << std::endl;
-        std::cout << Rb[ip] << std::endl;
-        std::cout << Rc[ip] << std::endl;
-        std::cout << ts[ip] << std::endl;
-        std::cout << ret.value() << std::endl;
-    }
-    assert(!isnan(ret.value()));
-    */
-    return ret;
+    // Enforce constant last period
+    if (Rt0 > Rrng[K - 1])
+        return (Rt0 - Rrng[K - 1]) / ada[K - 1] + ts[K - 1] - t;
+    int ip = insertion_point(Rt0, Rrng, 0, K);
+    // return log((Rt0 - Rc[ip]) / Ra[ip]) / Rb[ip] + ts[ip] - t;
+    // log((Rt0 - Rc[ip]) / Ra[ip]) = log( Rt0 / Ra[ip] + (Ra[ip] - Rng[ip]) / Ra[ip]
+    //                              = log((Rt0 - Rrng[ip]) / Ra[ip] + 1)
+    return Eigen::log1p((Rt0 - Rrng[ip]) / Ra[ip]) / Rb[ip] + ts[ip] - t;
 }
 
 // Don't overload this: keeps leading to problems with the derivatives()
@@ -105,7 +78,7 @@ double PiecewiseExponential::double_inverse_rate(double y, double t, double coal
 void PiecewiseExponential::print_debug() const
 {
     std::vector<std::pair<std::string, std::vector<adouble>>> arys = 
-    {{"adasq", adasq}, {"adb", adb}, {"ts", ts}, {"Ra", Ra}, 
+    {{"ada", ada}, {"adb", adb}, {"ts", ts}, {"Ra", Ra}, 
         {"Rb", Rb}, {"Rc", Rc}, {"Rrng", Rrng}};
     for (auto p : arys)
     {
@@ -116,22 +89,22 @@ void PiecewiseExponential::print_debug() const
     }
 }
 
-void PiecewiseExponential::_compute_antiderivative()
+void PiecewiseExponential::compute_antiderivative()
 {
     Rrng[0] = 0;
-    for (int k = 0; k < _K; ++k)
+
+    for (int k = 0; k < K - 1; ++k)
     {
         if (adb[k] == 0.0)
             throw std::domain_error("b cannot be zero");
-        Ra[k] = adasq[k] / adb[k];
+        Ra[k] = ada[k] / adb[k];
         Rc[k] = -Ra[k] + Rrng[k];
         Rb[k] = adb[k];
-        if (k < _K - 1)
-            Rrng[k + 1] = Rrng[k] + Ra[k] * expm1(Rb[k] * (ts[k + 1] - ts[k]));
+        Rrng[k + 1] = Rrng[k] + Ra[k] * expm1(Rb[k] * (ts[k + 1] - ts[k]));
     }
 }
 
 std::vector<std::vector<adouble>> PiecewiseExponential::ad_vars(void) const
 {
-    return {adsqrt_a, adb, adsqrt_s};
+    return {adlogu, adlogv, adlogs};
 }

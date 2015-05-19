@@ -51,6 +51,11 @@ EIGEN_AUTODIFF_DECLARE_GLOBAL_UNARY(expm1,
   return ReturnType(expm1x,x.derivatives() * expx);
 )
 
+EIGEN_AUTODIFF_DECLARE_GLOBAL_UNARY(log1p,
+  Scalar log1px = std::log1p(x.value());
+  return ReturnType(log1px, x.derivatives() * (Scalar(1) / (Scalar(1) + x.value())));
+)
+
 #undef EIGEN_AUTODIFF_DECLARE_GLOBAL_UNARY
 };
  
@@ -70,7 +75,7 @@ typedef struct AdMatrixWrapper {
 
 
 template <typename T>
-int insertion_point(T x, const std::vector<T>& ary, int first, int last)
+inline int insertion_point(const T x, const std::vector<T>& ary, int first, int last)
 {
     int mid;
     while(first + 1 < last)

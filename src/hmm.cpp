@@ -209,13 +209,14 @@ double compute_hmm_likelihood(double *jac,
     for (auto &&res : results)
         ret += res.get();
     // Add in regularizers
-    int K = eta.K();
+    int K = eta.K;
     std::vector<std::vector<adouble>> ad = eta.ad_vars();
     for (int k = 0; k < K; ++k)
     {
-        ret += reg_a * pow(ad[0][k], 2);
-        ret += reg_b * pow(ad[1][k], 2);
-        ret += reg_s * pow(ad[2][k], 2);
+        // We regularize var**2 = exp(2 * log(var))
+        ret += reg_a * exp(2 * ad[0][k]);
+        ret += reg_b * exp(2 * ad[1][k]);
+        ret += reg_s * exp(2 * ad[2][k]);
     }
     Eigen::Map<Eigen::Matrix<double, Eigen::Dynamic, 1>, Eigen::RowMajor> _jac(jac, 3 * K);
     _jac = ret.derivatives();

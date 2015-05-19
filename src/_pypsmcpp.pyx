@@ -14,30 +14,31 @@ logger = logging.getLogger(__name__)
 
 cdef class Demography:
     cdef PiecewiseExponential *pexp
-    cdef vector[double] _sqrt_a
-    cdef vector[double] _b
-    cdef vector[double] _sqrt_s
-    cdef int K
-    def __init__(self, sqrt_a, b, sqrt_s, T_max):
-        assert len(sqrt_a) == len(b) == len(sqrt_s)
-        self._sqrt_a = sqrt_a
-        self._b = b
-        self._sqrt_s = sqrt_s
-        # self._T_max = T_max
-        self.pexp = new PiecewiseExponential(sqrt_a, b, sqrt_s, T_max)
-        self.K = len(sqrt_a)
+    cdef vector[double] _logu, _logv, _logs
+    cdef int _K
+    def __init__(self, logu, logv, logs):
+        assert len(logu) == len(logv) == len(logs)
+        self._logu = logu
+        self._logv = logv
+        self._logs = logs
+        self.pexp = new PiecewiseExponential(self._logu, self._logv, self._logs)
+        self._K = len(logu)
 
     @property
-    def sqrt_a(self):
-        return self._sqrt_a
+    def K(self):
+        return self._K
 
     @property
-    def b(self):
-        return self._b
+    def logu(self):
+        return self._logu
 
     @property
-    def sqrt_s(self):
-        return self._sqrt_s
+    def logv(self):
+        return self._logv
+
+    @property
+    def logs(self):
+        return self._logs
 
     def __dealloc__(self):
         del self.pexp
@@ -92,9 +93,8 @@ def sfs(Demography demo, int S, int M, int n, float tau1, float tau2, double the
         ret.A = mat
         return ret
 
-    K = len(demo.sqrt_a)
     sfs = aca(np.zeros((3, n + 1)))
-    jac = aca(np.zeros((3, n + 1, 3, K)))
+    jac = aca(np.zeros((3, n + 1, 3, demo.K)))
     cdef double[:, ::1] msfs = sfs
     cdef double[:, :, :, ::1] mjac = jac
     store_sfs_results(mat, &msfs[0, 0], &mjac[0, 0, 0, 0])

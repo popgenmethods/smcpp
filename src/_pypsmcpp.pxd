@@ -8,7 +8,7 @@ cdef extern from "common.h":
 
 cdef extern from "piecewise_exponential.h":
     cdef cppclass PiecewiseExponential:
-        PiecewiseExponential(vector[double], vector[double], vector[double], double)
+        PiecewiseExponential(vector[double], vector[double], vector[double])
         double double_inverse_rate(double, double, double)
         double double_R(double)
         void print_debug()
