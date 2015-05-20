@@ -1,6 +1,9 @@
 cimport numpy as np
 import numpy as np
 
+cdef extern from "matrix_exponential.h":
+    void matrix_exponential(const int, const double*, double*)
+
 def expm(np.ndarray[double, ndim=2, mode="c"] M):
     n = M.shape[0]
     assert M.shape[1] == n 
