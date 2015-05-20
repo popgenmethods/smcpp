@@ -8,8 +8,8 @@ typedef Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> C
 
 void matrix_exponential(const int n, const double* A, double* eA)
 {
-    auto _A = Eigen::Map<const CMatrix>(A, n, n);
-    auto _eA = Eigen::Map<CMatrix>(eA, n, n);
+    Eigen::Map<const CMatrix> _A = Eigen::Map<const CMatrix>(A, n, n);
+    Eigen::Map<CMatrix> _eA = Eigen::Map<CMatrix>(eA, n, n);
     _eA = _A.exp();
 }
 
