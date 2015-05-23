@@ -14,46 +14,67 @@
 
 typedef Eigen::Map<const Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> npArray;
 
+template <typename T>
 class HMM
 {
     public:
-    HMM(const AdMatrix &pi, const AdMatrix &transition,
-        const std::vector<AdMatrix> &emission,
-        const std::vector<double> hidden_states,
-        const int L, const int* obs, double rho);
-    adouble logp(void);
+    HMM(const Vector<T> &pi, const Matrix<T> &transition,
+        const std::vector<Matrix<T>> &emission,
+        const int L, const int* obs);
+    T loglik(void);
     std::vector<int>& viterbi(void);
     void forward(void);
     void printobs(void);
 
     private:
     // Methods
-    void average_sfs(const std::vector<std::vector<ConditionedSFS*>> &csfs);
-    AdMatrix matpow(const AdMatrix&, int);
-    template <typename T, int s>
+    Matrix<T> matpow(const Matrix<T>&, int);
+    template <int s>
     void diag_obs(Eigen::DiagonalMatrix<T, s> &D, int a, int b);
-    AdMatrix O0Tpow(int);
+    Matrix<T> O0Tpow(int);
 
     // Instance variables
-    AdVector pi;
-    AdMatrix transition;
-    std::vector<AdMatrix> emission;
+    const Vector<T> pi;
+    const Matrix<T> transition;
+    const std::vector<Matrix<T>> emission;
     int M, L;
     Eigen::Map<const Eigen::Matrix<int, Eigen::Dynamic, 3, Eigen::RowMajor>> obs;
-    const std::vector<double> hidden_states;
-    std::vector<adouble> logc;
-    double rho;
+    std::vector<T> logc;
     std::vector<int> viterbi_path;
-    AdMatrix O0T;
-    std::map<int, AdMatrix> O0Tpow_memo;
+    Matrix<T> O0T;
+    std::map<int, Matrix<T>> O0Tpow_memo;
 };
 
-AdMatrix compute_initial_distribution(const PiecewiseExponential &eta, const std::vector<double> &hidden_states);
-AdMatrix compute_transition(const PiecewiseExponential &eta, const std::vector<double> &hidden_states, double rho);
-double compute_hmm_likelihood(double*, const PiecewiseExponential &eta,
-        const std::vector<AdMatrix>& emission, const int L, const std::vector<int*> obs, 
-        const std::vector<double> &hidden_states, const double rho, int numthreads, 
-        std::vector<std::vector<int>> &viterbi_paths,
-        bool viterbi, double reg_a, double reg_b, double reg_s);
-//
+template <typename T>
+T compute_hmm_likelihood(
+        const PiecewiseExponential<T> &eta, 
+        const Vector<T> &pi, const Matrix<T> &transition,
+        const std::vector<Matrix<T>>& emission, 
+        const int L, const std::vector<int*> obs,
+        int numthreads, 
+        bool viterbi, std::vector<std::vector<int>> &viterbi_paths)
+{
+    // eta.print_debug();
+    ThreadPool tp(numthreads);
+    std::vector<HMM<T>> hmms;
+    std::vector<std::thread> t;
+    std::vector<std::future<T>> results;
+    for (auto ob : obs)
+        hmms.emplace_back(pi, transition, emission, L, ob);
+    for (auto &hmm : hmms)
+        results.emplace_back(tp.enqueue([&] { hmm.forward(); return hmm.loglik(); }));
+    T ret = 0.0;
+    for (auto &&res : results)
+        ret += res.get();
+    std::vector<std::future<std::vector<int>>> viterbi_results;
+    if (viterbi)
+    {
+        for (auto &hmm : hmms)
+            viterbi_results.emplace_back(tp.enqueue([&] { return hmm.viterbi(); }));
+        for (auto &&res : viterbi_results)
+            viterbi_paths.push_back(res.get());
+    }
+    return ret;
+}
+
 #endif

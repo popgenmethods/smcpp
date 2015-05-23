@@ -10,38 +10,45 @@
 #include "piecewise_exponential.h"
 #include "prettyprint.hpp"
 
+#define EIGEN_NO_AUTOMATIC_RESIZING 1
+
+template <typename T>
 class ConditionedSFS
 {
     public:
-    ConditionedSFS(PiecewiseExponential, int);
+    ConditionedSFS(const PiecewiseExponential<T>&, int);
     void compute(int, int, const std::vector<double>&, 
             const std::vector<Eigen::Map<const Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>> &,
-            double, double);
+            T, T);
     std::thread compute_threaded(int, int, const std::vector<double>&, 
             const std::vector<Eigen::Map<const Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>> &,
-            double, double);
-    AdMatrix matrix() const;
+            T, T);
+    Matrix<T> matrix() const;
+    static Matrix<T> calculate_sfs(const PiecewiseExponential<T> &eta, int n, int S, int M, const std::vector<double> &ts, 
+            const std::vector<double*> &expM, double tau1, double tau2, int numthreads, double theta);
 
     private:
     // Methods
     void fill_matrices();
     void construct_ad_vars();
-    void compute_ETnk_below(const AdVector&);
+    void compute_ETnk_below(const Vector<T>&);
     double exp1();
-    double exp1_conditional(double, double);
+    T exp1_conditional(T, T);
     double unif();
+    T adZero();
+    static Matrix<T> average_csfs(std::vector<ConditionedSFS<T>> &csfs, double theta);
 
     // Variables
     std::mt19937 gen;
-    PiecewiseExponential eta;
+    PiecewiseExponential<T> eta;
     const int n;
-    Eigen::MatrixXd D_subtend_above, D_not_subtend_above, D_subtend_below, D_not_subtend_below, Wnbj, P_dist, P_undist, tK;
-    AdMatrix csfs, csfs_above, csfs_below, ETnk_below;
+    Matrix<T> D_subtend_above, D_not_subtend_above, D_subtend_below, 
+        D_not_subtend_below, Wnbj, P_dist, P_undist, tK, 
+        csfs, csfs_above, csfs_below, ETnk_below;
 };
 
-void store_sfs_results(const AdMatrix&, double*, double*);
-AdMatrix calculate_sfs(PiecewiseExponential eta, int n, int S, int M, const std::vector<double> &ts, 
-        const std::vector<double*> &expM, double t1, double t2, int numthreads, double theta);
+void store_sfs_results(Matrix<double>&, double*);
+void store_sfs_results(Matrix<adouble>&, double*, double*);
 void set_seed(long long);
 
 #endif

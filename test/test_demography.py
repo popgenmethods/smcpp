@@ -11,6 +11,16 @@ from _pypsmcpp import Demography
 
 ls = np.linspace(0.0, 10.0, 20)
 
+def test_R_flat():
+    u = np.log([1.0 - .01, 1.0 - .01])
+    v = np.log([1.0 - .01, 1.0 - .01])
+    s = np.log([0.0, .3])
+    d = Demography(u, v, s)
+    d.print_debug()
+    for t in ls:
+        assert abs(d.R(t) - t) < 1e-8
+        assert abs(d.inverse_rate(t) - t) < 1e-8
+ 
 def test_R_constant(constant_demo_1):
     for t in ls:
         assert(abs(constant_demo_1.R(t)) - t) < 1e-8

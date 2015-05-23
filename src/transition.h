@@ -3,27 +3,28 @@
 
 #include <map>
 #include <unsupported/Eigen/MatrixFunctions>
-#include <Eigen/QR>
+#include <unsupported/Eigen/NumericalDiff>
 
 #include "common.h"
 #include "piecewise_exponential.h"
 
+template <typename T>
 class Transition
 {
     public:
-        Transition(const PiecewiseExponential &eta, const std::vector<double>&, double);
+        Transition(const PiecewiseExponential<T> &eta, const std::vector<double>&, double);
         void compute(void);
-        void store_results(double*, double*);
-        AdMatrix& matrix(void);
+        // void store_results(double*, double*);
+        Matrix<T>& matrix(void);
 
     private:
-        AdMatrix expm(int, int);
-        PiecewiseExponential eta;
+        Matrix<T> expm(int, int);
+        PiecewiseExponential<T> eta;
         const std::vector<double>& _hs;
         double rho;
         int M;
-        AdMatrix I, Phi;
-        std::map<std::pair<int, int>, AdMatrix> _expm_memo;
+        Matrix<T> I, Phi;
+        std::map<std::pair<int, int>, Matrix<T>> _expm_memo;
 };
 
 #endif

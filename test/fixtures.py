@@ -22,8 +22,8 @@ def constant_demo_1():
 
 @pytest.fixture
 def constant_demo_1000():
-    u = np.log([1000.0])
-    v = np.log([1001.0])
+    u = -np.log([1000.0])
+    v = -np.log([1000.1])
     s = np.array([0.0])
     d = _pypsmcpp.Demography(u, v, s)
     return d

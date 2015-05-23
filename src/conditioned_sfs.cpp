@@ -1,8 +1,6 @@
 #include <cfenv>
 #include "conditioned_sfs.h"
 
-#define EIGEN_NO_AUTOMATIC_RESIZING 1
-
 std::mt19937 sfs_gen;
 
 std::map<std::array<int, 3>, double> _Wnbj_memo;
@@ -66,17 +64,23 @@ double pnkb_undist(int n, int m, int l3)
     return ret;
 }
 
-inline adouble fmin(adouble a, adouble b)
+template <typename T>
+inline T fmin(T a, T b)
 {
-    return (a + b - Eigen::abs(a - b)) / 2;
+    return (a + b - abs(a - b)) / 2;
 }
 
-inline adouble fmax(adouble a, adouble b)
+template <typename T>
+inline T fmax(T a, T b)
 {
-    return (a + b + Eigen::abs(a - b)) / 2;
+    return (a + b + abs(a - b)) / 2;
 }
 
-ConditionedSFS::ConditionedSFS(PiecewiseExponential eta, int n) :
+template class ConditionedSFS<double>;
+template class ConditionedSFS<adouble>;
+
+template <typename T>
+ConditionedSFS<T>::ConditionedSFS(const PiecewiseExponential<T> &eta, int n) :
     eta(eta), n(n),
     D_subtend_above(n, n), D_not_subtend_above(n, n),
 	D_subtend_below(n + 1, n + 1), D_not_subtend_below(n + 1, n + 1),
@@ -92,17 +96,20 @@ ConditionedSFS::ConditionedSFS(PiecewiseExponential eta, int n) :
     fill_matrices();
 }
 
-double ConditionedSFS::unif(void)
+template <typename T>
+double ConditionedSFS<T>::unif(void)
 {
     return std::uniform_real_distribution<double>{0.0, 1.0}(gen);
 }
 
-double ConditionedSFS::exp1(void)
+template <typename T>
+double ConditionedSFS<T>::exp1(void)
 {
     return std::exponential_distribution<double>{1.0}(gen);
 }
 
-double ConditionedSFS::exp1_conditional(double a, double b)
+template <typename T>
+T ConditionedSFS<T>::exp1_conditional(T a, T b)
 {
     // If X ~ Exp(1),
     // P(X < x | a <= X <= b) = (e^-a - e^-x) / (e^-a - e^-b)
@@ -110,13 +117,14 @@ double ConditionedSFS::exp1_conditional(double a, double b)
     //            = -log(e^-a(1 - (1 - e^-(b-a)) * y)
     //            = a - log(1 - (1 - e^-(b-a)) * y)
     //            = a - log(1 + expm1(-(b-a)) * y)
-    if (isinf(b))
+    if (isinf(toDouble(b)))
         return a - log1p(-unif());
     else
         return a - log1p(expm1(-(b - a)) * unif());
 }
 
-void ConditionedSFS::compute_ETnk_below(const AdVector &etjj)
+template <typename T>
+void ConditionedSFS<T>::compute_ETnk_below(const Vector<T> &etjj)
 {
     ETnk_below.setZero();
     ETnk_below.diagonal() = etjj;
@@ -131,46 +139,58 @@ void ConditionedSFS::compute_ETnk_below(const AdVector &etjj)
     }
 }
 
-std::thread ConditionedSFS::compute_threaded(int S, int M, const std::vector<double> &ts, 
+template <typename T>
+std::thread ConditionedSFS<T>::compute_threaded(int S, int M, const std::vector<double> &ts, 
         const std::vector<Eigen::Map<const Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>> &expM,
-        double t1, double t2)
+        T t1, T t2)
 {
     return std::thread(&ConditionedSFS::compute, this, S, M, ts, expM, t1, t2);    
 }
+
+template <>
+adouble ConditionedSFS<adouble>::adZero(void)
+{
+    adouble zero = 0.0;
+    auto d = Eigen::VectorXd(eta.num_derivatives());
+    d.fill(0);
+	zero.derivatives() = d;
+    return zero;
+}
+
+template <>
+double ConditionedSFS<double>::adZero(void) { return 0.0; }
 
 // Calculate sfs and derivatives for rate function 
 //     eta(t) = a[k] * exp(b[k] * (t - t[k])), t[k] <= t < t[k + 1]
 // where t[k] = s[1]**2 + ... + s[k]**2.
 // conditioned on two lineages coalescing between tau1 and tau2
-void ConditionedSFS::compute(int S, int M, const std::vector<double> &ts, 
+
+template <typename T>
+void ConditionedSFS<T>::compute(int S, int M, const std::vector<double> &ts, 
         const std::vector<Eigen::Map<const Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>> &expM,
-        double t1, double t2)
+        T t1, T t2)
 {
     // feenableexcept(FE_INVALID | FE_OVERFLOW);
-    adouble tau;
+    T tau;
     // There are n + 2 (undistinguished + distinguished) at time 0.
     // Above tau there are between 2 and n + 1.
 	// For some reason it does not like initializing these as AdVectors. So use
 	// the matrix class instead.
-    AdMatrix tjj_above(n, 1), tjj_below(n + 1, 1), sfs_tau(n, 1), etnk(n + 1, 1);
-    AdMatrix etnk_avg(n + 1, 1), tjj_below_avg(n + 1, 1), tjj_above_avg(n, 1);
-	Eigen::MatrixXd eM(n + 1, n + 1), trans1, trans2;
+    Matrix<T> tjj_above(n, 1), tjj_below(n + 1, 1), sfs_tau(n, 1), etnk(n + 1, 1);
+    Matrix<T> etnk_avg(n + 1, 1), tjj_below_avg(n + 1, 1), tjj_above_avg(n, 1);
+	Matrix<T> eM(n + 1, n + 1), trans1, trans2;
     std::map<int[2], double> etnk_memo;
     int m, rate_above, rate_below, ei;
-    double coef, y;
+    T y, coef;
     etnk_avg.setZero();
     tjj_below_avg.setZero();
     Eigen::VectorXd der;
-	Eigen::MatrixXd tmpmat;
-	AdMatrix tmpvec;
+    Matrix<T> tmpmat;
 
 	// Mixing constants with adoubles causes problems because the library
 	// doesn't know how to allocate the VectorXd of derivatives(). 
 	// Here, we do it by hand.
-	adouble zero = 0;
-    auto d = Eigen::VectorXd(eta.num_derivatives());
-    d.fill(0);
-	zero.derivatives() = d;
+	T zero = adZero();
     csfs.fill(zero);
     csfs_above.fill(zero);
     csfs_below.fill(zero);
@@ -181,10 +201,8 @@ void ConditionedSFS::compute(int S, int M, const std::vector<double> &ts,
     {
         _DEBUG(std::cout << m << " " << std::flush);
         y = exp1_conditional(t1, t2);
-        ei = insertion_point(y, ts, 0, ts.size());
+        ei = insertion_point(toDouble(y), ts, 0, ts.size());
         tau = eta.inverse_rate(y, zero, 1);
-        // _DEBUG(std::cout << tau.derivatives() << " " << std::endl);
-        der = tau.derivatives();
         tjj_below.fill(zero);
         tjj_above.fill(zero);
         tjj_below(0, 0) = tau;
@@ -202,40 +220,46 @@ void ConditionedSFS::compute(int S, int M, const std::vector<double> &ts,
         // Compute sfs below using ETnk recursion
         compute_ETnk_below(tjj_below);
 		// Unfortunately, mixed-products have to be done using lazyProduct() for now
-        etnk = tK.lazyProduct(ETnk_below.row(n).transpose());
+        etnk = tK * ETnk_below.row(n).transpose();
         etnk_avg += etnk / M;
         tjj_below_avg += tjj_below / M;
         tjj_above_avg += tjj_above / M;
-        csfs_below.block(0, 1, 1, n) += etnk.transpose().lazyProduct(D_not_subtend_below * P_undist / M);
-        csfs_below.block(1, 0, 1, n + 1) += etnk.transpose().lazyProduct(D_subtend_below * P_dist / M);
+        csfs_below.block(0, 1, 1, n) += etnk.transpose() * D_not_subtend_below * P_undist / M;
+        csfs_below.block(1, 0, 1, n + 1) += etnk.transpose() * D_subtend_below * P_dist / M;
         // Compute sfs above using polanski-kimmel + matrix exponential
         // Get the correct linear-interpolated matrix exponential
         coef = (y - ts[ei]) / (ts[ei + 1] - ts[ei]);
-        eM = (1 - coef) * expM[ei] + coef * expM[ei + 1];
+        eM = (1 - coef) * expM[ei].cast<T>() + coef * expM[ei + 1].cast<T>();
         // Wnbj is the Polanski-Kimmel matrix of coefficients W_(n + 1, b, j)
-        sfs_tau = Wnbj.lazyProduct(tjj_above); // n-vector; sfs_tau[b] = prob. lineage subtends b + 1
+        sfs_tau = Wnbj * tjj_above; // n-vector; sfs_tau[b] = prob. lineage subtends b + 1
         // If a = 0 (neither distinguished lineage is derived) then immediately after
         // tau, it's sum_b p(|B|=b at tau) * ({1,2} not a subset of B) * p(|B| -> (0, k))
         // Recall that the rate matrix for the a = 0 case is the reverse of the a = 2 case,
         // which is what gets passed in.
         tmpmat = eM.reverse().bottomRightCorner(n, n).transpose() * D_not_subtend_above / M;
-		csfs_above.block(0, 1, 1, n) += tmpmat.lazyProduct(sfs_tau).transpose();
+		csfs_above.block(0, 1, 1, n) += (tmpmat * sfs_tau).transpose();
         // If a = 2 (both distinguished lineages derived) then immediately after
         // tau, it's sum_b p(b at tau) * ({1,2} in b) * p((b - 1) -> (2, k))
         tmpmat = eM.topLeftCorner(n, n).transpose() * D_subtend_above / M;
-        csfs_above.block(2, 0, 1, n) += tmpmat.lazyProduct(sfs_tau).transpose();
+        csfs_above.block(2, 0, 1, n) += (tmpmat * sfs_tau).transpose();
     }
     csfs = csfs_below + csfs_above;
 }
 
-void store_sfs_results(const AdMatrix &csfs, double* outsfs, double* outjac)
+void store_sfs_results(const Matrix<double> &csfs, double* outsfs)
 {
+    int n = csfs.cols();
+    Eigen::Map<Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> _outsfs(outsfs, 3, n);
+    _outsfs = csfs.cast<double>();
+}
+
+void store_sfs_results(const Matrix<adouble> &csfs, double* outsfs, double* outjac)
+{
+    store_sfs_results(csfs.cast<double>(), outsfs);
     int n = csfs.cols();
     int num_derivatives = csfs(0,1).derivatives().rows();
     Eigen::VectorXd d;
     int m = 0;
-    Eigen::Map<Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> _outsfs(outsfs, 3, n);
-    _outsfs = csfs.cast<double>();
     for (int i = 0; i < 3; ++i)
         for (int j = 0; j < n; ++j)
         {
@@ -255,13 +279,14 @@ void set_seed(long long seed)
     sfs_gen.seed(seed);
 }
 
-void ConditionedSFS::fill_matrices(void)
+template <typename T>
+void ConditionedSFS<T>::fill_matrices(void)
 {
-	Eigen::MatrixXd I = Eigen::MatrixXd::Identity(n, n);
-	Eigen::MatrixXd I1 = Eigen::MatrixXd::Identity(n + 1, n + 1);
+	Matrix<T> I = Matrix<T>::Identity(n, n);
+	Matrix<T> I1 = Matrix<T>::Identity(n + 1, n + 1);
     // Construct some matrices that will be used later on
     D_subtend_above.setZero();
-    D_subtend_above.diagonal() = Eigen::VectorXd::LinSpaced(n, 1, n) / (n + 1);
+    D_subtend_above.diagonal() = Eigen::VectorXd::LinSpaced(n, 1, n).cast<T>() / (n + 1);
 	D_not_subtend_above = I - D_subtend_above;
 
     D_subtend_below.setZero();
@@ -270,7 +295,7 @@ void ConditionedSFS::fill_matrices(void)
 	D_not_subtend_below = I1 - D_subtend_below;
 
     tK.setZero();
-    tK.diagonal() = Eigen::VectorXd::LinSpaced(n + 1, 2, n + 2);
+    tK.diagonal() = Eigen::VectorXd::LinSpaced(n + 1, 2, n + 2).cast<T>();
 
     // Calculate the Polanski-Kimmel matrix
     // TODO: this could be sped up by storing the matrix outside of the class
@@ -292,12 +317,11 @@ void ConditionedSFS::fill_matrices(void)
             P_undist(k, b - 1) = pnkb_undist(n, k, b);
 }
 
-AdMatrix ConditionedSFS::matrix(void) const
+template <typename T>
+Matrix<T> ConditionedSFS<T>::matrix(void) const
 {
     return csfs;
 }
-
-
 
 void print_sfs(int n, const std::vector<double> &sfs)
 {
@@ -321,29 +345,32 @@ void print_sfs(int n, const std::vector<double> &sfs)
     }
 }
 
-AdMatrix average_csfs(std::vector<ConditionedSFS> &csfs, double theta)
+template <typename T>
+Matrix<T> ConditionedSFS<T>::average_csfs(std::vector<ConditionedSFS<T>> &csfs, double theta)
 {
-    AdMatrix ret = AdMatrix::Zero(csfs[0].matrix().rows(), csfs[0].matrix().cols());
+    Matrix<T> ret = Matrix<T>::Zero(csfs[0].matrix().rows(), csfs[0].matrix().cols());
     int m = 0;
-    for (const ConditionedSFS &c : csfs)
+    for (const ConditionedSFS<T> &c : csfs)
     {
         ret += c.matrix();
-        // std::cout << std::endl << c.matrix().cast<double>() << std::endl << std::endl;
         ++m;
     }
     ret /= (double)m;
-    // std::cout << ret.cast<double>() << std::endl << std::endl;
     ret *= theta;
     ret(0, 0) = 1.0 - ret.sum();
     return ret;
 }
 
-AdMatrix calculate_sfs(PiecewiseExponential eta, int n, int S, int M, const std::vector<double> &ts, 
-        const std::vector<double*> &expM, double t1, double t2, int numthreads, double theta)
+template <typename T>
+Matrix<T> ConditionedSFS<T>::calculate_sfs(const PiecewiseExponential<T> &eta, 
+        int n, int S, int M, const std::vector<double> &ts, 
+        const std::vector<double*> &expM, double tau1, double tau2, int numthreads, double theta)
 {
-    std::vector<ConditionedSFS> csfs;
+    std::vector<ConditionedSFS<T>> csfs;
     std::vector<std::thread> t;
     int P = expM.size();
+    T t1 = eta.R(tau1);
+    T t2 = eta.R(tau2);
     std::vector<Eigen::Map<const Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>> _expM;
     for (int p = 0; p < P; ++p)
         _expM.emplace_back(expM[p], n + 1, n + 1);
@@ -352,13 +379,13 @@ AdMatrix calculate_sfs(PiecewiseExponential eta, int n, int S, int M, const std:
     for (auto &c : csfs)
         t.push_back(c.compute_threaded(S, M, ts, _expM, t1, t2));
     std::for_each(t.begin(), t.end(), [](std::thread &t) {t.join();});
-    AdMatrix ret = average_csfs(csfs, theta);
+    Matrix<T> ret = ConditionedSFS<T>::average_csfs(csfs, theta);
     // FIXME: teeny negative numbers can sometimes occur which
     // leads to problems in the HMM computations.
     for (int i = 0; i < ret.rows(); ++i)
         for (int j = 0; j < ret.cols(); ++j)
             ret(i, j) = abs(ret(i, j)); // fmax(ret(i, j), 1e-10);
-    std::cout << std::endl << ret.cast<double>() << std::endl << std::endl;
+    // std::cout << std::endl << ret.cast<double>() << std::endl << std::endl;
     return ret;
 }
 /*

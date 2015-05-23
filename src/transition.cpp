@@ -14,16 +14,18 @@ const double A_eta_data[] = {
     0, 0, 0, 0};
 static Eigen::Matrix<double, 4, 4, Eigen::RowMajor> A_eta(A_eta_data);
 
-std::array<adouble, 3> eigenvalues(double c_rho, adouble c_eta)
+/*
+template <typename T>
+std::array<T, 3> eigenvalues(double c_rho, T c_eta)
 {
-    adouble a = 7 * c_eta + (3 * c_rho) / 2.0;
-    adouble b = 10 * pow(c_eta, 2) + (13 * c_eta * c_rho)/2 + pow(c_rho, 2) / 2.0;
-    adouble c = 5 * pow(c_eta, 2) * c_rho + (c_eta * pow(c_rho, 2)) / 2.0;
-    adouble Q = (pow(a, 2) - 3 * b) / 9.0;
-    adouble R = (2 * pow(a, 3) - 9 * a * b + 27 * c) / 54.0;
-    adouble theta = acos(R / pow(Q, 1.5));
+    T a = 7 * c_eta + (3 * c_rho) / 2.0;
+    T b = 10 * pow(c_eta, 2) + (13 * c_eta * c_rho)/2 + pow(c_rho, 2) / 2.0;
+    T c = 5 * pow(c_eta, 2) * c_rho + (c_eta * pow(c_rho, 2)) / 2.0;
+    T Q = (pow(a, 2) - 3 * b) / 9.0;
+    T R = (2 * pow(a, 3) - 9 * a * b + 27 * c) / 54.0;
+    T theta = acos(R / pow(Q, 1.5));
     double x[3] = {0, 2 * M_PI, -2 * M_PI};
-    std::array<adouble, 3> ret;
+    std::array<T, 3> ret;
     for (int i = 0; i < 3; ++i)
     {
         ret[i] = -(2 * sqrt(Q) * cos((theta + x[i])/ 3)) - a / 3;
@@ -31,15 +33,16 @@ std::array<adouble, 3> eigenvalues(double c_rho, adouble c_eta)
     return ret;
 }
 
-AdMatrix right_eigenvectors(double c_rho, adouble c_eta)
+template <typename T>
+T right_eigenvectors(double c_rho, T c_eta)
 {
-    AdMatrix ret(4, 4);
-    adouble zero = 0, one = 1;
+    Matrix<T> ret(4, 4);
+    T zero = 0, one = 1;
     zero.derivatives() = Eigen::VectorXd::Zero(c_eta.derivatives().rows());
     one.derivatives() = Eigen::VectorXd::Zero(c_eta.derivatives().rows());
     ret.col(0) << one, one, one, one;
-    adouble r;
-    std::array<adouble, 3> eigvals = eigenvalues(c_rho, c_eta);
+    T r;
+    std::array<T, 3> eigvals = eigenvalues(c_rho, c_eta);
     for (int i = 1; i < 4; ++i)
     {
         r = eigvals[i - 1];
@@ -88,7 +91,7 @@ std::array<AdMatrix, 3> eigensystem(double c_rho, adouble c_eta)
         D(i,i) = eig[i - 1];
     return {R, D, Rinv};
 }
-
+*/
 /*
 AdMatrix transition_exp(double c_rho, adouble c_eta)
 {
@@ -102,16 +105,57 @@ AdMatrix transition_exp(double c_rho, adouble c_eta)
     return ret;
 }
 */
+
 // FIXME: this ignores the derivative dependency
 // of the matrix exponential itself
-AdMatrix transition_exp(double c_rho, adouble c_eta)
+Matrix<double> transition_exp(double c_rho, double c_eta)
 {
-    AdMatrix M = (c_rho * A_rho).cast<adouble>();
-    M += c_eta * A_eta.cast<adouble>();
-    return M.cast<double>().exp().cast<adouble>();
+    Matrix<double> M = c_rho * A_rho + c_eta * A_eta;
+    return M.exp();
 }
 
-Transition::Transition(const PiecewiseExponential &eta, const std::vector<double> &hidden_states, double rho) :
+struct expm_functor
+{
+    typedef double Scalar;
+    typedef Eigen::Matrix<Scalar, 1, 1> InputType;
+    typedef Eigen::Matrix<Scalar, 16, 1> ValueType;
+    typedef Eigen::Matrix<Scalar, 16, 1> JacobianType;
+
+    static const int InputsAtCompileTime = 1;
+    static const int ValuesAtCompileTime = 16;
+
+    static int values() { return 16; }
+
+    expm_functor(double c_rho) : c_rho(c_rho) {}
+    int operator()(const InputType &x, ValueType &f) const
+    {
+        Eigen::MatrixXd M = transition_exp(c_rho, x(0,0));
+        M.resize(16,1);
+        f = M; 
+        return 0;
+    }
+    double c_rho; 
+};
+
+Matrix<adouble> transition_exp(double c_rho, adouble c_eta)
+{
+    // Compute derivative dependence on c_eta by numerical differentiation
+    expm_functor f(c_rho);
+    Eigen::NumericalDiff<expm_functor> numDiff(f);
+    Eigen::Matrix<double, 16, 1> df;
+    Eigen::Matrix<double, 1, 1> meta;
+    meta(0, 0) = c_eta.value();
+    numDiff.df(meta, df);
+    Matrix<adouble> ret = transition_exp(c_rho, c_eta.value()).cast<adouble>();
+    df.resize(4, 4);
+    for (int i = 0; i < 4; ++i)
+        for (int j = 0; j < 4; ++j)
+            ret(i, j).derivatives() = c_eta.derivatives() * df(i, j);
+    return ret;
+}
+
+template <typename T>
+Transition<T>::Transition(const PiecewiseExponential<T> &eta, const std::vector<double> &hidden_states, double rho) :
     eta(eta), _hs(hidden_states), rho(rho), M(hidden_states.size()), I(M, M), Phi(M - 1, M - 1)
 {
     I.setIdentity();
@@ -119,9 +163,10 @@ Transition::Transition(const PiecewiseExponential &eta, const std::vector<double
     compute();
 }
 
-void Transition::compute(void)
+template <typename T>
+void Transition<T>::compute(void)
 {
-    adouble r, p_coal;
+    T r, p_coal;
     for (int j = 1; j < M; ++j)
         for (int k = 1; k < M; ++k)
         {
@@ -153,9 +198,12 @@ void Transition::compute(void)
         }
 }
 
-AdMatrix& Transition::matrix(void) { return Phi; }
+template <typename T>
+Matrix<T>& Transition<T>::matrix(void) { return Phi; }
 
-void Transition::store_results(double* outtrans, double* outjac)
+/*
+template <typename T>
+void Transition<T>::store_results(double* outtrans, double* outjac)
 {
     Eigen::Map<Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> _trans(outtrans, M - 1, M - 1);
     _trans = Phi.cast<double>();
@@ -169,15 +217,17 @@ void Transition::store_results(double* outtrans, double* outjac)
                 outjac[m++] = d(k);
         }
 }
+*/
 
-AdMatrix Transition::expm(int i, int j)
+template <typename T>
+Matrix<T> Transition<T>::expm(int i, int j)
 {
     std::pair<int, int> key = {i, j};
     if (_expm_memo.count(key) == 0)
     {
         double c_rho;
-        adouble c_eta;
-        AdMatrix ret(M, M);
+        T c_eta;
+        Matrix<T> ret(M, M);
         if (i == j)
             ret = I;
         else

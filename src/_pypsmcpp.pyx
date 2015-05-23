@@ -12,98 +12,121 @@ logger = logging.getLogger(__name__)
     # loglvl = logging.getattr(lvl)
     # loglvl(msg)
 
-cdef class Demography:
-    cdef PiecewiseExponential *pexp
-    cdef vector[double] _logu, _logv, _logs
-    cdef int _K
-    def __init__(self, logu, logv, logs):
-        assert len(logu) == len(logv) == len(logs)
-        self._logu = logu
-        self._logv = logv
-        self._logs = logs
-        self.pexp = new PiecewiseExponential(self._logu, self._logv, self._logs)
-        self._K = len(logu)
-
-    @property
-    def K(self):
-        return self._K
-
-    @property
-    def logu(self):
-        return self._logu
-
-    @property
-    def logv(self):
-        return self._logv
-
-    @property
-    def logs(self):
-        return self._logs
-
-    def __dealloc__(self):
-        del self.pexp
-
-    def inverse_rate(self, double y):
-        return self.pexp.double_inverse_rate(y, 0, 1)
-
-    def print_debug(self):
-        self.pexp.print_debug()
-
-    def R(self, double y):
-        return self.pexp.double_R(y)
-
-cdef class PyAdMatrix:
-    cdef AdMatrix A
-
-cdef class TransitionWrapper:
-    cdef Transition* transition
-    def __dealloc__(self):
-        del self.transition
+# cdef class Demography:
+#     cdef PiecewiseExponential *pexp
+#     cdef vector[double] _logu, _logv, _logs
+#     cdef int _K
+#     def __init__(self, logu, logv, logs):
+#         assert len(logu) == len(logv) == len(logs)
+#         self._logu = logu
+#         self._logv = logv
+#         self._logs = logs
+#         self.pexp = new PiecewiseExponential(self._logu, self._logv, self._logs)
+#         self._K = len(logu)
+# 
+#     @property
+#     def K(self):
+#         return self._K
+# 
+#     @property
+#     def logu(self):
+#         return self._logu
+# 
+#     @property
+#     def logv(self):
+#         return self._logv
+# 
+#     @property
+#     def logs(self):
+#         return self._logs
+# 
+#     def __dealloc__(self):
+#         del self.pexp
+# 
+#     def inverse_rate(self, double y):
+#         return self.pexp.double_inverse_rate(y, 0, 1)
+# 
+#     def print_debug(self):
+#         self.pexp.print_debug()
+# 
+#     def R(self, double y):
+#         return self.pexp.double_R(y)
+# 
+# cdef class PyAdMatrix:
+#     cdef AdMatrix A
+# 
+# cdef class TransitionWrapper:
+#     cdef Transition* transition
+#     def __dealloc__(self):
+#         del self.transition
 
 # Everything needs to be C-order contiguous to pass in as
 # flat arrays
 aca = np.ascontiguousarray
 
-def sfs(Demography demo, int S, int M, int n, float tau1, float tau2, double theta, extract_output=False, int numthreads=1):
-    logger.debug("in sfs")
+cdef vector[double] from_list(lst):
+    cdef vector[double] ret
+    for l in lst:
+        ret.push_back(l)
+    return ret
+
+def log_likelihood(a, b, s, int n, int S, int M, obs_list, hidden_states, double rho, double theta, 
+        double reg_a, double reg_b, double reg_s,
+        int numthreads, seed=None, viterbi=False, jacobian=True):
     # Create stuff needed for computation
     # Sample conditionally; populate the interpolating rate matrices
+    assert len(a) == len(b) == len(s)
+    K = len(a)
     mats, ts = moran_model.interpolators(n)
-    logger.debug("Constructing ConditionedSFS object")
-    cdef double t1, t2
-    t1, t2 = [demo.R(x) for x in (tau1, tau2)]
-    assert all([not(np.isnan(x)) for x in (t1, t2)])
-    set_seed(np.random.randint(0, sys.maxint))
+    if not seed:
+        seed = np.random.randint(0, sys.maxint)
+    set_seed(seed)
     cdef vector[double*] expM
     cdef double[:, :, ::1] mmats = aca(mats)
     cdef int i
     for i in range(mats.shape[0]):
         expM.push_back(&mmats[i, 0, 0])
-    cdef vector[double] vts = ts
-    logging.info("Calculating SFS for interval [%f, %f) using %d threads" % (tau1, tau2, numthreads))
-    cdef AdMatrix mat = calculate_sfs(demo.pexp[0], n, S, M, ts, expM, t1, t2, numthreads, theta)
-    logging.debug("Done")
-    cdef PyAdMatrix ret
+    cdef double[:, ::1] mjac
+    jac = aca(np.zeros((3, K)))
+    mjac = jac
+    cdef int[:, ::1] mobs
+    cdef vector[int*] vobs
+    cdef int L = obs_list[0].shape[0]
+    contig_obs = [aca(ob, dtype=np.int32) for ob in obs_list]
+    for ob in contig_obs:
+        assert ob.shape == (L, 3)
+        mobs = ob
+        vobs.push_back(&mobs[0, 0])
+    cdef vector[vector[int]] viterbi_paths
+    cdef adouble ad
 
-    # If we are not extracting output (i.e., for testing purposes)
-    # then return a (wrapped) pointer to the csfs object for use
-    # later on in the forward algorithm.
-    if not extract_output:
-        ret = PyAdMatrix()
-        ret.A = mat
-        return ret
-
-    sfs = aca(np.zeros((3, n + 1)))
-    jac = aca(np.zeros((3, n + 1, 3, demo.K)))
-    cdef double[:, ::1] msfs = sfs
-    cdef double[:, :, :, ::1] mjac = jac
-    store_sfs_results(mat, &msfs[0, 0], &mjac[0, 0, 0, 0])
-    reduced_sfs = np.zeros(n + 1)
-    for i in range(3):
-        for j in range(n + 1):
-            if i + j < n + 1:
-                reduced_sfs[i + j] += sfs[i][j]
-    return (reduced_sfs, sfs, jac)
+    if jacobian:
+        ad = loglik[adouble](
+                from_list(a), from_list(b), from_list(s), 
+                n, 
+                S, M, 
+                from_list(ts), expM, 
+                L, vobs, 
+                from_list(hidden_states), rho, theta, 
+                numthreads,
+                viterbi, viterbi_paths, 
+                reg_a, reg_b, reg_s)
+        fill_jacobian(ad, &mjac[0, 0])
+        ret = (toDouble(ad), jac)
+        if viterbi:
+            ret += (np.sum(viterbi_paths, axis=0),)
+    else:
+        ret = loglik[double](
+            from_list(a), from_list(b), from_list(s), 
+            n, 
+            S, M, 
+            from_list(ts), expM, 
+            L, vobs, 
+            from_list(hidden_states), rho, theta, 
+            numthreads,
+            viterbi, viterbi_paths, 
+            reg_a, reg_b, reg_s)
+    return ret
 
 #def transition(Demography demo, hidden_states, double rho, extract_output=False):
 #    cdef vector[double] hs = hidden_states
@@ -125,30 +148,30 @@ def sfs(Demography demo, int S, int M, int n, float tau1, float tau2, double the
 #    del trans
 #    return (tmat, tjac)
 
-def hmm(Demography demo, sfs_list, obs_list, hidden_states, rho, theta, numthreads=1, 
-        viterbi=False, double reg_a=1, double reg_b=1, double reg_s=1):
-    print("in hmm")
-    cdef int[:, ::1] mobs
-    cdef vector[int*] vobs
-    L = obs_list[0].shape[0]
-    contig_obs = [aca(ob, dtype=np.int32) for ob in obs_list]
-    for ob in contig_obs:
-        assert ob.shape == (L, 3)
-        mobs = ob
-        vobs.push_back(&mobs[0, 0])
-    cdef vector[AdMatrix] emission
-    cdef PyAdMatrix wrap
-    for sfs in sfs_list:
-        wrap = sfs
-        emission.push_back(wrap.A)
-    logger.info("Computing HMM likelihood for %d data sets using %d threads" % (len(obs_list), numthreads))
-    jac = aca(np.zeros((3, demo.K)))
-    cdef double[:, ::1] mjac = jac
-    cdef vector[vector[int]] paths
-    cdef double logp = compute_hmm_likelihood(&mjac[0, 0], demo.pexp[0], 
-            emission, L, vobs, hidden_states, rho, 
-            numthreads, paths, viterbi, reg_a, reg_b, reg_s)
-    ret = (logp, jac)
-    if viterbi:
-        ret += (np.sum(paths, axis=0),)
-    return ret
+# def hmm(Demography demo, sfs_list, obs_list, hidden_states, rho, theta, numthreads=1, 
+#         viterbi=False, double reg_a=1, double reg_b=1, double reg_s=1):
+#     print("in hmm")
+#     cdef int[:, ::1] mobs
+#     cdef vector[int*] vobs
+#     L = obs_list[0].shape[0]
+#     contig_obs = [aca(ob, dtype=np.int32) for ob in obs_list]
+#     for ob in contig_obs:
+#         assert ob.shape == (L, 3)
+#         mobs = ob
+#         vobs.push_back(&mobs[0, 0])
+#     cdef vector[AdMatrix] emission
+#     cdef PyAdMatrix wrap
+#     for sfs in sfs_list:
+#         wrap = sfs
+#         emission.push_back(wrap.A)
+#     logger.debug("Computing HMM likelihood for %d data sets using %d threads" % (len(obs_list), numthreads))
+#     jac = aca(np.zeros((3, demo.K)))
+#     cdef double[:, ::1] mjac = jac
+#     cdef vector[vector[int]] paths
+#     cdef double logp = compute_hmm_likelihood(&mjac[0, 0], demo.pexp[0], 
+#             emission, L, vobs, hidden_states, rho, 
+#             numthreads, paths, viterbi, reg_a, reg_b, reg_s)
+#     ret = (logp, jac)
+#     if viterbi:
+#         ret += (np.sum(paths, axis=0),)
+#     return ret

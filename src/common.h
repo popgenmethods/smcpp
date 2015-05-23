@@ -17,9 +17,14 @@
 #define _DEBUG(x) x
 #endif
 
+template <typename T> using Matrix = Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic>;
+template <typename T> using Vector = Eigen::Matrix<T, Eigen::Dynamic, 1>;
+
 #ifdef AUTODIFF
 #include <unsupported/Eigen/AutoDiff>
 typedef Eigen::AutoDiffScalar<Eigen::VectorXd> adouble;
+inline double toDouble(const adouble &a) { return a.value(); }
+inline double toDouble(const double &d) { return d; }
 namespace Eigen {
     // Allow for casting of adouble matrices to double
     namespace internal 
@@ -54,6 +59,11 @@ EIGEN_AUTODIFF_DECLARE_GLOBAL_UNARY(expm1,
 EIGEN_AUTODIFF_DECLARE_GLOBAL_UNARY(log1p,
   Scalar log1px = std::log1p(x.value());
   return ReturnType(log1px, x.derivatives() * (Scalar(1) / (Scalar(1) + x.value())));
+)
+
+EIGEN_AUTODIFF_DECLARE_GLOBAL_UNARY(atan,
+  Scalar atanx = std::atan(x.value());
+  return ReturnType(atanx, x.derivatives() * (Scalar(1) / (Scalar(1) + x.value() * x.value())));
 )
 
 #undef EIGEN_AUTODIFF_DECLARE_GLOBAL_UNARY
