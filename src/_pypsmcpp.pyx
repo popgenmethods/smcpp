@@ -70,9 +70,9 @@ cdef vector[double] from_list(lst):
         ret.push_back(l)
     return ret
 
-def log_likelihood(a, b, s, int n, int S, int M, obs_list, hidden_states, double rho, double theta, 
-        double reg_a, double reg_b, double reg_s,
-        int numthreads, seed=None, viterbi=False, jacobian=True):
+def log_likelihood(a, b, s, int n, int S, int M, obs_list, hidden_states, 
+        double rho, double theta, double reg_a, double reg_b, double reg_s,
+        int numthreads, seed=None, viterbi=False, jacobian=False):
     # Create stuff needed for computation
     # Sample conditionally; populate the interpolating rate matrices
     assert len(a) == len(b) == len(s)
@@ -128,25 +128,54 @@ def log_likelihood(a, b, s, int n, int S, int M, obs_list, hidden_states, double
             reg_a, reg_b, reg_s)
     return ret
 
-#def transition(Demography demo, hidden_states, double rho, extract_output=False):
-#    cdef vector[double] hs = hidden_states
-#    assert hidden_states[0] == 0.0
-#    assert hidden_states[-1] == np.inf
-#    cdef Transition* trans = new Transition(demo.pexp[0], hs, rho)
-#    trans.compute()
-#    cdef TransitionWrapper ret
-#    if not extract_output:
-#        ret = TransitionWrapper()
-#        ret.trans = transition
-#        return ret
-#    M = len(hidden_states)
-#    tmat = aca(np.zeros((M - 1, M - 1)))
-#    tjac = aca(np.zeros((M - 1, M - 1, 3, demo.K)))
-#    cdef double[:, ::1] tmatv = tmat
-#    cdef double[:, :, :, ::1] tjacv = tjac
-#    trans.store_results(&tmatv[0, 0], &tjacv[0, 0, 0, 0])
-#    del trans
-#    return (tmat, tjac)
+def _reduced_sfs(sfs):
+    n = sfs.shape[1] - 1
+    reduced_sfs = np.zeros(n + 1)
+    for i in range(3):
+        for j in range(n + 1):
+            if i + j < n + 1:
+                reduced_sfs[i + j] += sfs[i][j]
+    return reduced_sfs
+
+def sfs(a, b, s, int n, int S, int M, double tau1, double tau2, int numthreads, double theta, seed=None, jacobian=False):
+    assert len(a) == len(b) == len(s)
+    K = len(a)
+    mats, ts = moran_model.interpolators(n)
+    if not seed:
+        seed = np.random.randint(0, sys.maxint)
+    set_seed(seed)
+    cdef vector[double*] expM
+    cdef double[:, :, ::1] mmats = aca(mats)
+    cdef int i
+    for i in range(mats.shape[0]):
+        expM.push_back(&mmats[i, 0, 0])
+    sfs = aca(np.zeros([3, n + 1]))
+    cdef double[:, ::1] msfs = sfs
+    cdef double[:, :, :, ::1] mjac 
+    if jacobian:
+        jac = aca(np.zeros((3, n + 1, 3, K)))
+        mjac = jac
+        cython_calculate_sfs_jac(a, b, s, n, S, M, ts, expM, tau1, tau2, numthreads, theta, &msfs[0, 0], &mjac[0, 0, 0, 0])
+        return (sfs, _reduced_sfs(sfs), jac)
+    else:
+        cython_calculate_sfs(a, b, s, n, S, M, ts, expM, tau1, tau2, numthreads, theta, &msfs[0, 0])
+        return (sfs, _reduced_sfs(sfs))
+
+def transition(a, b, s, hidden_states, rho, jacobian=False):
+    assert hidden_states[0] == 0.0
+    assert hidden_states[-1] == np.inf
+    M = len(hidden_states) - 1
+    trans = aca(np.zeros([M, M]))
+    cdef double[:, ::1] mtrans = trans
+    cdef double[:, :, :, ::1] mjac
+    if jacobian:
+        jac = aca(np.zeros((M, M, 3, len(a))))
+        mjac = jac
+        cython_calculate_transition_jac(a, b, s, hidden_states, rho, &mtrans[0, 0], &mjac[0, 0, 0, 0])
+        return (trans, jac)
+    else:
+        cython_calculate_transition(a, b, s, hidden_states, rho, &mtrans[0, 0])
+        return trans
 
 # def hmm(Demography demo, sfs_list, obs_list, hidden_states, rho, theta, numthreads=1, 
 #         viterbi=False, double reg_a=1, double reg_b=1, double reg_s=1):

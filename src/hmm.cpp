@@ -1,14 +1,11 @@
 #include "hmm.h"
 #include <csignal>
 
-template class HMM<double>;
-template class HMM<adouble>;
-
 template <typename T>
 HMM<T>::HMM(const Vector<T> &pi, const Matrix<T> &transition, 
         const std::vector<Matrix<T>> &emission,
         const int L, const int* obs) :
-    pi(pi), transition(transition), emission(emission), M(transition.size()),
+    pi(pi), transition(transition), emission(emission), M(emission.size()),
     L(L), obs(obs, L, 3)
 { 
     feraiseexcept(FE_ALL_EXCEPT & ~FE_INEXACT);
@@ -181,4 +178,54 @@ void HMM<T>::forward(void)
     }
 }
 
+template <typename T>
+T compute_hmm_likelihood(
+        const PiecewiseExponential<T> &eta, 
+        const Vector<T> &pi, const Matrix<T> &transition,
+        const std::vector<Matrix<T>>& emission, 
+        const int L, const std::vector<int*> obs,
+        int numthreads, 
+        bool viterbi, std::vector<std::vector<int>> &viterbi_paths)
+{
+    // eta.print_debug();
+    ThreadPool tp(numthreads);
+    std::vector<HMM<T>> hmms;
+    std::vector<std::thread> t;
+    std::vector<std::future<T>> results;
+    for (auto ob : obs)
+        hmms.emplace_back(pi, transition, emission, L, ob);
+    for (auto &hmm : hmms)
+        results.emplace_back(tp.enqueue([&] { hmm.forward(); return hmm.loglik(); }));
+    T ret = 0.0;
+    for (auto &&res : results)
+        ret += res.get();
+    std::vector<std::future<std::vector<int>>> viterbi_results;
+    if (viterbi)
+    {
+        for (auto &hmm : hmms)
+            viterbi_results.emplace_back(tp.enqueue([&] { return hmm.viterbi(); }));
+        for (auto &&res : viterbi_results)
+            viterbi_paths.push_back(res.get());
+    }
+    return ret;
+}
+
+template double compute_hmm_likelihood(
+        const PiecewiseExponential<double> &eta, 
+        const Vector<double> &pi, const Matrix<double> &transition,
+        const std::vector<Matrix<double>>& emission, 
+        const int L, const std::vector<int*> obs,
+        int numthreads, 
+        bool viterbi, std::vector<std::vector<int>> &viterbi_paths);
+
+template adouble compute_hmm_likelihood(
+        const PiecewiseExponential<adouble> &eta, 
+        const Vector<adouble> &pi, const Matrix<adouble> &transition,
+        const std::vector<Matrix<adouble>>& emission, 
+        const int L, const std::vector<int*> obs,
+        int numthreads, 
+        bool viterbi, std::vector<std::vector<int>> &viterbi_paths);
+
+template class HMM<double>;
+template class HMM<adouble>;
 

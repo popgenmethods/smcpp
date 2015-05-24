@@ -4,12 +4,11 @@
 #include <cassert>
 #include <cfenv>
 #include <algorithm>
+#include <map>
 #include <unsupported/Eigen/MatrixFunctions>
 
 #include "common.h"
-#include "conditioned_sfs.h"
 #include "piecewise_exponential.h"
-#include "transition.h"
 #include "ThreadPool.h"
 
 typedef Eigen::Map<const Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> npArray;
@@ -52,29 +51,6 @@ T compute_hmm_likelihood(
         const std::vector<Matrix<T>>& emission, 
         const int L, const std::vector<int*> obs,
         int numthreads, 
-        bool viterbi, std::vector<std::vector<int>> &viterbi_paths)
-{
-    // eta.print_debug();
-    ThreadPool tp(numthreads);
-    std::vector<HMM<T>> hmms;
-    std::vector<std::thread> t;
-    std::vector<std::future<T>> results;
-    for (auto ob : obs)
-        hmms.emplace_back(pi, transition, emission, L, ob);
-    for (auto &hmm : hmms)
-        results.emplace_back(tp.enqueue([&] { hmm.forward(); return hmm.loglik(); }));
-    T ret = 0.0;
-    for (auto &&res : results)
-        ret += res.get();
-    std::vector<std::future<std::vector<int>>> viterbi_results;
-    if (viterbi)
-    {
-        for (auto &hmm : hmms)
-            viterbi_results.emplace_back(tp.enqueue([&] { return hmm.viterbi(); }));
-        for (auto &&res : viterbi_results)
-            viterbi_paths.push_back(res.get());
-    }
-    return ret;
-}
+        bool viterbi, std::vector<std::vector<int>> &viterbi_paths);
 
 #endif

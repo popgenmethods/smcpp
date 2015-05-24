@@ -106,8 +106,6 @@ AdMatrix transition_exp(double c_rho, adouble c_eta)
 }
 */
 
-// FIXME: this ignores the derivative dependency
-// of the matrix exponential itself
 Matrix<double> transition_exp(double c_rho, double c_eta)
 {
     Matrix<double> M = c_rho * A_rho + c_eta * A_eta;
@@ -251,31 +249,47 @@ Matrix<T> Transition<T>::expm(int i, int j)
     return _expm_memo[key];
 }
 
-/*
-int main(int argc, char** argv)
+void store_transition(const Matrix<double> &trans, double* outtrans)
 {
-    PiecewiseExponential pe({1.0, 2.0, 3.0}, {-0.01, .001, .03}, {0.0, 0.5, 1.0});
-    std::cout << pe.R(1.0) << std::endl;
-    std::array<AdMatrix, 3> eig = eigensystem(1.0, pe.R(1.0));
-    AdMatrix P = eig[0];
-    AdMatrix D = eig[1];
-    AdMatrix Pinv = eig[2];
-    Eigen::Matrix4d A; 
-    AdMatrix Ap = (P * D * Pinv);
-    for (int i = 0; i < 4; ++i)
-        for (int j = 0; j < 4; ++j)
-            A(i,j) = Ap(i,j).value();
-    std::cout << A << std::endl << std::endl;
-
-    for (auto x : eigenvalues(1.0, 2.0))
-        std::cout << x.value() << " ";
-    std::cout << std::endl;
-    std::vector<double> hs = {0.0, 1.0, 2.0, 3.0, INFINITY};
-    Transition T(&pe, hs, 1e-8);
-    T.compute();
-    for (int i = 0; i < 4; ++i)
-        for (int j = 0; j < 4; ++j)
-            A(i,j) = Ap(i,j).value();
-    std::cout << A << std::endl;
+    int M = trans.cols();
+    Eigen::Map<Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> _outtrans(outtrans, M, M);
+    _outtrans = trans;
 }
-*/
+
+void store_transition(const Matrix<adouble> &trans, double* outtrans, double* outjac)
+{
+    store_transition(trans.cast<double>(), outtrans);
+    int M = trans.cols();
+    int num_derivatives = trans(0,0).derivatives().rows();
+    Eigen::VectorXd d;
+    int m = 0;
+    for (int i = 0; i < M; ++i)
+        for (int j = 0; j < M; ++j)
+        {
+            d = trans(i, j).derivatives();
+            assert(d.rows() == num_derivatives);
+            for (int k = 0; k < num_derivatives; ++k)
+                outjac[m++] = d(k);
+        }
+}
+
+void cython_calculate_transition(const std::vector<double> a, const std::vector<double> b, const std::vector<double> s, 
+        const std::vector<double> hidden_states, double rho, double* outtrans)
+{
+    PiecewiseExponential<double> eta(a, b, s);
+    Matrix<double> trans = compute_transition(eta, hidden_states, rho);
+    store_transition(trans, outtrans);
+}
+
+void cython_calculate_transition_jac(const std::vector<double> a, const std::vector<double> b, const std::vector<double> s, 
+        const std::vector<double> hidden_states, double rho, double* outtrans, double* outjac)
+{
+    PiecewiseExponential<adouble> eta(a, b, s);
+    Matrix<adouble> trans = compute_transition(eta, hidden_states, rho);
+    store_transition(trans, outtrans, outjac);
+}
+
+
+template class Transition<double>;
+template class Transition<adouble>;
+

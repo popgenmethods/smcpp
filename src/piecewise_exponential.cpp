@@ -1,48 +1,30 @@
 #include "piecewise_exponential.h"
 
-template class PiecewiseExponential<double>;
-template class PiecewiseExponential<adouble>;
-
 template <typename T>
 PiecewiseExponential<T>::PiecewiseExponential(
-        std::vector<double> logu, std::vector<double> logv, std::vector<double> logs) :
-    K(logu.size()), logu(logu), logv(logv), logs(logs), adlogu(K), adlogv(K), adlogs(K),
-    ada(K), adb(K), ts(K), Rrng(K)
+        std::vector<double> a, std::vector<double> b, std::vector<double> s) :
+    K(a.size()), a(a), b(b), s(s), ada(K), adb(K), ads(K), ts(K), Rrng(K)
 {
-    // First, set correct derivative dependences
     for (int k = 0; k < K; ++k)
     {
-        adlogu[k] = logu[k];
-        adlogv[k] = logv[k];
-        adlogs[k] = logs[k];
+        ada[k] = a[k];
+        adb[k] = b[k];
+        ads[k] = s[k];
     }
+    // Final piece is required to be flat.
+    adb[K - 1] = 0.0;
+    ts[0] = 0;
+    Rrng[0] = 0;
+    one = 1.0;
     // These constant values need to have compatible derivative shape
     // with the calculated values.
     initialize_derivatives();
 
-    ts[0] = 0;
-    Rrng[0] = 0;
     for (int k = 1; k < K; ++k)
     {
         // ts[k] = ts[k - 1] + .1 + exp(adlogs[k]);
-        ts[k] = ts[k - 1] + abs(adlogs[k]);
+        ts[k] = ts[k - 1] + ads[k];
     }
-    ada[0] = adlogu[0];
-    for (int k = 1; k < K; ++k)
-    {
-        // ts[k] *= 20.0 / ts[K - 1];
-        // ts[k] = ts[k - 1] + 0.1 + exp(adlogs[k]);
-        // ada[k] = N_lower + exp(adlogu[k]);
-        ada[k] = adlogu[k];
-        adb[k - 1] = adlogv[k - 1];
-        // adb[k - 1] = log((N_lower + exp(adlogv[k - 1])) / ada[k - 1]) / (ts[k] - ts[k - 1]);
-        // adb[k - 1] = (adlogv[k - 1] - adlogu[k - 1]) / (ts[k] - ts[k - 1]);
-        // adb[k - 1] = log(adlogv[k - 1] / adlogu[k - 1]) / (ts[k] - ts[k - 1]);
-        // (adlogv[k - 1] - adlogu[k - 1]) / (ts[k] - ts[k - 1]);
-        // Purposely leave adb[K - 1] undefined here since we require
-        // the last piece to be flat.
-    }
-    adb[K - 1] = 0.0;
     compute_antiderivative();
 }
 
@@ -56,12 +38,13 @@ void PiecewiseExponential<adouble>::initialize_derivatives(void)
     Eigen::VectorXd zero = Eigen::VectorXd::Zero(3 * K);
     for (int k = 0; k < K; ++k)
     {
-        adlogu[k].derivatives() = I.row(k);
-        adlogv[k].derivatives() = I.row(K + k);
-        adlogs[k].derivatives() = I.row(2 * K + k);
+        ada[k].derivatives() = I.row(k);
+        adb[k].derivatives() = I.row(K + k);
+        ads[k].derivatives() = I.row(2 * K + k);
     }
     ts[0].derivatives() = zero;
     Rrng[0].derivatives() = zero;
+    one.derivatives() = zero;
 }
 
 template <typename T>
@@ -73,6 +56,9 @@ int PiecewiseExponential<T>::num_derivatives(void)
 template <typename T>
 T PiecewiseExponential<T>::R(T t) const
 {
+    t *= one;
+    if (isinf(toDouble(t)))
+        return INFINITY;
     int ip = insertion_point(t, ts, 0, K);
     if (adb[ip] == 0.0)
         return Rrng[ip] + ada[ip] * (t - ts[ip]);
@@ -80,18 +66,17 @@ T PiecewiseExponential<T>::R(T t) const
         return ada[ip] / adb[ip] * expm1(adb[ip] * (t - ts[ip])) + Rrng[ip];
 }
 
-
 template <typename T>
 double PiecewiseExponential<T>::double_R(double t) const
 {
-    if (isinf(t))
-        return INFINITY;
     return toDouble(R(t));
 }
 
 template <typename T>
 T PiecewiseExponential<T>::inverse_rate(T y, T t, double coalescence_rate) const
 {
+    y *= one;
+    t *= one;
     if (isinf(toDouble(y)))
         return INFINITY;
     // Return x such that rate * \int_t^{t + x} eta(s) ds = y
@@ -100,9 +85,6 @@ T PiecewiseExponential<T>::inverse_rate(T y, T t, double coalescence_rate) const
     // FIXME: this is a potential source of bugs if Rt0 < Rrng[K - 1] only by
     // a very small amount.
     int ip = insertion_point(Rt0, Rrng, 0, K);
-    // return log((Rt0 - Rc[ip]) / Ra[ip]) / Rb[ip] + ts[ip] - t;
-    // log((Rt0 - Rc[ip]) / Ra[ip]) = log( Rt0 / Ra[ip] + (Ra[ip] - Rng[ip]) / Ra[ip]
-    //                              = log((Rt0 - Rrng[ip]) / Ra[ip] + 1)
     if (adb[ip] == 0.0) 
         return (Rt0 - Rrng[ip]) / ada[ip] + ts[ip] - t;
     else
@@ -121,8 +103,7 @@ template <typename T>
 void PiecewiseExponential<T>::print_debug() const
 {
     std::vector<std::pair<std::string, std::vector<T>>> arys = 
-    {{"adlogu", adlogu}, {"adlogv", adlogv}, {"adlogs", adlogs}, 
-        {"ada", ada}, {"adb", adb}, {"ts", ts}, {"Rrng", Rrng}};
+    {{"ada", ada}, {"adb", adb}, {"ads", ads}, {"ts", ts}, {"Rrng", Rrng}};
     for (auto p : arys)
     {
         std::cout << p.first << std::endl;
@@ -147,5 +128,9 @@ void PiecewiseExponential<T>::compute_antiderivative()
 template <typename T>
 std::vector<std::vector<T>> PiecewiseExponential<T>::ad_vars(void) const
 {
-    return {adlogu, adlogv, adlogs};
+    return {ada, adb, ads};
 }
+
+template class PiecewiseExponential<double>;
+template class PiecewiseExponential<adouble>;
+

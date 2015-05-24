@@ -21,9 +21,9 @@ class PiecewiseExponential
     const int K;
 
     private:
-    const std::vector<double> logu, logv, logs;
-    std::vector<T> adlogu, adlogv, adlogs;
-    std::vector<T> ada, adb, ts, Rrng;
+    T one;
+    const std::vector<double> a, b, s;
+    std::vector<T> ada, adb, ads, ts, Rrng;
     void initialize_derivatives();
     void compute_antiderivative();
 };

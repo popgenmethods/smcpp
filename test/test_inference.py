@@ -5,7 +5,6 @@ import logging
 
 logging.getLogger().setLevel("INFO")
 
-from _pypsmcpp import Demography
 import inference
 
 N = 10
@@ -14,7 +13,7 @@ hidden_states = np.array([0.0, 1.0, 2.0, np.inf])
 
 @pytest.fixture
 def demo():
-    return Demography([1.0, 2.0], [.0001, -.01], [0.0, 0.5])
+    return ([1.0, 2.0], [.0001, -.01], [0.0, 0.5])
 
 @pytest.fixture
 def fake_obs():
@@ -22,12 +21,13 @@ def fake_obs():
     for ell in range(L):
         ary.append([np.random.randint(1, 1000), 0, 0])
         d = np.random.randint(0, 3)
-        ary.append([1, d, np.maximum(1, np.random.randint(0, N - 1 - d))])
+        ary.append([1, d, np.random.randint(not d, N + 1 - (d == 2))])
     return np.array(ary)
 
 def test_inference_parallel(demo, fake_obs):
-    logp, jac = inference.logp(demo.sqrt_a, demo.b, demo.sqrt_s, 1, 1, N, [fake_obs,] * 4, 1e-8, 1e-8, hidden_states, 8)
-    print(logp)
+    a, b, s = demo
+    ll, jac = inference.loglik(a, b, s, 1, 1, N, [fake_obs,] * 4, 1e-8, 1e-8, hidden_states, numthreads=8, jacobian=True)
+    print(ll)
     print(jac)
     # Well, that worked
 

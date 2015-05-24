@@ -3,6 +3,9 @@
 
 std::mt19937 sfs_gen;
 
+inline double myabs(double a) { return std::abs(a); }
+inline adouble myabs(adouble a) { return Eigen::abs(a); }
+
 std::map<std::array<int, 3>, double> _Wnbj_memo;
 double calculate_Wnbj(int n, int b, int j)
 {
@@ -64,20 +67,18 @@ double pnkb_undist(int n, int m, int l3)
     return ret;
 }
 
-template <typename T>
-inline T fmin(T a, T b)
+inline double dmin(double a, double b) { return std::min(a, b); }
+inline double dmax(double a, double b) { return std::max(a, b); }
+
+inline adouble dmin(adouble a, adouble b)
 {
     return (a + b - abs(a - b)) / 2;
 }
 
-template <typename T>
-inline T fmax(T a, T b)
+inline adouble dmax(adouble a, adouble b)
 {
     return (a + b + abs(a - b)) / 2;
 }
-
-template class ConditionedSFS<double>;
-template class ConditionedSFS<adouble>;
 
 template <typename T>
 ConditionedSFS<T>::ConditionedSFS(const PiecewiseExponential<T> &eta, int n) :
@@ -213,7 +214,7 @@ void ConditionedSFS<T>::compute(int S, int M, const std::vector<double> &ts,
             rate_below = (double)((j + 1) * j / 2 - 1);
             for (int s = 0; s < S; ++s)
             {
-                tjj_below(j - 1, 0) += fmin(tau, eta.inverse_rate(exp1(), zero, rate_below)) / S;
+                tjj_below(j - 1, 0) += dmin(tau, eta.inverse_rate(exp1(), zero, rate_below)) / S;
                 tjj_above(j - 2, 0) += eta.inverse_rate(exp1(), tau, rate_above) / S;
             }
         }
@@ -246,38 +247,6 @@ void ConditionedSFS<T>::compute(int S, int M, const std::vector<double> &ts,
     csfs = csfs_below + csfs_above;
 }
 
-void store_sfs_results(const Matrix<double> &csfs, double* outsfs)
-{
-    int n = csfs.cols();
-    Eigen::Map<Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> _outsfs(outsfs, 3, n);
-    _outsfs = csfs.cast<double>();
-}
-
-void store_sfs_results(const Matrix<adouble> &csfs, double* outsfs, double* outjac)
-{
-    store_sfs_results(csfs.cast<double>(), outsfs);
-    int n = csfs.cols();
-    int num_derivatives = csfs(0,1).derivatives().rows();
-    Eigen::VectorXd d;
-    int m = 0;
-    for (int i = 0; i < 3; ++i)
-        for (int j = 0; j < n; ++j)
-        {
-            d = csfs(i, j).derivatives();
-            assert(d.rows() == num_derivatives);
-            /*
-            for (int k = 0; k < eta->K(); ++k)
-                printf("i:%i j:%i dsfs/da[%i]:%f dsfs/db[%i]:%f dsfs/ds[%i]:%f\n", i, j, k, d(k), k, d(eta->K() + k), k, d(k + eta->K() * 2));
-                */
-            for (int k = 0; k < num_derivatives; ++k)
-                outjac[m++] = d(k);
-        }
-}
-
-void set_seed(long long seed)
-{
-    sfs_gen.seed(seed);
-}
 
 template <typename T>
 void ConditionedSFS<T>::fill_matrices(void)
@@ -384,35 +353,62 @@ Matrix<T> ConditionedSFS<T>::calculate_sfs(const PiecewiseExponential<T> &eta,
     // leads to problems in the HMM computations.
     for (int i = 0; i < ret.rows(); ++i)
         for (int j = 0; j < ret.cols(); ++j)
-            ret(i, j) = abs(ret(i, j)); // fmax(ret(i, j), 1e-10);
+            ret(i, j) = myabs(ret(i, j)); // fmax(ret(i, j), 1e-10);
     // std::cout << std::endl << ret.cast<double>() << std::endl << std::endl;
     return ret;
 }
-/*
-int main(int argc, char** argv)
-{
-    int K = 2;
-    int n = 50;
-    double sqrt_a[2] = {1.0, 0.5};
-    double b[2] = {.01, -.001};
-    double sqrt_s[2] = {0.0, 1.0};
-    double outsfs[3 * (n + 1)];
-    double outjac[3 * 2 * 3 * (n + 1)];
-    double expm[(n + 1) * (n + 1)];
-    int m = 0;
-    for (int i = 0; i <= n; ++i)
-        for (int j = 0; j <= n; ++j)
-            expm[m++] = (int)(i == j);
-    std::vector<double*> E = {expm, expm, expm, expm};
-    std::vector<int> ei(1000, 1);
-    std::vector<double> t(1000);
-    double x = 0.01;
-    for (int m = 0; m < 1000; ++m)
-        t[m] = (x += 0.01);
-    std::vector<double> y(1000, 0.2);
 
-    ConditionedSFS csfs(K, n, sqrt_a, b, sqrt_s, outsfs, outjac);
-    csfs.compute(100, 100, &y[0], E, &ei[0], &t[0], 1e-6);
+// End of class definitions
+// Utility methods
+void set_seed(long long seed)
+{
+    sfs_gen.seed(seed);
 }
 
-*/
+void store_sfs_results(const Matrix<double> &csfs, double* outsfs)
+{
+    int n = csfs.cols();
+    Eigen::Map<Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> _outsfs(outsfs, 3, n);
+    _outsfs = csfs.cast<double>();
+}
+
+void store_sfs_results(const Matrix<adouble> &csfs, double* outsfs, double* outjac)
+{
+    store_sfs_results(csfs.cast<double>(), outsfs);
+    int n = csfs.cols();
+    int num_derivatives = csfs(0,1).derivatives().rows();
+    Eigen::VectorXd d;
+    int m = 0;
+    for (int i = 0; i < 3; ++i)
+        for (int j = 0; j < n; ++j)
+        {
+            d = csfs(i, j).derivatives();
+            assert(d.rows() == num_derivatives);
+            for (int k = 0; k < num_derivatives; ++k)
+                outjac[m++] = d(k);
+        }
+}
+
+void cython_calculate_sfs(const std::vector<double> a, const std::vector<double> b, const std::vector<double> s, 
+        int n, int S, int M, const std::vector<double> &ts, 
+        const std::vector<double*> &expM, double tau1, double tau2, int numthreads, double theta, 
+        double* outsfs)
+{
+    PiecewiseExponential<double> eta(a, b, s);
+    Matrix<double> out = ConditionedSFS<double>::calculate_sfs(eta, n, S, M, ts, expM, tau1, tau2, numthreads, theta);
+    store_sfs_results(out, outsfs);
+}
+
+void cython_calculate_sfs_jac(const std::vector<double> a, const std::vector<double> b, const std::vector<double> s,
+        int n, int S, int M, const std::vector<double> &ts, 
+        const std::vector<double*> &expM, double tau1, double tau2, int numthreads, double theta, 
+        double* outsfs, double* outjac)
+{
+    PiecewiseExponential<adouble> eta(a, b, s);
+    Matrix<adouble> out = ConditionedSFS<adouble>::calculate_sfs(eta, n, S, M, ts, expM, tau1, tau2, numthreads, theta);
+    store_sfs_results(out, outsfs, outjac);
+}
+
+template class ConditionedSFS<double>;
+template class ConditionedSFS<adouble>;
+

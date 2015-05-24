@@ -1,29 +1,40 @@
-import _pypsmcpp
 import numpy as np
 np.set_printoptions(linewidth=120)
-
 import sys
+
+import _pypsmcpp
 from fixtures import *
-from _pypsmcpp import Demography
 
-def test_correct_const(constant_demo_1):
-    # Make as close to constant as possible
-    for n in (2, 3, 10, 20):
-        rsfs, sfs, jac = _pypsmcpp.sfs(constant_demo_1, 1000, 500, n, 0., np.inf, 1.0, extract_output=True, numthreads=8)
-        print(n)
-        print(rsfs)
-        for k in range(1, n):
-            assert abs((rsfs[k] - 2. / k) / (2. / k)) < 2e-2
+NTHREAD = 16
+S = 2000
+M = 100
 
-def test_correct_const_1000(constant_demo_1000):
+def test_matching_diff_nodiff(constant_demo_1):
+    from timeit import default_timer as timer
+    a, b, s = constant_demo_1
+    n = 5
+    start = timer()
+    seed = np.random.randint(0, 10000000)
+    sfs1, rsfs1, jac = _pypsmcpp.sfs(a, b, s, n, S, M, 0., np.inf, NTHREAD, 1.0, jacobian=True, seed=seed)
+    end = timer()
+    print("Run-time with jacobian: %f" % (end - start))
+    start = timer()
+    sfs2, rsfs2 = _pypsmcpp.sfs(a, b, s, n, S, M, 0., np.inf, NTHREAD, 1.0, jacobian=False, seed=seed)
+    end = timer()
+    print("Run-time without: %f" % (end - start))
+    print(sfs1)
+    print(sfs2)
+
+def test_correct_const(constant_demo_1, constant_demo_1000):
     # Make as close to constant as possible
-    for n in (2, 3, 10, 20):
-        rsfs, sfs, jac = _pypsmcpp.sfs(constant_demo_1000, 1000, 500, n, 0., np.inf, 1.0, extract_output=True, numthreads=8)
-        print(n)
-        print(sfs)
-        print(rsfs)
-        for k in range(1, n):
-            assert abs((rsfs[k] - 2000. / k)  / (2000. / k)) < 2e-2
+    for d, mult in ((constant_demo_1, 1.0), (constant_demo_1000, 1000.0)):
+        a, b, s = d
+        for n in (2, 3, 10, 20):
+            sfs, rsfs = _pypsmcpp.sfs(a, b, s, n, S, M, 0., np.inf, NTHREAD, 1.0, jacobian=False)
+            print(n)
+            print(rsfs)
+            for k in range(1, n):
+                assert abs((rsfs[k] - 2. * mult / k) / (2. * mult / k)) < 2e-2
 
 def test_d():
     a = np.array([1.0, 2.0, 3.0, 4.0])
@@ -32,9 +43,8 @@ def test_d():
     K = s.shape[0]
     M = 100
     S = 500
-    n = 15
-    demo = Demography(a, b, s)
-    rsfs, sfs, jac = _pypsmcpp.sfs(demo, S, M, n, 0., 10, 1.0, numthreads=2, extract_output=True, seed=10)
+    n = 10
+    sfs, _, jac = _pypsmcpp.sfs(a, b, s, n, S, M, 0., np.inf, NTHREAD, 1.0, jacobian=True, seed=1)
     eps = .02
     I = np.eye(K)
     for ind in (0, 1, 2):
@@ -44,8 +54,8 @@ def test_d():
                 pass
             args[ind] = args[ind] + eps * I[k]
             print(args)
-            demo2 = Demography(*args)
-            _, sfs2, jac2 = _pypsmcpp.sfs(demo2, S, M, n, 0., 10, 1.0, numthreads=2, extract_output=True, seed=1)
+            ap, bp, sp = args
+            sfs2, rsfs2 = _pypsmcpp.sfs(ap, bp, sp, n, S, M, 0., np.inf, NTHREAD, 1.0, jacobian=False, seed=1)
             for i in (0, 1, 2):
                 for j in range(n + 1):
                     jaca = jac[i, j, ind, k]
