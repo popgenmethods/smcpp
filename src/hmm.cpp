@@ -13,10 +13,6 @@ HMM<T>::HMM(const Vector<T> &pi, const Matrix<T> &transition,
     D.setZero();
     diag_obs(D, 0, 0);
     O0T = D * transition.transpose();
-    _DEBUG(std::cout << "D0" << std::endl);
-    _DEBUG(std::cout << D.diagonal().cast<double>().transpose() << std::endl);
-    _DEBUG(std::cout << "O0T" << std::endl);
-    _DEBUG(std::cout << O0T.cast<double>() << std::endl << O0T.cast<double>().rowwise().sum() << std::endl << std::endl);
 }
 
 
@@ -171,7 +167,7 @@ void HMM<T>::forward(void)
         // std::cout << obs.block(ell, 0, 1, 3) << " :: " << alpha_hat.cast<double>().transpose() << std::endl;
         c0 = alpha_hat.sum();
         if (isnan(toDouble(c0)) || c0 <= 0.0)
-            raise(SIGINT);
+            throw std::domain_error("nan encountered in hmm");
         alpha_hat /= c0;
         assert(c0 > 0);
         logc.push_back(log(c0));
@@ -180,7 +176,7 @@ void HMM<T>::forward(void)
 
 template <typename T>
 T compute_hmm_likelihood(
-        const PiecewiseExponential<T> &eta, 
+        const RateFunction<T> &eta, 
         const Vector<T> &pi, const Matrix<T> &transition,
         const std::vector<Matrix<T>>& emission, 
         const int L, const std::vector<int*> obs,
@@ -211,7 +207,7 @@ T compute_hmm_likelihood(
 }
 
 template double compute_hmm_likelihood(
-        const PiecewiseExponential<double> &eta, 
+        const RateFunction<double> &eta, 
         const Vector<double> &pi, const Matrix<double> &transition,
         const std::vector<Matrix<double>>& emission, 
         const int L, const std::vector<int*> obs,
@@ -219,7 +215,7 @@ template double compute_hmm_likelihood(
         bool viterbi, std::vector<std::vector<int>> &viterbi_paths);
 
 template adouble compute_hmm_likelihood(
-        const PiecewiseExponential<adouble> &eta, 
+        const RateFunction<adouble> &eta, 
         const Vector<adouble> &pi, const Matrix<adouble> &transition,
         const std::vector<Matrix<adouble>>& emission, 
         const int L, const std::vector<int*> obs,

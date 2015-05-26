@@ -1,4 +1,3 @@
-#include <cfenv>
 #include "conditioned_sfs.h"
 
 std::mt19937 sfs_gen;
@@ -81,8 +80,8 @@ inline adouble dmax(adouble a, adouble b)
 }
 
 template <typename T>
-ConditionedSFS<T>::ConditionedSFS(const PiecewiseExponential<T> &eta, int n) :
-    eta(eta), n(n),
+ConditionedSFS<T>::ConditionedSFS(const RateFunction<T> &eta, int n) :
+    eta(&eta), n(n),
     D_subtend_above(n, n), D_not_subtend_above(n, n),
 	D_subtend_below(n + 1, n + 1), D_not_subtend_below(n + 1, n + 1),
 	Wnbj(n, n), P_dist(n + 1, n + 1), 
@@ -148,19 +147,6 @@ std::thread ConditionedSFS<T>::compute_threaded(int S, int M, const std::vector<
     return std::thread(&ConditionedSFS::compute, this, S, M, ts, expM, t1, t2);    
 }
 
-template <>
-adouble ConditionedSFS<adouble>::adZero(void)
-{
-    adouble zero = 0.0;
-    auto d = Eigen::VectorXd(eta.num_derivatives());
-    d.fill(0);
-	zero.derivatives() = d;
-    return zero;
-}
-
-template <>
-double ConditionedSFS<double>::adZero(void) { return 0.0; }
-
 // Calculate sfs and derivatives for rate function 
 //     eta(t) = a[k] * exp(b[k] * (t - t[k])), t[k] <= t < t[k + 1]
 // where t[k] = s[1]**2 + ... + s[k]**2.
@@ -191,7 +177,7 @@ void ConditionedSFS<T>::compute(int S, int M, const std::vector<double> &ts,
 	// Mixing constants with adoubles causes problems because the library
 	// doesn't know how to allocate the VectorXd of derivatives(). 
 	// Here, we do it by hand.
-	T zero = adZero();
+	T zero = eta->zero;
     csfs.fill(zero);
     csfs_above.fill(zero);
     csfs_below.fill(zero);
@@ -203,7 +189,7 @@ void ConditionedSFS<T>::compute(int S, int M, const std::vector<double> &ts,
         _DEBUG(std::cout << m << " " << std::flush);
         y = exp1_conditional(t1, t2);
         ei = insertion_point(toDouble(y), ts, 0, ts.size());
-        tau = eta.inverse_rate(y, zero, 1);
+        tau = eta->Rinv(y, zero);
         tjj_below.fill(zero);
         tjj_above.fill(zero);
         tjj_below(0, 0) = tau;
@@ -214,8 +200,8 @@ void ConditionedSFS<T>::compute(int S, int M, const std::vector<double> &ts,
             rate_below = (double)((j + 1) * j / 2 - 1);
             for (int s = 0; s < S; ++s)
             {
-                tjj_below(j - 1, 0) += dmin(tau, eta.inverse_rate(exp1(), zero, rate_below)) / S;
-                tjj_above(j - 2, 0) += eta.inverse_rate(exp1(), tau, rate_above) / S;
+                tjj_below(j - 1, 0) += dmin(tau, eta->Rinv(exp1() / rate_below, zero)) / S;
+                tjj_above(j - 2, 0) += eta->Rinv(exp1() / rate_above, tau) / S;
             }
         }
         // Compute sfs below using ETnk recursion
@@ -331,7 +317,7 @@ Matrix<T> ConditionedSFS<T>::average_csfs(std::vector<ConditionedSFS<T>> &csfs, 
 }
 
 template <typename T>
-Matrix<T> ConditionedSFS<T>::calculate_sfs(const PiecewiseExponential<T> &eta, 
+Matrix<T> ConditionedSFS<T>::calculate_sfs(const RateFunction<T> &eta, 
         int n, int S, int M, const std::vector<double> &ts, 
         const std::vector<double*> &expM, double tau1, double tau2, int numthreads, double theta)
 {
@@ -394,7 +380,7 @@ void cython_calculate_sfs(const std::vector<double> a, const std::vector<double>
         const std::vector<double*> &expM, double tau1, double tau2, int numthreads, double theta, 
         double* outsfs)
 {
-    PiecewiseExponential<double> eta(a, b, s);
+    SplineRateFunction<double> eta({a, s});
     Matrix<double> out = ConditionedSFS<double>::calculate_sfs(eta, n, S, M, ts, expM, tau1, tau2, numthreads, theta);
     store_sfs_results(out, outsfs);
 }
@@ -404,7 +390,7 @@ void cython_calculate_sfs_jac(const std::vector<double> a, const std::vector<dou
         const std::vector<double*> &expM, double tau1, double tau2, int numthreads, double theta, 
         double* outsfs, double* outjac)
 {
-    PiecewiseExponential<adouble> eta(a, b, s);
+    SplineRateFunction<adouble> eta({a, s});
     Matrix<adouble> out = ConditionedSFS<adouble>::calculate_sfs(eta, n, S, M, ts, expM, tau1, tau2, numthreads, theta);
     store_sfs_results(out, outsfs, outjac);
 }

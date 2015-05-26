@@ -33,6 +33,6 @@ cdef extern from "loglik.h":
             const double, const double,
             int,
             bool, vector[vector[int]]&,
-            double, double, double)
+            double, double, double) except +
     void fill_jacobian(const adouble &, double*)
 

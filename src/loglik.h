@@ -2,6 +2,8 @@
 #define LOGLIK_H
 
 #include "common.h"
+#include "rate_function.h"
+#include "spline_rate_function.h"
 #include "transition.h"
 #include "conditioned_sfs.h"
 #include "hmm.h"
@@ -27,7 +29,7 @@ T loglik(
         // Optionally compute viterbi
         bool viterbi, std::vector<std::vector<int>> &viterbi_paths,
         // Regularizers
-        double reg_a, double reg_b, double reg_s);
+        double lambda);
 
 void fill_jacobian(const adouble &ll, double* outjac);
 

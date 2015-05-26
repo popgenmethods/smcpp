@@ -24,6 +24,7 @@ PiecewiseExponential<T>::PiecewiseExponential(
     {
         // ts[k] = ts[k - 1] + .1 + exp(adlogs[k]);
         ts[k] = ts[k - 1] + ads[k];
+        adb[k - 1] = (log(ada[k - 1]) - log(adb[k - 1])) / (ts[k] - ts[k - 1]);
     }
     compute_antiderivative();
 }

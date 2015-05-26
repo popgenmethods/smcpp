@@ -8,7 +8,7 @@
 #include <unsupported/Eigen/MatrixFunctions>
 
 #include "common.h"
-#include "piecewise_exponential.h"
+#include "rate_function.h"
 #include "ThreadPool.h"
 
 typedef Eigen::Map<const Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> npArray;
@@ -46,7 +46,7 @@ class HMM
 
 template <typename T>
 T compute_hmm_likelihood(
-        const PiecewiseExponential<T> &eta, 
+        const RateFunction<T> &eta, 
         const Vector<T> &pi, const Matrix<T> &transition,
         const std::vector<Matrix<T>>& emission, 
         const int L, const std::vector<int*> obs,
