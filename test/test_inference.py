@@ -11,7 +11,7 @@ from fixtures import *
 N = 10
 L = 1000
 hidden_states = np.array([0.0, 0.5, 1.0, 2.0, 3.0, 4.0, np.inf])
-NTHREADS = 4
+NTHREADS = 8
 
 @pytest.fixture
 def fake_obs():
@@ -22,34 +22,58 @@ def fake_obs():
         ary.append([1, d, np.random.randint(not d, N + 1 - (d == 2))])
     return np.array(ary)
 
-def test_derivatives(demo, fake_obs):
-    a, b, s = demo
+def test_loglik_diff_nodiff(demo, fake_obs):
+    x, y = demo
     S = 1000
-    M = 100
+    M = 20
     N0 = 1000.
     rho = theta = 1e-8
     obs_list = [fake_obs]
-    def f(a, b, s, jacobian):
+    def f(x, y, jacobian):
         return inference.loglik(
-                a, b, s,
+                x, y,
                 N,
                 S, M,
                 obs_list, # List of the observations datasets we prepared above
                 hidden_states,
                 N0 * rho, # Same parameters as above
                 N0 * theta, 
-                reg_a=0., reg_b=0., reg_s=0.,
+                reg=0.,
                 numthreads=NTHREADS, seed=1, viterbi=False, jacobian=jacobian)
-    logp, jac = f(a, b, s, True)
+    logp, jac = f(x, y, True)
+    logp2 = f(x, y, False)
+    print(logp, logp2)
+    print(jac)
+    aoeu
+
+def test_derivatives(demo, fake_obs):
+    x, y = demo
+    S = 1000
+    M = 100
+    N0 = 1000.
+    rho = theta = 1e-8
+    obs_list = [fake_obs]
+    def f(x, y, jacobian):
+        return inference.loglik(
+                x, y,
+                N,
+                S, M,
+                obs_list, # List of the observations datasets we prepared above
+                hidden_states,
+                N0 * rho, # Same parameters as above
+                N0 * theta, 
+                reg=0.,
+                numthreads=NTHREADS, seed=1, viterbi=False, jacobian=jacobian)
+    logp, jac = f(x, y, True)
     print(jac)
     eps = 0.1
-    K = len(a)
+    K = len(x)
     I = np.eye(K)
-    for k in [0, 1, 2]:
+    for k in [0, 1]:
         for ell in range(K):
-            args = [a.copy(), b.copy(), s.copy()]
+            args = [x.copy(), y.copy()]
             args[k][ell] += eps
-            logp2 = f(args[0], args[1], args[2], False)
+            logp2 = f(args[0], args[1], False)
             print(k, ell, logp2, logp, jac[k, ell], logp2 - (logp + eps * jac[k, ell]))
 
 def test_inference_parallel(constant_demo_1, fake_obs):

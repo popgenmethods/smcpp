@@ -51,11 +51,11 @@ void store_sfs_results(const Matrix<double>&, double*);
 void store_sfs_results(const Matrix<adouble>&, double*, double*);
 
 // These methods are used for testing purposes only
-void cython_calculate_sfs(const std::vector<double> a, const std::vector<double> b, const std::vector<double> s, 
+void cython_calculate_sfs(const std::vector<double> diff_x, const std::vector<double> sqrt_y,
         int n, int S, int M, const std::vector<double> &ts, 
         const std::vector<double*> &expM, double tau1, double tau2, int numthreads, double theta, 
         double* outsfs);
-void cython_calculate_sfs_jac(const std::vector<double> a, const std::vector<double> b, const std::vector<double> s,
+void cython_calculate_sfs_jac(const std::vector<double> diff_x, const std::vector<double> sqrt_y,
         int n, int S, int M, const std::vector<double> &ts, 
         const std::vector<double*> &expM, double tau1, double tau2, int numthreads, double theta, 
         double* outsfs, double* outjac);

@@ -1,12 +1,11 @@
 #include "piecewise_polynomial.h"
 
-template <typename T>
-inline T evalpoly(const Eigen::Matrix<T, Eigen::Dynamic, 1> &c, const T &x)
+template <typename T, int order>
+inline T evalpoly(const Eigen::Matrix<T, order + 1, 1> &c, const T &x)
 {
-    int M = c.rows();
-    Eigen::Matrix<T, Eigen::Dynamic, 1> xpow(M, 1);
+    Eigen::Matrix<T, order + 1, 1> xpow(order + 1, 1);
     T x1 = 1.0;
-    for (int m = M - 1; m >= 0; --m)
+    for (int m = order; m >= 0; --m)
     {
         xpow(m) = x1;
         x1 *= x;
@@ -19,13 +18,13 @@ std::vector<T> PiecewisePolynomial<T, order>::operator()(const std::vector<T> &v
 {
     std::vector<T> ret;
     int ip = insertion_point(v[0], knots, 0, M + 1);
-    ret.push_back(evalpoly<T>(coef.col(ip), v[0] - knots[ip]));
+    ret.push_back(evalpoly<T, order>(coef.col(ip), v[0] - knots[ip]));
     for (typename std::vector<T>::const_iterator it = std::next(v.begin()); it != v.end(); ++it)
     {
         if (*(it - 1) > *it)
             throw std::domain_error("vector must be sorted");
         while (*it > knots[ip + 1]) ip++;
-        ret.push_back(evalpoly<T>(coef.col(ip), *it - knots[ip]));
+        ret.push_back(evalpoly<T, order>(coef.col(ip), *it - knots[ip]));
     }
     return ret;
 }
@@ -34,7 +33,7 @@ template <typename T, int order>
 T PiecewisePolynomial<T, order>::operator()(const T &x) const
 {
     int ip = insertion_point(x, knots, 0, M + 1);
-    return evalpoly<T>(coef.col(ip), x - knots[ip]);
+    return evalpoly<T, order>(coef.col(ip), x - knots[ip]);
 }
 
 template <typename T, int order>
@@ -63,11 +62,12 @@ PiecewisePolynomial<T, order + 1> PiecewisePolynomial<T, order>::antiderivative(
     // Enforce continuity
     new_coef(order + 1, 0) = 0.0;
     for (int m = 1; m < M; ++m)
-        new_coef(order + 1, m) = evalpoly<T>(new_coef.col(m - 1), knots[m] - knots[m - 1]);
+        new_coef(order + 1, m) = evalpoly<T, order + 1>(new_coef.col(m - 1), knots[m] - knots[m - 1]);
     return PiecewisePolynomial<T, order + 1>(knots, new_coef);
 }
 
 
+/*
 int main(int argc, char** argv)
 {
     Eigen::Matrix<double, 3, 3> a;
@@ -111,6 +111,7 @@ int main(int argc, char** argv)
     }
     std::cout << std::endl;
 }
+*/
 
 template class PiecewisePolynomial<double, 9>;
 template class PiecewisePolynomial<double, 8>;
@@ -119,6 +120,7 @@ template class PiecewisePolynomial<double, 6>;
 template class PiecewisePolynomial<double, 5>;
 template class PiecewisePolynomial<double, 4>;
 template class PiecewisePolynomial<double, 3>;
+template class PiecewisePolynomial<double, 1>;
 template class PiecewisePolynomial<adouble, 9>;
 template class PiecewisePolynomial<adouble, 8>;
 template class PiecewisePolynomial<adouble, 7>;
@@ -126,3 +128,4 @@ template class PiecewisePolynomial<adouble, 6>;
 template class PiecewisePolynomial<adouble, 5>;
 template class PiecewisePolynomial<adouble, 4>;
 template class PiecewisePolynomial<adouble, 3>;
+template class PiecewisePolynomial<adouble, 1>;

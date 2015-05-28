@@ -11,7 +11,7 @@
 template <typename T>
 T loglik(
         // Model parameters
-        const std::vector<double> &a, const std::vector<double> &b, const std::vector<double> &s,
+        const std::vector<double> &xdiff, const std::vector<double> &sqrt_y,
         // Sample size
         const int n, 
         // Number of iterations for numerical integrals
@@ -28,7 +28,7 @@ T loglik(
         int numthreads, 
         // Optionally compute viterbi
         bool viterbi, std::vector<std::vector<int>> &viterbi_paths,
-        // Regularizers
+        // Regularization parameter
         double lambda);
 
 void fill_jacobian(const adouble &ll, double* outjac);

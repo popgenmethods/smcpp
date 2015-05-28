@@ -3,16 +3,21 @@ from distutils.core import setup, Extension
 from Cython.Build import cythonize
 from distutils.command.build_ext import build_ext as _build_ext
 from subprocess import call
+import os.path
+import glob
+
+cpps = [f for f in glob.glob("src/*.cpp") if not os.path.basename(f).startswith("_")]
 
 extensions = [
         Extension(
             "_pypsmcpp",
             # sources=["src/_pypsmcpp.pyx", "src/conditioned_sfs.cpp", "src/hmm.cpp"],
-            sources=["src/_pypsmcpp.pyx", "src/transition.cpp", "src/hmm.cpp", 
-                "src/conditioned_sfs.cpp", "src/piecewise_exponential.cpp", "src/loglik.cpp"],
+            sources=["src/_pypsmcpp.pyx"] + cpps,
+#, "src/hmm.cpp", 
+                #"src/conditioned_sfs.cpp", "src/piecewise_exponential.cpp", "src/loglik.cpp"],
             language="c++",
             include_dirs=["/usr/include/eigen3", "/usr/local/include/eigen3", np.get_include()],
-            extra_compile_args=["-O3", "-std=c++11", "-Wfatal-errors", "-Wno-unused-variable", "-Wno-unused-function"], 
+            extra_compile_args=["-O3", "-g", "-std=c++11", "-Wfatal-errors", "-Wno-unused-variable", "-Wno-unused-function"], 
             # extra_compile_args=["-O0", "-g", "-std=c++11", "-Wfatal-errors", "-Wno-unused-variable", "-Wno-unused-function"], 
             ),
         Extension(

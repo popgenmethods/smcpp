@@ -164,6 +164,7 @@ Transition<T>::Transition(const RateFunction<T> &eta, const std::vector<double> 
 template <typename T>
 void Transition<T>::compute(void)
 {
+    auto R = eta->getR();
     T r, p_coal;
     for (int j = 1; j < M; ++j)
         for (int k = 1; k < M; ++k)
@@ -184,11 +185,11 @@ void Transition<T>::compute(void)
             }
             else
             {
-                p_coal = exp(-(eta->R(_hs[k - 1]) - eta->R(_hs[j])));
+                p_coal = exp(-(R->operator()(_hs[k - 1]) - R->operator()(_hs[j])));
                 if (k < M - 1)
                 {
                     // Else d[k] = +inf, coalescence in [d[k-1], +oo) is assured.
-                    p_coal *= -expm1(-(eta->R(_hs[k]) - eta->R(_hs[k - 1])));
+                    p_coal *= -expm1(-(R->operator()(_hs[k]) - R->operator()(_hs[k - 1])));
                 }
                 r = expm(0, j).block(0, 1, 1, 2).sum() * p_coal;
             }
@@ -220,6 +221,7 @@ void Transition<T>::store_results(double* outtrans, double* outjac)
 template <typename T>
 Matrix<T> Transition<T>::expm(int i, int j)
 {
+    auto R = eta->getR();
     std::pair<int, int> key = {i, j};
     if (_expm_memo.count(key) == 0)
     {
@@ -231,7 +233,7 @@ Matrix<T> Transition<T>::expm(int i, int j)
         else
         {
             c_rho = rho * (_hs[j] - _hs[i]);
-            c_eta = eta->R(_hs[j]) - eta->R(_hs[i]);
+            c_eta = R->operator()(_hs[j]) - R->operator()(_hs[i]);
             /*
             AdMatrix A = c_rho * A_rho.cast<adouble>() + c_eta * A_eta.cast<adouble>();
             Eigen::HouseholderQR<AdMatrix> qr(A);
@@ -273,18 +275,18 @@ void store_transition(const Matrix<adouble> &trans, double* outtrans, double* ou
         }
 }
 
-void cython_calculate_transition(const std::vector<double> a, const std::vector<double> b, const std::vector<double> s, 
+void cython_calculate_transition(const std::vector<double> &diff_x, const std::vector<double> &sqrt_y,
         const std::vector<double> hidden_states, double rho, double* outtrans)
 {
-    SplineRateFunction<double> eta({a, s});
+    SplineRateFunction<double> eta({diff_x, sqrt_y});
     Matrix<double> trans = compute_transition(eta, hidden_states, rho);
     store_transition(trans, outtrans);
 }
 
-void cython_calculate_transition_jac(const std::vector<double> a, const std::vector<double> b, const std::vector<double> s, 
+void cython_calculate_transition_jac(const std::vector<double> &diff_x, const std::vector<double> &sqrt_y,
         const std::vector<double> hidden_states, double rho, double* outtrans, double* outjac)
 {
-    SplineRateFunction<adouble> eta({a, s});
+    SplineRateFunction<adouble> eta({diff_x, sqrt_y});
     Matrix<adouble> trans = compute_transition(eta, hidden_states, rho);
     store_transition(trans, outtrans, outjac);
 }

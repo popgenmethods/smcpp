@@ -46,7 +46,6 @@ class HMM
 
 template <typename T>
 T compute_hmm_likelihood(
-        const RateFunction<T> &eta, 
         const Vector<T> &pi, const Matrix<T> &transition,
         const std::vector<Matrix<T>>& emission, 
         const int L, const std::vector<int*> obs,

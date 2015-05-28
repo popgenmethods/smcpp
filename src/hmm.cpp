@@ -176,7 +176,6 @@ void HMM<T>::forward(void)
 
 template <typename T>
 T compute_hmm_likelihood(
-        const RateFunction<T> &eta, 
         const Vector<T> &pi, const Matrix<T> &transition,
         const std::vector<Matrix<T>>& emission, 
         const int L, const std::vector<int*> obs,
@@ -207,7 +206,6 @@ T compute_hmm_likelihood(
 }
 
 template double compute_hmm_likelihood(
-        const RateFunction<double> &eta, 
         const Vector<double> &pi, const Matrix<double> &transition,
         const std::vector<Matrix<double>>& emission, 
         const int L, const std::vector<int*> obs,
@@ -215,7 +213,6 @@ template double compute_hmm_likelihood(
         bool viterbi, std::vector<std::vector<int>> &viterbi_paths);
 
 template adouble compute_hmm_likelihood(
-        const RateFunction<adouble> &eta, 
         const Vector<adouble> &pi, const Matrix<adouble> &transition,
         const std::vector<Matrix<adouble>>& emission, 
         const int L, const std::vector<int*> obs,

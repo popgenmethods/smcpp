@@ -3,17 +3,16 @@
 template <typename T>
 Vector<T> compute_initial_distribution(const RateFunction<T> &eta, const std::vector<double> &hidden_states)
 {
+    auto Rinv = eta.getRinv();
     int M = hidden_states.size() - 1;
     Vector<T> pi(M);
-    T s = 0.0;
     for (int m = 0; m < M - 1; ++m)
     {
-        pi(m) = exp(-eta.Rinv(hidden_states[m], 0.0)) - 
-            exp(-eta.Rinv(hidden_states[m + 1], 0.0));
+        pi(m) = exp(-Rinv->operator()(hidden_states[m])) - exp(-Rinv->operator()(hidden_states[m + 1]));
         assert(pi(m) > 0.0); 
         assert(pi(m) < 1.0); 
     }
-    pi(M - 1) = exp(-eta.Rinv(hidden_states[M - 1], 0.0));
+    pi(M - 1) = exp(-Rinv->operator()(hidden_states[M - 1]));
     assert(pi(M - 1) > 0.0);
     assert(pi(M - 1) < 1.0);
     assert(pi.sum() == 1.0);
@@ -26,7 +25,7 @@ template Vector<adouble> compute_initial_distribution(const RateFunction<adouble
 template <typename T>
 T loglik(
         // Model parameters
-        const std::vector<double> &a, const std::vector<double> &b, const std::vector<double> &s,
+        const std::vector<double> &xdiff, const std::vector<double> &sqrt_y,
         // Sample size
         const int n, 
         // Number of iterations for numerical integrals
@@ -46,20 +45,38 @@ T loglik(
         // Regularization parameter
         double lambda)
 {
-    int K = a.size();
-    SplineRateFunction<T> eta({a, s});
+    SplineRateFunction<T> eta({xdiff, sqrt_y});
+    eta.print_debug();
+    double duration;
+    std::clock_t start;
+    std::cout << "pi ... ";
+    start = std::clock();
     Vector<T> pi = compute_initial_distribution(eta, hidden_states);
+    duration = ( std::clock() - start ) / (double) CLOCKS_PER_SEC;
+    std::cout << duration << std::endl;
+    std::cout << "transition ... ";
+    start = std::clock();
     Matrix<T> transition = compute_transition(eta, hidden_states, rho);
+    duration = ( std::clock() - start ) / (double) CLOCKS_PER_SEC;
+    std::cout << duration << std::endl;
+    std::cout << "emission ... ";
+    start = std::clock();
     std::vector<Matrix<T>> emission;
     for (int i = 1; i < hidden_states.size(); ++i)
         emission.push_back(ConditionedSFS<T>::calculate_sfs(eta, n, S, M, ts, expM, hidden_states[i - 1], hidden_states[i], numthreads, theta));
-    T ll = compute_hmm_likelihood<T>(eta, pi, transition, emission, L, obs, numthreads, viterbi, viterbi_paths);
+    duration = ( std::clock() - start ) / (double) CLOCKS_PER_SEC;
+    std::cout << duration << std::endl;
+    std::cout << "hmm ... ";
+    start = std::clock();
+    T ll = compute_hmm_likelihood<T>(pi, transition, emission, L, obs, numthreads, viterbi, viterbi_paths);
+    duration = ( std::clock() - start ) / (double) CLOCKS_PER_SEC;
+    std::cout << duration << std::endl;
     ll += lambda * eta.regularizer();
     return ll;
 }
 
 template adouble loglik(
-        const std::vector<double>&, const std::vector<double>&, const std::vector<double>&,
+        const std::vector<double>&, const std::vector<double>&,
         const int, 
         const int, const int,
         const std::vector<double>&, const std::vector<double*>&,
@@ -71,7 +88,7 @@ template adouble loglik(
         double);
 
 template double loglik(
-        const std::vector<double>&, const std::vector<double>&, const std::vector<double>&,
+        const std::vector<double>&, const std::vector<double>&,
         const int, 
         const int, const int,
         const std::vector<double>&, const std::vector<double*>&,

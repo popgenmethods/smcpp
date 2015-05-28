@@ -70,13 +70,13 @@ cdef vector[double] from_list(lst):
         ret.push_back(l)
     return ret
 
-def log_likelihood(a, b, s, int n, int S, int M, obs_list, hidden_states, 
-        double rho, double theta, double reg_a, double reg_b, double reg_s,
+def log_likelihood(xdiff, sqrt_y, int n, int S, int M, obs_list, hidden_states, 
+        double rho, double theta, double reg_lambda,
         int numthreads, seed=None, viterbi=False, jacobian=False):
     # Create stuff needed for computation
     # Sample conditionally; populate the interpolating rate matrices
-    assert len(a) == len(b) == len(s)
-    K = len(a)
+    assert len(xdiff) == len(sqrt_y)
+    K = len(sqrt_y)
     mats, ts = moran_model.interpolators(n)
     if not seed:
         seed = np.random.randint(0, sys.maxint)
@@ -87,7 +87,7 @@ def log_likelihood(a, b, s, int n, int S, int M, obs_list, hidden_states,
     for i in range(mats.shape[0]):
         expM.push_back(&mmats[i, 0, 0])
     cdef double[:, ::1] mjac
-    jac = aca(np.zeros((3, K)))
+    jac = aca(np.zeros((2, K)))
     mjac = jac
     cdef int[:, ::1] mobs
     cdef vector[int*] vobs
@@ -101,8 +101,7 @@ def log_likelihood(a, b, s, int n, int S, int M, obs_list, hidden_states,
     cdef adouble ad
 
     if jacobian:
-        ad = loglik[adouble](
-                from_list(a), from_list(b), from_list(s), 
+        ad = loglik[adouble](from_list(xdiff), from_list(sqrt_y),
                 n, 
                 S, M, 
                 from_list(ts), expM, 
@@ -110,14 +109,14 @@ def log_likelihood(a, b, s, int n, int S, int M, obs_list, hidden_states,
                 from_list(hidden_states), rho, theta, 
                 numthreads,
                 viterbi, viterbi_paths, 
-                reg_a, reg_b, reg_s)
+                reg_lambda)
         fill_jacobian(ad, &mjac[0, 0])
         ret = (toDouble(ad), jac)
         if viterbi:
             ret += (np.sum(viterbi_paths, axis=0),)
     else:
         ret = loglik[double](
-            from_list(a), from_list(b), from_list(s), 
+            from_list(xdiff), from_list(sqrt_y),
             n, 
             S, M, 
             from_list(ts), expM, 
@@ -125,7 +124,7 @@ def log_likelihood(a, b, s, int n, int S, int M, obs_list, hidden_states,
             from_list(hidden_states), rho, theta, 
             numthreads,
             viterbi, viterbi_paths, 
-            reg_a, reg_b, reg_s)
+            reg_lambda)
     return ret
 
 def _reduced_sfs(sfs):
@@ -137,9 +136,9 @@ def _reduced_sfs(sfs):
                 reduced_sfs[i + j] += sfs[i][j]
     return reduced_sfs
 
-def sfs(a, b, s, int n, int S, int M, double tau1, double tau2, int numthreads, double theta, seed=None, jacobian=False):
-    assert len(a) == len(b) == len(s)
-    K = len(a)
+def sfs(xdiff, sqrt_y, int n, int S, int M, double tau1, double tau2, int numthreads, double theta, seed=None, jacobian=False):
+    assert len(xdiff) == len(sqrt_y)
+    K = len(sqrt_y)
     mats, ts = moran_model.interpolators(n)
     if not seed:
         seed = np.random.randint(0, sys.maxint)
@@ -153,15 +152,15 @@ def sfs(a, b, s, int n, int S, int M, double tau1, double tau2, int numthreads, 
     cdef double[:, ::1] msfs = sfs
     cdef double[:, :, :, ::1] mjac 
     if jacobian:
-        jac = aca(np.zeros((3, n + 1, 3, K)))
+        jac = aca(np.zeros((3, n + 1, 2, K)))
         mjac = jac
-        cython_calculate_sfs_jac(a, b, s, n, S, M, ts, expM, tau1, tau2, numthreads, theta, &msfs[0, 0], &mjac[0, 0, 0, 0])
+        cython_calculate_sfs_jac(xdiff, sqrt_y, n, S, M, ts, expM, tau1, tau2, numthreads, theta, &msfs[0, 0], &mjac[0, 0, 0, 0])
         return (sfs, _reduced_sfs(sfs), jac)
     else:
-        cython_calculate_sfs(a, b, s, n, S, M, ts, expM, tau1, tau2, numthreads, theta, &msfs[0, 0])
+        cython_calculate_sfs(xdiff, sqrt_y, n, S, M, ts, expM, tau1, tau2, numthreads, theta, &msfs[0, 0])
         return (sfs, _reduced_sfs(sfs))
 
-def transition(a, b, s, hidden_states, rho, jacobian=False):
+def transition(xdiff, sqrt_y, hidden_states, rho, jacobian=False):
     assert hidden_states[0] == 0.0
     assert hidden_states[-1] == np.inf
     M = len(hidden_states) - 1
@@ -169,12 +168,12 @@ def transition(a, b, s, hidden_states, rho, jacobian=False):
     cdef double[:, ::1] mtrans = trans
     cdef double[:, :, :, ::1] mjac
     if jacobian:
-        jac = aca(np.zeros((M, M, 3, len(a))))
+        jac = aca(np.zeros((M, M, 2, len(sqrt_y))))
         mjac = jac
-        cython_calculate_transition_jac(a, b, s, hidden_states, rho, &mtrans[0, 0], &mjac[0, 0, 0, 0])
+        cython_calculate_transition_jac(xdiff, sqrt_y, hidden_states, rho, &mtrans[0, 0], &mjac[0, 0, 0, 0])
         return (trans, jac)
     else:
-        cython_calculate_transition(a, b, s, hidden_states, rho, &mtrans[0, 0])
+        cython_calculate_transition(xdiff, sqrt_y, hidden_states, rho, &mtrans[0, 0])
         return trans
 
 # def hmm(Demography demo, sfs_list, obs_list, hidden_states, rho, theta, numthreads=1, 

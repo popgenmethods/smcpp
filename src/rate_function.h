@@ -1,41 +1,50 @@
 #ifndef RATE_FUNCTION_H
 #define RATE_FUNCTION_H
 
+#include "function_evaluator.h"
+
 template <typename T>
 class RateFunction
 {
     public:
     RateFunction(const std::vector<std::vector<double>> &params);
+    virtual const FunctionEvaluator<T>* getEta() const = 0;
+    virtual const FunctionEvaluator<T>* getR() const = 0;
+    virtual const FunctionEvaluator<T>* getRinv() const = 0;
     T regularizer(void) const { return _reg; }
-    virtual T R(const T &x) const = 0;
-    virtual std::vector<T> Rv(const std::vector<T> &v) const = 0;
-    virtual T Rinv(const T &y, const T &x) const = 0;
     const int J, K;
+    const Eigen::VectorXd z;
     const T zero;
     const T one;
 
-    protected:
-    std::vector<std::vector<T>> ad_params;
-    T _reg;
+    virtual void print_debug() const
+    {
+        std::cout << "ad_params: " << std::endl;
+        for (auto v : ad_params)
+            std::cout << v << std::endl << std::endl;
+    }
 
     private:
     std::vector<std::vector<double>> params;
-    Eigen::VectorXd z;
     void validate() 
     {
         for (auto v : params)
-            if (v.size() != J)
+            if (v.size() != K)
                 throw std::domain_error("Vectors must have same size");
     }
     T derivative_initializer(double);
     T derivative_initializer(double, int, int);
+
+    protected:
+    std::vector<std::vector<T>> ad_params;
+    T _reg;
 };
 
 template <typename T>
 RateFunction<T>::RateFunction(const std::vector<std::vector<double>> &params) : 
-    J(params.size()), K(params[0].size()), zero(derivative_initializer(0.0)), 
-    one(derivative_initializer(1.0)), params(params), ad_params(J, std::vector<T>(K)), 
-    z(J * K)
+    J(params.size()), K(params[0].size()), z(Eigen::VectorXd::Zero(J * K)),
+    zero(derivative_initializer(0.0)), one(derivative_initializer(1.0)), 
+    params(params), ad_params(J, std::vector<T>(K)), _reg(derivative_initializer(0.0))
 {
     validate();
     for (int j = 0; j < J; ++j)
@@ -64,6 +73,8 @@ inline adouble RateFunction<adouble>::derivative_initializer(double x, int j, in
 template <>
 inline double RateFunction<double>::derivative_initializer(double x, int j, int k)
 {
+    // Silence unused-variable warnings.
+    (void)j; (void)k;
     return x;
 }
 
