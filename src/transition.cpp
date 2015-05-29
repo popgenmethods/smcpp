@@ -275,18 +275,18 @@ void store_transition(const Matrix<adouble> &trans, double* outtrans, double* ou
         }
 }
 
-void cython_calculate_transition(const std::vector<double> &diff_x, const std::vector<double> &sqrt_y,
+void cython_calculate_transition(const std::vector<std::vector<double>> &params,
         const std::vector<double> hidden_states, double rho, double* outtrans)
 {
-    SplineRateFunction<double> eta({diff_x, sqrt_y});
+    RATE_FUNCTION<double> eta(params);
     Matrix<double> trans = compute_transition(eta, hidden_states, rho);
     store_transition(trans, outtrans);
 }
 
-void cython_calculate_transition_jac(const std::vector<double> &diff_x, const std::vector<double> &sqrt_y,
+void cython_calculate_transition_jac(const std::vector<std::vector<double>> &params,
         const std::vector<double> hidden_states, double rho, double* outtrans, double* outjac)
 {
-    SplineRateFunction<adouble> eta({diff_x, sqrt_y});
+    RATE_FUNCTION<adouble> eta(params);
     Matrix<adouble> trans = compute_transition(eta, hidden_states, rho);
     store_transition(trans, outtrans, outjac);
 }

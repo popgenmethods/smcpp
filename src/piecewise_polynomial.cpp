@@ -19,7 +19,8 @@ inline T evalpoly(const Eigen::Matrix<T, order + 1, 1> &c, const T &x)
 template <typename T, int order>
 std::vector<T> PiecewisePolynomial<T, order>::operator()(const std::vector<T> &v) const
 {
-    std::vector<T> ret(v.size());
+    std::vector<T> ret; 
+    ret.reserve(v.size());
     int ip = insertion_point(v[0], knots, 0, M + 1);
     ret.push_back(evalpoly<T, order>(coef.col(ip), v[0] - knots[ip]));
     for (typename std::vector<T>::const_iterator it = std::next(v.begin()); it != v.end(); ++it)

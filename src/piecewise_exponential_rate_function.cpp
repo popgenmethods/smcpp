@@ -1,10 +1,10 @@
-#include "piecewise_exponential.h"
+#include "piecewise_exponential_rate_function.h"
 
 template <typename T>
 PiecewiseExponentialRateFunction<T>::PiecewiseExponentialRateFunction(const std::vector<std::vector<double>> &params) :
-    RateFunction<T>(params), ada(params[0].begin(), params[0].end()), 
+    RateFunction<T>(params), K(params[0].size()), ada(params[0].begin(), params[0].end()), 
     adb(params[1].begin(), params[1].end()), ads(params[2].begin(), params[2].end()),
-    ts(K), Rrng(K), K(ada.size())
+    ts(K), Rrng(K)
 {
     // Final piece is required to be flat.
     adb[K - 1] = 0.0;
@@ -13,16 +13,32 @@ PiecewiseExponentialRateFunction<T>::PiecewiseExponentialRateFunction(const std:
     // These constant values need to have compatible derivative shape
     // with the calculated values.
     initialize_derivatives();
-
     for (int k = 1; k < K; ++k)
     {
-        // ts[k] = ts[k - 1] + .1 + exp(adlogs[k]);
         ts[k] = ts[k - 1] + ads[k];
         adb[k - 1] = (log(ada[k - 1]) - log(adb[k - 1])) / (ts[k] - ts[k - 1]);
     }
     compute_antiderivative();
+
     R.reset(new PExpIntegralEvaluator<T>(ada, adb, ts, Rrng));
-    Rinv.reset(new PExpIntegralEvaluator<T>(ada, adb, ts, Rrng));
+    Rinv.reset(new PExpInverseIntegralEvaluator<T>(ada, adb, ts, Rrng));
+
+    // Compute a TV-like regularizer
+    PExpEvaluator<T> eta(ada, adb, ts, Rrng);
+    T x = 0.0;
+    T xmax = ts.rbegin()[1] * 1.1;
+    T step = (xmax - x) / 1000;
+    std::vector<T> xs, ys;
+    while (x < xmax)
+    {
+        xs.push_back(x);
+        x += step;
+    }
+    ys = eta(xs);
+    _reg = 0.0;
+    for (int i = 1; i < ys.size(); ++i)
+        _reg += myabs(ys[i] - ys[i - 1]);
+    print_debug();
 }
 
 template <typename T>
@@ -48,13 +64,15 @@ void PiecewiseExponentialRateFunction<T>::print_debug() const
 {
     std::vector<std::pair<std::string, std::vector<T>>> arys = 
     {{"ada", ada}, {"adb", adb}, {"ads", ads}, {"ts", ts}, {"Rrng", Rrng}};
+    std::cout << std::endl;
     for (auto p : arys)
     {
         std::cout << p.first << std::endl;
         for (adouble x : p.second)
             std::cout << x.value() << " ";
-        std::cout << std::endl << std::endl;
+        std::cout << std::endl;
     }
+    std::cout << "reg: " << toDouble(_reg) << std::endl << std::endl;
 }
 
 template <typename T>
@@ -67,6 +85,8 @@ void PiecewiseExponentialRateFunction<T>::compute_antiderivative()
         else
             Rrng[k + 1] = Rrng[k] + (ada[k] / adb[k]) * expm1(adb[k] * (ts[k + 1] - ts[k]));
     }
+    // insertion_point() assumes that the last entry is always +oo.
+    Rrng.push_back(INFINITY);
 }
 
 template class PiecewiseExponentialRateFunction<double>;

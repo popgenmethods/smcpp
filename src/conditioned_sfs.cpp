@@ -395,23 +395,23 @@ void store_sfs_results(const Matrix<adouble> &csfs, double* outsfs, double* outj
         }
 }
 
-void cython_calculate_sfs(const std::vector<double> diff_x, const std::vector<double> sqrt_y,
+void cython_calculate_sfs(const std::vector<std::vector<double>> &params,
         int n, int S, int M, const std::vector<double> &ts, 
         const std::vector<double*> &expM, double tau1, double tau2, int numthreads, double theta, 
         double* outsfs)
 {
-    SplineRateFunction<double> eta({diff_x, sqrt_y});
+    RATE_FUNCTION<double> eta(params);
     // eta.print_debug();
     Matrix<double> out = ConditionedSFS<double>::calculate_sfs(eta, n, S, M, ts, expM, tau1, tau2, numthreads, theta);
     store_sfs_results(out, outsfs);
 }
 
-void cython_calculate_sfs_jac(const std::vector<double> diff_x, const std::vector<double> sqrt_y,
+void cython_calculate_sfs_jac(const std::vector<std::vector<double>> &params,
         int n, int S, int M, const std::vector<double> &ts, 
         const std::vector<double*> &expM, double tau1, double tau2, int numthreads, double theta, 
         double* outsfs, double* outjac)
 {
-    SplineRateFunction<adouble> eta({diff_x, sqrt_y});
+    RATE_FUNCTION<adouble> eta(params);
     // eta.print_debug();
     Matrix<adouble> out = ConditionedSFS<adouble>::calculate_sfs(eta, n, S, M, ts, expM, tau1, tau2, numthreads, theta);
     store_sfs_results(out, outsfs, outjac);

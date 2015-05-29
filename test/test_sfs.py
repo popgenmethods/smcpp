@@ -10,7 +10,7 @@ S = 2000
 M = 100
 
 def test_d():
-    x = np.array([0.0, 1.0, 2.0, 3.0])
+    x = np.array([0.1, 0.1, 0.2, 0.3])
     sqrt_y = np.sqrt([0.5, .3, .8, 1.0])
     K = x.shape[0]
     S = 1000

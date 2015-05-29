@@ -269,7 +269,7 @@ T compute_hmm_likelihood(
     for (auto ob : obs)
         hmms.emplace_back(pi, transition, emission, L, ob);
     for (auto &hmm : hmms)
-        results.emplace_back(tp.enqueue([&] { return hmm.loglik(); }));
+        results.emplace_back(tp.enqueue([&] { return hmm.Q(); }));
     T ret = 0.0;
     for (auto &&res : results)
         ret += res.get();
@@ -300,4 +300,6 @@ template adouble compute_hmm_likelihood(
 
 template class HMM<double>;
 template class HMM<adouble>;
+
+void print_matrix(Matrix<adouble> &M) { std::cout << M.cast<double>() << std::endl << std::endl; }
 

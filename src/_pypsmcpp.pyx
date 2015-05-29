@@ -8,61 +8,15 @@ import collections
 
 logger = logging.getLogger(__name__)
 
-# cdef void pylogger(const string &msg, const string& lvl):
-    # loglvl = logging.getattr(lvl)
-    # loglvl(msg)
-
-# cdef class Demography:
-#     cdef PiecewiseExponential *pexp
-#     cdef vector[double] _logu, _logv, _logs
-#     cdef int _K
-#     def __init__(self, logu, logv, logs):
-#         assert len(logu) == len(logv) == len(logs)
-#         self._logu = logu
-#         self._logv = logv
-#         self._logs = logs
-#         self.pexp = new PiecewiseExponential(self._logu, self._logv, self._logs)
-#         self._K = len(logu)
-# 
-#     @property
-#     def K(self):
-#         return self._K
-# 
-#     @property
-#     def logu(self):
-#         return self._logu
-# 
-#     @property
-#     def logv(self):
-#         return self._logv
-# 
-#     @property
-#     def logs(self):
-#         return self._logs
-# 
-#     def __dealloc__(self):
-#         del self.pexp
-# 
-#     def inverse_rate(self, double y):
-#         return self.pexp.double_inverse_rate(y, 0, 1)
-# 
-#     def print_debug(self):
-#         self.pexp.print_debug()
-# 
-#     def R(self, double y):
-#         return self.pexp.double_R(y)
-# 
-# cdef class PyAdMatrix:
-#     cdef AdMatrix A
-# 
-# cdef class TransitionWrapper:
-#     cdef Transition* transition
-#     def __dealloc__(self):
-#         del self.transition
-
 # Everything needs to be C-order contiguous to pass in as
 # flat arrays
 aca = np.ascontiguousarray
+
+cdef vector[vector[double]] make_params(params):
+    cdef vector[vector[double]] ret
+    for p in params:
+        ret.push_back(p)
+    return ret
 
 cdef vector[double] from_list(lst):
     cdef vector[double] ret
@@ -70,13 +24,15 @@ cdef vector[double] from_list(lst):
         ret.push_back(l)
     return ret
 
-def log_likelihood(xdiff, sqrt_y, int n, int S, int M, obs_list, hidden_states, 
+def log_likelihood(params, int n, int S, int M, obs_list, hidden_states, 
         double rho, double theta, double reg_lambda,
         int numthreads, seed=None, viterbi=False, jacobian=False):
     # Create stuff needed for computation
     # Sample conditionally; populate the interpolating rate matrices
-    assert len(xdiff) == len(sqrt_y)
-    K = len(sqrt_y)
+    K = len(params[0])
+    for p in params:
+        assert len(p) == K
+    cdef vector[vector[double]] cparams = make_params(params)
     mats, ts = moran_model.interpolators(n)
     if not seed:
         seed = np.random.randint(0, sys.maxint)
@@ -101,7 +57,7 @@ def log_likelihood(xdiff, sqrt_y, int n, int S, int M, obs_list, hidden_states,
     cdef adouble ad
 
     if jacobian:
-        ad = loglik[adouble](from_list(xdiff), from_list(sqrt_y),
+        ad = loglik[adouble](cparams,
                 n, 
                 S, M, 
                 from_list(ts), expM, 
@@ -116,7 +72,7 @@ def log_likelihood(xdiff, sqrt_y, int n, int S, int M, obs_list, hidden_states,
             ret += (np.sum(viterbi_paths, axis=0),)
     else:
         ret = loglik[double](
-            from_list(xdiff), from_list(sqrt_y),
+            cparams,
             n, 
             S, M, 
             from_list(ts), expM, 
@@ -136,9 +92,11 @@ def _reduced_sfs(sfs):
                 reduced_sfs[i + j] += sfs[i][j]
     return reduced_sfs
 
-def sfs(xdiff, sqrt_y, int n, int S, int M, double tau1, double tau2, int numthreads, double theta, seed=None, jacobian=False):
-    assert len(xdiff) == len(sqrt_y)
-    K = len(sqrt_y)
+def sfs(params, int n, int S, int M, double tau1, double tau2, int numthreads, double theta, seed=None, jacobian=False):
+    K = len(params[0])
+    for p in params:
+        assert len(p) == K
+    cdef vector[vector[double]] cparams = make_params(params)
     mats, ts = moran_model.interpolators(n)
     if not seed:
         seed = np.random.randint(0, sys.maxint)
@@ -152,15 +110,19 @@ def sfs(xdiff, sqrt_y, int n, int S, int M, double tau1, double tau2, int numthr
     cdef double[:, ::1] msfs = sfs
     cdef double[:, :, :, ::1] mjac 
     if jacobian:
-        jac = aca(np.zeros((3, n + 1, 2, K)))
+        jac = aca(np.zeros((3, n + 1, len(params), K)))
         mjac = jac
-        cython_calculate_sfs_jac(xdiff, sqrt_y, n, S, M, ts, expM, tau1, tau2, numthreads, theta, &msfs[0, 0], &mjac[0, 0, 0, 0])
+        cython_calculate_sfs_jac(cparams, n, S, M, ts, expM, tau1, tau2, numthreads, theta, &msfs[0, 0], &mjac[0, 0, 0, 0])
         return (sfs, _reduced_sfs(sfs), jac)
     else:
-        cython_calculate_sfs(xdiff, sqrt_y, n, S, M, ts, expM, tau1, tau2, numthreads, theta, &msfs[0, 0])
+        cython_calculate_sfs(cparams, n, S, M, ts, expM, tau1, tau2, numthreads, theta, &msfs[0, 0])
         return (sfs, _reduced_sfs(sfs))
 
-def transition(xdiff, sqrt_y, hidden_states, rho, jacobian=False):
+def transition(params, hidden_states, rho, jacobian=False):
+    K = len(params[0])
+    for p in params:
+        assert len(p) == K
+    cdef vector[vector[double]] cparams = make_params(params)
     assert hidden_states[0] == 0.0
     assert hidden_states[-1] == np.inf
     M = len(hidden_states) - 1
@@ -168,12 +130,12 @@ def transition(xdiff, sqrt_y, hidden_states, rho, jacobian=False):
     cdef double[:, ::1] mtrans = trans
     cdef double[:, :, :, ::1] mjac
     if jacobian:
-        jac = aca(np.zeros((M, M, 2, len(sqrt_y))))
+        jac = aca(np.zeros((M, M, len(params), K)))
         mjac = jac
-        cython_calculate_transition_jac(xdiff, sqrt_y, hidden_states, rho, &mtrans[0, 0], &mjac[0, 0, 0, 0])
+        cython_calculate_transition_jac(cparams, hidden_states, rho, &mtrans[0, 0], &mjac[0, 0, 0, 0])
         return (trans, jac)
     else:
-        cython_calculate_transition(xdiff, sqrt_y, hidden_states, rho, &mtrans[0, 0])
+        cython_calculate_transition(cparams, hidden_states, rho, &mtrans[0, 0])
         return trans
 
 # def hmm(Demography demo, sfs_list, obs_list, hidden_states, rho, theta, numthreads=1, 

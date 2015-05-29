@@ -1,5 +1,5 @@
-#ifndef PIECEWISE_EXPONENTIAL_H
-#define PIECEWISE_EXPONENTIAL_H
+#ifndef PIECEWISE_EXPONENTIAL_RATE_FUNCTION_H
+#define PIECEWISE_EXPONENTIAL_RATE_FUNCTION_H
 
 #include <Eigen/Dense>
 #include "common.h"
@@ -23,11 +23,12 @@ class PiecewiseExponentialRateFunction : public RateFunction<T>
     }
     
     private:
-    std::vector<T> ada, adb, ads, ts, Rrng;
     const int K;
+    std::vector<T> ada, adb, ads, ts, Rrng;
     void initialize_derivatives();
     void compute_antiderivative();
     feval<T> R, Rinv;
+    T _reg;
 };
 
 template <typename T>
@@ -36,23 +37,22 @@ class BasePExpEvaluator : public FunctionEvaluator<T>
     public:
     BasePExpEvaluator(const std::vector<T> &ada, const std::vector<T> &adb, 
             const std::vector<T> &ts, const std::vector<T> &Rrng) :
-        ada(ada), adb(adb), ts(ts), Rrng(Rrng), K(ts.size()) {}
+        ada(ada), adb(adb), ts(ts), Rrng(Rrng) {}
 
     virtual T operator()(const T &t) const
     {
-        int ip = insertion_point(t, ts, 0, K);
+        int ip = insertion_point(t, insertion_list(), 0, insertion_list().size());
         return pexp_eval(t, ip);
     }
 
     virtual std::vector<T> operator()(const std::vector<T> &v) const
     {
-        std::vector<T> ret(v.size());
-        int ip = insertion_point(v[0], ts, 0, K);
-        for (typename std::vector<T>::const_iterator it = std::next(v.begin()); it != v.end(); ++it)
+        std::vector<T> ret;
+        ret.reserve(v.size());
+        int ip = insertion_point(v[0], insertion_list(), 0, insertion_list().size());
+        for (typename std::vector<T>::const_iterator it = v.begin(); it != v.end(); ++it)
         {
-            if (*(it - 1) > *it)
-                throw std::domain_error("vector must be sorted");
-            while (*it > ts[ip + 1]) ip++;
+            while (*it > insertion_list()[ip + 1]) ip++;
             ret.push_back(pexp_eval(*it, ip));
         }
         return ret;
@@ -60,8 +60,23 @@ class BasePExpEvaluator : public FunctionEvaluator<T>
 
     protected:
     const std::vector<T> ada, adb, ts, Rrng;
-    const int K;
     virtual T pexp_eval(const T &, int) const = 0;
+    virtual const std::vector<T>& insertion_list(void) const = 0;
+};
+
+template <typename T>
+class PExpEvaluator : public BasePExpEvaluator<T>
+{
+    public:
+    PExpEvaluator(const std::vector<T> &ada, const std::vector<T> &adb, 
+            const std::vector<T> &ts, const std::vector<T> &Rrng) :
+        BasePExpEvaluator<T>(ada, adb, ts, Rrng) {}
+    protected:
+    virtual const std::vector<T>& insertion_list(void) const { return this->ts; } 
+    virtual T pexp_eval(const T &t, int ip) const
+    {
+        return this->ada[ip] * exp(this->adb[ip] * (t - this->ts[ip])) + this->Rrng[ip];
+    }
 };
 
 template <typename T>
@@ -71,7 +86,8 @@ class PExpIntegralEvaluator : public BasePExpEvaluator<T>
     PExpIntegralEvaluator(const std::vector<T> &ada, const std::vector<T> &adb, 
             const std::vector<T> &ts, const std::vector<T> &Rrng) :
         BasePExpEvaluator<T>(ada, adb, ts, Rrng) {}
-    private:
+    protected:
+    virtual const std::vector<T>& insertion_list(void) const { return this->ts; } 
     virtual T pexp_eval(const T &t, int ip) const
     {
         if (this->adb[ip] == 0.0)
@@ -82,13 +98,14 @@ class PExpIntegralEvaluator : public BasePExpEvaluator<T>
 };
 
 template <typename T>
-class PExpInverseIntegralEvaluator : BasePExpEvaluator<T>
+class PExpInverseIntegralEvaluator : public BasePExpEvaluator<T>
 {
     public:
     PExpInverseIntegralEvaluator(const std::vector<T> &ada, const std::vector<T> &adb, 
             const std::vector<T> &ts, const std::vector<T> &Rrng) :
         BasePExpEvaluator<T>(ada, adb, ts, Rrng) {}
     private:
+    virtual const std::vector<T>& insertion_list(void) const { return this->Rrng; } 
     virtual T pexp_eval(const T &y, int ip) const
     {
         if (this->adb[ip] == 0.0) 

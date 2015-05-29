@@ -8,6 +8,7 @@
 #include "common.h"
 #include "rate_function.h"
 #include "spline_rate_function.h"
+#include "piecewise_exponential_rate_function.h"
 
 template <typename T>
 class Transition
@@ -35,9 +36,9 @@ Matrix<T> compute_transition(const RateFunction<T> &eta, const std::vector<doubl
     return trans.matrix();
 }
 
-void cython_calculate_transition(const std::vector<double> &xdiff, const std::vector<double> &sqrt_y,
+void cython_calculate_transition(const std::vector<std::vector<double>> &params,
         const std::vector<double> hidden_states, double rho, double* outtrans);
-void cython_calculate_transition_jac(const std::vector<double> &diff_x, const std::vector<double> &sqrt_y,
+void cython_calculate_transition_jac(const std::vector<std::vector<double>> &params,
         const std::vector<double> hidden_states, double rho, double* outtrans, double* outjac);
 
 #endif

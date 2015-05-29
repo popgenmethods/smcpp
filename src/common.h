@@ -10,6 +10,7 @@
 #include "prettyprint.hpp"
 
 #define AUTODIFF 1
+#define RATE_FUNCTION PiecewiseExponentialRateFunction
 
 #ifdef NDEBUG
 #define _DEBUG(x)
@@ -19,6 +20,7 @@
 
 template <typename T> using Matrix = Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic>;
 template <typename T> using Vector = Eigen::Matrix<T, Eigen::Dynamic, 1>;
+
 
 #ifdef AUTODIFF
 #include <unsupported/Eigen/AutoDiff>

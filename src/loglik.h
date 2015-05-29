@@ -3,6 +3,7 @@
 
 #include "common.h"
 #include "rate_function.h"
+#include "piecewise_exponential_rate_function.h"
 #include "spline_rate_function.h"
 #include "transition.h"
 #include "conditioned_sfs.h"
@@ -11,7 +12,7 @@
 template <typename T>
 T loglik(
         // Model parameters
-        const std::vector<double> &xdiff, const std::vector<double> &sqrt_y,
+        const std::vector<std::vector<double>> &params,
         // Sample size
         const int n, 
         // Number of iterations for numerical integrals

@@ -25,7 +25,7 @@ template Vector<adouble> compute_initial_distribution(const RateFunction<adouble
 template <typename T>
 T loglik(
         // Model parameters
-        const std::vector<double> &xdiff, const std::vector<double> &sqrt_y,
+        const std::vector<std::vector<double>> &params,
         // Sample size
         const int n, 
         // Number of iterations for numerical integrals
@@ -45,7 +45,7 @@ T loglik(
         // Regularization parameter
         double lambda)
 {
-    SplineRateFunction<T> eta({xdiff, sqrt_y});
+    RATE_FUNCTION<T> eta(params);
     // eta.print_debug();
     double duration;
     std::clock_t start;
@@ -78,7 +78,7 @@ T loglik(
 }
 
 template adouble loglik(
-        const std::vector<double>&, const std::vector<double>&,
+        const std::vector<std::vector<double>>&,
         const int, 
         const int, const int,
         const std::vector<double>&, const std::vector<double*>&,
@@ -90,7 +90,7 @@ template adouble loglik(
         double);
 
 template double loglik(
-        const std::vector<double>&, const std::vector<double>&,
+        const std::vector<std::vector<double>>&,
         const int, 
         const int, const int,
         const std::vector<double>&, const std::vector<double*>&,
