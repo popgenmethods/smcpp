@@ -99,4 +99,7 @@ inline int insertion_point(const T x, const std::vector<T>& ary, int first, int 
     return first;
 }
 
+inline double myabs(double a) { return std::abs(a); }
+inline adouble myabs(adouble a) { return Eigen::abs(a); }
+
 #endif

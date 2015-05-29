@@ -21,16 +21,20 @@ class HMM
         const std::vector<Matrix<T>> &emission,
         const int L, const int* obs);
     T loglik(void);
+    T Q(void);
     std::vector<int>& viterbi(void);
-    void forward(void);
     void printobs(void);
 
     private:
     // Methods
     Matrix<T> matpow(const Matrix<T>&, int);
-    template <int s>
-    void diag_obs(Eigen::DiagonalMatrix<T, s> &D, int a, int b);
+    void diag_obs(int);
     Matrix<T> O0Tpow(int);
+    void fast_forward(void);
+    void forward(void);
+    void backward(void);
+    Vector<T> gamma(int ell);
+    Matrix<T> xi(int ell);
 
     // Instance variables
     const Vector<T> pi;
@@ -38,9 +42,11 @@ class HMM
     const std::vector<Matrix<T>> emission;
     int M, L;
     Eigen::Map<const Eigen::Matrix<int, Eigen::Dynamic, 3, Eigen::RowMajor>> obs;
-    std::vector<T> logc;
+    int Ltot;
+    Eigen::DiagonalMatrix<T, Eigen::Dynamic> D;
+    Matrix<T> O0T, alpha_hat, beta_hat;
+    Vector<T> c;
     std::vector<int> viterbi_path;
-    Matrix<T> O0T;
     std::map<int, Matrix<T>> O0Tpow_memo;
 };
 

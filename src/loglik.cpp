@@ -46,7 +46,7 @@ T loglik(
         double lambda)
 {
     SplineRateFunction<T> eta({xdiff, sqrt_y});
-    eta.print_debug();
+    // eta.print_debug();
     double duration;
     std::clock_t start;
     std::cout << "pi ... ";
@@ -71,7 +71,9 @@ T loglik(
     T ll = compute_hmm_likelihood<T>(pi, transition, emission, L, obs, numthreads, viterbi, viterbi_paths);
     duration = ( std::clock() - start ) / (double) CLOCKS_PER_SEC;
     std::cout << duration << std::endl;
-    ll += lambda * eta.regularizer();
+    std::cout << "loglik: " << ll;
+    ll -= lambda * eta.regularizer();
+    std::cout << " (with reg): " << ll << std::endl;
     return ll;
 }
 

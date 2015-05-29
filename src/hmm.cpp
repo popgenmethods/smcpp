@@ -6,20 +6,28 @@ HMM<T>::HMM(const Vector<T> &pi, const Matrix<T> &transition,
         const std::vector<Matrix<T>> &emission,
         const int L, const int* obs) :
     pi(pi), transition(transition), emission(emission), M(emission.size()),
-    L(L), obs(obs, L, 3)
+    L(L), obs(obs, L, 3), Ltot(this->obs.col(0).sum()), D(M), O0T(M, M), 
+	alpha_hat(M, Ltot), beta_hat(M, Ltot), c(L)
 { 
     feraiseexcept(FE_ALL_EXCEPT & ~FE_INEXACT);
-    Eigen::DiagonalMatrix<T, Eigen::Dynamic> D(M);
     D.setZero();
-    diag_obs(D, 0, 0);
+    for (int m = 0; m < M; ++m)
+    {
+        D.diagonal()(m) = emission[m](0, 0);
+        assert(emission[m](a,b)>=0);
+        assert(emission[m](a,b)<=1);
+    }
     O0T = D * transition.transpose();
+	alpha_hat.fill(0.0);
+	beta_hat.fill(0.0);
 }
 
 
 template <typename T>
 T HMM<T>::loglik()
 {
-    return std::accumulate(logc.begin(), logc.end(), (T)0.0);
+	fast_forward();
+	return c.array().log().sum();
 }
 
 template <typename T>
@@ -125,54 +133,125 @@ Matrix<T> HMM<T>::matpow(const Matrix<T> &A, int pp)
 }
 
 template <typename T>
-template <int s>
-void HMM<T>::diag_obs(Eigen::DiagonalMatrix<T, s> &D, int a, int b)
+void HMM<T>::diag_obs(int ell)
 {
+	int a = obs(ell, 1);
+	int b = obs(ell, 2);
     for (int m = 0; m < M; ++m)
     {
         D.diagonal()(m) = emission[m](a, b);
         assert(emission[m](a,b)>=0);
+        assert(emission[m](a,b)<=1);
+    }
+}
+
+template <typename T>
+void HMM<T>::fast_forward(void)
+{
+    D.setZero();
+    int p;
+    diag_obs(0);
+    Vector<T> ahat = D * pi;
+	Matrix<T> P;
+    for (int ell = 0; ell < L; ++ell)
+    {
+        p = obs(ell, 0);
+		if (ell == 0)
+			p--;
+        if (obs(ell, 1) == 0 && obs(ell, 2) == 0)
+			P = O0Tpow(p);
+        else    
+        {
+            diag_obs(ell);
+			P = matpow(D * transition.transpose(), p);
+        }
+		ahat = P * ahat;
+        c(ell) = ahat.sum();
+        if (isnan(toDouble(c(ell))) || c(ell) <= 0.0)
+            throw std::domain_error("nan encountered in hmm");
+        ahat /= c(ell);
     }
 }
 
 template <typename T>
 void HMM<T>::forward(void)
 {
-    // feenableexcept(FE_DIVBYZERO | FE_INVALID | FE_OVERFLOW);
-    T c0;
-    Vector<T> alpha_hat(M);
-    Eigen::DiagonalMatrix<T, Eigen::Dynamic> D(M);
     D.setZero();
-    int p;
-    // M x M transition matrix
-    // Initialize alpha hat
-    diag_obs(D, obs(0,1), obs(0,2));
-    alpha_hat = D * pi;
-    p = obs(0,0) - 1; 
-    alpha_hat = matpow(D * transition.transpose(), p) * alpha_hat;
-    c0 = alpha_hat.sum();
-    alpha_hat /= c0;
-    assert(c0 > 0);
-    logc.push_back(log(c0));
-    for (int ell = 1; ell < L; ++ell)
+    diag_obs(0);
+	c = Vector<T>::Zero(Ltot);
+    alpha_hat.col(0) = D * pi;
+	c(0) = 1.0;
+	Matrix<T> P;
+	int lt = 1;
+    for (int ell = 0; ell < L; ++ell)
     {
-        int p = obs(ell, 0);
-        if (obs(ell, 1) == 0 && obs(ell, 2) == 0)
-            alpha_hat = O0Tpow(p) * alpha_hat;
-        else    
-        {
-            diag_obs(D, obs(ell, 1), obs(ell, 2));
-            alpha_hat = matpow(D * transition.transpose(), p) * alpha_hat;
-        }
-        // std::cout << obs.block(ell, 0, 1, 3) << " :: " << alpha_hat.cast<double>().transpose() << std::endl;
-        c0 = alpha_hat.sum();
-        if (isnan(toDouble(c0)) || c0 <= 0.0)
-            throw std::domain_error("nan encountered in hmm");
-        alpha_hat /= c0;
-        assert(c0 > 0);
-        logc.push_back(log(c0));
+        int R = obs(ell, 0);
+		if (ell == 0)
+			R--;
+		diag_obs(ell);
+		P = D * transition.transpose();
+		for (int r = 0; r < R; ++r)
+		{
+			alpha_hat.col(lt) = P * alpha_hat.col(lt - 1);
+			c(lt) = alpha_hat.col(lt).sum();
+			if (isnan(toDouble(c(lt - 1))) || c(lt - 1) <= 0.0)
+				throw std::domain_error("nan encountered in hmm");
+			alpha_hat.col(lt) /= c(lt);
+			++lt;
+		}
     }
+	if (Ltot != lt)
+		throw std::domain_error("something went wrong");
 }
+
+template <typename T>
+void HMM<T>::backward(void)
+{
+    beta_hat.col(Ltot - 1) = Vector<T>::Ones(M);
+	Matrix<T> P;
+	int R;
+	int lt = Ltot - 2;
+    for (int ell = L - 1; ell >= 0; --ell)
+	{
+		R = obs(ell, 0);
+		diag_obs(ell);
+		P = transition * D;
+		for (int r = 0; r < R; ++r)
+		{
+			beta_hat.col(lt) = P * beta_hat.col(lt + 1) / c(lt + 1);
+			--lt;
+		}
+	}
+	if (lt != -1)
+		throw std::domain_error("something went wrong");
+}
+
+template <typename T>
+Matrix<T> HMM<T>::xi(int ell)
+{
+	diag_obs(ell);
+	Matrix<T> M = c(ell) * alpha_hat.col(ell - 1) * beta_hat.col(ell).transpose() * D;
+	return M.cwiseProduct(transition);
+}
+
+template <typename T>
+T HMM<T>::Q(void)
+{
+	forward();
+	backward();
+	Matrix<T> log_transition = transition.array().log();
+	Matrix<T> gamma = alpha_hat.cwiseProduct(beta_hat);
+	T ret = gamma.col(0).transpose() * pi.array().log().matrix();
+	for (int ell = 1; ell < Ltot; ++ell)
+		ret += xi(ell).cwiseProduct(log_transition).sum();
+	for (int ell = 0; ell < Ltot; ++ell)
+	{
+		diag_obs(ell);
+		ret += (D * gamma.col(ell)).sum();
+	}
+	return ret;
+}
+
 
 template <typename T>
 T compute_hmm_likelihood(
@@ -190,7 +269,7 @@ T compute_hmm_likelihood(
     for (auto ob : obs)
         hmms.emplace_back(pi, transition, emission, L, ob);
     for (auto &hmm : hmms)
-        results.emplace_back(tp.enqueue([&] { hmm.forward(); return hmm.loglik(); }));
+        results.emplace_back(tp.enqueue([&] { return hmm.loglik(); }));
     T ret = 0.0;
     for (auto &&res : results)
         ret += res.get();

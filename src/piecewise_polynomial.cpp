@@ -10,13 +10,16 @@ inline T evalpoly(const Eigen::Matrix<T, order + 1, 1> &c, const T &x)
         xpow(m) = x1;
         x1 *= x;
     }
-    return xpow.transpose() * c;
+    T ret = xpow.transpose() * c;
+    if (isnan(toDouble(ret)))
+        throw std::domain_error("nan encountered in evalpoly");
+    return ret;
 }
 
 template <typename T, int order>
 std::vector<T> PiecewisePolynomial<T, order>::operator()(const std::vector<T> &v) const
 {
-    std::vector<T> ret;
+    std::vector<T> ret(v.size());
     int ip = insertion_point(v[0], knots, 0, M + 1);
     ret.push_back(evalpoly<T, order>(coef.col(ip), v[0] - knots[ip]));
     for (typename std::vector<T>::const_iterator it = std::next(v.begin()); it != v.end(); ++it)

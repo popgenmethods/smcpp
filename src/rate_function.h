@@ -3,12 +3,22 @@
 
 #include "function_evaluator.h"
 
+/*
+ * template <typename T>
+class feval : public std::unique_ptr<FunctionEvaluator<T>>
+{
+    T operator()(const T& t) { return *this->operator()(t); }
+};
+*/
+template <typename T>
+using feval = std::unique_ptr<FunctionEvaluator<T>>;
+
 template <typename T>
 class RateFunction
 {
     public:
     RateFunction(const std::vector<std::vector<double>> &params);
-    virtual const FunctionEvaluator<T>* getEta() const = 0;
+    // virtual const FunctionEvaluator<T>* getEta() const = 0;
     virtual const FunctionEvaluator<T>* getR() const = 0;
     virtual const FunctionEvaluator<T>* getRinv() const = 0;
     T regularizer(void) const { return _reg; }

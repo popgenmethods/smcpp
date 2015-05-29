@@ -2,9 +2,6 @@
 
 std::mt19937 sfs_gen;
 
-inline double myabs(double a) { return std::abs(a); }
-inline adouble myabs(adouble a) { return Eigen::abs(a); }
-
 std::map<std::array<int, 3>, double> _Wnbj_memo;
 double calculate_Wnbj(int n, int b, int j)
 {
@@ -71,12 +68,12 @@ inline double dmax(double a, double b) { return std::max(a, b); }
 
 inline adouble dmin(adouble a, adouble b)
 {
-    return (a + b - abs(a - b)) / 2;
+    return (a + b - myabs(a - b)) / 2;
 }
 
 inline adouble dmax(adouble a, adouble b)
 {
-    return (a + b + abs(a - b)) / 2;
+    return (a + b + myabs(a - b)) / 2;
 }
 
 template <typename T>
@@ -151,8 +148,8 @@ void ConditionedSFS<T>::compute(int S, int M, const std::vector<double> &ts,
         const std::vector<Eigen::Map<const Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>> &expM,
         T t1, T t2)
 {
+    feenableexcept(FE_INVALID | FE_OVERFLOW);
     auto Rinv = eta->getRinv();
-    // feenableexcept(FE_INVALID | FE_OVERFLOW);
     T tau;
     // There are n + 2 (undistinguished + distinguished) at time 0.
     // Above tau there are between 2 and n + 1.
@@ -160,7 +157,7 @@ void ConditionedSFS<T>::compute(int S, int M, const std::vector<double> &ts,
 	// the matrix class instead.
     Matrix<T> tjj_above(n, 1), tjj_below(n + 1, 1), sfs_tau(n, 1), etnk(n + 1, 1);
     Matrix<T> etnk_avg(n + 1, 1), tjj_below_avg(n + 1, 1), tjj_above_avg(n, 1);
-	Matrix<T> eM(n + 1, n + 1), trans1, trans2;
+	Matrix<T> eM(n + 1, n + 1);
     std::map<int[2], double> etnk_memo;
     int m, ei;
     double rate_above, rate_below;
@@ -187,14 +184,13 @@ void ConditionedSFS<T>::compute(int S, int M, const std::vector<double> &ts,
         while (ys[m] > ts[ip + 1]) ip++;
         eis[m] = ip;
     }
-    std::vector<T> taus = Rinv->operator()(ys);
+    std::vector<T> taus = (*Rinv)(ys);
     std::vector<T> y_above(S), y_below(S), Rinv_below(S), Rinv_above(S);
     for (m = 0; m < M; ++m)
     {
         y = ys[m];
         ei = eis[m];
         tau = taus[m];
-        // std::cout << m << " " << std::flush;
         tjj_below.fill(zero);
         tjj_above.fill(zero);
         tjj_below(0, 0) = tau;
@@ -209,8 +205,8 @@ void ConditionedSFS<T>::compute(int S, int M, const std::vector<double> &ts,
             // Above tau
             std::generate(y_above.begin(), y_above.end(), [&](){return y + std::exponential_distribution<double>{rate_above}(gen);});
             std::sort(y_above.begin(), y_above.end());
-            Rinv_above = Rinv->operator()(y_above);
-            Rinv_below = Rinv->operator()(y_below);
+            Rinv_above = (*Rinv)(y_above);
+            Rinv_below = (*Rinv)(y_below);
             for (int s = 0; s < S; ++s)
             {
                 tjj_below(j - 1, 0) += dmin(tau, Rinv_below[s]) / S;
@@ -326,6 +322,11 @@ Matrix<T> ConditionedSFS<T>::average_csfs(std::vector<ConditionedSFS<T>> &csfs, 
     ret /= (double)m;
     ret *= theta;
     ret(0, 0) = 1.0 - ret.sum();
+    if (ret(0,0) <= 0.0 or ret(0.0) >= 1.0)
+    {
+        std::cout << ret.template cast<double>() << std::endl;
+        throw std::domain_error("sfs is no longer a probability distribution. branch lengths are too long.");
+    }
     return ret;
 }
 
@@ -400,7 +401,7 @@ void cython_calculate_sfs(const std::vector<double> diff_x, const std::vector<do
         double* outsfs)
 {
     SplineRateFunction<double> eta({diff_x, sqrt_y});
-    eta.print_debug();
+    // eta.print_debug();
     Matrix<double> out = ConditionedSFS<double>::calculate_sfs(eta, n, S, M, ts, expM, tau1, tau2, numthreads, theta);
     store_sfs_results(out, outsfs);
 }
@@ -411,7 +412,7 @@ void cython_calculate_sfs_jac(const std::vector<double> diff_x, const std::vecto
         double* outsfs, double* outjac)
 {
     SplineRateFunction<adouble> eta({diff_x, sqrt_y});
-    eta.print_debug();
+    // eta.print_debug();
     Matrix<adouble> out = ConditionedSFS<adouble>::calculate_sfs(eta, n, S, M, ts, expM, tau1, tau2, numthreads, theta);
     store_sfs_results(out, outsfs, outjac);
 }
