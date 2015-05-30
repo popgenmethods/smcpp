@@ -4,20 +4,21 @@ template <typename T>
 PiecewiseExponentialRateFunction<T>::PiecewiseExponentialRateFunction(const std::vector<std::vector<double>> &params) :
     RateFunction<T>(params), K(params[0].size()), ada(params[0].begin(), params[0].end()), 
     adb(params[1].begin(), params[1].end()), ads(params[2].begin(), params[2].end()),
-    ts(K), Rrng(K)
+    ts(K + 1), Rrng(K)
 {
     // Final piece is required to be flat.
-    adb[K - 1] = 0.0;
     ts[0] = 0;
     Rrng[0] = 0;
     // These constant values need to have compatible derivative shape
     // with the calculated values.
     initialize_derivatives();
-    for (int k = 1; k < K; ++k)
+    for (int k = 0; k < K; ++k)
     {
-        ts[k] = ts[k - 1] + ads[k];
-        adb[k - 1] = (log(ada[k - 1]) - log(adb[k - 1])) / (ts[k] - ts[k - 1]);
+        ts[k + 1] = ts[k] + ads[k];
+        adb[k] = (log(ada[k]) - log(adb[k])) / (ts[k + 1] - ts[k]);
     }
+    adb[K - 1] = 0.0;
+    ts[K] = INFINITY;
     compute_antiderivative();
 
     R.reset(new PExpIntegralEvaluator<T>(ada, adb, ts, Rrng));

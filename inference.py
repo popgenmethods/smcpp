@@ -6,13 +6,13 @@ logger = logging.getLogger(__name__)
 
 import _pypsmcpp
 
-def loglik(xdiff, sqrt_y, n, S, M, obs_list, hidden_states, rho, theta, 
+def loglik(params, n, S, M, obs_list, hidden_states, rho, theta, 
         reg, numthreads=1, seed=None, viterbi=False, jacobian=False):
     '''Return probability of observing <obs> under demography <demo>, as
     computed by forward algorithm.'''
     for obs in obs_list:
         _validate_obs(n, obs)
-    return _pypsmcpp.log_likelihood(xdiff, sqrt_y, n, S, M, obs_list, hidden_states, rho, theta, 
+    return _pypsmcpp.log_likelihood(params, n, S, M, obs_list, hidden_states, rho, theta, 
             reg, numthreads, seed, viterbi, jacobian)
 
 def _validate_obs(n, obs):

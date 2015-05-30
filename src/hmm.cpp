@@ -214,6 +214,7 @@ void HMM<T>::backward(void)
     for (int ell = L - 1; ell >= 0; --ell)
 	{
 		R = obs(ell, 0);
+        if (ell == L - 1) --R;
 		diag_obs(ell);
 		P = transition * D;
 		for (int r = 0; r < R; ++r)
@@ -242,13 +243,17 @@ T HMM<T>::Q(void)
 	Matrix<T> log_transition = transition.array().log();
 	Matrix<T> gamma = alpha_hat.cwiseProduct(beta_hat);
 	T ret = gamma.col(0).transpose() * pi.array().log().matrix();
-	for (int ell = 1; ell < Ltot; ++ell)
-		ret += xi(ell).cwiseProduct(log_transition).sum();
-	for (int ell = 0; ell < Ltot; ++ell)
-	{
-		diag_obs(ell);
-		ret += (D * gamma.col(ell)).sum();
-	}
+    int lt = 0;
+	for (int ell = 0; ell < L; ++ell)
+    {
+        int R = obs(ell, 0);
+        for (int r = 0; r < R; ++r)
+        {
+            ret += xi(lt).cwiseProduct(log_transition).sum();
+            diag_obs(lt);
+            ret += (D * gamma.col(lt++)).sum();
+        }
+    }
 	return ret;
 }
 

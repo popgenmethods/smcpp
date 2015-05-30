@@ -23,15 +23,15 @@ def fake_obs():
     return np.array(ary)
 
 def test_loglik_diff_nodiff(demo, fake_obs):
-    x, y = demo
+    a, b, s = demo
     S = 1000
     M = 20
     N0 = 1000.
     rho = theta = 1e-8
     obs_list = [fake_obs]
-    def f(x, y, jacobian):
+    def f(a, b, s, jacobian):
         return inference.loglik(
-                x, y,
+                [a, b, s],
                 N,
                 S, M,
                 obs_list, # List of the observations datasets we prepared above
@@ -40,8 +40,8 @@ def test_loglik_diff_nodiff(demo, fake_obs):
                 N0 * theta, 
                 reg=0.,
                 numthreads=NTHREADS, seed=1, viterbi=False, jacobian=jacobian)
-    logp, jac = f(x, y, True)
-    logp2 = f(x, y, False)
+    logp, jac = f(a, b, s, True)
+    logp2 = f(a, b, s, False)
     print(logp, logp2)
     print(jac)
     aoeu
