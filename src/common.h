@@ -3,8 +3,8 @@
 
 #include <iostream>
 #include <vector>
-#include <array>
 #include <random>
+#include <array>
 #include <Eigen/Dense>
 
 #include "prettyprint.hpp"

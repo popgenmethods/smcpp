@@ -33,7 +33,6 @@ class HMM
     void fast_forward(void);
     void forward(void);
     void backward(void);
-    Vector<T> gamma(int ell);
     Matrix<T> xi(int ell);
 
     // Instance variables

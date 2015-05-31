@@ -148,7 +148,7 @@ void ConditionedSFS<T>::compute(int S, int M, const std::vector<double> &ts,
         const std::vector<Eigen::Map<const Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>> &expM,
         T t1, T t2)
 {
-    feenableexcept(FE_INVALID | FE_OVERFLOW);
+    // feenableexcept(FE_INVALID | FE_OVERFLOW);
     auto Rinv = eta->getRinv();
     T tau;
     // There are n + 2 (undistinguished + distinguished) at time 0.
@@ -250,7 +250,7 @@ void ConditionedSFS<T>::fill_matrices(void)
 	Matrix<T> I1 = Matrix<T>::Identity(n + 1, n + 1);
     // Construct some matrices that will be used later on
     D_subtend_above.setZero();
-    D_subtend_above.diagonal() = Eigen::VectorXd::LinSpaced(n, 1, n).cast<T>() / (n + 1);
+    D_subtend_above.diagonal() = Eigen::VectorXd::LinSpaced(n, 1, n).template cast<T>() / (n + 1);
 	D_not_subtend_above = I - D_subtend_above;
 
     D_subtend_below.setZero();
@@ -259,7 +259,7 @@ void ConditionedSFS<T>::fill_matrices(void)
 	D_not_subtend_below = I1 - D_subtend_below;
 
     tK.setZero();
-    tK.diagonal() = Eigen::VectorXd::LinSpaced(n + 1, 2, n + 2).cast<T>();
+    tK.diagonal() = Eigen::VectorXd::LinSpaced(n + 1, 2, n + 2).template cast<T>();
 
     // Calculate the Polanski-Kimmel matrix
     // TODO: this could be sped up by storing the matrix outside of the class

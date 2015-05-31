@@ -1,6 +1,51 @@
 #include "hmm.h"
 #include <csignal>
 
+/*
+class CondensedObsIter
+{
+    public:
+    CondensedObsIter(const Eigen::MatrixBase<int, Eigen::Dynamic, 3> &obs) : _obs(obs) {}
+    iter begin() const { return iter(obs, 0, 0); }
+    iter end() const { return iter(obs, obs.rows(), 0); }
+
+    private:
+    class iter 
+    {
+        public:
+        iter(const Eigen::MatrixBase<int, Eigen::Dynamic, 3> &obs,
+            int pos, int lt) : 
+        _obs(obs), _pos(pos), _lt(lt); {}
+
+        bool operator!= (const iter& other) const
+        {
+            return _pos != other._pos or _lt != other._lt;
+        }
+
+        const Eigen::Matrix<int, 1, 2>& operator*() const
+        {
+            return _obs.row(_pos).tail(2);
+        }
+
+        const iter& operator++ ()
+        {
+            if (_lt == _obs.row(_pos, 0) - 1)
+            {
+                _lt = 0;
+                _pos++;
+            }
+            else
+                _lt++;
+            return *this;
+        }
+
+        private:
+        const Eigen::Map<const Eigen::Matrix<int, Eigen::Dynamic, 3, Eigen::RowMajor>> _obs;
+        int _pos;
+    }
+}
+*/
+
 template <typename T>
 HMM<T>::HMM(const Vector<T> &pi, const Matrix<T> &transition, 
         const std::vector<Matrix<T>> &emission,
@@ -211,26 +256,29 @@ void HMM<T>::backward(void)
 	Matrix<T> P;
 	int R;
 	int lt = Ltot - 2;
+    diag_obs(L - 1);
+    P = transition * D;
     for (int ell = L - 1; ell >= 0; --ell)
 	{
 		R = obs(ell, 0);
-        if (ell == L - 1) --R;
-		diag_obs(ell);
-		P = transition * D;
+        if (ell == 0)
+            R--;
 		for (int r = 0; r < R; ++r)
-		{
+        {
 			beta_hat.col(lt) = P * beta_hat.col(lt + 1) / c(lt + 1);
 			--lt;
+            if (r == 0)
+            {
+                diag_obs(ell);
+                P = transition * D;
+            }
 		}
 	}
-	if (lt != -1)
-		throw std::domain_error("something went wrong");
 }
 
 template <typename T>
 Matrix<T> HMM<T>::xi(int ell)
 {
-	diag_obs(ell);
 	Matrix<T> M = c(ell) * alpha_hat.col(ell - 1) * beta_hat.col(ell).transpose() * D;
 	return M.cwiseProduct(transition);
 }
@@ -242,16 +290,21 @@ T HMM<T>::Q(void)
 	backward();
 	Matrix<T> log_transition = transition.array().log();
 	Matrix<T> gamma = alpha_hat.cwiseProduct(beta_hat);
-	T ret = gamma.col(0).transpose() * pi.array().log().matrix();
+    Vector<double> gv = gamma.template cast<double>().colwise().sum();
+    int maxInd;
+    gv.maxCoeff(&maxInd);
+    std::cout << "gamma max:" << gv.maxCoeff() << "(" << maxInd << ") min:" << gv.minCoeff() << std::endl;
+	T ret = gamma.col(0).dot(pi.array().log().matrix());
     int lt = 0;
+    Vector<T> v;
 	for (int ell = 0; ell < L; ++ell)
     {
+        diag_obs(ell);
         int R = obs(ell, 0);
         for (int r = 0; r < R; ++r)
         {
             ret += xi(lt).cwiseProduct(log_transition).sum();
-            diag_obs(lt);
-            ret += (D * gamma.col(lt++)).sum();
+            ret += D.diagonal().dot(gamma.col(lt++));
         }
     }
 	return ret;

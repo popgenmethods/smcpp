@@ -9,9 +9,9 @@ import inference
 from fixtures import *
 
 N = 10
-L = 1000
+L = 100
 hidden_states = np.array([0.0, 0.5, 1.0, 2.0, 3.0, 4.0, np.inf])
-NTHREADS = 8
+NTHREADS = 2
 
 @pytest.fixture
 def fake_obs():
@@ -24,8 +24,8 @@ def fake_obs():
 
 def test_loglik_diff_nodiff(demo, fake_obs):
     a, b, s = demo
-    S = 1000
-    M = 20
+    S = 100
+    M = 10
     N0 = 1000.
     rho = theta = 1e-8
     obs_list = [fake_obs]

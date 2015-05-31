@@ -29,6 +29,7 @@ def log_likelihood(params, int n, int S, int M, obs_list, hidden_states,
         int numthreads, seed=None, viterbi=False, jacobian=False):
     # Create stuff needed for computation
     # Sample conditionally; populate the interpolating rate matrices
+    J = len(params)
     K = len(params[0])
     for p in params:
         assert len(p) == K
@@ -43,7 +44,7 @@ def log_likelihood(params, int n, int S, int M, obs_list, hidden_states,
     for i in range(mats.shape[0]):
         expM.push_back(&mmats[i, 0, 0])
     cdef double[:, ::1] mjac
-    jac = aca(np.zeros((2, K)))
+    jac = aca(np.zeros((J, K)))
     mjac = jac
     cdef int[:, ::1] mobs
     cdef vector[int*] vobs
@@ -92,7 +93,8 @@ def _reduced_sfs(sfs):
                 reduced_sfs[i + j] += sfs[i][j]
     return reduced_sfs
 
-def sfs(params, int n, int S, int M, double tau1, double tau2, int numthreads, double theta, seed=None, jacobian=False):
+def sfs(params, int n, int S, int M, double tau1, double tau2, int numthreads, 
+        double theta, seed=None, jacobian=False):
     K = len(params[0])
     for p in params:
         assert len(p) == K
@@ -112,13 +114,16 @@ def sfs(params, int n, int S, int M, double tau1, double tau2, int numthreads, d
     if jacobian:
         jac = aca(np.zeros((3, n + 1, len(params), K)))
         mjac = jac
-        cython_calculate_sfs_jac(cparams, n, S, M, ts, expM, tau1, tau2, numthreads, theta, &msfs[0, 0], &mjac[0, 0, 0, 0])
+        cython_calculate_sfs_jac(cparams, n, S, M, ts, expM, tau1, tau2, 
+                numthreads, theta, &msfs[0, 0], &mjac[0, 0, 0, 0])
         return (sfs, _reduced_sfs(sfs), jac)
     else:
-        cython_calculate_sfs(cparams, n, S, M, ts, expM, tau1, tau2, numthreads, theta, &msfs[0, 0])
+        cython_calculate_sfs(cparams, n, S, M, ts, expM, tau1, tau2, 
+                numthreads, theta, &msfs[0, 0])
         return (sfs, _reduced_sfs(sfs))
 
 def transition(params, hidden_states, rho, jacobian=False):
+    J = len(params)
     K = len(params[0])
     for p in params:
         assert len(p) == K
@@ -130,9 +135,10 @@ def transition(params, hidden_states, rho, jacobian=False):
     cdef double[:, ::1] mtrans = trans
     cdef double[:, :, :, ::1] mjac
     if jacobian:
-        jac = aca(np.zeros((M, M, len(params), K)))
+        jac = aca(np.zeros((M, M, J, K)))
         mjac = jac
-        cython_calculate_transition_jac(cparams, hidden_states, rho, &mtrans[0, 0], &mjac[0, 0, 0, 0])
+        cython_calculate_transition_jac(cparams, hidden_states, rho, 
+                &mtrans[0, 0], &mjac[0, 0, 0, 0])
         return (trans, jac)
     else:
         cython_calculate_transition(cparams, hidden_states, rho, &mtrans[0, 0])

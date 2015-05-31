@@ -14,7 +14,7 @@ PiecewiseExponentialRateFunction<T>::PiecewiseExponentialRateFunction(const std:
     initialize_derivatives();
     for (int k = 0; k < K; ++k)
     {
-        ts[k + 1] = ts[k] + ads[k];
+        ts[k + 1] = ts[k] + myabs(ads[k]);
         adb[k] = (log(ada[k]) - log(adb[k])) / (ts[k + 1] - ts[k]);
     }
     adb[K - 1] = 0.0;
