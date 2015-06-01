@@ -52,7 +52,7 @@ HMM<T>::HMM(const Vector<T> &pi, const Matrix<T> &transition,
         const int L, const int* obs) :
     pi(pi), transition(transition), emission(emission), M(emission.size()),
     L(L), obs(obs, L, 3), Ltot(this->obs.col(0).sum()), D(M), O0T(M, M), 
-	alpha_hat(M, Ltot), beta_hat(M, Ltot), c(L)
+	alpha_hat(M, Ltot), beta_hat(M, Ltot), c(L + 1)
 { 
     feraiseexcept(FE_ALL_EXCEPT & ~FE_INEXACT);
     D.setZero();
@@ -198,6 +198,9 @@ void HMM<T>::fast_forward(void)
     diag_obs(0);
     Vector<T> ahat = D * pi;
 	Matrix<T> P;
+    c = Vector<T>::Zero(L + 1);
+    c(0) = ahat.sum();
+    ahat /= c(0);
     for (int ell = 0; ell < L; ++ell)
     {
         p = obs(ell, 0);
@@ -211,105 +214,110 @@ void HMM<T>::fast_forward(void)
 			P = matpow(D * transition.transpose(), p);
         }
 		ahat = P * ahat;
-        c(ell) = ahat.sum();
-        if (isnan(toDouble(c(ell))) || c(ell) <= 0.0)
+        c(ell + 1) = ahat.sum();
+        if (isnan(toDouble(c(ell + 1))) || c(ell + 1) <= 0.0)
             throw std::domain_error("nan encountered in hmm");
-        ahat /= c(ell);
+        ahat /= c(ell + 1);
     }
 }
 
 template <typename T>
 void HMM<T>::forward(void)
 {
+	c = Vector<T>::Zero(Ltot);
     D.setZero();
     diag_obs(0);
-	c = Vector<T>::Zero(Ltot);
-    alpha_hat.col(0) = D * pi;
-	c(0) = 1.0;
+    alpha_hat.col(0) = D * transition.transpose() * pi;
+	c(0) = alpha_hat.col(0).sum();
+    alpha_hat.col(0) /= c(0);
 	Matrix<T> P;
 	int lt = 1;
     for (int ell = 0; ell < L; ++ell)
     {
         int R = obs(ell, 0);
-		if (ell == 0)
-			R--;
+        if (ell == 0)
+            R--;
 		diag_obs(ell);
 		P = D * transition.transpose();
 		for (int r = 0; r < R; ++r)
 		{
 			alpha_hat.col(lt) = P * alpha_hat.col(lt - 1);
 			c(lt) = alpha_hat.col(lt).sum();
-			if (isnan(toDouble(c(lt - 1))) || c(lt - 1) <= 0.0)
-				throw std::domain_error("nan encountered in hmm");
 			alpha_hat.col(lt) /= c(lt);
 			++lt;
 		}
     }
 	if (Ltot != lt)
+    {
+        std::cout << "forward " << lt;
 		throw std::domain_error("something went wrong");
+    }
 }
 
 template <typename T>
 void HMM<T>::backward(void)
 {
     beta_hat.col(Ltot - 1) = Vector<T>::Ones(M);
-	Matrix<T> P;
-	int R;
-	int lt = Ltot - 2;
+    beta_hat.col(Ltot - 1);
+    Matrix<T> P;
+    int R;
+    int lt = Ltot - 2;
     diag_obs(L - 1);
     P = transition * D;
     for (int ell = L - 1; ell >= 0; --ell)
-	{
-		R = obs(ell, 0);
+    {
+        R = obs(ell, 0);
         if (ell == 0)
             R--;
-		for (int r = 0; r < R; ++r)
+        for (int r = 0; r < R; ++r)
         {
-			beta_hat.col(lt) = P * beta_hat.col(lt + 1) / c(lt + 1);
-			--lt;
-            if (r == 0)
+            beta_hat.col(lt) = P * beta_hat.col(lt + 1) / c(lt + 1);
+            --lt;
+            if (r == R - 1 and ell > 0)
             {
-                diag_obs(ell);
+                diag_obs(ell - 1);
                 P = transition * D;
             }
-		}
-	}
-}
-
-template <typename T>
-Matrix<T> HMM<T>::xi(int ell)
-{
-	Matrix<T> M = c(ell) * alpha_hat.col(ell - 1) * beta_hat.col(ell).transpose() * D;
-	return M.cwiseProduct(transition);
+        }
+    }
+	if (-1 != lt)
+    {
+        std::cout << "backward " << lt;
+		throw std::domain_error("something went wrong");
+    }
 }
 
 template <typename T>
 T HMM<T>::Q(void)
 {
+    std::cout << "forward" << std::endl;
 	forward();
+    std::cout << "backward" << std::endl;
 	backward();
+    std::cout << "Q" << std::endl;
 	Matrix<T> log_transition = transition.array().log();
 	Matrix<T> gamma = alpha_hat.cwiseProduct(beta_hat);
-    Vector<double> gv = gamma.template cast<double>().colwise().sum();
-    int maxInd;
-    gv.maxCoeff(&maxInd);
-    std::cout << "gamma max:" << gv.maxCoeff() << "(" << maxInd << ") min:" << gv.minCoeff() << std::endl;
-	T ret = gamma.col(0).dot(pi.array().log().matrix());
     int lt = 0;
-    Vector<T> v;
-	for (int ell = 0; ell < L; ++ell)
+    Matrix<T> tmp, xisum = Matrix<T>::Zero(M, M);
+    // Begin Baum-Welch algorithm
+	T ret = gamma.col(0).dot(pi.array().log().matrix());
+    for (int ell = 0; ell < L; ++ell)
     {
         diag_obs(ell);
         int R = obs(ell, 0);
+        tmp = Matrix<T>::Zero(M, M);
         for (int r = 0; r < R; ++r)
         {
-            ret += xi(lt).cwiseProduct(log_transition).sum();
-            ret += D.diagonal().dot(gamma.col(lt++));
+            ret += D.diagonal().array().log().matrix().dot(gamma.col(lt));
+            if (lt > 0)
+                tmp += c(lt) * alpha_hat.col(lt - 1) * beta_hat.col(lt).transpose();
+            lt++;
         }
+        xisum += tmp * D;
     }
-	return ret;
+    ret += log_transition.cwiseProduct(xisum).sum();
+    return ret;
 }
-
 
 template <typename T>
 T compute_hmm_likelihood(
@@ -327,7 +335,7 @@ T compute_hmm_likelihood(
     for (auto ob : obs)
         hmms.emplace_back(pi, transition, emission, L, ob);
     for (auto &hmm : hmms)
-        results.emplace_back(tp.enqueue([&] { return hmm.Q(); }));
+        results.emplace_back(tp.enqueue([&] { return hmm.loglik(); }));
     T ret = 0.0;
     for (auto &&res : results)
         ret += res.get();
@@ -361,3 +369,27 @@ template class HMM<adouble>;
 
 void print_matrix(Matrix<adouble> &M) { std::cout << M.cast<double>() << std::endl << std::endl; }
 
+int main(int argc, char** argv)
+{
+    Eigen::Matrix2d transition;
+    transition << 0.7, 0.3,
+                  0.3, 0.7;
+    Eigen::Vector2d pi;
+    pi << 0.5, 0.5;
+    int L = 5; 
+    int obs[5][3] = { {1, 0, 0}, {1, 0, 0}, {1, 0, 1}, {1, 0, 0}, {1, 0, 0} };
+    std::vector<Matrix<double>> emission(2, Matrix<double>::Zero(1, 2));
+    emission[0] << 0.9, 0.1;
+    emission[1] << 0.2, 0.8;
+    HMM<double> hmm(pi, transition, emission, L, obs[0]);
+    hmm.forward();
+    hmm.backward();
+    std::cout << hmm.Q() << std::endl << std::endl;
+    std::cout << hmm.alpha_hat << std::endl << std::endl;
+    std::cout << hmm.beta_hat << std::endl << std::endl;
+    std::cout << hmm.alpha_hat.cwiseProduct(hmm.beta_hat) << std::endl << std::endl;
+    std::cout << hmm.alpha_hat.cwiseProduct(hmm.beta_hat).colwise().sum() << std::endl << std::endl;
+    std::cout << hmm.c.array().log().sum() << std::endl << std::endl;
+    hmm.fast_forward();
+    std::cout << hmm.c.array().log().sum() << std::endl << std::endl;
+}

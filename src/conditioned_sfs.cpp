@@ -340,12 +340,12 @@ Matrix<T> ConditionedSFS<T>::calculate_sfs(const RateFunction<T> &eta,
     std::vector<ConditionedSFS<T>> csfs;
     std::vector<std::thread> t;
     int P = expM.size();
-    T t1 = R->operator()(tau1);
+    T t1 = (*R)(tau1);
     T t2;
     if (isinf(tau2))
         t2 = INFINITY;
     else
-        t2 = R->operator()(tau2);
+        t2 = (*R)(tau2);
     std::vector<Eigen::Map<const Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>> _expM;
     for (int p = 0; p < P; ++p)
         _expM.emplace_back(expM[p], n + 1, n + 1);

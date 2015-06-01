@@ -13,6 +13,7 @@ class SplineRateFunction : public RateFunction<T>
     // virtual const feval& getEta() const { return &eta; }
     virtual const FunctionEvaluator<T>* getR() const { return R.get(); }
     virtual const FunctionEvaluator<T>* getRinv() const { return Rinv.get(); }
+    virtual const T regularizer(void) const { return _reg; }
 
     virtual void print_debug() const
     {
@@ -26,6 +27,7 @@ class SplineRateFunction : public RateFunction<T>
 
     private:
     PiecewisePolynomial<T, 1> make_inverse();
+    T _reg;
     feval<T> R, Rinv;
 };
 

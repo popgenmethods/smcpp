@@ -3,6 +3,7 @@ from __future__ import division
 import numpy as np
 import psmcpp.scrm, psmcpp.inference
 import pprint
+import bfgs
 
 np.random.seed(1)
 
@@ -14,7 +15,7 @@ NTHREADS=2
 n = 6
 N0 = 10000
 theta = rho = 1e-8
-L = 10000
+L = 1000000
 demography = ['-eN', 0.5, 0.5]
 data = psmcpp.scrm.simulate(n, N0, theta, rho, L, demography) # no demography
 # Generate 3 datasets from this code by distinguishing different 
@@ -26,9 +27,9 @@ obs_list = [psmcpp.scrm.hmm_data_format(data, cols) for cols in ((0,1),)]
 # We'll use a 3-period model just to see how things work.
 # Hopefully the inference code will make the periods 
 # look pretty equal to one another.
-a = [1.0, 2.0]
-b = [1.5, 2.5]
-s = [0.2, 0.5]
+a = [1.0] * 10
+b = [1.5] * 10
+s = [0.1] * 10
 # We'll use 10 hidden states
 hidden_states = np.array([0.0, 0.25, 0.5, 0.75, 1.0, 1.5, 2.0, np.inf])
 
@@ -54,9 +55,9 @@ import scipy.optimize
 K = len(a)
 def logp(x, jacobian):
     key = tuple((tuple(x), jacobian))
-    ax = np.array(x).reshape((3, K))
+    ax = np.array(x).reshape((2, K))
     if key not in logp._memo:
-        a, b, s = ax
+        a, b = ax
         ret = psmcpp.inference.loglik(
                 (a, b, s),
                 n,
@@ -65,7 +66,7 @@ def logp(x, jacobian):
                 obs_list, # List of the observations datasets we prepared above
                 hidden_states,
                 N0 * rho, N0 * theta, # Same parameters as above
-                reg=1.0,
+                reg=10.0,
                 numthreads=NTHREADS, # Using multiple threads speeds everything up.
                 jacobian=jacobian
                 )
@@ -75,15 +76,17 @@ logp._memo = {}
 
 def f(x):
     ret = -logp(x, False)
-    print("f(%s) = %f)" % (str(x), ret))
+    print("f(%s) = %f" % (str(x), ret))
     return ret
 def fprime(x):
-    ret = -logp(x, True)[1]
-    print("f'(%s) = %s)" % (str(x), str(ret)))
-    return ret
+    ret = -logp(x, True)[1][:2]
+    print("f'(%s) = %s" % (str(x), str(ret)))
+    return ret.reshape((2 * K))
 
-x0 = np.array([a, b, s])
-res = scipy.optimize.minimize(f, x0, jac=fprime)
+x0 = np.array([a, b]).flatten()
+bfgs.bfgs(f, fprime, x0)
+# bds = ((0.1, 1e3),) * 2 * K # + ((0.1, 1.0),) * K
+# res = scipy.optimize.minimize(f, x0, jac=fprime, bounds=bds, method="L-BFGS-B")
 print(res)
 
 #i = 20 

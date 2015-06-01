@@ -34,7 +34,7 @@ SplineRateFunction<T>::SplineRateFunction(const std::vector<std::vector<double>>
     Rinv.reset(new PiecewisePolynomial<T, 1>(make_inverse()));
     auto deriv = eta.derivative().derivative();
     T xmax = this->ad_params[0].back() * 1.1;
-    this->_reg = (deriv * deriv).antiderivative()(xmax);
+    _reg = (deriv * deriv).antiderivative()(xmax);
 }
 
 template <typename T>

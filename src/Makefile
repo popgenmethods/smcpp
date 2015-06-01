@@ -16,7 +16,7 @@ RCOMPILE_FLAGS = -D NDEBUG
 # Additional debug-specific flags
 DCOMPILE_FLAGS = -D DEBUG
 # Add additional include paths
-INCLUDES = -I $(SRC_PATH)/ -I /usr/include/eigen3
+INCLUDES = -I $(SRC_PATH)/ -I/usr/include/eigen3 -I/usr/local/include/eigen3
 # General linker settings
 LINK_FLAGS = 
 # Additional release-specific linker settings

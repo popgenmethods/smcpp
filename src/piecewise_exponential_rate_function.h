@@ -13,6 +13,7 @@ class PiecewiseExponentialRateFunction : public RateFunction<T>
     virtual const FunctionEvaluator<T>* getR() const { return R.get(); }
     virtual const FunctionEvaluator<T>* getRinv() const { return Rinv.get(); }
     void print_debug() const;
+    virtual const T regularizer(void) const { return _reg; }
 
     friend std::ostream& operator<<(std::ostream& os, const PiecewiseExponentialRateFunction& pexp)
     {
@@ -93,7 +94,8 @@ class PExpIntegralEvaluator : public BasePExpEvaluator<T>
         if (this->adb[ip] == 0.0)
             return this->Rrng[ip] + this->ada[ip] * (t - this->ts[ip]);
         else
-            return this->ada[ip] / this->adb[ip] * expm1(this->adb[ip] * (t - this->ts[ip])) + this->Rrng[ip];
+            return this->ada[ip] / this->adb[ip] * 
+                expm1(this->adb[ip] * (t - this->ts[ip])) + this->Rrng[ip];
     }
 };
 

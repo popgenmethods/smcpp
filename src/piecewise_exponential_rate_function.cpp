@@ -15,7 +15,8 @@ PiecewiseExponentialRateFunction<T>::PiecewiseExponentialRateFunction(const std:
     for (int k = 0; k < K; ++k)
     {
         ts[k + 1] = ts[k] + myabs(ads[k]);
-        adb[k] = (log(ada[k]) - log(adb[k])) / (ts[k + 1] - ts[k]);
+        adb[k] = (ada[k] - adb[k]) / (ts[k + 1] - ts[k]);
+        ada[k] = exp(ada[k]);
     }
     adb[K - 1] = 0.0;
     ts[K] = INFINITY;

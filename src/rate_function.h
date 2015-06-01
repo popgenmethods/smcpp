@@ -21,7 +21,7 @@ class RateFunction
     // virtual const FunctionEvaluator<T>* getEta() const = 0;
     virtual const FunctionEvaluator<T>* getR() const = 0;
     virtual const FunctionEvaluator<T>* getRinv() const = 0;
-    T regularizer(void) const { return _reg; }
+    virtual const T regularizer(void) const = 0;
     const int J, K;
     const Eigen::VectorXd z;
     const T zero;
@@ -47,14 +47,13 @@ class RateFunction
 
     protected:
     std::vector<std::vector<T>> ad_params;
-    T _reg;
 };
 
 template <typename T>
 RateFunction<T>::RateFunction(const std::vector<std::vector<double>> &params) : 
     J(params.size()), K(params[0].size()), z(Eigen::VectorXd::Zero(J * K)),
     zero(derivative_initializer(0.0)), one(derivative_initializer(1.0)), 
-    params(params), ad_params(J, std::vector<T>(K)), _reg(derivative_initializer(0.0))
+    params(params), ad_params(J, std::vector<T>(K))
 {
     validate();
     for (int j = 0; j < J; ++j)

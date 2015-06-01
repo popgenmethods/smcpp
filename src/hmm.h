@@ -33,9 +33,9 @@ class HMM
     void fast_forward(void);
     void forward(void);
     void backward(void);
-    Matrix<T> xi(int ell);
 
     // Instance variables
+    private:
     const Vector<T> pi;
     const Matrix<T> transition;
     const std::vector<Matrix<T>> emission;
@@ -47,6 +47,8 @@ class HMM
     Vector<T> c;
     std::vector<int> viterbi_path;
     std::map<int, Matrix<T>> O0Tpow_memo;
+
+    friend int main(int, char**);
 };
 
 template <typename T>
