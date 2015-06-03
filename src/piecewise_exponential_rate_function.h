@@ -10,6 +10,8 @@ class PiecewiseExponentialRateFunction : public RateFunction<T>
 {
     public:
     PiecewiseExponentialRateFunction(const std::vector<std::vector<double>> &params);
+    virtual std::vector<T> getTimes() const { return ts; }
+    virtual const FunctionEvaluator<T>* geteta() const { return eta.get(); }
     virtual const FunctionEvaluator<T>* getR() const { return R.get(); }
     virtual const FunctionEvaluator<T>* getRinv() const { return Rinv.get(); }
     void print_debug() const;
@@ -28,7 +30,7 @@ class PiecewiseExponentialRateFunction : public RateFunction<T>
     std::vector<T> ada, adb, ads, ts, Rrng;
     void initialize_derivatives();
     void compute_antiderivative();
-    feval<T> R, Rinv;
+    feval<T> eta, R, Rinv;
     T _reg;
 };
 
@@ -39,6 +41,11 @@ class BasePExpEvaluator : public FunctionEvaluator<T>
     BasePExpEvaluator(const std::vector<T> &ada, const std::vector<T> &adb, 
             const std::vector<T> &ts, const std::vector<T> &Rrng) :
         ada(ada), adb(adb), ts(ts), Rrng(Rrng) {}
+
+    virtual std::vector<T> getTimes(void) const
+    {
+        return ts;
+    }
 
     virtual T operator()(const T &t) const
     {

@@ -1,27 +1,29 @@
 # Complete example showing how to use the package for inference
 from __future__ import division
 import numpy as np
-import psmcpp.scrm, psmcpp.inference
+import scipy.optimize
 import pprint
-import bfgs
 
-np.random.seed(1)
+import psmcpp.scrm, psmcpp.inference, psmcpp.bfgs, psmcpp._pypsmcpp
 
-NTHREADS=2
+NTHREADS=1
+np.random.seed(1000)
 
 # 1. Generate some data. 
 # We'll focus on the **simplest** # case of inferring a 
 # **constant** demography to start.
-n = 6
+n = 15;
 N0 = 10000
 theta = rho = 1e-8
 L = 1000000
-demography = ['-eN', 0.5, 0.5]
-data = psmcpp.scrm.simulate(n, N0, theta, rho, L, demography) # no demography
+demography = ['-eN', 0.0, 4.0, '-eN', 0.5, 0.5]
+# sfs = psmcpp.scrm.sfs(n, 1000000, N0, theta, demography) # no demography
 # Generate 3 datasets from this code by distinguishing different 
 # columns
-# obs_list = [psmcpp.scrm.hmm_data_format(data, cols) for cols in ((0, 1), (2, 3), (4, 5), (6, 7))]
-obs_list = [psmcpp.scrm.hmm_data_format(data, cols) for cols in ((0,1),)]
+data = psmcpp.scrm.simulate(n, N0, theta, rho, L, demography) # no demography
+obs_list = [psmcpp.scrm.hmm_data_format(data, cols) for cols in ((0, 1), (2, 3), (4, 5), (6, 7))]
+# obs_list = [psmcpp.scrm.hmm_data_format(data, cols) for cols in ((0,1),(2,3))]
+# obs_list = [psmcpp.scrm.hmm_data_format(data, cols) for cols in ((0,1),(2,3))]
 
 # 2. Set up some model parameters
 # We'll use a 3-period model just to see how things work.
@@ -35,7 +37,7 @@ hidden_states = np.array([0.0, 0.25, 0.5, 0.75, 1.0, 1.5, 2.0, np.inf])
 
 # 3. Compute the log-likelihood and derivatives with respect
 # to the data.
-S = 1000
+S = 100000
 M = 10
 # logp, jacobian = psmcpp.inference.logp(
 #         sqrt_a, b, sqrt_s, # Model parameters
@@ -51,23 +53,43 @@ M = 10
 # print(jacobian)
 
 # 4. Optimize this function
-import scipy.optimize
 K = len(a)
 def logp(x, jacobian):
     key = tuple((tuple(x), jacobian))
     ax = np.array(x).reshape((2, K))
     if key not in logp._memo:
         a, b = ax
+        print("calling logp with", a, b, jacobian)
         ret = psmcpp.inference.loglik(
                 (a, b, s),
-                n,
+                n - 2,
                 S, M, # Parameters which govern accuracy with which
                 # the SFS is numerically computed.
                 obs_list, # List of the observations datasets we prepared above
                 hidden_states,
                 N0 * rho, N0 * theta, # Same parameters as above
-                reg=10.0,
+                reg=0.0,
                 numthreads=NTHREADS, # Using multiple threads speeds everything up.
+                jacobian=jacobian
+                ) 
+        logp._memo[key] = ret
+    return logp._memo[key]
+logp._memo = {}
+
+def sfs_l2(x, jacobian):
+    key = tuple((tuple(x), jacobian))
+    ax = np.array(x).reshape((2, K))
+    if key not in logp._memo:
+        a, b = ax
+        ret = psmcpp._pypsmcpp.pretrain(
+                (a, b, s),
+                n - 2,
+                S, M, # Parameters which govern accuracy with which
+                # the SFS is numerically computed.
+                sfs, # List of the observations datasets we prepared above
+                0.0, 
+                NTHREADS, # Using multiple threads speeds everything up.
+                N0 * theta,
                 jacobian=jacobian
                 )
         logp._memo[key] = ret
@@ -75,19 +97,52 @@ def logp(x, jacobian):
 logp._memo = {}
 
 def f(x):
-    ret = -logp(x, False)
+    ret = sfs_l2(x, False)
     print("f(%s) = %f" % (str(x), ret))
     return ret
 def fprime(x):
-    ret = -logp(x, True)[1][:2]
+    ret = sfs_l2(x, True)[1][:2]
     print("f'(%s) = %s" % (str(x), str(ret)))
     return ret.reshape((2 * K))
 
-x0 = np.array([a, b]).flatten()
-bfgs.bfgs(f, fprime, x0)
-# bds = ((0.1, 1e3),) * 2 * K # + ((0.1, 1.0),) * K
-# res = scipy.optimize.minimize(f, x0, jac=fprime, bounds=bds, method="L-BFGS-B")
-print(res)
+# x = x0
+# xlast = 0
+# I = np.eye(2 * K)
+# while True:
+#     y = f(x)
+#     dy = fprime(x)
+#     k = np.random.randint(2 * K)
+#     alpha = 0.5
+#     while f(x - alpha * dy[k] * I[k]) > 0.9 * y:
+#         alpha *= 1.5
+#     x, xlast = x - alpha * dy + 0.2 * (x - xlast), x
+
+# print(scipy.optimize.check_grad(f, fprime, x0))
+
+# x0 = np.array([a, b]).flatten()
+# res = scipy.optimize.minimize(f, x0, jac=fprime)
+# print(res)
+x0 = np.array([  3.67206149,   3.27467463,   2.86461539,   2.4872071 ,
+    2.51815473,   2.68621434,   2.75033103,   2.67842903,
+    2.5109279 ,  17.67182617, 1.09845494,  1.14534191,  1.17678253,  1.20342138,  1.18914623,
+    1.1682994 ,  1.17292012,  1.19980452,  1.24055709,  1.5       ])
+
+# x0 = np.array([ 3.14743358,  2.04473755,  1.74688533,  1.93720627,  2.29648563,
+#     2.59344834,  2.71321871,  2.677193  ,  2.54128756,  0.78812497,
+#     1.23887526,  1.3976846 ,  1.40039995,  1.32723582,  1.24587111,
+#     1.19365221,  1.18236041,  1.1985016 ,  1.23060029,  1.5       ])
+
+
+def f(x):
+    ret = logp(x, False) / L * 1000.
+    print("f(%s) = %f" % (str(x), ret))
+    return ret
+def fprime(x):
+    ret = logp(x, True)[1][:2] / L * 1000.
+    print("f'(%s) = %s" % (str(x), str(ret)))
+    return ret.reshape((2 * K))
+f(x0)
+res = scipy.optimize.minimize(f, x0, jac=fprime)
 
 #i = 20 
 #while True:

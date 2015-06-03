@@ -23,6 +23,15 @@ cdef extern from "transition.h":
             const vector[double] hidden_states, double rho, double* outtrans, double* outjac)
 
 cdef extern from "loglik.h":
+    T sfs_l2[T](
+            const vector[vector[double]]&,
+            const int,
+            const int, const int,
+            const vector[double]&, const vector[double*]&,
+            const double*,
+            int,
+            double, double)
+
     T loglik[T](
             const vector[vector[double]]&,
             const int, 
@@ -33,6 +42,6 @@ cdef extern from "loglik.h":
             const double, const double,
             int,
             bool, vector[vector[int]]&,
-            double) except +
-    void fill_jacobian(const adouble &, double*)
+            double)
 
+    void fill_jacobian(const adouble &, double*)

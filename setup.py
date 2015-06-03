@@ -6,7 +6,9 @@ from subprocess import call
 import os.path
 import glob
 
-cpps = [f for f in glob.glob("src/*.cpp") if not os.path.basename(f).startswith("_")]
+cpps = [f for f in glob.glob("src/*.cpp") if not os.path.basename(f).startswith("_") 
+        and not f.endswith("piecewise_polynomial.cpp") and not f.endswith("spline_rate_function.cpp")]
+# cpps.append("src/gauss_legendre.c")
 
 extensions = [
         Extension(

@@ -216,7 +216,12 @@ void HMM<T>::fast_forward(void)
 		ahat = P * ahat;
         c(ell + 1) = ahat.sum();
         if (isnan(toDouble(c(ell + 1))) || c(ell + 1) <= 0.0)
+        {
+            std::cout << std::endl << D.diagonal().template cast<double>().transpose() << std::endl;
+            std::cout << std::endl << P.template cast<double>() << std::endl;
+            std::cout << std::endl << c.template cast<double>().transpose() << std::endl;
             throw std::domain_error("nan encountered in hmm");
+        }
         ahat /= c(ell + 1);
     }
 }
@@ -368,7 +373,7 @@ template class HMM<double>;
 template class HMM<adouble>;
 
 void print_matrix(Matrix<adouble> &M) { std::cout << M.cast<double>() << std::endl << std::endl; }
-
+/*
 int main(int argc, char** argv)
 {
     Eigen::Matrix2d transition;
@@ -393,3 +398,4 @@ int main(int argc, char** argv)
     hmm.fast_forward();
     std::cout << hmm.c.array().log().sum() << std::endl << std::endl;
 }
+*/

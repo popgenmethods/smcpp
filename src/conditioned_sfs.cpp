@@ -1,4 +1,20 @@
 #include "conditioned_sfs.h"
+#include "gauss_legendre.h"
+
+template <typename T>
+struct helper_struct
+{
+    const FunctionEvaluator<T>* f;
+    double rate;
+    T offset;
+};
+
+template <typename T>
+T helper(T x, void* obj)
+{
+    helper_struct<T>* args = (helper_struct<T>*)obj;
+    return exp(-((*args->f)(x) - args->offset) * args->rate);
+}
 
 std::mt19937 sfs_gen;
 
@@ -131,6 +147,22 @@ void ConditionedSFS<T>::compute_ETnk_below(const Vector<T> &etjj)
 }
 
 template <typename T>
+T etnk_recursion(std::map<std::pair<int, int>, T> &memo, const Vector<T> &etjj, int n, int k) 
+{
+    if (k == n)
+        return etjj(k - 2);
+    std::pair<int, int> key = {n, k};
+    if (memo.count(key) == 0)
+    {
+        T ret = etnk_recursion(memo, etjj, n - 1, k);
+        ret -= (double)(k + 2) * (k - 1) / (n + 1) / (n - 2) * etnk_recursion(memo, etjj, n, k + 1);
+        ret /= 1.0 - (double)(k + 1) * (k - 2) / (n + 1) / (n - 2);
+        memo[key] = ret;
+    }
+    return memo[key];
+}
+
+template <typename T>
 std::thread ConditionedSFS<T>::compute_threaded(int S, int M, const std::vector<double> &ts, 
         const std::vector<Eigen::Map<const Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>> &expM,
         T t1, T t2)
@@ -149,19 +181,20 @@ void ConditionedSFS<T>::compute(int S, int M, const std::vector<double> &ts,
         T t1, T t2)
 {
     // feenableexcept(FE_INVALID | FE_OVERFLOW);
+    auto R = eta->getR();
     auto Rinv = eta->getRinv();
+    auto feta = eta->geteta();
     T tau;
     // There are n + 2 (undistinguished + distinguished) at time 0.
     // Above tau there are between 2 and n + 1.
 	// For some reason it does not like initializing these as AdVectors. So use
 	// the matrix class instead.
-    Matrix<T> tjj_above(n, 1), tjj_below(n + 1, 1), sfs_tau(n, 1), etnk(n + 1, 1);
-    Matrix<T> etnk_avg(n + 1, 1), tjj_below_avg(n + 1, 1), tjj_above_avg(n, 1);
+    Vector<T> tjj_above(n), tjj_below(n + 1), sfs_tau(n, 1), etnk(n + 1);
+    Vector<T> etnk_avg(n + 1), tjj_below_avg(n + 1), tjj_above_avg(n);
 	Matrix<T> eM(n + 1, n + 1);
-    std::map<int[2], double> etnk_memo;
     int m, ei;
     double rate_above, rate_below;
-    T y, coef;
+    T y, coef, left, right, intg;
     etnk_avg.setZero();
     tjj_below_avg.setZero();
     Eigen::VectorXd der;
@@ -185,41 +218,97 @@ void ConditionedSFS<T>::compute(int S, int M, const std::vector<double> &ts,
         eis[m] = ip;
     }
     std::vector<T> taus = (*Rinv)(ys);
-    std::vector<T> y_above(S), y_below(S), Rinv_below(S), Rinv_above(S);
     for (m = 0; m < M; ++m)
     {
         y = ys[m];
         ei = eis[m];
         tau = taus[m];
+        /*
         tjj_below.fill(zero);
         tjj_above.fill(zero);
-        tjj_below(0, 0) = tau;
-        // etjj above and below
+        tjj_below(0) = tau;
         for (int j = 2; j < n + 2; ++j)
         {
             rate_above = (double)(j * (j - 1) / 2);
             rate_below = (double)((j + 1) * j / 2 - 1);
-            // Below tau
-            std::generate(y_below.begin(), y_below.end(), [&](){return std::exponential_distribution<double>{rate_below}(gen);});
-            std::sort(y_below.begin(), y_below.end());
+            // /*
             // Above tau
-            std::generate(y_above.begin(), y_above.end(), [&](){return y + std::exponential_distribution<double>{rate_above}(gen);});
+            std::generate(y_above.begin(), y_above.end(), 
+                    [&](){return y + std::exponential_distribution<double>{rate_above}(gen);});
             std::sort(y_above.begin(), y_above.end());
-            Rinv_above = (*Rinv)(y_above);
+            // Below tau
+            std::generate(y_below.begin(), y_below.end(), 
+                    [&](){return std::exponential_distribution<double>{rate_below}(gen);});
+            std::sort(y_below.begin(), y_below.end());
             Rinv_below = (*Rinv)(y_below);
+            Rinv_above = (*Rinv)(y_above);
             for (int s = 0; s < S; ++s)
             {
                 tjj_below(j - 1, 0) += dmin(tau, Rinv_below[s]) / S;
                 tjj_above(j - 2, 0) += (Rinv_above[s] - tau)/ S;
             }
         }
+        */
+        // below via quadrature
+        Vector<T> gauss_tjj_below(n + 1), gauss_tjj_above(n);
+        std::vector<T> eta_ts = R->getTimes();
+        int K = eta_ts.size();
+        gauss_tjj_below(0) = tau;
+        helper_struct<T> hs;
+        hs.f = R;
+        for (int j = 2; j < n + 2; ++j)
+        {
+            gauss_tjj_below(j - 1) = 0.0;
+            gauss_tjj_above(j - 2) = 0.0;
+            int k = 0;
+            hs.rate = (double)((j + 1) * j / 2 - 1);
+            hs.offset = 0.0;
+            while (eta_ts[k] < tau)
+            {
+                left = eta_ts[k];
+                // ts[K-1] = inf
+                if (k == K - 2)
+                    right = tau;
+                else
+                    right = dmin(eta_ts[k + 1], tau);
+                intg = gauss_legendre<T>(1024, &helper<T>, (void*)&hs, left, right);
+                gauss_tjj_below(j - 1) += intg;
+                k++;
+            }
+            k--;
+            hs.rate = (double)(j * (j - 1) / 2);
+            hs.offset = y; 
+            while (k < K - 2)
+            {
+                left = dmax(eta_ts[k], tau);
+                right = eta_ts[k + 1];
+                intg = gauss_legendre<T>(1024, &helper<T>, (void*)&hs, left, right);
+                gauss_tjj_above(j - 2) += intg;
+                k++;
+            }
+            // Add in the last piece which goes to infinity and is linear
+            // intg = gauss_legendre<T>(1024, &helper<T>, (void*)&hs, left, 1000.0);
+            left = dmax(eta_ts[K - 2], tau);
+            gauss_tjj_above(j - 2) += exp(-hs.rate * ((*R)(left) - y)) / hs.rate / (*feta)(left);
+            // gauss_tjj_above(j - 2) += intg;
+        }
+
+        // eta->print_debug();
         // Compute sfs below using ETnk recursion
-        compute_ETnk_below(tjj_below);
-		// Unfortunately, mixed-products have to be done using lazyProduct() for now
+        /*
+        Vector<T> etnk_below2(n + 1), etnk_below2_gauss(n + 1);
+        std::map<std::pair<int, int>, T> memo;
+        std::map<std::pair<int, int>, T> memo2;
+        for (int k = 2; k < n + 3; ++k)
+        {
+            etnk_below2(k - 2) = etnk_recursion(memo, tjj_below, n + 2, k);
+            etnk_below2_gauss(k - 2) = etnk_recursion(memo2, gauss_tjj_below, n + 2, k);
+        }
+        */
+        compute_ETnk_below(gauss_tjj_below);
+        tjj_above = gauss_tjj_above;
         etnk = tK * ETnk_below.row(n).transpose();
         etnk_avg += etnk / M;
-        tjj_below_avg += tjj_below / M;
-        tjj_above_avg += tjj_above / M;
         csfs_below.block(0, 1, 1, n) += etnk.transpose() * D_not_subtend_below * P_undist / M;
         csfs_below.block(1, 0, 1, n + 1) += etnk.transpose() * D_subtend_below * P_dist / M;
         // Compute sfs above using polanski-kimmel + matrix exponential
@@ -322,11 +411,6 @@ Matrix<T> ConditionedSFS<T>::average_csfs(std::vector<ConditionedSFS<T>> &csfs, 
     ret /= (double)m;
     ret *= theta;
     ret(0, 0) = 1.0 - ret.sum();
-    if (ret(0,0) <= 0.0 or ret(0.0) >= 1.0)
-    {
-        std::cout << ret.template cast<double>() << std::endl;
-        throw std::domain_error("sfs is no longer a probability distribution. branch lengths are too long.");
-    }
     return ret;
 }
 
@@ -355,11 +439,19 @@ Matrix<T> ConditionedSFS<T>::calculate_sfs(const RateFunction<T> &eta,
         t.push_back(c.compute_threaded(S, M, ts, _expM, t1, t2));
     std::for_each(t.begin(), t.end(), [](std::thread &t) {t.join();});
     Matrix<T> ret = ConditionedSFS<T>::average_csfs(csfs, theta);
+    if (ret(0,0) <= 0.0 or ret(0.0) >= 1.0)
+    {
+        std::cout << ret.template cast<double>() << std::endl << std::endl;
+        std::cout << t1 << " " << t2 << std::endl << std::endl;
+        std::cerr << "sfs is no longer a probability distribution. branch lengths are too long." << std::endl;
+    }
     // FIXME: teeny negative numbers can sometimes occur which
     // leads to problems in the HMM computations.
+    /*
     for (int i = 0; i < ret.rows(); ++i)
         for (int j = 0; j < ret.cols(); ++j)
             ret(i, j) = myabs(ret(i, j)); // fmax(ret(i, j), 1e-10);
+            */
     // std::cout << std::endl << ret.cast<double>() << std::endl << std::endl;
     return ret;
 }

@@ -4,7 +4,7 @@ template <typename T>
 PiecewiseExponentialRateFunction<T>::PiecewiseExponentialRateFunction(const std::vector<std::vector<double>> &params) :
     RateFunction<T>(params), K(params[0].size()), ada(params[0].begin(), params[0].end()), 
     adb(params[1].begin(), params[1].end()), ads(params[2].begin(), params[2].end()),
-    ts(K + 1), Rrng(K)
+    ts(K + 1), Rrng(K), _reg(0.0)
 {
     // Final piece is required to be flat.
     ts[0] = 0;
@@ -16,17 +16,17 @@ PiecewiseExponentialRateFunction<T>::PiecewiseExponentialRateFunction(const std:
     {
         ts[k + 1] = ts[k] + myabs(ads[k]);
         adb[k] = (ada[k] - adb[k]) / (ts[k + 1] - ts[k]);
-        ada[k] = exp(ada[k]);
+        ada[k] = exp(-ada[k]);
     }
     adb[K - 1] = 0.0;
     ts[K] = INFINITY;
     compute_antiderivative();
 
+    eta.reset(new PExpEvaluator<T>(ada, adb, ts, Rrng));
     R.reset(new PExpIntegralEvaluator<T>(ada, adb, ts, Rrng));
     Rinv.reset(new PExpInverseIntegralEvaluator<T>(ada, adb, ts, Rrng));
 
     // Compute a TV-like regularizer
-    PExpEvaluator<T> eta(ada, adb, ts, Rrng);
     T x = 0.0;
     T xmax = ts.rbegin()[1] * 1.1;
     T step = (xmax - x) / 1000;
@@ -36,10 +36,12 @@ PiecewiseExponentialRateFunction<T>::PiecewiseExponentialRateFunction(const std:
         xs.push_back(x);
         x += step;
     }
-    ys = eta(xs);
-    _reg = 0.0;
-    for (int i = 1; i < ys.size(); ++i)
-        _reg += myabs(ys[i] - ys[i - 1]);
+    if (xs.size())
+    {
+        ys = (*eta)(xs);
+        for (int i = 1; i < ys.size(); ++i)
+            _reg += myabs(ys[i] - ys[i - 1]);
+    }
     print_debug();
 }
 

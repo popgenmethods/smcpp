@@ -23,6 +23,66 @@ template Vector<double> compute_initial_distribution(const RateFunction<double>&
 template Vector<adouble> compute_initial_distribution(const RateFunction<adouble>&, const std::vector<double>&);
 
 template <typename T>
+T sfs_l2(
+        // Model parameters
+        const std::vector<std::vector<double>> &params,
+        // Sample size
+        const int n, 
+        // Number of iterations for numerical integrals
+        const int S, const int M,
+        // Times and matrix exponentials, for interpolation
+        const std::vector<double> &ts, const std::vector<double*> &expM,
+        // Length & obs vector
+        const double* observed_sfs,
+        // Number of threads to use for computations
+        const int numthreads, 
+        // Regularization parameter
+        double lambda,
+        // theta
+        double theta)
+{
+    RATE_FUNCTION<T> eta(params);
+    // eta.print_debug();
+    Vector<double> emp_sfs = Eigen::Map<const Eigen::Matrix<double, Eigen::Dynamic, 1>, Eigen::RowMajor>(observed_sfs, n + 2 - 1);
+    set_seed(1234);
+    Matrix<T> dist_sfs = ConditionedSFS<T>::calculate_sfs(eta, n, S, M, ts, expM, 0, INFINITY, numthreads, theta);
+    Vector<T> undist_sfs = Vector<T>::Zero(n + 2 - 1);
+    for (int i = 0; i < 3; ++i)
+        for (int j = 0; j < n; ++j)
+            if (i + j > 0 and i + j < n + 2)
+                undist_sfs(i + j - 1) += dist_sfs(i, j);
+    std::cout << "empirical sfs: " << std::endl << emp_sfs.transpose() << std::endl << std::endl;
+    std::cout << "theoretical sfs: " << std::endl << undist_sfs.transpose().template cast<double>() 
+        << std::endl << std::endl;
+    Vector<T> v = emp_sfs.template cast<T>() - undist_sfs;
+    Vector<adouble> vd = v.template cast<adouble>();
+    T ll = v.norm();
+    std::cout << "|obs - expected| (without reg): " << ll << std::endl;
+    ll += lambda * eta.regularizer();
+    std::cout << "|obs - expected| (with reg): " << ll << std::endl;
+    return ll;
+}
+
+template double sfs_l2(
+        const std::vector<std::vector<double>>&,
+        const int, 
+        const int, const int,
+        const std::vector<double> &, const std::vector<double*> &,
+        const double*,
+        const int,
+        double, double);
+
+template adouble sfs_l2(
+        const std::vector<std::vector<double>>&,
+        const int, 
+        const int, const int,
+        const std::vector<double> &, const std::vector<double*> &,
+        const double*,
+        const int,
+        double, double);
+
+
+template <typename T>
 T loglik(
         // Model parameters
         const std::vector<std::vector<double>> &params,
@@ -63,7 +123,8 @@ T loglik(
     start = std::clock();
     std::vector<Matrix<T>> emission;
     for (int i = 1; i < hidden_states.size(); ++i)
-        emission.push_back(ConditionedSFS<T>::calculate_sfs(eta, n, S, M, ts, expM, hidden_states[i - 1], hidden_states[i], numthreads, theta));
+        emission.push_back(ConditionedSFS<T>::calculate_sfs(eta, n, S, M, ts, expM, 
+                    hidden_states[i - 1], hidden_states[i], numthreads, theta));
     duration = ( std::clock() - start ) / (double) CLOCKS_PER_SEC;
     std::cout << duration << std::endl;
     std::cout << "hmm ... ";

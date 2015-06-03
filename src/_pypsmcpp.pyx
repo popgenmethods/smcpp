@@ -24,16 +24,43 @@ cdef vector[double] from_list(lst):
         ret.push_back(l)
     return ret
 
-def log_likelihood(params, int n, int S, int M, obs_list, hidden_states, 
-        double rho, double theta, double reg_lambda,
-        int numthreads, seed=None, viterbi=False, jacobian=False):
-    # Create stuff needed for computation
-    # Sample conditionally; populate the interpolating rate matrices
+def pretrain(params, int n, int S, int M, np.ndarray[ndim=1, dtype=double] sfs, double reg_lambda, 
+        int numthreads, double theta, jacobian=False):
     J = len(params)
     K = len(params[0])
     for p in params:
         assert len(p) == K
     cdef vector[vector[double]] cparams = make_params(params)
+    cdef adouble ad
+    # In "pretraining mode", operate on the SFS only
+    mats, ts = moran_model.interpolators(n)
+    cdef vector[double*] expM
+    cdef double[:, :, ::1] mmats = aca(mats)
+    cdef int i
+    cdef double[:, ::1] madjac
+    for i in range(mats.shape[0]):
+        expM.push_back(&mmats[i, 0, 0])
+    if jacobian:
+        ad = sfs_l2[adouble](cparams, n, S, M, from_list(ts), expM, &sfs[0], numthreads, reg_lambda, theta)
+        adjac = aca(np.zeros((J, K)))
+        madjac = adjac
+        fill_jacobian(ad, &madjac[0, 0])
+        return (toDouble(ad), adjac)
+    else:
+        return sfs_l2[double](cparams, n, S, M, from_list(ts), expM, &sfs[0], numthreads, reg_lambda, theta)
+
+def log_likelihood(params, int n, int S, int M, obs_list, hidden_states, 
+        double rho, double theta, double reg_lambda,
+        int numthreads, seed=None, viterbi=False, jacobian=False):
+    # Create stuff needed for computation
+    # Sample conditionally; populate the interpolating rate matrices
+    cdef adouble ad
+    J = len(params)
+    K = len(params[0])
+    for p in params:
+        assert len(p) == K
+    cdef vector[vector[double]] cparams = make_params(params)
+
     mats, ts = moran_model.interpolators(n)
     if not seed:
         seed = np.random.randint(0, sys.maxint)
@@ -55,7 +82,6 @@ def log_likelihood(params, int n, int S, int M, obs_list, hidden_states,
         mobs = ob
         vobs.push_back(&mobs[0, 0])
     cdef vector[vector[int]] viterbi_paths
-    cdef adouble ad
 
     if jacobian:
         ad = loglik[adouble](cparams,
@@ -89,12 +115,11 @@ def _reduced_sfs(sfs):
     reduced_sfs = np.zeros(n + 1)
     for i in range(3):
         for j in range(n + 1):
-            if i + j < n + 1:
-                reduced_sfs[i + j] += sfs[i][j]
+            if 0 < i + j < n + 2:
+                reduced_sfs[i + j - 1] += sfs[i][j]
     return reduced_sfs
 
-def sfs(params, int n, int S, int M, double tau1, double tau2, int numthreads, 
-        double theta, seed=None, jacobian=False):
+def sfs(params, int n, int S, int M, double tau1, double tau2, int numthreads, double theta, seed=None, jacobian=False):
     K = len(params[0])
     for p in params:
         assert len(p) == K

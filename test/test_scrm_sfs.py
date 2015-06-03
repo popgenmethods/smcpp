@@ -3,34 +3,57 @@ import _pypsmcpp
 import multiprocessing
 import scrm
 
+np.set_printoptions(suppress=True)
+M = 5000
+S = 1
+THREADS = 16
+
 def _scrm_sfs(args):
     return scrm.sfs(*args)
 
 def test_two_period():
-    a = np.array([1., 2., 0.2])
+    a = -np.log([1., 20., 0.01])
     b = np.array([0.01, -0.01, 0.0])
-    s = np.array([0.0, 0.2, 0.4])
-    ts = np.cumsum(s)
-    tb = np.append(a[:-1] * np.exp(b[:-1] * (ts[1:] - ts[:-1])), 0)
-    n = 10
+    s = np.array([0.15, 0.15, 0.2]) * 2
+    tb = np.append(a[:-1] + b[:-1] * s[:-1], 0)
+    n = 5
     N0 = 10000
     theta = 1e-8
-    sfs, rsfs = _pypsmcpp.sfs([a, tb, s], n - 2, 1000, 100, 0., np.inf, 1, 4 * N0 * theta / 2.0, jacobian=False)
-    args = (n, 1000000, N0, theta, ['-eG', 0.0, .01, '-eN', 0.1, 1. / 2., '-eG', 0.1, -0.01, '-eN', 0.3, 5.0]) # , '-eN', 0.25, 4.])
-    scrm_sfs = np.mean(list(multiprocessing.Pool(16).map(_scrm_sfs, [args for _ in range(16)])), axis=0)
+    sfs, rsfs = _pypsmcpp.sfs([a, tb, s], n - 2, S, M, 0., np.inf, THREADS, 4 * N0 * theta / 2.0, jacobian=False)
+    args = (n, 100000, N0, theta, ['-eG', 0.0, .01, '-eN', 0.15, 1. / 20., '-eG', 0.15, -0.01, '-eN', 0.3, 100.0]) # , '-eN', 0.25, 4.])
+    scrm_sfs = np.mean(list(multiprocessing.Pool(THREADS).map(_scrm_sfs, [args for _ in range(THREADS)])), axis=0)
     print("")
-    print(rsfs[1:])
+    print(rsfs)
+    print(scrm_sfs)
+
+def test_two_period_flat():
+    a = np.log([1., 2.0])
+    b = np.array([0.00, 0.0])
+    s = np.array([0.1, 0.1])
+    ts = np.cumsum(s)
+    tb = np.append(a[:-1] + b[:-1] * (ts[1:] - ts[:-1]), 0)
+    n = 3
+    N0 = 10000
+    theta = 1e-8
+    sfs, rsfs = _pypsmcpp.sfs([a, tb, s], n - 2, S, M, 0., np.inf, THREADS, 4 * N0 * theta / 2.0, jacobian=False)
+    args = (n, 100000, N0, theta, ['-eN', 0.1, 2.0])
+    scrm_sfs = np.mean(list(multiprocessing.Pool(THREADS).map(_scrm_sfs, [args for _ in range(THREADS)])), axis=0)
+    print("")
+    print(rsfs)
     print(scrm_sfs)
 
 def test_one_period():
-    a = np.array([1.0])
-    b = np.array([0.0])
-    s = np.array([0.0])
-    n = 10
+    a = np.log([1.])
+    b = np.array([0.01])
+    s = np.array([0.1])
+    ts = np.cumsum(s)
+    tb = np.append(a[:-1] + b[:-1] * (ts[1:] - ts[:-1]), 0)
+    n = 4
     N0 = 10000
     theta = 1e-8
-    rsfs, _, = _pypsmcpp.sfs([a, b, s], 1000, 100, n - 2, 0., np.inf, 16, 4 * N0 * theta / 2.0, jacobian=False)
-    scrm_sfs = np.mean(list(multiprocessing.Pool(16).map(_scrm_sfs, [(n, 1000000, N0, theta) for _ in range(16)])), axis=0)
+    sfs, rsfs = _pypsmcpp.sfs([a, tb, s], n - 2, S, M, 0., np.inf, THREADS, 4 * N0 * theta / 2.0, jacobian=False)
+    args = (n, 100000, N0, theta, [])
+    scrm_sfs = np.mean(list(multiprocessing.Pool(THREADS).map(_scrm_sfs, [args for _ in range(THREADS)])), axis=0)
     print("")
-    print(rsfs[1:])
+    print(rsfs)
     print(scrm_sfs)

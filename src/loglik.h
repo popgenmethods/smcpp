@@ -32,6 +32,24 @@ T loglik(
         // Regularization parameter
         double lambda);
 
+template <typename T>
+T sfs_l2(
+        // Model parameters
+        const std::vector<std::vector<double>> &params,
+        // Sample size
+        const int n, 
+        // Number of iterations for numerical integrals
+        const int S, const int M,
+        // Times and matrix exponentials, for interpolation
+        const std::vector<double> &ts, const std::vector<double*> &expM,
+        // Length & obs vector
+        const double* observed_sfs,
+        // Number of threads to use for computations
+        int numthreads, 
+        // Regularization parameter
+        double lambda,
+        double theta);
+
 void fill_jacobian(const adouble &ll, double* outjac);
 
 #endif

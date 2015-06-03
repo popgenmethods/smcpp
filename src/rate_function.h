@@ -19,6 +19,7 @@ class RateFunction
     public:
     RateFunction(const std::vector<std::vector<double>> &params);
     // virtual const FunctionEvaluator<T>* getEta() const = 0;
+    virtual const FunctionEvaluator<T>* geteta() const = 0;
     virtual const FunctionEvaluator<T>* getR() const = 0;
     virtual const FunctionEvaluator<T>* getRinv() const = 0;
     virtual const T regularizer(void) const = 0;
