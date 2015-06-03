@@ -29,8 +29,8 @@ obs_list = [psmcpp.scrm.hmm_data_format(data, cols) for cols in ((0, 1), (2, 3),
 # We'll use a 3-period model just to see how things work.
 # Hopefully the inference code will make the periods 
 # look pretty equal to one another.
-a = [1.0] * 10
-b = [1.5] * 10
+a = np.log([1.0] * 10)
+b = np.log([1.5] * 10)
 s = [0.1] * 10
 # We'll use 10 hidden states
 hidden_states = np.array([0.0, 0.25, 0.5, 0.75, 1.0, 1.5, 2.0, np.inf])
@@ -119,19 +119,9 @@ def fprime(x):
 
 # print(scipy.optimize.check_grad(f, fprime, x0))
 
-# x0 = np.array([a, b]).flatten()
+x0 = np.array([a, b]).flatten()
 # res = scipy.optimize.minimize(f, x0, jac=fprime)
 # print(res)
-x0 = np.array([  3.67206149,   3.27467463,   2.86461539,   2.4872071 ,
-    2.51815473,   2.68621434,   2.75033103,   2.67842903,
-    2.5109279 ,  17.67182617, 1.09845494,  1.14534191,  1.17678253,  1.20342138,  1.18914623,
-    1.1682994 ,  1.17292012,  1.19980452,  1.24055709,  1.5       ])
-
-# x0 = np.array([ 3.14743358,  2.04473755,  1.74688533,  1.93720627,  2.29648563,
-#     2.59344834,  2.71321871,  2.677193  ,  2.54128756,  0.78812497,
-#     1.23887526,  1.3976846 ,  1.40039995,  1.32723582,  1.24587111,
-#     1.19365221,  1.18236041,  1.1985016 ,  1.23060029,  1.5       ])
-
 
 def f(x):
     ret = logp(x, False) / L * 1000.

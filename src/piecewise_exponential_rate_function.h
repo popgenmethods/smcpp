@@ -83,7 +83,7 @@ class PExpEvaluator : public BasePExpEvaluator<T>
     virtual const std::vector<T>& insertion_list(void) const { return this->ts; } 
     virtual T pexp_eval(const T &t, int ip) const
     {
-        return this->ada[ip] * exp(this->adb[ip] * (t - this->ts[ip])) + this->Rrng[ip];
+        return this->ada[ip] * exp(this->adb[ip] * (t - this->ts[ip]));
     }
 };
 
