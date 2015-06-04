@@ -328,6 +328,8 @@ void ConditionedSFS<T>::compute(int S, int M, const std::vector<double> &ts,
         tmpmat = eM.topLeftCorner(n, n).transpose() * D_subtend_above / M;
         csfs_above.block(2, 0, 1, n) += (tmpmat * sfs_tau).transpose();
     }
+    std::cout << "csfs_below" << std::endl << csfs_below.template cast<double>() << std::endl << std::endl;
+    std::cout << "csfs_above" << std::endl << csfs_above.template cast<double>() << std::endl << std::endl;
     csfs = csfs_below + csfs_above;
 }
 

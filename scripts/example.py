@@ -68,7 +68,7 @@ def logp(x, jacobian):
                 obs_list, # List of the observations datasets we prepared above
                 hidden_states,
                 N0 * rho, N0 * theta, # Same parameters as above
-                reg=0.0,
+                reg=10.0,
                 numthreads=NTHREADS, # Using multiple threads speeds everything up.
                 jacobian=jacobian
                 ) 
