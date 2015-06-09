@@ -114,10 +114,13 @@ T compute_Q(
     Vector<T> pi = compute_initial_distribution(eta, hidden_states);
     Matrix<T> transition = compute_transition(eta, hidden_states, rho);
     int M = hidden_states.size() - 1;
-    Matrix<T> emission(M, 3 * (n + 1));
+    Eigen::Matrix<T, 3, Eigen::Dynamic, Eigen::RowMajor> emission(M, 3 * (n + 1)), tmp;
     for (int i = 0; i < M; ++i)
-        emission.row(i) = ConditionedSFS<T>::calculate_sfs(eta, n, S, num_samples, ts, expM, 
-                hidden_states[i], hidden_states[i + 1], numthreads, theta).transpose();
+    {
+        tmp = ConditionedSFS<T>::calculate_sfs(eta, n, S, num_samples, ts, expM, 
+                hidden_states[i], hidden_states[i + 1], numthreads, theta);
+        emission.row(i) = Matrix<T>::Map(tmp.data(), 1, 3 * (n + 1));
+    }
     T ll = compute_hmm_Q<T>(pi, transition, emission, n, L, obs, block_size, numthreads, 
             cs, alpha_hats, beta_hats, Bs, compute_alpha_beta);
     ll -= lambda * eta.regularizer();

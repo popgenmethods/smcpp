@@ -15,15 +15,15 @@ def fake_obs():
 
 @pytest.fixture
 def constant_demo_1():
-    a = np.log([1.0])
-    b = np.log([1.0])
+    a = np.array([1.0])
+    b = np.array([1.0])
     s = np.array([1.0])
     return (a, b, s)
 
 @pytest.fixture
 def constant_demo_1000():
-    a = np.log([1000.0])
-    b = np.log([1000.0])
+    a = 1. / np.array([1000.0])
+    b = 1. / np.array([1000.0])
     s = np.array([1.0])
     return (a, b, s)
 

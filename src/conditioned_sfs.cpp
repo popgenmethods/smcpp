@@ -328,11 +328,12 @@ void ConditionedSFS<T>::compute(int S, int M, const std::vector<double> &ts,
         tmpmat = eM.topLeftCorner(n, n).transpose() * D_subtend_above / M;
         csfs_above.block(2, 0, 1, n) += (tmpmat * sfs_tau).transpose();
     }
-    /*
-     * std::cout << "csfs_below" << std::endl << csfs_below.template cast<double>() << std::endl << std::endl;
-    std::cout << "csfs_above" << std::endl << csfs_above.template cast<double>() << std::endl << std::endl;
-    */
     csfs = csfs_below + csfs_above;
+    /*
+    std::cout << "csfs_below" << std::endl << csfs_below.template cast<double>() << std::endl << std::endl;
+    std::cout << "csfs_above" << std::endl << csfs_above.template cast<double>() << std::endl << std::endl;
+    std::cout << "csfs" << std::endl << csfs.template cast<double>() << std::endl << std::endl;
+    */
 }
 
 
@@ -419,7 +420,7 @@ Matrix<T> ConditionedSFS<T>::average_csfs(std::vector<ConditionedSFS<T>> &csfs, 
 }
 
 template <typename T>
-Vector<T> ConditionedSFS<T>::calculate_sfs(const RateFunction<T> &eta, 
+Matrix<T> ConditionedSFS<T>::calculate_sfs(const RateFunction<T> &eta, 
         int n, int S, int M, const std::vector<double> &ts, 
         const std::vector<double*> &expM, double tau1, double tau2, int numthreads, double theta)
 {
@@ -450,25 +451,14 @@ Vector<T> ConditionedSFS<T>::calculate_sfs(const RateFunction<T> &eta,
             t.push_back(c.compute_threaded(S, M, ts, _expM, t1, t2));
         std::for_each(t.begin(), t.end(), [](std::thread &t) {t.join();});
     }
-    Eigen::Matrix<T, 3, Eigen::Dynamic, Eigen::RowMajor> ret = ConditionedSFS<T>::average_csfs(csfs, theta);
+    Eigen::Matrix<T, 3, Eigen::Dynamic> ret = ConditionedSFS<T>::average_csfs(csfs, theta);
     if (ret(0,0) <= 0.0 or ret(0.0) >= 1.0)
     {
         std::cout << ret.template cast<double>() << std::endl << std::endl;
         std::cout << t1 << " " << t2 << std::endl << std::endl;
         std::cerr << "sfs is no longer a probability distribution. branch lengths are too long." << std::endl;
     }
-    // FIXME: teeny negative numbers can sometimes occur which
-    // leads to problems in the HMM computations.
-    /*
-    for (int i = 0; i < ret.rows(); ++i)
-        for (int j = 0; j < ret.cols(); ++j)
-            ret(i, j) = myabs(ret(i, j)); // fmax(ret(i, j), 1e-10);
-            */
-    // std::cout << std::endl << ret.cast<double>() << std::endl << std::endl;
-    // std::cout << ret.template cast<double>() << std::endl;
-    Matrix<T> ret2 = Matrix<T>::Map(ret.data(), 1, 3 * (n + 1));
-    // std::cout << ret2.template cast<double>() << std::endl;
-    return ret2.transpose();
+    return ret;
 }
 
 // End of class definitions

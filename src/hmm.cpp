@@ -129,7 +129,7 @@ std::vector<int>& HMM<T>::viterbi(void)
     template <typename T>
 void HMM<T>::forward(void)
 {
-    std::cout << "forward algorithm... " << std::endl;
+    // std::cout << "forward algorithm... " << std::endl;
     //ProfilerStart("Bprof");
     c = Vector<T>::Zero(Ltot);
     B = Matrix<T>::Ones(M, Ltot);
@@ -174,7 +174,7 @@ void HMM<T>::forward(void)
 template <typename T>
 void HMM<T>::backward(void)
 {
-    std::cout << "backward algorithm... " << std::endl;
+    // std::cout << "backward algorithm... " << std::endl;
     beta_hat.col(Ltot - 1) = Vector<T>::Ones(M);
     for (int ell = Ltot - 2; ell >= 0; --ell)
         beta_hat.col(ell) = transition * B.col(ell + 1).asDiagonal() * beta_hat.col(ell + 1) / c(ell + 1);
@@ -183,7 +183,7 @@ void HMM<T>::backward(void)
 template <typename T>
 T HMM<T>::Q(void)
 {
-    std::cout << "Q..." << std::endl;
+    // std::cout << "Q..." << std::endl;
 	Matrix<T> log_transition = transition.array().log();
 	Matrix<T> gamma = alpha_hat.cwiseProduct(beta_hat);
     Matrix<T> tmp, xisum = Matrix<T>::Zero(M, M);

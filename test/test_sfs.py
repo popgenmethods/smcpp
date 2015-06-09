@@ -5,16 +5,15 @@ import sys
 import _pypsmcpp
 from fixtures import *
 
-NTHREAD = 1
+NTHREAD = 16
 S = 1
 M = 1000
 
 def test_correct_const(constant_demo_1, constant_demo_1000):
     # Make as close to constant as possible
     for d, mult in ((constant_demo_1, 1.0), (constant_demo_1000, 1000.0)):
-        a, b, s = d
         for n in (2, 3, 10, 20):
-            sfs, rsfs = _pypsmcpp.sfs((a, b, s), n, S, M, 0., np.inf, NTHREAD, 1.0, jacobian=False)
+            sfs, rsfs = _pypsmcpp.sfs(d, n - 2, S, M, 0., np.inf, NTHREAD, 1.0, jacobian=False)
             print(n)
             print(rsfs)
             for k in range(1, n):
@@ -29,7 +28,7 @@ def test_d():
     M = 50
     n = 10
     sfs, _, jac = _pypsmcpp.sfs((log_a, log_b, s), n, S, M, 0., np.inf, NTHREAD, 1.0, jacobian=True, seed=1)
-    eps = 1.0
+    eps = .02
     I = np.eye(K)
     for ind in (0, 1):
         for k in range(K):
