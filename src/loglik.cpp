@@ -13,6 +13,7 @@ Vector<T> compute_initial_distribution(const RateFunction<T> &eta, const std::ve
         assert(pi(m) < 1.0); 
     }
     pi(M - 1) = exp(-Rinv->operator()(hidden_states[M - 1]));
+
     assert(pi(M - 1) > 0.0);
     assert(pi(M - 1) < 1.0);
     assert(pi.sum() == 1.0);
@@ -114,7 +115,7 @@ T compute_Q(
     Vector<T> pi = compute_initial_distribution(eta, hidden_states);
     Matrix<T> transition = compute_transition(eta, hidden_states, rho);
     int M = hidden_states.size() - 1;
-    Eigen::Matrix<T, 3, Eigen::Dynamic, Eigen::RowMajor> emission(M, 3 * (n + 1)), tmp;
+    Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> emission(M, 3 * (n + 1)), tmp;
     for (int i = 0; i < M; ++i)
     {
         tmp = ConditionedSFS<T>::calculate_sfs(eta, n, S, num_samples, ts, expM, 
