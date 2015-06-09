@@ -20,7 +20,33 @@
 
 template <typename T> using Matrix = Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic>;
 template <typename T> using Vector = Eigen::Matrix<T, Eigen::Dynamic, 1>;
+// For cython
+typedef Matrix<double> DoubleMatrix;
+typedef Vector<double> DoubleVector;
 
+template <typename _Scalar, int NX=Eigen::Dynamic, int NY=Eigen::Dynamic>
+struct Functor
+{
+    typedef _Scalar Scalar;
+    enum {
+        InputsAtCompileTime = NX,
+        ValuesAtCompileTime = NY
+    };
+    typedef Eigen::Matrix<Scalar,InputsAtCompileTime,1> InputType;
+    typedef Eigen::Matrix<Scalar,ValuesAtCompileTime,1> ValueType;
+    typedef Eigen::Matrix<Scalar,ValuesAtCompileTime,InputsAtCompileTime> JacobianType;
+
+    const int m_inputs, m_values;
+
+    Functor() : m_inputs(InputsAtCompileTime), m_values(ValuesAtCompileTime) {}
+    Functor(int inputs, int values) : m_inputs(inputs), m_values(values) {}
+
+    int inputs() const { return m_inputs; }
+    int values() const { return m_values; }
+
+    // you should define that in the subclass :
+    // //  void operator() (const InputType& x, ValueType* v, JacobianType* _j=0) const;
+};
 
 #ifdef AUTODIFF
 #include <unsupported/Eigen/AutoDiff>
@@ -69,6 +95,12 @@ EIGEN_AUTODIFF_DECLARE_GLOBAL_UNARY(atan,
 )
 
 #undef EIGEN_AUTODIFF_DECLARE_GLOBAL_UNARY
+
+inline adouble pow(const adouble &x, const adouble &y)
+{
+    return pow(x, y.value());
+}
+
 };
  
 
@@ -103,5 +135,10 @@ inline int insertion_point(const T x, const std::vector<T>& ary, int first, int 
 
 inline double myabs(double a) { return std::abs(a); }
 inline adouble myabs(adouble a) { return Eigen::abs(a); }
+
+inline void print_derivatives(double x) {}
+inline void print_derivatives(adouble x) { std::cout << x.derivatives().transpose() << std::endl; }
+
+constexpr int emission_index(int n, int a, int b) { return a * (n + 1) + b; }
 
 #endif

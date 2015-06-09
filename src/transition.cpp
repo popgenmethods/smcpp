@@ -127,9 +127,8 @@ struct expm_functor
     expm_functor(double c_rho) : c_rho(c_rho) {}
     int operator()(const InputType &x, ValueType &f) const
     {
-        Eigen::MatrixXd M = transition_exp(c_rho, x(0,0));
-        M.resize(16,1);
-        f = M; 
+        Eigen::Matrix<double, 4, 4, Eigen::ColMajor> M = transition_exp(c_rho, x(0,0));
+        f = Eigen::Matrix<double, 16, 1, Eigen::ColMajor>::Map(M.data(), 16, 1);
         return 0;
     }
     double c_rho; 
@@ -145,10 +144,10 @@ Matrix<adouble> transition_exp(double c_rho, adouble c_eta)
     meta(0, 0) = c_eta.value();
     numDiff.df(meta, df);
     Matrix<adouble> ret = transition_exp(c_rho, c_eta.value()).cast<adouble>();
-    df.resize(4, 4);
+    Eigen::Matrix<double, 4, 4, Eigen::ColMajor> ddf = Eigen::Matrix<double, 4, 4, Eigen::ColMajor>::Map(df.data(), 4, 4);
     for (int i = 0; i < 4; ++i)
         for (int j = 0; j < 4; ++j)
-            ret(i, j).derivatives() = c_eta.derivatives() * df(i, j);
+            ret(i, j).derivatives() = c_eta.derivatives() * ddf(i, j);
     return ret;
 }
 

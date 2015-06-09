@@ -13,13 +13,11 @@ cpps = [f for f in glob.glob("src/*.cpp") if not os.path.basename(f).startswith(
 extensions = [
         Extension(
             "_pypsmcpp",
-            # sources=["src/_pypsmcpp.pyx", "src/conditioned_sfs.cpp", "src/hmm.cpp"],
             sources=["src/_pypsmcpp.pyx"] + cpps,
-#, "src/hmm.cpp", 
-                #"src/conditioned_sfs.cpp", "src/piecewise_exponential.cpp", "src/loglik.cpp"],
             language="c++",
             include_dirs=["/usr/include/eigen3", "/usr/local/include/eigen3", np.get_include()],
             extra_compile_args=["-O3", "-std=c++11", "-Wfatal-errors", "-Wno-unused-variable", "-Wno-unused-function"], 
+            libraries=["profiler"]
             # extra_compile_args=["-O0", "-g", "-std=c++11", "-Wfatal-errors", "-Wno-unused-variable", "-Wno-unused-function", "-D_GLIBCXX_DEBUG"], 
             ),
         Extension(

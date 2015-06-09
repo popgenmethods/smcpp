@@ -25,7 +25,7 @@ class ConditionedSFS
             const std::vector<Eigen::Map<const Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>> &,
             T, T);
     Matrix<T> matrix() const;
-    static Matrix<T> calculate_sfs(const RateFunction<T> &eta, int n, int S, int M, const std::vector<double> &ts, 
+    static Vector<T> calculate_sfs(const RateFunction<T> &eta, int n, int S, int M, const std::vector<double> &ts, 
             const std::vector<double*> &expM, double tau1, double tau2, int numthreads, double theta);
 
     private:
@@ -60,5 +60,7 @@ void cython_calculate_sfs_jac(const std::vector<std::vector<double>> &params,
         int n, int S, int M, const std::vector<double> &ts, 
         const std::vector<double*> &expM, double tau1, double tau2, int numthreads, double theta, 
         double* outsfs, double* outjac);
+
+void init_eigen();
 
 #endif

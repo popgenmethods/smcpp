@@ -13,15 +13,6 @@ L = 100
 hidden_states = np.array([0.0, 0.5, 1.0, 2.0, 3.0, 4.0, np.inf])
 NTHREADS = 2
 
-@pytest.fixture
-def fake_obs():
-    ary = []
-    for ell in range(L):
-        ary.append([np.random.randint(1, 1000), 0, 0])
-        d = np.random.randint(0, 3)
-        ary.append([1, d, np.random.randint(not d, N + 1 - (d == 2))])
-    return np.array(ary)
-
 def test_loglik_diff_nodiff(demo, fake_obs):
     a, b, s = demo
     S = 100

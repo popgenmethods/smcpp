@@ -7,6 +7,7 @@ PiecewiseExponentialRateFunction<T>::PiecewiseExponentialRateFunction(const std:
     ts(K + 1), Rrng(K), _reg(0.0)
 {
     // Final piece is required to be flat.
+    T adatmp;
     ts[0] = 0;
     Rrng[0] = 0;
     // These constant values need to have compatible derivative shape
@@ -14,9 +15,8 @@ PiecewiseExponentialRateFunction<T>::PiecewiseExponentialRateFunction(const std:
     initialize_derivatives();
     for (int k = 0; k < K; ++k)
     {
-        ts[k + 1] = ts[k] + myabs(ads[k]);
-        adb[k] = (ada[k] - adb[k]) / (ts[k + 1] - ts[k]);
-        ada[k] = exp(-ada[k]);
+        ts[k + 1] = ts[k] + ads[k];
+        adb[k] = (log(adb[k]) - log(ada[k])) / (ts[k + 1] - ts[k]);
     }
     adb[K - 1] = 0.0;
     ts[K] = INFINITY;
@@ -42,7 +42,7 @@ PiecewiseExponentialRateFunction<T>::PiecewiseExponentialRateFunction(const std:
         for (int i = 1; i < ys.size(); ++i)
             _reg += myabs(ys[i] - ys[i - 1]);
     }
-    print_debug();
+    // print_debug();
 }
 
 template <typename T>

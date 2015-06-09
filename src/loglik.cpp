@@ -23,7 +23,7 @@ template Vector<double> compute_initial_distribution(const RateFunction<double>&
 template Vector<adouble> compute_initial_distribution(const RateFunction<adouble>&, const std::vector<double>&);
 
 template <typename T>
-T sfs_l2(
+T sfs_loglik(
         // Model parameters
         const std::vector<std::vector<double>> &params,
         // Sample size
@@ -33,7 +33,7 @@ T sfs_l2(
         // Times and matrix exponentials, for interpolation
         const std::vector<double> &ts, const std::vector<double*> &expM,
         // Length & obs vector
-        const double* observed_sfs,
+        double* observed_sfs,
         // Number of threads to use for computations
         const int numthreads, 
         // Regularization parameter
@@ -43,45 +43,122 @@ T sfs_l2(
 {
     RATE_FUNCTION<T> eta(params);
     // eta.print_debug();
-    Vector<double> emp_sfs = Eigen::Map<const Eigen::Matrix<double, Eigen::Dynamic, 1>, Eigen::RowMajor>(observed_sfs, n + 2 - 1);
-    set_seed(1234);
+    Vector<double> emp_sfs = Vector<double>::Map(observed_sfs, n + 2);
     Matrix<T> dist_sfs = ConditionedSFS<T>::calculate_sfs(eta, n, S, M, ts, expM, 0, INFINITY, numthreads, theta);
-    Vector<T> undist_sfs = Vector<T>::Zero(n + 2 - 1);
+    Vector<T> undist_sfs = Vector<T>::Zero(n + 2);
     for (int i = 0; i < 3; ++i)
         for (int j = 0; j < n; ++j)
-            if (i + j > 0 and i + j < n + 2)
-                undist_sfs(i + j - 1) += dist_sfs(i, j);
-    std::cout << "empirical sfs: " << std::endl << emp_sfs.transpose() << std::endl << std::endl;
+            if (i + j < n + 2)
+                undist_sfs(i + j) += dist_sfs(i, j);
+    set_seed(1234);
+    std::cout << "empirical sfs: " << std::endl << emp_sfs.transpose() / emp_sfs.sum() << std::endl << std::endl;
     std::cout << "theoretical sfs: " << std::endl << undist_sfs.transpose().template cast<double>() 
         << std::endl << std::endl;
-    Vector<T> v = emp_sfs.template cast<T>() - undist_sfs;
-    Vector<adouble> vd = v.template cast<adouble>();
-    T ll = v.norm();
-    std::cout << "|obs - expected| (without reg): " << ll << std::endl;
-    ll += lambda * eta.regularizer();
-    std::cout << "|obs - expected| (with reg): " << ll << std::endl;
+    if (undist_sfs.minCoeff() <= 0)
+        return -INFINITY;
+    T ll = emp_sfs.template cast<T>().transpose() * undist_sfs.array().log().matrix();
+    std::cout << "D(obs || expected) (without reg): " << ll << std::endl;
+    ll -= lambda * eta.regularizer();
+    std::cout << "D(obs || expected) (with reg): " << ll << std::endl;
     return ll;
 }
 
-template double sfs_l2(
+template double sfs_loglik(
         const std::vector<std::vector<double>>&,
         const int, 
         const int, const int,
         const std::vector<double> &, const std::vector<double*> &,
-        const double*,
+        double*,
         const int,
         double, double);
 
-template adouble sfs_l2(
+template adouble sfs_loglik(
         const std::vector<std::vector<double>>&,
         const int, 
         const int, const int,
         const std::vector<double> &, const std::vector<double*> &,
-        const double*,
+        double*,
         const int,
         double, double);
 
 
+template <typename T>
+T compute_Q(
+        // Model parameters
+        const std::vector<std::vector<double>> &params,
+        // Sample size
+        const int n, 
+        // Number of iterations for numerical integrals
+        const int S, const int num_samples,
+        // Times and matrix exponentials, for interpolation
+        const std::vector<double> &ts, const std::vector<double*> &expM,
+        // Length & obs vector
+        const int L, const std::vector<int*> &obs, 
+        // The hidden states
+        const std::vector<double> &hidden_states, 
+        // Model parameters 
+        const double rho, const double theta,
+        // blocking parameter for hmm
+        int block_size,
+        // Number of threads to use for computations
+        int numthreads, 
+        // Regularization parameter
+        double lambda,
+        std::vector<Vector<double>> &cs,
+        std::vector<Matrix<double>> &alpha_hats,
+        std::vector<Matrix<double>> &beta_hats,
+        std::vector<Matrix<double>> &Bs,
+        bool compute_alpha_beta)
+{
+    RATE_FUNCTION<T> eta(params);
+    Vector<T> pi = compute_initial_distribution(eta, hidden_states);
+    Matrix<T> transition = compute_transition(eta, hidden_states, rho);
+    int M = hidden_states.size() - 1;
+    Matrix<T> emission(M, 3 * (n + 1));
+    for (int i = 0; i < M; ++i)
+        emission.row(i) = ConditionedSFS<T>::calculate_sfs(eta, n, S, num_samples, ts, expM, 
+                hidden_states[i], hidden_states[i + 1], numthreads, theta).transpose();
+    T ll = compute_hmm_Q<T>(pi, transition, emission, n, L, obs, block_size, numthreads, 
+            cs, alpha_hats, beta_hats, Bs, compute_alpha_beta);
+    ll -= lambda * eta.regularizer();
+    return ll;
+}
+
+template adouble compute_Q(
+        const std::vector<std::vector<double>> &params,
+        const int n, 
+        const int S, const int M,
+        const std::vector<double> &ts, const std::vector<double*> &expM,
+        const int L, const std::vector<int*> &obs, 
+        const std::vector<double> &hidden_states, 
+        const double rho, const double theta,
+        const int block_size,
+        int numthreads, 
+        double lambda,
+        std::vector<Vector<double>> &cs,
+        std::vector<Matrix<double>> &alpha_hats,
+        std::vector<Matrix<double>> &beta_hats,
+        std::vector<Matrix<double>> &Bs,
+        bool compute_alpha_beta);
+
+template double compute_Q(
+        const std::vector<std::vector<double>> &params,
+        const int n, 
+        const int S, const int M,
+        const std::vector<double> &ts, const std::vector<double*> &expM,
+        const int L, const std::vector<int*> &obs, 
+        const std::vector<double> &hidden_states, 
+        const double rho, const double theta,
+        const int block_size,
+        int numthreads, 
+        double lambda,
+        std::vector<Vector<double>> &cs,
+        std::vector<Matrix<double>> &alpha_hats,
+        std::vector<Matrix<double>> &beta_hats,
+        std::vector<Matrix<double>> &Bs,
+        bool compute_alpha_beta);
+
+/*
 template <typename T>
 T loglik(
         // Model parameters
@@ -98,6 +175,7 @@ T loglik(
         const std::vector<double> &hidden_states, 
         // Model parameters 
         const double rho, const double theta,
+        const int block_size,
         // Number of threads to use for computations
         int numthreads, 
         // Optionally compute viterbi
@@ -129,7 +207,7 @@ T loglik(
     std::cout << duration << std::endl;
     std::cout << "hmm ... ";
     start = std::clock();
-    T ll = compute_hmm_likelihood<T>(pi, transition, emission, L, obs, numthreads, viterbi, viterbi_paths);
+    T ll = compute_hmm_likelihood<T>(pi, transition, emission, L, obs, block_size, numthreads, viterbi, viterbi_paths);
     duration = ( std::clock() - start ) / (double) CLOCKS_PER_SEC;
     std::cout << duration << std::endl;
     std::cout << "loglik: " << ll;
@@ -146,6 +224,7 @@ template adouble loglik(
         const int, const std::vector<int*>&, 
         const std::vector<double>&,
         const double, const double,
+        const int,
         int, 
         bool, std::vector<std::vector<int>>&,
         double);
@@ -158,9 +237,12 @@ template double loglik(
         const int, const std::vector<int*>&, 
         const std::vector<double>&,
         const double, const double,
+        const int,
         int, 
         bool, std::vector<std::vector<int>> &,
         double);
+
+*/
 
 void fill_jacobian(const adouble &ll, double* outjac)
 {

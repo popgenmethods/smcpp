@@ -3,9 +3,14 @@ from libcpp.vector cimport vector
 cdef extern from "common.h":
     ctypedef struct adouble:
         pass
+    ctypedef struct DoubleVector:
+        pass
+    ctypedef struct DoubleMatrix:
+        pass
     cdef double toDouble(const adouble &)
 
 cdef extern from "conditioned_sfs.h":
+    void init_eigen()
     void set_seed(long long)
     void cython_calculate_sfs(const vector[vector[double]] &params,
             int n, int S, int M, const vector[double] &ts, 
@@ -23,16 +28,29 @@ cdef extern from "transition.h":
             const vector[double] hidden_states, double rho, double* outtrans, double* outjac)
 
 cdef extern from "loglik.h":
-    T sfs_l2[T](
+    T sfs_loglik[T](
             const vector[vector[double]]&,
             const int,
             const int, const int,
             const vector[double]&, const vector[double*]&,
-            const double*,
+            double*,
             int,
             double, double)
 
-    T loglik[T](
+#    T loglik[T](
+#            const vector[vector[double]]&,
+#            const int, 
+#            const int, const int,
+#            const vector[double]&, const vector[double*]&,
+#            const int, const vector[int*], 
+#            const vector[double]&,
+#            const double, const double,
+#            const int,
+#            int,
+#            bool, vector[vector[int]]&,
+#            double)
+
+    T compute_Q[T](
             const vector[vector[double]]&,
             const int, 
             const int, const int,
@@ -40,8 +58,14 @@ cdef extern from "loglik.h":
             const int, const vector[int*], 
             const vector[double]&,
             const double, const double,
+            const int,
             int,
-            bool, vector[vector[int]]&,
-            double)
+            double,
+            vector[DoubleVector] &,
+            vector[DoubleMatrix] &, 
+            vector[DoubleMatrix] &, 
+            vector[DoubleMatrix] &, 
+            bint compute_alpha_beta)
+
 
     void fill_jacobian(const adouble &, double*)
