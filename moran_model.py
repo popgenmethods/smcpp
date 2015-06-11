@@ -57,10 +57,10 @@ def p_transition_exp(N, a, t):
     # print scipy.sparse.linalg.expm_multiply(t * Q, v)
 
 def interpolators(N):
-    _interp_memo = shelve.open(".moran.dat", protocol=2)
+    _interp_memo = shelve.open(".moran_model.dat", protocol=2)
     key = str(N)
     if key not in _interp_memo:
-        logger.info("Constructing interpolating matrix exponentials (only needs to happen once)")
+        logger.info("Interpolating Moran matrix exponentials (only needs to happen once)")
         Q = rate_matrix(N, 2).todense()
         t = 1e-8
         # for a=2, absorbing state is N

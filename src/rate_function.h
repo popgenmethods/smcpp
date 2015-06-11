@@ -36,7 +36,6 @@ class RateFunction
     }
 
     private:
-    std::vector<std::vector<double>> params;
     void validate() 
     {
         for (auto v : params)
@@ -47,6 +46,7 @@ class RateFunction
     T derivative_initializer(double, int, int);
 
     protected:
+    std::vector<std::vector<double>> params;
     std::vector<std::vector<T>> ad_params;
 };
 

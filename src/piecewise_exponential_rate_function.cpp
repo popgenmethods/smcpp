@@ -15,6 +15,12 @@ PiecewiseExponentialRateFunction<T>::PiecewiseExponentialRateFunction(const std:
     initialize_derivatives();
     for (int k = 0; k < K; ++k)
     {
+        ada[k] = 1. / ada[k];
+        adb[k] = 1. / adb[k];
+    }
+
+    for (int k = 0; k < K; ++k)
+    {
         ts[k + 1] = ts[k] + ads[k];
         adb[k] = (log(adb[k]) - log(ada[k])) / (ts[k + 1] - ts[k]);
     }

@@ -14,11 +14,17 @@ logger = logging.getLogger(__name__)
 # flat arrays
 aca = np.ascontiguousarray
 
+cdef vector[double*] make_mats(mats):
+    cdef vector[double*] expM
+    cdef double[:, :, ::1] mmats = aca(mats)
+    cdef int i
+    for i in range(mats.shape[0]):
+        expM.push_back(&mmats[i, 0, 0])
+    return expM
+
 cdef class MatrixWrapper:
-    cdef vector[DoubleVector] cs
-    cdef vector[DoubleMatrix] alpha_hats
-    cdef vector[DoubleMatrix] beta_hats
-    cdef vector[DoubleMatrix] Bs
+    cdef vector[DoubleMatrix] gammas
+    cdef vector[DoubleMatrix] xisums
 
 cdef vector[vector[double]] make_params(params):
     cdef vector[vector[double]] ret
@@ -32,7 +38,7 @@ cdef vector[double] from_list(lst):
         ret.push_back(l)
     return ret
 
-def pretrain(params, int n, int S, int M, np.ndarray[ndim=1, dtype=double] sfs, double reg_lambda, 
+def pretrain(params, int n, int num_samples, np.ndarray[ndim=1, dtype=double] sfs, double reg_lambda, 
         int numthreads, double theta, jacobian=False):
     J = len(params)
     K = len(params[0])
@@ -41,22 +47,18 @@ def pretrain(params, int n, int S, int M, np.ndarray[ndim=1, dtype=double] sfs, 
     cdef vector[vector[double]] cparams = make_params(params)
     cdef adouble ad
     # In "pretraining mode", operate on the SFS only
-    mats, ts = moran_model.interpolators(n)
-    cdef vector[double*] expM
-    cdef double[:, :, ::1] mmats = aca(mats)
-    cdef int i
+    ts, mats = moran_model.interpolators(n)
     cdef double[:, ::1] madjac
-    cdef vector[double] vts = ts
-    for i in range(mats.shape[0]):
-        expM.push_back(&mmats[i, 0, 0])
     if jacobian:
-        ad = sfs_loglik[adouble](cparams, n, S, M, vts, expM, &sfs[0], numthreads, reg_lambda, theta)
+        ad = sfs_loglik[adouble](cparams, n, num_samples, MatrixInterpolator(n + 1, ts, make_mats(mats)), 
+                &sfs[0], numthreads, reg_lambda, theta)
         adjac = aca(np.zeros((J, K)))
         madjac = adjac
         fill_jacobian(ad, &madjac[0, 0])
         return (toDouble(ad), adjac)
     else:
-        return sfs_loglik[double](cparams, n, S, M, vts, expM, &sfs[0], numthreads, reg_lambda, theta)
+        return sfs_loglik[double](cparams, n, num_samples, MatrixInterpolator(n + 1, ts, make_mats(mats)), 
+                &sfs[0], numthreads, reg_lambda, theta)
 
 #def log_likelihood(params, int n, int S, int M, obs_list, hidden_states, 
 #        double rho, double theta, double reg_lambda, int block_size,
@@ -119,7 +121,7 @@ def pretrain(params, int n, int S, int M, np.ndarray[ndim=1, dtype=double] sfs, 
 #            reg_lambda)
 #    return ret
 
-def Q(params, int n, int S, int M, obs_list, hidden_states, 
+def Q(params, int n, int num_samples, obs_list, hidden_states, 
         double rho, double theta, double reg_lambda, int block_size,
         int numthreads, MatrixWrapper wrap, jacobian=False,
         recompute=False):
@@ -132,14 +134,8 @@ def Q(params, int n, int S, int M, obs_list, hidden_states,
         assert len(p) == K
     cdef vector[vector[double]] cparams = make_params(params)
     mats, ts = moran_model.interpolators(n)
-    cdef vector[double*] expM
-    cdef double[:, :, ::1] mmats = aca(mats)
-    cdef int i
-    for i in range(mats.shape[0]):
-        expM.push_back(&mmats[i, 0, 0])
-    cdef double[:, ::1] mjac
     jac = aca(np.zeros((J, K)))
-    mjac = jac
+    cdef double[:, ::1] mjac = jac
     cdef int[:, ::1] mobs
     cdef vector[int*] vobs
     cdef int L = obs_list[0].shape[0]
@@ -150,35 +146,31 @@ def Q(params, int n, int S, int M, obs_list, hidden_states,
         vobs.push_back(&mobs[0, 0])
     if jacobian:
         ad = compute_Q[adouble](cparams,
-                n, 
-                S, M, 
-                from_list(ts), expM, 
+                n, num_samples,
+                MatrixInterpolator(n + 1, ts, make_mats(mats)),
                 L, vobs, 
-                from_list(hidden_states), rho, theta, 
+                hidden_states,
+                rho, theta, 
                 block_size,
                 numthreads,
                 reg_lambda,
-                wrap.cs,
-                wrap.alpha_hats, 
-                wrap.beta_hats,
-                wrap.Bs,
+                wrap.gammas,
+                wrap.xisums,
                 recompute)
         fill_jacobian(ad, &mjac[0, 0])
         ret = (toDouble(ad), jac)
     else:
-        ret = compute_Q[double](cparams,
-                n, 
-                S, M, 
-                from_list(ts), expM, 
+        ret = compute_Q[double](cparams, 
+                n, num_samples, 
+                MatrixInterpolator(n + 1, ts, make_mats(mats)),
                 L, vobs, 
-                from_list(hidden_states), rho, theta, 
-                block_size,
-                numthreads,
-                reg_lambda,
-                wrap.cs,
-                wrap.alpha_hats,
-                wrap.beta_hats,
-                wrap.Bs,
+                hidden_states,
+                rho, theta, 
+                block_size, 
+                numthreads, 
+                reg_lambda, 
+                wrap.gammas, 
+                wrap.xisums, 
                 recompute)
     return ret
 
@@ -189,12 +181,9 @@ def _reduced_sfs(sfs):
         for j in range(n + 1):
             if 0 <= i + j < n + 2:
                 reduced_sfs[i + j] += sfs[i][j]
-    print("reducted sfs")
-    print(sfs)
-    print(n)
     return reduced_sfs
 
-def sfs(params, int n, int S, int M, double tau1, double tau2, int numthreads, double theta, seed=None, jacobian=False):
+def sfs(params, int n, int num_samples, double tau1, double tau2, int numthreads, double theta, seed=None, jacobian=False):
     K = len(params[0])
     for p in params:
         assert len(p) == K
@@ -203,23 +192,18 @@ def sfs(params, int n, int S, int M, double tau1, double tau2, int numthreads, d
     if not seed:
         seed = np.random.randint(0, sys.maxint)
     set_seed(seed)
-    cdef vector[double*] expM
-    cdef double[:, :, ::1] mmats = aca(mats)
-    cdef int i
-    for i in range(mats.shape[0]):
-        expM.push_back(&mmats[i, 0, 0])
     sfs = aca(np.zeros([3, n + 1]))
     cdef double[:, ::1] msfs = sfs
     cdef double[:, :, :, ::1] mjac 
     if jacobian:
         jac = aca(np.zeros((3, n + 1, len(params), K)))
         mjac = jac
-        cython_calculate_sfs_jac(cparams, n, S, M, ts, expM, tau1, tau2, 
-                numthreads, theta, &msfs[0, 0], &mjac[0, 0, 0, 0])
+        cython_calculate_sfs_jac(cparams, n, num_samples, MatrixInterpolator(n + 1, ts, make_mats(mats)),
+                tau1, tau2, numthreads, theta, &msfs[0, 0], &mjac[0, 0, 0, 0])
         return (sfs, _reduced_sfs(sfs), jac)
     else:
-        cython_calculate_sfs(cparams, n, S, M, ts, expM, tau1, tau2, 
-                numthreads, theta, &msfs[0, 0])
+        cython_calculate_sfs(cparams, n, num_samples, MatrixInterpolator(n + 1, ts, make_mats(mats)), 
+                tau1, tau2, numthreads, theta, &msfs[0, 0])
         return (sfs, _reduced_sfs(sfs))
 
 def transition(params, hidden_states, rho, jacobian=False):

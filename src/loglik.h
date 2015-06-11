@@ -9,6 +9,9 @@
 #include "conditioned_sfs.h"
 #include "hmm.h"
 
+template <typename T>
+Vector<T> compute_initial_distribution(const RateFunction<T> &eta, const std::vector<double> &hidden_states);
+
 /*
 template <typename T>
 T loglik(
@@ -42,9 +45,9 @@ T compute_Q(
         // Sample size
         const int n, 
         // Number of iterations for numerical integrals
-        const int S, const int M,
+        const int num_samples,
         // Times and matrix exponentials, for interpolation
-        const std::vector<double> &ts, const std::vector<double*> &expM,
+        const MatrixInterpolator &moran_interp,
         // Length & obs vector
         const int L, const std::vector<int*> &obs, 
         // The hidden states
@@ -56,11 +59,9 @@ T compute_Q(
         int numthreads, 
         // Regularization parameter
         double lambda,
-        std::vector<Vector<double>> &cs,
-        std::vector<Matrix<double>> &alpha_hats,
-        std::vector<Matrix<double>> &beta_hats,
-        std::vector<Matrix<double>> &Bs,
-        bool compute_forward_backward);
+        std::vector<Matrix<double>> &gammas,
+        std::vector<Matrix<double>> &xisums,
+        bool recompute);
 
 template <typename T>
 T sfs_loglik(
@@ -69,9 +70,9 @@ T sfs_loglik(
         // Sample size
         const int n, 
         // Number of iterations for numerical integrals
-        const int S, const int M,
+        const int num_samples,
         // Times and matrix exponentials, for interpolation
-        const std::vector<double> &ts, const std::vector<double*> &expM,
+        const MatrixInterpolator &moran_interp,
         // obs vector
         double* observed_sfs,
         // Number of threads to use for computations

@@ -5,45 +5,45 @@ import sys
 import _pypsmcpp
 from fixtures import *
 
-NTHREAD = 16
-S = 1
-M = 1000
-
-def test_correct_const(constant_demo_1, constant_demo_1000):
-    # Make as close to constant as possible
-    for d, mult in ((constant_demo_1, 1.0), (constant_demo_1000, 1000.0)):
-        for n in (2, 3, 10, 20):
-            sfs, rsfs = _pypsmcpp.sfs(d, n - 2, S, M, 0., np.inf, NTHREAD, 1.0, jacobian=False)
-            print(n)
-            print(rsfs)
-            for k in range(1, n):
-                assert abs((rsfs[k] - 2. * mult / k) / (2. * mult / k)) < 2e-2
+NTHREAD = 8
+M = 200
 
 def test_d():
-    log_a = 1. / np.array([0.1, 0.1, 0.2, 0.3])
-    log_b = 1. / np.array([0.2, 0.3, .8, 1.0])
-    K = log_a.shape[0]
+    a = np.array([0.1, 0.1, 0.2, 0.3])
+    b = np.array([0.2, 0.3, .8, 1.0])
+    K = a.shape[0]
     s = np.array([0.3] * K)
-    S = 1000
-    M = 50
     n = 10
-    sfs, _, jac = _pypsmcpp.sfs((log_a, log_b, s), n, S, M, 0., np.inf, NTHREAD, 1.0, jacobian=True, seed=1)
-    eps = .02
+    sfs, _, jac = _pypsmcpp.sfs((a, b, s), n, M, 0., np.inf, NTHREAD, 1.0, jacobian=True, seed=1)
+    eps = 2e-8
     I = np.eye(K)
     for ind in (0, 1):
         for k in range(K):
-            args = [log_a, log_b]
+            args = [a, b]
             args[ind] = args[ind] + eps * I[k]
             print(args)
             la, lb = args
-            sfs2, rsfs2 = _pypsmcpp.sfs((la, lb, s), n, S, M, 0., np.inf, NTHREAD, 1.0, jacobian=False, seed=1)
+            sfs2, rsfs2 = _pypsmcpp.sfs((la, lb, s), n, M, 0., np.inf, NTHREAD, 1.0, jacobian=False, seed=1)
             for i in (0, 1):
                 for j in range(n + 1):
                     jaca = jac[i, j, ind, k]
                     j1 = sfs2[i, j]
                     j2 = sfs[i, j] + eps * jaca
-                    print(ind, k, i, j, sfs2[i,j], sfs[i,j], jaca, abs(j2 - j1))
+                    print(ind, k, i, j, jaca, (sfs2[i,j] - sfs[i,j]) / eps)
                     # assert abs(j1 - j2) < eps
+
+
+def test_correct_const(constant_demo_1, constant_demo_1000):
+    # Make as close to constant as possible
+    for d, mult in ((constant_demo_1, 1.0), (constant_demo_1000, 1000.0)):
+        for n in (2, 3, 10, 20):
+            sfs, rsfs = _pypsmcpp.sfs(d, n - 2, M, 0., np.inf, NTHREAD, 1e-8, jacobian=False)
+            print(n)
+            print(rsfs)
+            rsfs /= rsfs[1:].sum()
+            print(rsfs)
+            for k in range(1, n):
+                assert abs((rsfs[k] - 2. * mult / k) / (2. * mult / k)) < 2e-2
 
 def test_matching_diff_nodiff(demo):
     from timeit import default_timer as timer

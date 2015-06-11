@@ -10,15 +10,18 @@ cdef extern from "common.h":
     cdef double toDouble(const adouble &)
 
 cdef extern from "conditioned_sfs.h":
+    cdef cppclass MatrixInterpolator:
+        MatrixInterpolator(int, vector[double], vector[double*])
+
     void init_eigen()
     void set_seed(long long)
     void cython_calculate_sfs(const vector[vector[double]] &params,
-            int n, int S, int M, const vector[double] &ts, 
-            const vector[double*] &expM, double tau1, double tau2, int numthreads, double theta, 
+            int n, int num_samples, const MatrixInterpolator&,
+            double tau1, double tau2, int numthreads, double theta, 
             double* outsfs)
     void cython_calculate_sfs_jac(const vector[vector[double]] &params,
-            int n, int S, int M, const vector[double] &ts, 
-            const vector[double*] &expM, double tau1, double tau2, int numthreads, double theta, 
+            int n, int num_samples, const MatrixInterpolator&,
+            double tau1, double tau2, int numthreads, double theta, 
             double* outsfs, double* outjac)
 
 cdef extern from "transition.h":
@@ -31,8 +34,8 @@ cdef extern from "loglik.h":
     T sfs_loglik[T](
             const vector[vector[double]]&,
             const int,
-            const int, const int,
-            const vector[double]&, const vector[double*]&,
+            const int, 
+            const MatrixInterpolator &,
             double*,
             int,
             double, double)
@@ -52,20 +55,16 @@ cdef extern from "loglik.h":
 
     T compute_Q[T](
             const vector[vector[double]]&,
-            const int, 
             const int, const int,
-            const vector[double]&, const vector[double*]&,
+            const MatrixInterpolator &,
             const int, const vector[int*], 
             const vector[double]&,
             const double, const double,
             const int,
             int,
             double,
-            vector[DoubleVector] &,
             vector[DoubleMatrix] &, 
             vector[DoubleMatrix] &, 
-            vector[DoubleMatrix] &, 
-            bint compute_alpha_beta)
-
+            bint)
 
     void fill_jacobian(const adouble &, double*)

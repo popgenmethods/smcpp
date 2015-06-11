@@ -30,9 +30,9 @@ T sfs_loglik(
         // Sample size
         const int n, 
         // Number of iterations for numerical integrals
-        const int S, const int M,
+        const int num_samples,
         // Times and matrix exponentials, for interpolation
-        const std::vector<double> &ts, const std::vector<double*> &expM,
+        const MatrixInterpolator &moran_interp,
         // Length & obs vector
         double* observed_sfs,
         // Number of threads to use for computations
@@ -45,7 +45,7 @@ T sfs_loglik(
     RATE_FUNCTION<T> eta(params);
     // eta.print_debug();
     Vector<double> emp_sfs = Vector<double>::Map(observed_sfs, n + 2);
-    Matrix<T> dist_sfs = ConditionedSFS<T>::calculate_sfs(eta, n, S, M, ts, expM, 0, INFINITY, numthreads, theta);
+    Matrix<T> dist_sfs = ConditionedSFS<T>::calculate_sfs(eta, n, num_samples, moran_interp, 0, INFINITY, numthreads, theta);
     Vector<T> undist_sfs = Vector<T>::Zero(n + 2);
     for (int i = 0; i < 3; ++i)
         for (int j = 0; j < n; ++j)
@@ -67,8 +67,8 @@ T sfs_loglik(
 template double sfs_loglik(
         const std::vector<std::vector<double>>&,
         const int, 
-        const int, const int,
-        const std::vector<double> &, const std::vector<double*> &,
+        const int,
+        const MatrixInterpolator&,
         double*,
         const int,
         double, double);
@@ -76,8 +76,8 @@ template double sfs_loglik(
 template adouble sfs_loglik(
         const std::vector<std::vector<double>>&,
         const int, 
-        const int, const int,
-        const std::vector<double> &, const std::vector<double*> &,
+        const int,
+        const MatrixInterpolator&,
         double*,
         const int,
         double, double);
@@ -90,9 +90,9 @@ T compute_Q(
         // Sample size
         const int n, 
         // Number of iterations for numerical integrals
-        const int S, const int num_samples,
+        const int num_samples,
         // Times and matrix exponentials, for interpolation
-        const std::vector<double> &ts, const std::vector<double*> &expM,
+        const MatrixInterpolator &moran_interp,
         // Length & obs vector
         const int L, const std::vector<int*> &obs, 
         // The hidden states
@@ -105,11 +105,9 @@ T compute_Q(
         int numthreads, 
         // Regularization parameter
         double lambda,
-        std::vector<Vector<double>> &cs,
-        std::vector<Matrix<double>> &alpha_hats,
-        std::vector<Matrix<double>> &beta_hats,
-        std::vector<Matrix<double>> &Bs,
-        bool compute_alpha_beta)
+        std::vector<Matrix<double>> &gammas,
+        std::vector<Matrix<double>> &xisums,
+        bool recompute)
 {
     RATE_FUNCTION<T> eta(params);
     Vector<T> pi = compute_initial_distribution(eta, hidden_states);
@@ -118,12 +116,13 @@ T compute_Q(
     Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> emission(M, 3 * (n + 1)), tmp;
     for (int i = 0; i < M; ++i)
     {
-        tmp = ConditionedSFS<T>::calculate_sfs(eta, n, S, num_samples, ts, expM, 
+        tmp = ConditionedSFS<T>::calculate_sfs(eta, n, num_samples, moran_interp, 
                 hidden_states[i], hidden_states[i + 1], numthreads, theta);
         emission.row(i) = Matrix<T>::Map(tmp.data(), 1, 3 * (n + 1));
     }
-    T ll = compute_hmm_Q<T>(pi, transition, emission, n, L, obs, block_size, numthreads, 
-            cs, alpha_hats, beta_hats, Bs, compute_alpha_beta);
+    tmp = ConditionedSFS<T>::calculate_sfs(eta, n, num_samples, moran_interp, 0, INFINITY, numthreads, theta);
+    T ll = compute_hmm_Q<T>(pi, transition, emission, n, L, obs, 
+            block_size, numthreads, gammas, xisums, recompute);
     ll -= lambda * eta.regularizer();
     return ll;
 }
@@ -131,36 +130,32 @@ T compute_Q(
 template adouble compute_Q(
         const std::vector<std::vector<double>> &params,
         const int n, 
-        const int S, const int M,
-        const std::vector<double> &ts, const std::vector<double*> &expM,
+        const int num_samples,
+        const MatrixInterpolator &moran_interp,
         const int L, const std::vector<int*> &obs, 
         const std::vector<double> &hidden_states, 
         const double rho, const double theta,
         const int block_size,
         int numthreads, 
         double lambda,
-        std::vector<Vector<double>> &cs,
-        std::vector<Matrix<double>> &alpha_hats,
-        std::vector<Matrix<double>> &beta_hats,
-        std::vector<Matrix<double>> &Bs,
-        bool compute_alpha_beta);
+        std::vector<Matrix<double>> &gammas,
+        std::vector<Matrix<double>> &xisums,
+        bool recompute);
 
 template double compute_Q(
         const std::vector<std::vector<double>> &params,
         const int n, 
-        const int S, const int M,
-        const std::vector<double> &ts, const std::vector<double*> &expM,
+        const int num_samples,
+        const MatrixInterpolator &moran_interp,
         const int L, const std::vector<int*> &obs, 
         const std::vector<double> &hidden_states, 
         const double rho, const double theta,
         const int block_size,
         int numthreads, 
         double lambda,
-        std::vector<Vector<double>> &cs,
-        std::vector<Matrix<double>> &alpha_hats,
-        std::vector<Matrix<double>> &beta_hats,
-        std::vector<Matrix<double>> &Bs,
-        bool compute_alpha_beta);
+        std::vector<Matrix<double>> &gammas,
+        std::vector<Matrix<double>> &xisums,
+        bool recompute);
 
 /*
 template <typename T>

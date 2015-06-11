@@ -2,9 +2,7 @@
 #include <csignal>
 #include <gperftools/profiler.h>
 
-#define PRINT_VECTOR(v) std::cout << v.template cast<double>().transpose() << std::endl;
-void print_matrix(Matrix<adouble> &M) { std::cout << M.cast<double>() << std::endl << std::endl; }
-
+/*
 class CondensedObsIter
 {
     private:
@@ -48,22 +46,33 @@ class CondensedObsIter
     iter begin() const { return iter(_n, _obs, 0, 0); }
     iter end() const { return iter(_n, _obs, _obs.rows(), 0); }
 };
+*/
 
 template <typename T>
 HMM<T>::HMM(const Vector<T> &pi, const Matrix<T> &transition, const Matrix<T> &emission,
         const int n, const int L, const int* obs, const int block_size) :
     pi(pi), transition(transition), emission(emission), M(emission.rows()),
     n(n), L(L), obs(obs, L, 3), block_size(block_size), Ltot(ceil(this->obs.col(0).sum() / block_size)), 
-    B(M, Ltot), alpha_hat(M, Ltot), beta_hat(M, Ltot), c(Ltot) { }
+    B(M, Ltot), alpha_hat(M, Ltot), beta_hat(M, Ltot), gamma(M, Ltot), xisum(M, M), c(Ltot) {}
 
-    template <typename T>
+template <typename T>
+HMM<T>::HMM(const Vector<T> &pi, const Matrix<T> &transition, const Matrix<T> &emission,
+        const int n, const int L, const int* obs, const int block_size, 
+        const Matrix<T> &gamma, const Matrix<T> &xisum) :
+    HMM(pi, transition, emission, n, L, obs, block_size) 
+{
+    this->gamma = gamma;
+    this->xisum = xisum;
+}
+
+template <typename T>
 T HMM<T>::loglik()
 {
     forward();
     return c.array().log().sum();
 }
 
-    template <typename T>
+template <typename T>
 std::vector<int>& HMM<T>::viterbi(void)
 {
     // Compute logs of transition and emission matrices 
@@ -126,15 +135,11 @@ std::vector<int>& HMM<T>::viterbi(void)
     return viterbi_path;
 }
 
-    template <typename T>
-void HMM<T>::forward(void)
+template <typename T>
+void HMM<T>::computeB(void)
 {
-    // std::cout << "forward algorithm... " << std::endl;
-    //ProfilerStart("Bprof");
-    c = Vector<T>::Zero(Ltot);
+    std::cout << "compute B" << std::endl;
     B = Matrix<T>::Ones(M, Ltot);
-    // Create obs vectors based on blocking
-    // CondensedObsIter citer(n, obs);
     int block = 0;
     int i = 0, ob, R;
     std::map<int, int> powers;
@@ -149,57 +154,68 @@ void HMM<T>::forward(void)
             {
                 i = 0;
                 for (auto &p : powers)
-                    B.col(block) = B.col(block).cwiseProduct(
-                            emission.col(p.first).array().pow(p.second).matrix());
+                    B.col(block) = B.col(block).cwiseProduct(emission.col(p.first).array().pow(p.second).matrix());
                 powers.clear();
                 block++;
             }
         }
     }
-    //ProfilerStop();
-    // Run forward algorithm
+    std::cout << "compute B done" << std::endl;
+}
+
+template <typename T>
+void HMM<T>::forward(void)
+{
+    std::cout << "forward" << std::endl;
+    c = Vector<T>::Zero(Ltot);
     alpha_hat.col(0) = B.col(0).asDiagonal() * transition.transpose() * pi;
 	c(0) = alpha_hat.col(0).sum();
     alpha_hat.col(0) /= c(0);
+    Eigen::DiagonalMatrix<T, Eigen::Dynamic> bc;
+    Matrix<T> tt = transition.transpose();
     for (int ell = 1; ell < Ltot; ++ell)
     {
-        alpha_hat.col(ell) = B.col(ell).asDiagonal() * transition.transpose() * alpha_hat.col(ell - 1);
+        alpha_hat.col(ell) = B.col(ell).asDiagonal() * tt * alpha_hat.col(ell - 1);
         c(ell) = alpha_hat.col(ell).sum();
         if (isnan(toDouble(c(ell))))
             throw std::domain_error("something went wrong in forward algorithm");
         alpha_hat.col(ell) /= c(ell);
     }
+    std::cout << "forward done" << std::endl;
 }
 
 template <typename T>
 void HMM<T>::backward(void)
 {
     // std::cout << "backward algorithm... " << std::endl;
+    std::cout << "backward" << std::endl;
     beta_hat.col(Ltot - 1) = Vector<T>::Ones(M);
     for (int ell = Ltot - 2; ell >= 0; --ell)
         beta_hat.col(ell) = transition * B.col(ell + 1).asDiagonal() * beta_hat.col(ell + 1) / c(ell + 1);
+    std::cout << "backward done" << std::endl;
+}
+
+template <typename T>
+void HMM<T>::preEM(void)
+{
+    forward();
+    backward();
+	gamma = alpha_hat.cwiseProduct(beta_hat);
+    xisum = Matrix<T>::Zero(M, M);
+    for (int ell = 1; ell < Ltot; ++ell)
+        xisum += c(ell) * alpha_hat.col(ell - 1) * B.col(ell).cwiseProduct(beta_hat.col(ell)).transpose();
+    xisum = xisum.cwiseProduct(transition);
 }
 
 template <typename T>
 T HMM<T>::Q(void)
 {
-    // std::cout << "Q..." << std::endl;
-	Matrix<T> log_transition = transition.array().log();
-	Matrix<T> gamma = alpha_hat.cwiseProduct(beta_hat);
-    Matrix<T> tmp, xisum = Matrix<T>::Zero(M, M);
-    // Begin Baum-Welch algorithm
+    std::cout << "Q" << std::endl;
 	T ret = gamma.col(0).dot(pi.array().log().matrix());
-    for (int ell = 0; ell < Ltot; ++ell)
-    {
-        ret += B.col(ell).array().log().matrix().dot(gamma.col(ell));
-        if (ell > 0)
-            xisum += c(ell) * alpha_hat.col(ell - 1) * 
-                beta_hat.col(ell).transpose() * B.col(ell).asDiagonal();
-    }
-    if (isnan(toDouble(ret)))
-        throw std::domain_error("something went wrong in Q");
-    ret += log_transition.cwiseProduct(xisum).sum();
+    ret += (gamma.rightCols(Ltot - 1).array() * B.rightCols(Ltot - 1).array().log()).sum();
+    ret += (xisum.array() * transition.array().log()).sum();
     return ret;
+    std::cout << "Q done" << std::endl;
 }
 
 template <typename T>
@@ -208,11 +224,9 @@ T compute_hmm_Q(
         const int n, const int L, const std::vector<int*> obs,
         int block_size,
         int numthreads, 
-        std::vector<Vector<double>> &cs,
-        std::vector<Matrix<double>> &alpha_hats, 
-        std::vector<Matrix<double>> &beta_hats,
-        std::vector<Matrix<double>> &Bs,
-        bool compute_alpha_beta)
+        std::vector<Matrix<double>> &gammas,
+        std::vector<Matrix<double>> &xisums,
+        bool recompute)
 {
     // eta.print_debug();
     ThreadPool tp(numthreads);
@@ -222,33 +236,26 @@ T compute_hmm_Q(
     std::vector<T> results_unthreaded;
     for (int i = 0; i < obs.size(); ++i)
     {
-        hmms.emplace_back(pi, transition, emission, n, L, obs[i], block_size);
-        if (not compute_alpha_beta)
-        {
-            hmms.back().c = cs[i].template cast<T>();
-            hmms.back().alpha_hat = alpha_hats[i].template cast<T>();
-            hmms.back().beta_hat = beta_hats[i].template cast<T>();
-            hmms.back().B = Bs[i].template cast<T>();
-        }
+        if (recompute)
+            hmms.emplace_back(pi, transition, emission, n, L, obs[i], block_size);
+        else
+            hmms.emplace_back(pi, transition, emission, n, L, obs[i], block_size, 
+                    gammas[i].template cast<T>(), xisums[i].template cast<T>());
     }
     for (auto &hmm : hmms)
         if (numthreads == 0)
         {
-            if (compute_alpha_beta)
-            {
-                hmm.forward(); 
-                hmm.backward();
-            }
+            hmm.computeB();
+            if (recompute)
+                hmm.preEM();
             results_unthreaded.push_back(hmm.Q());
         }
         else
         {
             results.emplace_back(tp.enqueue([&] { 
-                if (compute_alpha_beta)
-                {
-                    hmm.forward(); 
-                    hmm.backward();
-                }
+                hmm.computeB();
+                if (recompute)
+                    hmm.preEM();
                 return hmm.Q(); 
             }));
         }
@@ -259,19 +266,14 @@ T compute_hmm_Q(
     else
         for (auto &&res : results)
             ret += res.get();
-    if (compute_alpha_beta)
+    if (recompute)
     {
-        cs.clear();
-        alpha_hats.clear();
-        beta_hats.clear();
-        Bs.clear();
-        for (int i = 0; i < hmms.size(); ++i)
+        gammas.clear();
+        xisums.clear();
+        for (auto &hmm : hmms)
         {
-            auto hmm = hmms[i];
-            cs.push_back(hmm.c.template cast<double>());
-            alpha_hats.push_back(hmm.alpha_hat.template cast<double>());
-            beta_hats.push_back(hmm.beta_hat.template cast<double>());
-            Bs.push_back(hmm.B.template cast<double>());
+            gammas.push_back(hmm.getGamma().template cast<double>());
+            xisums.push_back(hmm.getXisum().template cast<double>());
         }
     }
     return ret;
@@ -282,22 +284,18 @@ template double compute_hmm_Q(
         const int n, const int L, const std::vector<int*> obs,
         int block_size,
         int numthreads, 
-        std::vector<Vector<double>> &cs, 
-        std::vector<Matrix<double>> &alpha_hats, 
-        std::vector<Matrix<double>> &beta_hats,
-        std::vector<Matrix<double>> &Bs,
-        bool compute_alpha_beta);
+        std::vector<Matrix<double>> &gammas,
+        std::vector<Matrix<double>> &xisums,
+        bool recompute);
 
 template adouble compute_hmm_Q(
         const Vector<adouble> &pi, const Matrix<adouble> &transition, const Matrix<adouble> &emission, 
         const int n, const int L, const std::vector<int*> obs,
         int block_size,
         int numthreads, 
-        std::vector<Vector<double>> &cs, 
-        std::vector<Matrix<double>> &alpha_hats, 
-        std::vector<Matrix<double>> &beta_hats,
-        std::vector<Matrix<double>> &Bs,
-        bool compute_alpha_beta);
+        std::vector<Matrix<double>> &gammas,
+        std::vector<Matrix<double>> &xisums,
+        bool recompute);
 
 template <typename T>
 T compute_hmm_likelihood(
@@ -347,7 +345,6 @@ template adouble compute_hmm_likelihood(
 
 template class HMM<double>;
 template class HMM<adouble>;
-
 
 /*
 int main(int argc, char** argv)

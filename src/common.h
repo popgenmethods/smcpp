@@ -136,9 +136,6 @@ inline int insertion_point(const T x, const std::vector<T>& ary, int first, int 
 inline double myabs(double a) { return std::abs(a); }
 inline adouble myabs(adouble a) { return Eigen::abs(a); }
 
-inline void print_derivatives(double x) {}
-inline void print_derivatives(adouble x) { std::cout << x.derivatives().transpose() << std::endl; }
-
 constexpr int emission_index(int n, int a, int b) { return a * (n + 1) + b; }
 
 #endif

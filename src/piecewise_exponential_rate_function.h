@@ -10,6 +10,8 @@ class PiecewiseExponentialRateFunction : public RateFunction<T>
 {
     public:
     PiecewiseExponentialRateFunction(const std::vector<std::vector<double>> &params);
+    PiecewiseExponentialRateFunction(const PiecewiseExponentialRateFunction &other) : 
+        PiecewiseExponentialRateFunction(other.params) {}
     virtual std::vector<T> getTimes() const { return ts; }
     virtual const FunctionEvaluator<T>* geteta() const { return eta.get(); }
     virtual const FunctionEvaluator<T>* getR() const { return R.get(); }

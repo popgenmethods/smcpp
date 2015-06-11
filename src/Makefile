@@ -1,6 +1,6 @@
 #### PROJECT SETTINGS ####
 # The name of the executable to be created
-BIN_NAME := test
+BIN_NAME := test_gradients
 # Compiler used
 CXX ?= g++
 # Extension of source files used in the project
@@ -75,7 +75,8 @@ install: export BIN_PATH := bin/release
 # Find all source files in the source directory, sorted by most
 # recently modified
 SOURCES = $(shell find $(SRC_PATH)/ -name '*.$(SRC_EXT)' -printf '%T@\t%p\n' \
-					| sort -k 1nr | cut -f2-)
+					| sort -k 1nr | cut -f2- | grep -v _expm | grep -v _pypsmcpp | \
+					grep -v spline | grep -v polynomial)
 # fallback in case the above fails
 rwildcard = $(foreach d, $(wildcard $1*), $(call rwildcard,$d/,$2) \
 						$(filter $(subst *,%,$2), $d))

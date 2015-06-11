@@ -6,8 +6,9 @@ from subprocess import call
 import os.path
 import glob
 
+ignore = ["piecewise_polynomial", "spline_rate_function", "test_gradient"]
 cpps = [f for f in glob.glob("src/*.cpp") if not os.path.basename(f).startswith("_") 
-        and not f.endswith("piecewise_polynomial.cpp") and not f.endswith("spline_rate_function.cpp")]
+        and not any(f.endswith(x + ".cpp") for x in ignore)]
 # cpps.append("src/gauss_legendre.c")
 
 extensions = [
@@ -15,9 +16,9 @@ extensions = [
             "_pypsmcpp",
             sources=["src/_pypsmcpp.pyx"] + cpps,
             language="c++",
+            libraries=["profiler"],
             include_dirs=["/usr/include/eigen3", "/usr/local/include/eigen3", np.get_include()],
             extra_compile_args=["-O3", "-std=c++11", "-Wfatal-errors", "-Wno-unused-variable", "-Wno-unused-function"], 
-            libraries=["profiler"]
             # extra_compile_args=["-O0", "-g", "-std=c++11", "-Wfatal-errors", "-Wno-unused-variable", "-Wno-unused-function", "-D_GLIBCXX_DEBUG"], 
             ),
         Extension(

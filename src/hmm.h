@@ -19,40 +19,32 @@ class HMM
     public:
     HMM(const Vector<T> &pi, const Matrix<T> &transition, const Matrix<T> &emission,
         const int n, const int L, const int* obs, const int block_size);
+    HMM(const Vector<T> &pi, const Matrix<T> &transition, const Matrix<T> &emission,
+        const int n, const int L, const int* obs, const int block_size,
+        const Matrix<T> &gamma, const Matrix<T> &xisum);
     T loglik(void);
     T Q(void);
-    T Q(const Matrix<T> &, const Matrix<T> &);
     std::vector<int>& viterbi(void);
     void printobs(void);
-    void fast_forward(void);
-    void forward(void);
-    void backward(void);
+    void computeB(void);
+    void preEM(void);
+    Matrix<T>& getGamma() { return gamma; }
+    Matrix<T>& getXisum() { return xisum; }
 
     private:
     // Methods
-    Matrix<T> matpow(const Matrix<T>&, int);
-    void diag_obs(int);
-    Matrix<T> O0Tpow(int);
-
+    void forward(void);
+    void backward(void);
     // Instance variables
-    private:
-    std::map<std::pair<int, int>, Eigen::DiagonalMatrix<T, Eigen::Dynamic>> obs_cache;
     const Vector<T> pi;
     const Matrix<T> transition;
     const Matrix<T> emission;
     int M, n, L;
     Eigen::Map<const Eigen::Matrix<int, Eigen::Dynamic, 3, Eigen::RowMajor>> obs;
     const int block_size, Ltot;
-
-    public:
-    Matrix<T> B, alpha_hat, beta_hat;
+    Matrix<T> B, alpha_hat, beta_hat, gamma, xisum;
     Vector<T> c;
-
-    private:
     std::vector<int> viterbi_path;
-    std::map<int, Matrix<T>> O0Tpow_memo;
-
-    friend int main(int, char**);
 };
 
 template <typename T>
@@ -62,11 +54,9 @@ T compute_hmm_Q(
         const int n, const int L, const std::vector<int*> obs,
         int block_size,
         int numthreads, 
-        std::vector<Vector<double>> &cs,
-        std::vector<Matrix<double>> &alpha_hats, 
-        std::vector<Matrix<double>> &beta_hats,
-        std::vector<Matrix<double>> &Bs,
-        bool compute_alpha_beta);
+        std::vector<Matrix<double>> &gammas,
+        std::vector<Matrix<double>> &xisums,
+        bool recompute);
 
 /*
 template <typename T>
