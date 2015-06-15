@@ -8,34 +8,32 @@ typedef Eigen::Map<const Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, E
 
 class InferenceManager;
 
-template <typename T>
 class HMM
 {
     public:
     HMM(Eigen::Matrix<int, Eigen::Dynamic, 2> obs, const int block_size,
-        const Vector<T> *pi, const Matrix<T> *transition, 
-        const Matrix<T> *emission);
+        const Vector<adouble> *pi, const Matrix<adouble> *transition, 
+        const Matrix<adouble> *emission);
     void Estep(void);
-    T loglik(void);
-    T Q(void);
+    double loglik(void);
+    adouble Q(void);
     // std::vector<int>& viterbi(void);
 
     private:
     // Methods
     void recompute_B(void);
-    void forward(void);
-    void backward(void);
+    void forward_backward(void);
 
     Eigen::Matrix<int, Eigen::Dynamic, 2> obs;
     const int block_size;
-    const int M;
-    const int Ltot;
 
     // Instance variables
-    const Vector<T> *pi;
-    const Matrix<T> *transition, *emission;
-    Matrix<T> B, alpha_hat, beta_hat, gamma, xisum;
-    Vector<T> c;
+    const Vector<adouble> *pi;
+    const Matrix<adouble> *transition, *emission;
+    const int M, Ltot;
+    Matrix<adouble> B;
+    Matrix<double> alpha_hat, beta_hat, gamma, xisum;
+    Vector<double> c;
     std::vector<int> viterbi_path;
 
     friend class InferenceManager;

@@ -1,6 +1,8 @@
 #include "conditioned_sfs.h"
 #include "gauss_legendre.h"
 
+std::mt19937 sfs_gen;
+
 template <typename T>
 struct helper_struct
 {
@@ -15,8 +17,6 @@ T helper(T x, void* obj)
     helper_struct<T>* args = (helper_struct<T>*)obj;
     return exp(-((*args->f)(x) - args->offset) * args->rate);
 }
-
-std::mt19937 sfs_gen;
 
 std::map<std::array<int, 3>, double> _Wnbj_memo;
 double calculate_Wnbj(int n, int b, int j)
@@ -102,10 +102,7 @@ ConditionedSFS<T>::ConditionedSFS(const PiecewiseExponentialRateFunction<T> eta,
     P_undist(n + 1, n), tK(n + 1, n + 1), csfs(3, n + 1), 
     csfs_above(3, n + 1), csfs_below(3, n + 1), ETnk_below(n + 1, n + 1)
 {
-    // feenableexcept(FE_ALL_EXCEPT & ~FE_INEXACT & ~FE_UNDERFLOW);
-    // printf("seed: %u\n", seed);
     long long seed = std::uniform_int_distribution<long long>{}(sfs_gen);
-    // std::cout << seed << std::endl;
     gen.seed(seed);
     fill_matrices();
 }
@@ -327,7 +324,7 @@ void ConditionedSFS<T>::compute(int num_samples, T t1, T t2)
             }
             csfs(i, j) = dmax(csfs(i, j), 1e-20);
         }
-    if (doPrint)
+    if (false and doPrint)
     {
         std::cout << "csfs_below" << std::endl << csfs_below.template cast<double>() << std::endl << std::endl;
         std::cout << "csfs_above" << std::endl << csfs_above.template cast<double>() << std::endl << std::endl;
@@ -451,8 +448,6 @@ Matrix<T> ConditionedSFS<T>::calculate_sfs(const PiecewiseExponentialRateFunctio
     return ret;
 }
 
-// End of class definitions
-// Utility methods
 void set_seed(long long seed)
 {
     sfs_gen.seed(seed);

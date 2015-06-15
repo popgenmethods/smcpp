@@ -30,7 +30,8 @@ cdef ParameterVector make_params(params):
 
 cdef class PyInferenceManager:
     cdef InferenceManager *_im
-    cdef int _n
+    cdef int _n, _J, _K
+    cdef int _num_hmms
     cdef object _moran_mats
     cdef object _moran_ts
 
@@ -47,6 +48,7 @@ cdef class PyInferenceManager:
                 raise ValueError("Input data sets should all have the same shape")
             vob = ob.view('int32')
             obs.push_back(&vob[0, 0])
+        self._num_hmms = len(observations)
         mats, ts = moran_model.interpolators(n)
         self._moran_mats = mats
         self._moran_ts = ts
@@ -55,63 +57,40 @@ cdef class PyInferenceManager:
                 n, L, obs, hidden_states, theta, rho, block_size, 
                 num_threads, num_samples)
 
-    # def sfs(self, params, double t1, double t2):
-    #     ret = np.zeros([3, self._n + 1])
-    #     cdef double[:, ::1] vret = ret
-    #     cdef ParameterVector p = make_params(params)
-    #     cdef Matrix[double] _sfs = self._im.sfs_d(p, t1, t2)
-    #     store_matrix(_sfs, &vret[0, 0])
-    #     return ret
-
     def setParams(self, params, ad):
+        self._J = len(params)
+        self._K = len(params[0])
         cdef ParameterVector p = make_params(params)
         if ad:
             self._im.setParams_ad(p)
         else:
             self._im.setParams_d(p)
 
-    def Estep(self, ad):
-        if (ad):
-            self._im.Estep_ad()
-        else:
-            self._im.Estep_d()
+    def Estep(self):
+        self._im.Estep()
             
-    def _call_inference_func(self, func, params, lam, jacobian):
-        cdef ParameterVector p = make_params(params)
-        if not jacobian:
-            if func == "Q":
-                return self._im.Q_d(lam)
-            else:
-                return self._im.loglik_d(lam)
-        cdef vector[adouble] ad_rets
-        if func == "Q":
-            ad_rets = self._im.Q_ad(lam)
-        else:
-            ad_rets = self._im.loglik_ad(lam)
+    def _call_inference_func(self, func, lam):
+        if func == "loglik":
+            return self._im.loglik(lam)
+        cdef vector[adouble] ad_rets = self._im.Q(lam)
         cdef int K = ad_rets.size()
         ret = []
-        J = len(params)
-        K = len(params[0])
         cdef double[:, ::1] vjac
-        for i in range(K):
-            jac = aca(np.zeros([J, K]))
+        for i in range(self._num_hmms):
+            jac = aca(np.zeros([self._J, self._K]))
             vjac = jac
             fill_jacobian(ad_rets[i], &vjac[0, 0])
             ret.append((toDouble(ad_rets[i]), jac))
         return ret
 
-    def Q(self, params, lam, jacobian):
-        return self._call_inference_func("Q", params, lam, jacobian)
+    def Q(self, lam):
+        return self._call_inference_func("Q", lam)
 
-    def loglik(self, params, lam, jacobian):
-        return self._call_inference_func("loglik", params, lam, jacobian)
-
-    def set_seet(self, seed):
-        set_seed(seed)
+    def loglik(self, lam):
+        return self._call_inference_func("loglik", lam, False)
 
     def __dealloc__(self):
         del self._im
-
 
 # def pretrain(params, int n, int num_samples, np.ndarray[ndim=1, dtype=double] sfs, double reg_lambda, 
 #         int numthreads, double theta, jacobian=False):

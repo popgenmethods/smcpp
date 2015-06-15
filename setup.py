@@ -18,8 +18,8 @@ extensions = [
             language="c++",
             libraries=["profiler"],
             include_dirs=["/usr/include/eigen3", "/usr/local/include/eigen3", np.get_include()],
-            # extra_compile_args=["-O3", "-std=c++11", "-Wfatal-errors", "-Wno-unused-variable", "-Wno-unused-function"], 
-            extra_compile_args=["-O0", "-g", "-std=c++11", "-Wfatal-errors", "-Wno-unused-variable", "-Wno-unused-function", "-D_GLIBCXX_DEBUG"], 
+            extra_compile_args=["-O3", "-std=c++11", "-Wfatal-errors", "-Wno-unused-variable", "-Wno-unused-function"], 
+            # extra_compile_args=["-O0", "-g", "-std=c++11", "-Wfatal-errors", "-Wno-unused-variable", "-Wno-unused-function", "-D_GLIBCXX_DEBUG"], 
             ),
         Extension(
             "_expm",

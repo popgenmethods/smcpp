@@ -1,5 +1,4 @@
 from libcpp.vector cimport vector
-from libcpp.pair cimport pair
 
 cdef extern from "common.h":
     cdef cppclass adouble:
@@ -21,16 +20,11 @@ cdef extern from "inference_manager.h":
         InferenceManager(const MatrixInterpolator&, const int, const int,
                 const vector[int*], const vector[double], const double,
                 const double, const int, const int, const int)
-        
-        Matrix[double] sfs(const ParameterVector, double, double)
         void setParams_d(const ParameterVector)
         void setParams_ad(const ParameterVector)
-        void Estep_d()
-        void Estep_ad()
-        vector[double] Q_d(double)
-        vector[adouble] Q_ad(double)
-        vector[double] loglik_d(double)
-        vector[adouble] loglik_ad(double)
+        void Estep()
+        vector[double] loglik(double)
+        vector[adouble] Q(double)
 
 cdef extern from "conditioned_sfs.h":
     void set_seed(long long)

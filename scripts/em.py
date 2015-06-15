@@ -18,7 +18,7 @@ n = 10
 N0 = 10000
 rho = 1e-8
 theta = 1e-8
-L = 10000000
+L = 1000000
 demography = ['-eN', 0.0, 8.0, '-eG', 0.0, -0.5, '-eN', 3, 0.5]
 
 # Generate 3 datasets from this code by distinguishing different 
@@ -61,22 +61,24 @@ im = psmcpp._pypsmcpp.PyInferenceManager(n - 2, obs_list, hidden_states,
 def f(x):
     # print("f", x, recompute)
     a, b = x.reshape((2, K))
-    ret = im.Q((a, b, s), 0.0, False)
-    print(ret)
+    im.setParams((a, b, s), False)
+    ret = [a for a, b in im.Q(0.0)]
+    print('Q', ret)
     return -np.mean(ret)
-    print("f(%s) = %f" % (str(x.reshape((2, K))), ret))
-    return ret
 
 def fprime(x, recompute=False):
     a, b = x.reshape((2, K))
-    ret = -im.Q((a, b, s), 0.0, True)
+    im.setParams((a, b, s), True)
+    res = im.Q(0.0)
+    jacs = np.array([jac[:2] for ll, jac in res])
+    return -np.mean(jacs, axis=0).reshape((2 * K))
     # print("f'(%s) = %s" % (str(x.reshape((2, K))), str(ret)))
-    return ret.reshape((2 * K))
 
 def loglik(x):
     a, b = x.reshape((2, K))
-    ll = im.loglik((a, b, s), 0.0, False)
-    print(ll)
+    im.setParams((a, b, s), False)
+    ll = im.loglik(0.0, False)
+    print('ll', ll)
     return -np.mean(ll)
 
 #bounds = ((0.10001, 100.0001),) * K + ((0.1, 100),) * K + ((0.1, 0.5),) * K
@@ -88,25 +90,31 @@ a, b = x0.reshape((2, K))
 im.setParams((a, b, s), False)
 im.Estep(False)
 llold = loglik(x0)
+im.setParams((a, b, s), True)
+im.Estep(True)
 while True:
     res = scipy.optimize.fmin_l_bfgs_b(f, x0, fprime, bounds=bounds, factr=1e14, disp=False)
-    x0 = res[0]
+    x0 = res[0].reshape((2, K))
     print("************** ITERATION %d ***************" % i)
-    print(x0.reshape((2, K)))
+    print(x0)
+    a, b = x0
+    for ad in (True, False):
+        im.setParams((a, b, s), ad)
+        im.Estep(ad)
     ll = loglik(x0)
     print(" - New loglik:" + str(ll))
     print(" - Old loglik:" + str(llold))
     print(" - Estimated sfs:")
-    sfs = psmcpp._pypsmcpp.sfs(
-            (x0.reshape((2, K))[0], x0.reshape((2, K))[1], s), 
-            n - 2, 
-            num_samples, 0, np.inf, NTHREADS,
-            4 * N0 * theta / 2.)
-    print(sfs[0])
-    print(" - Observed sfs:")
-    print(obsfs)
     llold = ll
     i += 1
+    # sfs = psmcpp._pypsmcpp.sfs(
+    #         (x0.reshape((2, K))[0], x0.reshape((2, K))[1], s), 
+    #         n - 2, 
+    #         num_samples, 0, np.inf, NTHREADS,
+    #         4 * N0 * theta / 2.)
+    # print(sfs[0])
+    # print(" - Observed sfs:")
+    # print(obsfs)
 
 def f(x):
     # ret = -sfs_kl(x, False)
