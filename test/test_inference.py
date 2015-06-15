@@ -25,8 +25,7 @@ def fake_obs():
 
 
 hidden_states = np.array([0.0, 0.5, 1.0, 2.0, 3.0, 4.0, np.inf])
-NTHREADS = 0
-mw = _pypsmcpp.MatrixWrapper()
+NTHREADS = 1
 
 def test_derivatives(demo, fake_obs):
     S = 1000

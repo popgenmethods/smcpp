@@ -10,6 +10,7 @@
 #include "prettyprint.hpp"
 
 #define AUTODIFF 1
+#define EIGEN_NO_AUTOMATIC_RESIZING 1
 #define RATE_FUNCTION PiecewiseExponentialRateFunction
 
 #ifdef NDEBUG
@@ -121,7 +122,7 @@ typedef struct AdMatrixWrapper {
 template <typename T>
 inline int insertion_point(const T x, const std::vector<T>& ary, int first, int last)
 {
-    int mid;
+   int mid;
     while(first + 1 < last)
     {
         mid = (int)((first + last) / 2);
@@ -135,7 +136,16 @@ inline int insertion_point(const T x, const std::vector<T>& ary, int first, int 
 
 inline double myabs(double a) { return std::abs(a); }
 inline adouble myabs(adouble a) { return Eigen::abs(a); }
-
-constexpr int emission_index(int n, int a, int b) { return a * (n + 1) + b; }
+inline void init_eigen() { Eigen::initParallel(); }
+inline void fill_jacobian(const adouble &ll, double* outjac)
+{
+    Eigen::VectorXd d = ll.derivatives();
+    Eigen::Map<Eigen::Matrix<double, Eigen::Dynamic, 1>, Eigen::RowMajor> _jac(outjac, d.rows());
+    _jac = d;
+}
+inline void store_matrix(Matrix<double> &M, double* out)
+{
+    Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>::Map(out, M.rows(), M.cols()) = M;
+}
 
 #endif

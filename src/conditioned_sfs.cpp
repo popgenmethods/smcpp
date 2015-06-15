@@ -93,7 +93,8 @@ inline adouble dmax(adouble a, adouble b)
 }
 
 template <typename T>
-ConditionedSFS<T>::ConditionedSFS(const PiecewiseExponentialRateFunction<T> eta, int n, MatrixInterpolator moran_interp) :
+ConditionedSFS<T>::ConditionedSFS(const PiecewiseExponentialRateFunction<T> eta, int n, 
+        MatrixInterpolator moran_interp) : 
     eta(eta), n(n), moran_interp(moran_interp),
     D_subtend_above(n, n), D_not_subtend_above(n, n),
 	D_subtend_below(n + 1, n + 1), D_not_subtend_below(n + 1, n + 1),
@@ -107,6 +108,12 @@ ConditionedSFS<T>::ConditionedSFS(const PiecewiseExponentialRateFunction<T> eta,
     // std::cout << seed << std::endl;
     gen.seed(seed);
     fill_matrices();
+}
+
+template <typename T>
+double ConditionedSFS<T>::rand_exp(void)
+{
+    return std::exponential_distribution<double>{1.0}(gen);
 }
 
 template <typename T>
@@ -185,12 +192,13 @@ void ConditionedSFS<T>::compute(int num_samples, T t1, T t2)
     // Above tau there are between 2 and n + 1.
 	// For some reason it does not like initializing these as AdVectors. So use
 	// the matrix class instead.
-    Vector<T> tjj_above(n), tjj_below(n + 1), sfs_tau(n, 1), etnk(n + 1);
+    Vector<T> tjj_above(n), tjj_below(n + 1), sfs_tau(n, 1), etnk(n + 1), etnk_below_sample(n + 1);
     Vector<T> etnk_avg(n + 1), tjj_below_avg(n + 1), tjj_above_avg(n);
 	Matrix<T> eM(n + 1, n + 1);
     int m;
     T y, left, right, intg;
     etnk_avg.setZero();
+    etnk_below_sample.setZero();
     tjj_below_avg.setZero();
     Eigen::VectorXd der;
     Matrix<T> tmpmat;
@@ -207,10 +215,33 @@ void ConditionedSFS<T>::compute(int num_samples, T t1, T t2)
     std::sort(ys.begin(), ys.end());
     std::vector<int> eis(num_samples);
     std::vector<T> taus = (*Rinv)(ys);
+    const int S = 1000;
     for (m = 0; m < num_samples; ++m)
     {
         tau = taus[m];
         y = ys[m];
+        for (int s = 0; s < S; ++s)
+        {
+            T t = 0, R_last = 0, t_new;
+            int k = n + 2;
+            while (1)
+            {
+                double rate = k * (k - 1) / 2.0 - 1;
+                if (k == 2)
+                {
+                    etnk_below_sample(0) += tau - t;
+                    break;
+                }
+                // rate * R_t_sim^t_new = Exp(1) => Exp(1) / rate + R(t_sim) = R(t_new)
+                R_last += rand_exp() / rate;
+                t_new = (*Rinv)(R_last);
+                etnk_below_sample(k - 2) += dmin(tau, t_new) - t;
+                if (t_new >= tau)
+                    break;
+                t = t_new;
+                k--;
+            }
+        }
         // below via quadrature
         Vector<T> gauss_tjj_below(n + 1), gauss_tjj_above(n);
         std::vector<T> eta_ts = R->getTimes();
@@ -249,15 +280,13 @@ void ConditionedSFS<T>::compute(int num_samples, T t1, T t2)
                 k++;
             }
             // Add in the last piece which goes to infinity and is linear
-            // intg = gauss_legendre<T>(1024, &helper<T>, (void*)&hs, left, 1000.0);
             left = dmax(eta_ts[K - 2], tau);
             gauss_tjj_above(j - 2) += exp(-hs.rate * ((*R)(left) - y)) / hs.rate / (*feta)(left);
-            // gauss_tjj_above(j - 2) += intg;
         }
         compute_ETnk_below(gauss_tjj_below);
         tjj_above = gauss_tjj_above;
         etnk = tK * ETnk_below.row(n).transpose();
-        etnk_avg += etnk / num_samples;
+        etnk_avg += etnk;
         csfs_below.block(0, 1, 1, n) += etnk.transpose() * D_not_subtend_below * P_undist / num_samples;
         csfs_below.block(1, 0, 1, n + 1) += etnk.transpose() * D_subtend_below * P_dist / num_samples;
         // Compute sfs above using polanski-kimmel + matrix exponential
@@ -276,12 +305,34 @@ void ConditionedSFS<T>::compute(int num_samples, T t1, T t2)
         tmpmat = eM.topLeftCorner(n, n).transpose() * D_subtend_above / num_samples;
         csfs_above.block(2, 0, 1, n) += (tmpmat * sfs_tau).transpose();
     }
-    csfs = csfs_below + csfs_above;
+    etnk_avg /= num_samples;
+    etnk_below_sample /= S * num_samples;
+    etnk_below_sample = tK * etnk_below_sample;
     /*
-    std::cout << "csfs_below" << std::endl << csfs_below.template cast<double>() << std::endl << std::endl;
-    std::cout << "csfs_above" << std::endl << csfs_above.template cast<double>() << std::endl << std::endl;
-    std::cout << "csfs" << std::endl << csfs.template cast<double>() << std::endl << std::endl;
+    if (etnk_avg.minCoeff() < 0)
+    {
+        std::cout << "etnk gauss" << std::endl << etnk_avg.template cast<double>().transpose() << std::endl;
+        std::cout << "etnk sample" << std::endl << etnk_below_sample.template cast<double>().transpose() << std::endl;
+    }
     */
+    csfs = csfs_below + csfs_above;
+    bool doPrint = false;
+    for (int i = 0; i < csfs.rows(); ++i)
+        for (int j = 0; j < csfs.cols(); ++j)
+        {
+            if (csfs(i, j) < -1e-2)
+            {
+                std::cout << "csfs is strongly negative at (" << i << "," << j << ")" << std::endl;
+                doPrint = true;
+            }
+            csfs(i, j) = dmax(csfs(i, j), 1e-20);
+        }
+    if (doPrint)
+    {
+        std::cout << "csfs_below" << std::endl << csfs_below.template cast<double>() << std::endl << std::endl;
+        std::cout << "csfs_above" << std::endl << csfs_above.template cast<double>() << std::endl << std::endl;
+        std::cout << "csfs" << std::endl << csfs.template cast<double>() << std::endl << std::endl;
+    }
 }
 
 
@@ -364,8 +415,7 @@ Matrix<T> ConditionedSFS<T>::average_csfs(std::vector<ConditionedSFS<T>> &csfs, 
 
 template <typename T>
 Matrix<T> ConditionedSFS<T>::calculate_sfs(const PiecewiseExponentialRateFunction<T> &eta, int n, int num_samples, 
-        const MatrixInterpolator &moran_interp, 
-        double tau1, double tau2, int numthreads, double theta)
+        const MatrixInterpolator &moran_interp, double tau1, double tau2, int numthreads, double theta)
 {
     // eta.print_debug();
     auto R = eta.getR();
@@ -456,6 +506,4 @@ void cython_calculate_sfs_jac(const std::vector<std::vector<double>> &params,
 
 template class ConditionedSFS<double>;
 template class ConditionedSFS<adouble>;
-
-void init_eigen() { Eigen::initParallel(); }
 

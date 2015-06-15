@@ -84,7 +84,7 @@ template adouble sfs_loglik(
 
 
 template <typename T>
-T compute_Q(
+std::pair<T, T> compute_Q(
         // Model parameters
         const std::vector<std::vector<double>> &params,
         // Sample size
@@ -121,13 +121,13 @@ T compute_Q(
         emission.row(i) = Matrix<T>::Map(tmp.data(), 1, 3 * (n + 1));
     }
     tmp = ConditionedSFS<T>::calculate_sfs(eta, n, num_samples, moran_interp, 0, INFINITY, numthreads, theta);
-    T ll = compute_hmm_Q<T>(pi, transition, emission, n, L, obs, 
+    Vector<T> ret = compute_hmm_Q<T>(pi, transition, emission, n, L, obs, 
             block_size, numthreads, gammas, xisums, recompute);
-    ll -= lambda * eta.regularizer();
-    return ll;
+    // ll -= lambda * eta.regularizer();
+    return {ret(0), ret(1)};
 }
 
-template adouble compute_Q(
+template std::pair<adouble, adouble> compute_Q(
         const std::vector<std::vector<double>> &params,
         const int n, 
         const int num_samples,
@@ -142,7 +142,7 @@ template adouble compute_Q(
         std::vector<Matrix<double>> &xisums,
         bool recompute);
 
-template double compute_Q(
+template std::pair<double, double> compute_Q(
         const std::vector<std::vector<double>> &params,
         const int n, 
         const int num_samples,
@@ -242,10 +242,3 @@ template double loglik(
         double);
 
 */
-
-void fill_jacobian(const adouble &ll, double* outjac)
-{
-    Eigen::VectorXd d = ll.derivatives();
-    Eigen::Map<Eigen::Matrix<double, Eigen::Dynamic, 1>, Eigen::RowMajor> _jac(outjac, d.rows());
-    _jac = d;
-}

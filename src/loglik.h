@@ -39,7 +39,7 @@ T loglik(
         */
 
 template <typename T>
-T compute_Q(
+std::pair<T, T> compute_Q(
         // Model parameters
         const std::vector<std::vector<double>> &params,
         // Sample size
