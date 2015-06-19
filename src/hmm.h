@@ -23,6 +23,7 @@ class HMM
     // Methods
     void recompute_B(void);
     void forward_backward(void);
+    void domain_error(double);
 
     Eigen::Matrix<int, Eigen::Dynamic, 2> obs;
     const int block_size;

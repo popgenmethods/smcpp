@@ -5,23 +5,22 @@ import multiprocessing
 import scrm
 
 np.set_printoptions(suppress=True)
-M = 1000
-THREADS = 16
+M = 100
+THREADS = 8
+theta = 1e-8
 
 def _scrm_sfs(args):
     return scrm.sfs(*args)
 
 def test_two_period1():
-    a = 1. / np.array([4.0, 0.5])
-    b = np.array([0.0, 0.0])
-    s = np.array([0.25, 0.25]) * 2
-    tb = np.append(a[:-1] * np.exp(b[:-1] * s[:-1]), 0)
+    a = np.array([8.0, 8.0, 0.5, 0.5, 4.0, 4.0])
+    b = a
+    s = np.array([0.5] * 6) * 2.0
     n = 10
     N0 = 10000
-    theta = 1e-8
-    sfs, rsfs = _pypsmcpp.sfs([a, tb, s], n, M, 0., np.inf, THREADS, 4 * N0 * theta / 2.0, jacobian=False)
+    sfs, rsfs = _pypsmcpp.sfs([a, b, s], n - 2, M, 0., np.inf, THREADS, 4 * N0 * theta / 2.0, jacobian=False)
     L = 1000000
-    demography = ['-eN', 0.0, 4.0, '-eN', 0.25, 0.5]
+    demography = ['-eN', 0.0, 8.0, '-eN', 1.0, 0.5, '-eN', 2.0, 4.0]
     args = (n, L, N0, theta, demography)
     scrm_sfs = np.mean(list(multiprocessing.Pool(THREADS).map(_scrm_sfs, [args for _ in range(THREADS)])), axis=0) / L
     print("")

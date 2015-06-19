@@ -37,10 +37,18 @@ class InferenceManager
     void setParams_d(const ParameterVector params) { setParams<double>(params); }
     void setParams_ad(const ParameterVector params) { setParams<adouble>(params); }
 
+    double R(const ParameterVector params, double t)
+    {
+        PiecewiseExponentialRateFunction<double> eta(params);
+        return (*eta.getR())(t);
+    }
+
+    bool debug;
+    std::vector<Matrix<double>*> getGammas();
+
     private:
     // Passed-in parameters
     std::mt19937 gen;
-    std::vector<std::vector<double>> params;
     const MatrixInterpolator moran_interp;
     const int n, L;
     const std::vector<int*> observations;
@@ -48,6 +56,7 @@ class InferenceManager
     double theta, rho;
     const int block_size, num_threads, num_samples, M;
     ThreadPool tp;
+    adouble regularizer;
 
     std::vector<HMM> hmms;
     Vector<adouble> pi;

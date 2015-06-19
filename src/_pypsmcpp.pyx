@@ -5,6 +5,7 @@ import numpy as np
 import logging
 import moran_model
 import collections
+import scipy.optimize
 
 init_eigen();
 
@@ -28,25 +29,30 @@ cdef ParameterVector make_params(params):
         ret.push_back(p)
     return ret
 
+
 cdef class PyInferenceManager:
     cdef InferenceManager *_im
     cdef int _n, _J, _K
     cdef int _num_hmms
     cdef object _moran_mats
     cdef object _moran_ts
+    cdef public long long seed
 
     def __cinit__(self, int n, observations, hidden_states, double theta, double rho, 
             int block_size, int num_threads, int num_samples):
+        self.seed = 1
         self._n = n
         cdef int[:, ::1] vob
         cdef vector[int*] obs
         cdef int L = observations[0].shape[0]
+        print("cyL", L, observations[0].sum(axis=0))
         for ob in observations:
             if np.isfortran(ob):
                 raise ValueError("Input arrays must be C-ordered")
             if ob.shape[0] != L:
                 raise ValueError("Input data sets should all have the same shape")
-            vob = ob.view('int32')
+            print(ob[:20])
+            vob = ob
             obs.push_back(&vob[0, 0])
         self._num_hmms = len(observations)
         mats, ts = moran_model.interpolators(n)
@@ -61,14 +67,31 @@ cdef class PyInferenceManager:
         self._J = len(params)
         self._K = len(params[0])
         cdef ParameterVector p = make_params(params)
+        set_csfs_seed(self.seed)
         if ad:
             self._im.setParams_ad(p)
         else:
             self._im.setParams_d(p)
 
+    def setDebug(self, val):
+        self._im.debug = val
+
     def Estep(self):
         self._im.Estep()
-            
+
+    def gammas(self):
+        cdef vector[pMatrixD] gammas = self._im.getGammas()
+        cdef double[:, ::1] v
+        ret = []
+        for i in range(gammas.size()):
+            m = gammas[i][0].rows()
+            n = gammas[i][0].cols()
+            ary = aca(np.zeros([m, n]))
+            v = ary
+            store_matrix(gammas[i], &v[0, 0])
+            ret.append(ary)
+        return ret
+
     def _call_inference_func(self, func, lam):
         if func == "loglik":
             return self._im.loglik(lam)
@@ -87,10 +110,23 @@ cdef class PyInferenceManager:
         return self._call_inference_func("Q", lam)
 
     def loglik(self, lam):
-        return self._call_inference_func("loglik", lam, False)
+        return self._call_inference_func("loglik", lam)
 
     def __dealloc__(self):
         del self._im
+
+    def balance_hidden_states(self, params, int M):
+        cdef ParameterVector p = make_params(params)
+        ret = [0.0]
+        t = 0
+        T_MAX = 100
+        for m in range(1, M):
+            def f(t):
+                return np.exp(-self._im.R(params, t)) - 1.0 * (M - m) / M
+            res = scipy.optimize.brentq(f, ret[-1], T_MAX)
+            ret.append(res)
+        ret.append(np.inf)
+        return np.array(ret)
 
 # def pretrain(params, int n, int num_samples, np.ndarray[ndim=1, dtype=double] sfs, double reg_lambda, 
 #         int numthreads, double theta, jacobian=False):

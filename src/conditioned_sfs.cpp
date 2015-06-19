@@ -79,18 +79,6 @@ double pnkb_undist(int n, int m, int l3)
     return ret;
 }
 
-inline double dmin(double a, double b) { return std::min(a, b); }
-inline double dmax(double a, double b) { return std::max(a, b); }
-
-inline adouble dmin(adouble a, adouble b)
-{
-    return (a + b - myabs(a - b)) / 2;
-}
-
-inline adouble dmax(adouble a, adouble b)
-{
-    return (a + b + myabs(a - b)) / 2;
-}
 
 template <typename T>
 ConditionedSFS<T>::ConditionedSFS(const PiecewiseExponentialRateFunction<T> eta, int n, 

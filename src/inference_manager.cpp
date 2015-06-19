@@ -8,15 +8,12 @@ Vector<T> compute_initial_distribution(const RateFunction<T> &eta, const std::ve
     Vector<T> pi(M);
     for (int m = 0; m < M - 1; ++m)
     {
-        pi(m) = exp(-Rinv->operator()(hidden_states[m])) - exp(-Rinv->operator()(hidden_states[m + 1]));
+        pi(m) = dmax(exp(-Rinv->operator()(hidden_states[m])) - exp(-Rinv->operator()(hidden_states[m + 1])), 1e-16);
         assert(pi(m) > 0.0); 
         assert(pi(m) < 1.0); 
     }
-    pi(M - 1) = exp(-Rinv->operator()(hidden_states[M - 1]));
-
-    assert(pi(M - 1) > 0.0);
-    assert(pi(M - 1) < 1.0);
-    assert(pi.sum() == 1.0);
+    pi(M - 1) = dmax(exp(-Rinv->operator()(hidden_states[M - 1])), 1e-16);
+    pi /= pi.sum();
     return pi;
 }
 
@@ -28,6 +25,7 @@ InferenceManager::InferenceManager(
             const double theta, const double rho, 
             const int block_size, const int num_threads, 
             const int num_samples) : 
+    debug(false),
     moran_interp(moran_interp), n(n), L(L),
     observations(observations), 
     hidden_states(hidden_states),
@@ -48,12 +46,13 @@ InferenceManager::InferenceManager(
         ob.col(1) = (n + 1) * tmp.col(1) + tmp.col(2);
         hmms.emplace_back(ob, block_size, &pi, &transition, &emission);
     }
-}
+
 
 template <typename T>
 void InferenceManager::setParams(const ParameterVector params)
 {
     PiecewiseExponentialRateFunction<T> eta(params);
+    regularizer = adouble(eta.regularizer());
     pi = compute_initial_distribution<T>(eta, hidden_states).template cast<adouble>();
     transition = compute_transition<T>(eta, hidden_states, rho).template cast<adouble>();
     Eigen::Matrix<T, 3, Eigen::Dynamic, Eigen::RowMajor> tmp;
@@ -63,6 +62,12 @@ void InferenceManager::setParams(const ParameterVector params)
         emission.row(m) = Matrix<T>::Map(tmp.data(), 1, 3 * (n + 1)).template cast<adouble>();
     }
     parallel_do([] (HMM &hmm) { hmm.recompute_B(); });
+    if (debug)
+    {
+        std::cout << emission.template cast<double>() << std::endl << std::endl;
+        std::cout << hmms[0].B.leftCols(10).template cast<double>() << std::endl << std::endl;
+    }
+    
 }
 template void InferenceManager::setParams<double>(const ParameterVector);
 template void InferenceManager::setParams<adouble>(const ParameterVector);
@@ -106,10 +111,27 @@ void InferenceManager::Estep(void)
 
 std::vector<adouble> InferenceManager::Q(double lambda)
 {
-    return parallel_select<adouble>([] (HMM &hmm) { return hmm.Q(); });
+    adouble reg = regularizer;
+    return parallel_select<adouble>([lambda, reg] (HMM &hmm) { 
+            adouble q = hmm.Q();
+            adouble rr = reg * lambda;
+            adouble ret = q - rr;
+            return ret;
+            });
+}
+
+std::vector<Matrix<double>*> InferenceManager::getGammas()
+{
+    std::vector<Matrix<double>*> ret;
+    for (auto &hmm : hmms)
+    {
+        ret.push_back(&hmm.gamma);
+    }
+    return ret;
 }
 
 std::vector<double> InferenceManager::loglik(double lambda)
 {
-    return parallel_select<double>([] (HMM &hmm) { return hmm.loglik(); });
+    double reg = toDouble(regularizer);
+    return parallel_select<double>([lambda, reg] (HMM &hmm) { return hmm.loglik() - lambda * reg; });
 }

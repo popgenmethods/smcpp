@@ -1,14 +1,18 @@
 from libcpp.vector cimport vector
 
+
 cdef extern from "common.h":
     cdef cppclass adouble:
         pass
     cdef cppclass Matrix[T]:
-        pass
+        int rows()
+        int cols()
     cdef double toDouble(const adouble &)
     void init_eigen()
     void fill_jacobian(const adouble &, double*)
-    void store_matrix(const Matrix[double] &, double*)
+    void store_matrix(const Matrix[double] *, double*)
+
+ctypedef Matrix[double]* pMatrixD
 
 cdef extern from "matrix_interpolator.h":
     cdef cppclass MatrixInterpolator:
@@ -25,6 +29,9 @@ cdef extern from "inference_manager.h":
         void Estep()
         vector[double] loglik(double)
         vector[adouble] Q(double)
+        double R(const ParameterVector, double t)
+        bint debug
+        vector[pMatrixD] getGammas()
 
 cdef extern from "conditioned_sfs.h":
     void set_seed(long long)
@@ -42,5 +49,3 @@ cdef extern from "transition.h":
             const vector[double] hidden_states, double rho, double* outtrans)
     void cython_calculate_transition_jac(const vector[vector[double]] &params,
             const vector[double] hidden_states, double rho, double* outtrans, double* outjac)
-
-    

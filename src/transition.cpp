@@ -61,7 +61,7 @@ Matrix<adouble> transition_exp(double c_rho, adouble c_eta)
 
 template <typename T>
 Transition<T>::Transition(const RateFunction<T> &eta, const std::vector<double> &hidden_states, double rho) :
-    eta(&eta), _hs(hidden_states), rho(rho), M(hidden_states.size()), I(M, M), Phi(M - 1, M - 1)
+    eta(&eta), _hs(hidden_states), rho(rho), M(hidden_states.size()), I(4, 4), Phi(M - 1, M - 1)
 {
     I.setIdentity();
     Phi.setZero();
@@ -87,23 +87,23 @@ void Transition<T>::compute(void)
             else if (k == j)
             {
                 r = expm(0, k)(0, 0);
-                for (auto i : {0, 1, 2})
+                for (int i = 0; i < 3; ++i)
                     r += expm(0, k - 1)(0, i) * expm(k - 1, k)(i, 3);
             }
             else
             {
-                p_coal = exp(-(R->operator()(_hs[k - 1]) - R->operator()(_hs[j])));
+                p_coal = exp(-((*R)(_hs[k - 1]) - (*R)(_hs[j])));
                 if (k < M - 1)
                 {
                     // Else d[k] = +inf, coalescence in [d[k-1], +oo) is assured.
-                    p_coal *= -expm1(-(R->operator()(_hs[k]) - R->operator()(_hs[k - 1])));
+                    p_coal *= -expm1(-((*R)(_hs[k]) - (*R)(_hs[k - 1])));
                 }
-                r = expm(0, j).block(0, 1, 1, 2).sum() * p_coal;
+                r = (expm(0, j)(0, 1) + expm(0, j)(0, 2)) * p_coal;
             }
-        Phi(j - 1, k - 1) = r;
+            Phi(j - 1, k - 1) = dmax(r, 1e-16);
         }
     // Normalize because small errors might throw off the fwd-backward algorithm later on
-    Phi = Phi.array().colwise() / Phi.array().rowwise().sum();
+    // Phi = Phi.array().colwise() / Phi.array().rowwise().sum();
 }
 
 template <typename T>
@@ -142,7 +142,7 @@ Matrix<T> Transition<T>::expm(int i, int j)
         else
         {
             c_rho = rho * (_hs[j] - _hs[i]);
-            c_eta = R->operator()(_hs[j]) - R->operator()(_hs[i]);
+            c_eta = (*R)(_hs[j]) - (*R)(_hs[i]);
             /*
             AdMatrix A = c_rho * A_rho.cast<adouble>() + c_eta * A_eta.cast<adouble>();
             Eigen::HouseholderQR<AdMatrix> qr(A);

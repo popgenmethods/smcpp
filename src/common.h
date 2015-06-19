@@ -143,9 +143,22 @@ inline void fill_jacobian(const adouble &ll, double* outjac)
     Eigen::Map<Eigen::Matrix<double, Eigen::Dynamic, 1>, Eigen::RowMajor> _jac(outjac, d.rows());
     _jac = d;
 }
-inline void store_matrix(Matrix<double> &M, double* out)
+inline void store_matrix(Matrix<double> *M, double* out)
 {
-    Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>::Map(out, M.rows(), M.cols()) = M;
+    Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>::Map(out, M->rows(), M->cols()) = *M;
+}
+
+inline double dmin(double a, double b) { return std::min(a, b); }
+inline double dmax(double a, double b) { return std::max(a, b); }
+
+inline adouble dmin(adouble a, adouble b)
+{
+    return (a + b - myabs(a - b)) / 2;
+}
+
+inline adouble dmax(adouble a, adouble b)
+{
+    return (a + b + myabs(a - b)) / 2;
 }
 
 #endif

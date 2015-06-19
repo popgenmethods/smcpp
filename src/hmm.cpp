@@ -1,6 +1,5 @@
 #include "hmm.h"
 #include <csignal>
-#include <gperftools/profiler.h>
 
 HMM::HMM(Eigen::Matrix<int, Eigen::Dynamic, 2> obs, const int block_size,
         const Vector<adouble> *pi, const Matrix<adouble> *transition, 
@@ -8,11 +7,25 @@ HMM::HMM(Eigen::Matrix<int, Eigen::Dynamic, 2> obs, const int block_size,
     obs(obs), block_size(block_size), 
     pi(pi), transition(transition), emission(emission),
     M(pi->rows()), Ltot(ceil(obs.col(0).sum() / block_size)), 
-    B(M, Ltot), alpha_hat(M, Ltot), beta_hat(M, Ltot), gamma(M, Ltot), xisum(M, M), c(Ltot) {}
+    B(M, Ltot), alpha_hat(M, Ltot), beta_hat(M, Ltot), gamma(M, Ltot), xisum(M, M), c(Ltot) 
+{ }
 
 double HMM::loglik()
 {
-    return c.array().log().sum();
+    double ret = c.array().log().sum();
+    domain_error(ret);
+    return ret;
+}
+
+void HMM::domain_error(double ret)
+{
+    if (isinf(ret) or isnan(ret))
+    {
+        std::cout << pi->template cast<double>() << std::endl << std::endl;
+        std::cout << transition->template cast<double>() << std::endl << std::endl;
+        std::cout << emission->template cast<double>() << std::endl << std::endl;
+        throw std::domain_error("badness encountered");
+    }
 }
 
 /*
@@ -147,5 +160,7 @@ adouble HMM::Q(void)
     adouble r1 = (gam.col(0) * pi->array().log()).sum();
     adouble r2 = (gam * B.array().log()).sum();
     adouble r3 = (xis * transition->array().log()).sum();
-    return r1 + r2 + r3;
+    adouble ret = r1 + r2 + r3;
+    domain_error(toDouble(ret));
+    return ret;
 }

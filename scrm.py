@@ -10,6 +10,10 @@ import itertools
 import logging
 import sys
 
+from Bio import Phylo
+from cStringIO import StringIO
+import networkx as nx
+
 logger = logging.getLogger(__name__)
 
 scrm = sh.Command(os.environ['SCRM_PATH'])
@@ -22,23 +26,45 @@ def print_data_stats(positions, haps):
     i = np.argmin(gaps)
     print(positions[(i-3):(i+3)])
 
-def parse_scrm(n, L, output):
-    cmd_line, seed, _, _, segsites = [line.strip() for line in itertools.islice(output, 5)]
+def parse_scrm(n, L, output, include_trees):
+    cmd_line, seed, _, _ = [line.strip() for line in itertools.islice(output, 4)]
+    coal_times = []
+    ts = 0
+    for line in output:
+        if line.startswith("segsites"):
+            break
+        if not include_trees:
+            continue
+        l = line.strip()
+        k = l.index("(") - 1
+        span = int(l[1:k])
+        ts += span
+        tree = Phylo.to_networkx(Phylo.read(StringIO(l[k:]), "newick"))
+        leaves = {node.confidence: node for node in tree.nodes() 
+                if node.confidence}
+        dsts = {}
+        all_dsts = nx.shortest_path_length(tree, weight='weight')
+        for n1, n2 in itertools.combinations(leaves, 2):
+            dsts[frozenset([n1, n2])] = all_dsts[leaves[n1]][leaves[n2]] / 2.0
+        coal_times.append((span, dsts))
     positions = next(output).strip()
     if positions:
         positions = (L * np.array([float(x) for x in positions.split(" ")[1:]])).astype('int')
         # ignore trailing newline
         haps = [bitarray.bitarray(str(line).strip()) for line in output if line.strip()] 
-        return (L, positions, haps)
+        ret = (L, positions, haps)
+        if include_trees:
+            ret += (coal_times,)
+        return ret
     return None
 
-def simulate(n, N0, theta, rho, L, demography=[]):
+def simulate(n, N0, theta, rho, L, demography=[], include_trees=False):
     r = 4 * N0 * rho * (L - 1)
     t = 4 * N0 * theta * L
     args = [n, 1, '-p', int(math.log10(L)) + 1, '-t', t, '-r', r, L, '-l', 
-            10000, '-seed', np.random.randint(0, sys.maxint)] + demography
+            100000, '-T', '-seed', np.random.randint(0, sys.maxint)] + demography
     output = scrm(*args, _iter=True)
-    return parse_scrm(n, L, output)
+    return parse_scrm(n, L, output, include_trees)
 
 def sfs(n, M, N0, theta, demography=[]):
     t = 4 * N0 * theta
@@ -57,7 +83,7 @@ def hmm_data_format(dataset, distinguished_cols):
     # the format accepted by the inference code
     ret = []
     p = 0
-    L, positions, haps = dataset
+    L, positions, haps = dataset[:3]
     for i, pos in enumerate(positions):
         pp = pos - p
         if pp == 0:
@@ -71,7 +97,7 @@ def hmm_data_format(dataset, distinguished_cols):
         p = pos
     if L > pos:
         ret.append([L - pos, 0, 0])
-    return np.array(ret)
+    return np.array(ret, dtype=np.int32)
 
 if __name__ == "__main__":
     L = 1000000

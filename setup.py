@@ -16,9 +16,9 @@ extensions = [
             "_pypsmcpp",
             sources=["src/_pypsmcpp.pyx"] + cpps,
             language="c++",
-            libraries=["profiler"],
+            libraries=["gomp"],
             include_dirs=["/usr/include/eigen3", "/usr/local/include/eigen3", np.get_include()],
-            extra_compile_args=["-O3", "-std=c++11", "-Wfatal-errors", "-Wno-unused-variable", "-Wno-unused-function"], 
+            extra_compile_args=["-O3", "-std=c++11", "-Wfatal-errors", "-Wno-unused-variable", "-Wno-unused-function", "-fopenmp"], 
             # extra_compile_args=["-O0", "-g", "-std=c++11", "-Wfatal-errors", "-Wno-unused-variable", "-Wno-unused-function", "-D_GLIBCXX_DEBUG"], 
             ),
         Extension(
@@ -26,8 +26,9 @@ extensions = [
             # sources=["src/_pypsmcpp.pyx", "src/conditioned_sfs.cpp", "src/hmm.cpp"],
             sources=["src/_expm.pyx"],
             language="c++",
+            libraries=["gomp"],
             include_dirs=["/usr/include/eigen3", "/usr/local/include/eigen3", np.get_include()],
-            extra_compile_args=["-O3", "-DNDEBUG", "-std=c++11", "-Wfatal-errors", "-Wno-unused-variable", "-Wno-unused-function"],
+            extra_compile_args=["-O3", "-DNDEBUG", "-std=c++11", "-Wfatal-errors", "-Wno-unused-variable", "-Wno-unused-function", "-fopenmp"],
             ),
         ]
 
