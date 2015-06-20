@@ -45,13 +45,11 @@ cdef class PyInferenceManager:
         cdef int[:, ::1] vob
         cdef vector[int*] obs
         cdef int L = observations[0].shape[0]
-        print("cyL", L, observations[0].sum(axis=0))
         for ob in observations:
             if np.isfortran(ob):
                 raise ValueError("Input arrays must be C-ordered")
             if ob.shape[0] != L:
                 raise ValueError("Input data sets should all have the same shape")
-            print(ob[:20])
             vob = ob
             obs.push_back(&vob[0, 0])
         self._num_hmms = len(observations)
@@ -64,6 +62,8 @@ cdef class PyInferenceManager:
                 num_threads, num_samples)
 
     def setParams(self, params, ad):
+        # if not np.all(np.array(params) > 0):
+            # raise ValueError("All parameters must be strictly positive")
         self._J = len(params)
         self._K = len(params[0])
         cdef ParameterVector p = make_params(params)

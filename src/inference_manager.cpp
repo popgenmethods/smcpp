@@ -46,6 +46,7 @@ InferenceManager::InferenceManager(
         ob.col(1) = (n + 1) * tmp.col(1) + tmp.col(2);
         hmms.emplace_back(ob, block_size, &pi, &transition, &emission);
     }
+}
 
 
 template <typename T>

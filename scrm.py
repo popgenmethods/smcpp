@@ -18,6 +18,18 @@ logger = logging.getLogger(__name__)
 
 scrm = sh.Command(os.environ['SCRM_PATH'])
 
+def demography_from_params(params):
+    demography = []
+    ct = 0.0
+    for ai, bi, si in zip(*params):
+        si2 = si * 0.5
+        beta = (ai - bi) / si2
+        demography += ['-eN', ct, np.exp(ai)]
+        if beta != 0.0:
+            demography += ['-eG', ct, beta]
+        ct += si2
+    return demography
+
 def print_data_stats(positions, haps):
     gaps = positions[1:] - positions[:-1]
     print("Minimum gap: %d" % np.min(gaps))
@@ -62,7 +74,7 @@ def simulate(n, N0, theta, rho, L, demography=[], include_trees=False):
     r = 4 * N0 * rho * (L - 1)
     t = 4 * N0 * theta * L
     args = [n, 1, '-p', int(math.log10(L)) + 1, '-t', t, '-r', r, L, '-l', 
-            100000, '-T', '-seed', np.random.randint(0, sys.maxint)] + demography
+            1000, '-T', '-seed', np.random.randint(0, sys.maxint)] + demography
     output = scrm(*args, _iter=True)
     return parse_scrm(n, L, output, include_trees)
 
