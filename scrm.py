@@ -18,16 +18,27 @@ logger = logging.getLogger(__name__)
 
 scrm = sh.Command(os.environ['SCRM_PATH'])
 
+def splitter(_iter, key="//"):
+    def f(line):
+        if line.strip() == key:
+            f.i += 1
+        return f.i
+    f.i = 0
+    for (k, subiter) in itertools.groupby(_iter, f):
+        yield (k, (line for line in subiter if line.strip() != key))
+
 def demography_from_params(params):
     demography = []
     ct = 0.0
-    for ai, bi, si in zip(*params):
+    z = list(zip(*params))
+    for ai, bi, si in z[:-1]:
         si2 = si * 0.5
         beta = (ai - bi) / si2
         demography += ['-eN', ct, np.exp(ai)]
         if beta != 0.0:
             demography += ['-eG', ct, beta]
         ct += si2
+    demography += ['-eN', ct, np.exp(z[-1][0])]
     return demography
 
 def print_data_stats(positions, haps):
@@ -39,7 +50,6 @@ def print_data_stats(positions, haps):
     print(positions[(i-3):(i+3)])
 
 def parse_scrm(n, L, output, include_trees):
-    cmd_line, seed, _, _ = [line.strip() for line in itertools.islice(output, 4)]
     coal_times = []
     ts = 0
     for line in output:
@@ -76,9 +86,33 @@ def simulate(n, N0, theta, rho, L, demography=[], include_trees=False):
     args = [n, 1, '-p', int(math.log10(L)) + 1, '-t', t, '-r', r, L, '-l', 
             1000, '-T', '-seed', np.random.randint(0, sys.maxint)] + demography
     output = scrm(*args, _iter=True)
+    cmd_line, seed, _, _ = [line.strip() for line in itertools.islice(output, 4)]
     return parse_scrm(n, L, output, include_trees)
 
-def sfs(n, M, N0, theta, demography=[]):
+def distinguished_sfs(n, M, N0, theta, demography):
+    t = 4 * N0 * theta
+    args = [n, M, '-t', t] + demography
+    cmd = os.environ['SCRM_PATH'] + " " + " ".join(map(str, args))
+    output = scrm(*args, _iter=True)
+    avgsfs = np.zeros([3, n - 1], dtype=float)
+    for k, lines in splitter(output):
+        if k == 0:
+            continue
+        sfs = np.zeros([3, n - 1], dtype=float)
+        ss = next(lines)
+        segsites = int(ss.strip().split(" ")[1])
+        if segsites == 0:
+            avgsfs[0, 0] += 1 / M
+            continue
+        next(lines) # positions
+        bits = np.array([[int(x) for x in line.strip()] for line in lines if line.strip()])
+        assert (n, segsites) == bits.shape
+        for col in range(segsites):
+            sfs[bits[:2, col].sum(), bits[2:, col].sum()] += 1
+        avgsfs += sfs / M
+    return avgsfs
+
+def sfs(n, M, N0, theta, demography):
     t = 4 * N0 * theta
     args = [n, M, '-t', t, '-oSFS'] + demography
     cmd = os.environ['SCRM_PATH'] + " " + " ".join(map(str, args))

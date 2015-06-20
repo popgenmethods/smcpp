@@ -5,28 +5,46 @@ import multiprocessing
 import scrm
 
 np.set_printoptions(suppress=True)
-M = 100
+M = 1000
 THREADS = 2
 theta = 1e-8
 
 def _scrm_sfs(args):
-    return scrm.sfs(*args)
+    return scrm.distinguished_sfs(*args)
+
+def test_two_period0():
+    a = np.log([1000, 100, 400])
+    b = np.log([100, 100, 400])
+    s = np.array([1.0, 1.0, 1.0])
+    n = 4
+    N0 = 10000
+    sfs, rsfs = _pypsmcpp.sfs([a, b, s], n - 2, M, 0., np.inf, THREADS, 4 * N0 * theta / 2.0, jacobian=False)
+    L = 10000
+    demography = scrm.demography_from_params([a, b, s])
+    print(demography)
+    args = (n, L, N0, theta, demography)
+    # scrm_sfs = np.mean(list(multiprocessing.Pool(THREADS).map(_scrm_sfs, [args for _ in range(THREADS)])), axis=0) / L
+    scrm_sfs = scrm.distinguished_sfs(*args)
+    print("")
+    print(scrm_sfs)
+    print(sfs)
+    assert False
 
 def test_two_period1():
-    a = np.log([8.0, 8.0, 2.5, 2.5, 4.0, 4.0])
-    b = a - 1.5
+    a = np.log([8.0, 8.0, .75, .75, 4.0, 4.0])
+    b = a + .5
     s = np.array([0.5] * 6) * 2.0
     n = 10
     N0 = 10000
     sfs, rsfs = _pypsmcpp.sfs([a, b, s], n - 2, M, 0., np.inf, THREADS, 4 * N0 * theta / 2.0, jacobian=False)
-    L = 1000000
+    L = 100000
     demography = scrm.demography_from_params([a, b, s])
     print(demography)
     args = (n, L, N0, theta, demography)
     scrm_sfs = np.mean(list(multiprocessing.Pool(THREADS).map(_scrm_sfs, [args for _ in range(THREADS)])), axis=0) / L
     print("")
     print(rsfs)
-    print(scrm_sfs)
+    print(np.abs(rsfs - scrm_sfs))
     assert False
 
 def test_two_period():
