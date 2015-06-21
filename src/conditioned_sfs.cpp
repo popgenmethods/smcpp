@@ -177,13 +177,14 @@ void ConditionedSFS<T>::compute(int num_samples, T t1, T t2)
     // Above tau there are between 2 and n + 1.
 	// For some reason it does not like initializing these as AdVectors. So use
 	// the matrix class instead.
-    Vector<T> tjj_above(n), tjj_below(n + 1), sfs_tau(n, 1), etnk(n + 1), etnk_below_sample(n + 1);
+    Vector<T> tjj_above(n), tjj_below(n + 1), sfs_tau(n, 1), etnk(n + 1), 
+        etnk_below_sample(n + 1), etnk_above_sample(n);
+    Vector<T> etnk_below(n + 1), etnk_above(n);
     Vector<T> etnk_avg(n + 1), tjj_below_avg(n + 1), tjj_above_avg(n);
 	Matrix<T> eM(n + 1, n + 1);
     int m;
     T y, left, right, intg;
     etnk_avg.setZero();
-    etnk_below_sample.setZero();
     tjj_below_avg.setZero();
     Eigen::VectorXd der;
     Matrix<T> tmpmat;
@@ -200,11 +201,13 @@ void ConditionedSFS<T>::compute(int num_samples, T t1, T t2)
     std::sort(ys.begin(), ys.end());
     std::vector<int> eis(num_samples);
     std::vector<T> taus = (*Rinv)(ys);
-    const int S = 1000;
+    const int S = 10000;
     for (m = 0; m < num_samples; ++m)
     {
         tau = taus[m];
         y = ys[m];
+        etnk_below_sample.setZero();
+        etnk_above_sample.setZero();
         for (int s = 0; s < S; ++s)
         {
             T t = 0, R_last = 0, t_new;
@@ -226,7 +229,20 @@ void ConditionedSFS<T>::compute(int num_samples, T t1, T t2)
                 t = t_new;
                 k--;
             }
+            k--; // Conditioned coalescence happens
+            t = tau;
+            R_last = (*R)(tau);
+            while (k > 1)
+            {
+                double rate = k * (k - 1) / 2.0;
+                R_last += rand_exp() / rate;
+                t_new = (*Rinv)(R_last);
+                etnk_above_sample(k - 2) += t_new - t;
+            }
         }
+        etnk_below_sample /= S;
+        etnk_above_sample /= S;
+        /*
         // below via quadrature
         Vector<T> gauss_tjj_below(n + 1), gauss_tjj_above(n);
         std::vector<T> eta_ts = R->getTimes();
@@ -268,17 +284,22 @@ void ConditionedSFS<T>::compute(int num_samples, T t1, T t2)
             left = dmax(eta_ts[K - 2], tau);
             gauss_tjj_above(j - 2) += exp(-hs.rate * ((*R)(left) - y)) / hs.rate / (*feta)(left);
         }
+        */
+        /*
         compute_ETnk_below(gauss_tjj_below);
         tjj_above = gauss_tjj_above;
         etnk = tK * ETnk_below.row(n).transpose();
         etnk_avg += etnk;
-        csfs_below.block(0, 1, 1, n) += etnk.transpose() * D_not_subtend_below * P_undist / num_samples;
-        csfs_below.block(1, 0, 1, n + 1) += etnk.transpose() * D_subtend_below * P_dist / num_samples;
+        */
+        etnk_below = tK * etnk_below_sample;
+        csfs_below.block(0, 1, 1, n) += etnk_below.transpose() * D_not_subtend_below * P_undist / num_samples;
+        csfs_below.block(1, 0, 1, n + 1) += etnk_below.transpose() * D_subtend_below * P_dist / num_samples;
         // Compute sfs above using polanski-kimmel + matrix exponential
         // Get the correct linear-interpolated matrix exponential
         eM = moran_interp.interpolate<T>(y);
         // Wnbj is the Polanski-Kimmel matrix of coefficients W_(n + 1, b, j)
-        sfs_tau = Wnbj * tjj_above; // n-vector; sfs_tau[b] = prob. lineage subtends b + 1
+        // sfs_tau = Wnbj * tjj_above; // n-vector; sfs_tau[b] = prob. lineage subtends b + 1
+        sfs_tau = tK.block(0, 0, n, n) * etnk_above_sample;
         // If a = 0 (neither distinguished lineage is derived) then immediately after
         // tau, it's sum_b p(|B|=b at tau) * ({1,2} not a subset of B) * p(|B| -> (0, k))
         // Recall that the rate matrix for the a = 0 case is the reverse of the a = 2 case,

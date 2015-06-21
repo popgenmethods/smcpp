@@ -17,7 +17,7 @@ num_samples = 20
 np.set_printoptions(linewidth=120, precision=6, suppress=True)
 
 # 1. Generate some data. 
-n = 2
+n = 4
 N0 = 10000
 rho = 1e-8
 theta = 1e-8
@@ -120,7 +120,8 @@ while True:
     im.setParams((a, b, s), True)
     # im.setDebug(True)
     im.Estep()
-    im.seed = np.random.randint(0, sys.maxint)
+    if i % 10 == 0:
+        im.seed = np.random.randint(0, sys.maxint)
     # print(im.gammas())
     ll = loglik(x0)
     print(" - New loglik:" + str(ll))

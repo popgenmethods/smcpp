@@ -5,7 +5,7 @@ import multiprocessing
 import scrm
 
 np.set_printoptions(suppress=True)
-M = 1000
+M = 10000
 THREADS = 2
 theta = 1e-8
 
@@ -13,13 +13,15 @@ def _scrm_sfs(args):
     return scrm.distinguished_sfs(*args)
 
 def test_two_period0():
-    a = np.log([1000, 100, 400])
-    b = np.log([100, 100, 400])
+    # a = np.log([200, 100, 300])
+    # b = np.log([100, 100, 400])
+    a = np.array([0., 0, 0])
+    b = np.array([0., 0, 0])
     s = np.array([1.0, 1.0, 1.0])
     n = 4
     N0 = 10000
     sfs, rsfs = _pypsmcpp.sfs([a, b, s], n - 2, M, 0., np.inf, THREADS, 4 * N0 * theta / 2.0, jacobian=False)
-    L = 10000
+    L = 1000000
     demography = scrm.demography_from_params([a, b, s])
     print(demography)
     args = (n, L, N0, theta, demography)
@@ -28,6 +30,9 @@ def test_two_period0():
     print("")
     print(scrm_sfs)
     print(sfs)
+    print("")
+    print(_pypsmcpp.reduced_sfs(scrm_sfs))
+    print(rsfs)
     assert False
 
 def test_two_period1():
