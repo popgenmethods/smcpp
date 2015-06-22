@@ -1,5 +1,7 @@
 # Complete example showing how to use the package for inference
 from __future__ import division
+from random import randint
+from time import sleep
 import numpy as np
 import scipy.optimize
 import pprint
@@ -7,23 +9,25 @@ import multiprocessing
 import sys
 import itertools
 from collections import Counter
+import argparse
 import sys
 
 import psmcpp.scrm, psmcpp.inference, psmcpp.bfgs, psmcpp._pypsmcpp
 
-num_threads = 2
+num_threads = 8
 block_size = 20
-num_samples = 20
+num_samples = 25
 np.set_printoptions(linewidth=120, precision=6, suppress=True)
 
 # 1. Generate some data. 
-n = 4
-N0 = 10000
+n = int(sys.argv[1])
+em_iters = int(sys.argv[2])
+N0 = 3500
 rho = 1e-8
 theta = 1e-8
-L = 2000000
-a = np.log([1000, 100, 400])
-b = np.log([100, 100, 400])
+L = 10000000
+a = np.log([1.0, 10**-4, 0.1])
+b = np.log([10**-2, 10**-4, 0.1])
 s = np.array([1.0, 1.0, 1.0])
 true_parameters = (a, b, s)
 print("true parameters")
@@ -96,7 +100,7 @@ s = [0.5] * K
 x0 = np.random.normal(3.0, 0.8, 2 * K)
 a, b = x0.reshape((2, K))
 print(x0)
-bounds = ((np.log(0.10001), np.log(10000.0001)),) * K + ((np.log(0.1), np.log(10000)),) * K 
+bounds = ((np.log(0.000001), np.log(10.0001)),) * K + ((np.log(.000002), np.log(10.0002)),) * K 
 i = 0
 # hs1 = im.balance_hidden_states((a, b, s), 5)
 # im = psmcpp._pypsmcpp.PyInferenceManager(n - 2, obs_list, hs1,
@@ -108,7 +112,7 @@ im.Estep()
 # tb = trueB(data[3], hs1)
 # print(tb)
 llold = loglik(x0)
-while True:
+while i < em_iters:
     res = scipy.optimize.fmin_l_bfgs_b(f, x0, fprime, bounds=bounds, factr=1e14, disp=False)
     # res = scipy.optimize.fmin_bfgs(f, x0, fprime, disp=True)
     xlast = x0.reshape((2, K))
@@ -137,4 +141,5 @@ while True:
     #    im.Estep()
     #    print("new hidden states", hs1)
     i += 1
-
+sleep(randint(1,20))
+open("output.%d.txt" % n, "a").write(str(x0) + "\n")
