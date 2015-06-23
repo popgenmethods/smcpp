@@ -31,7 +31,12 @@ cdef extern from "inference_manager.h":
         vector[adouble] Q(double)
         double R(const ParameterVector, double t)
         bint debug
+        vector[pMatrixD] getAlphas()
+        vector[pMatrixD] getBetas()
         vector[pMatrixD] getGammas()
+        Matrix[double] getPi()
+        Matrix[double] getTransition()
+        Matrix[double] getEmission()
 
 cdef extern from "conditioned_sfs.h":
     void set_seed(long long)

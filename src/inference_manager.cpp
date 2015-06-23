@@ -3,16 +3,16 @@
 template <typename T>
 Vector<T> compute_initial_distribution(const RateFunction<T> &eta, const std::vector<double> &hidden_states)
 {
-    auto Rinv = eta.getRinv();
+    auto R = eta.getR();
     int M = hidden_states.size() - 1;
     Vector<T> pi(M);
     for (int m = 0; m < M - 1; ++m)
     {
-        pi(m) = dmax(exp(-Rinv->operator()(hidden_states[m])) - exp(-Rinv->operator()(hidden_states[m + 1])), 1e-16);
+        pi(m) = dmax(exp(-(*R)(hidden_states[m])) - exp(-(*R)(hidden_states[m + 1])), 1e-16);
         assert(pi(m) > 0.0); 
         assert(pi(m) < 1.0); 
     }
-    pi(M - 1) = dmax(exp(-Rinv->operator()(hidden_states[M - 1])), 1e-16);
+    pi(M - 1) = dmax(exp(-(*R)(hidden_states[M - 1])), 1e-16);
     pi /= pi.sum();
     return pi;
 }
@@ -121,6 +121,26 @@ std::vector<adouble> InferenceManager::Q(double lambda)
             });
 }
 
+std::vector<Matrix<double>*> InferenceManager::getAlphas()
+{
+    std::vector<Matrix<double>*> ret;
+    for (auto &hmm : hmms)
+    {
+        ret.push_back(&hmm.alpha_hat);
+    }
+    return ret;
+}
+
+std::vector<Matrix<double>*> InferenceManager::getBetas()
+{
+    std::vector<Matrix<double>*> ret;
+    for (auto &hmm : hmms)
+    {
+        ret.push_back(&hmm.beta_hat);
+    }
+    return ret;
+}
+
 std::vector<Matrix<double>*> InferenceManager::getGammas()
 {
     std::vector<Matrix<double>*> ret;
@@ -129,6 +149,21 @@ std::vector<Matrix<double>*> InferenceManager::getGammas()
         ret.push_back(&hmm.gamma);
     }
     return ret;
+}
+
+Matrix<double> InferenceManager::getPi(void)
+{
+    return hmms[0].pi->cast<double>();
+}
+
+Matrix<double> InferenceManager::getTransition(void)
+{
+    return hmms[0].transition->cast<double>();
+}
+
+Matrix<double> InferenceManager::getEmission(void)
+{
+    return hmms[0].emission->cast<double>();
 }
 
 std::vector<double> InferenceManager::loglik(double lambda)

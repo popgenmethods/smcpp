@@ -9,58 +9,33 @@ import itertools
 from collections import Counter
 import sys
 
-import psmcpp.scrm, psmcpp.inference, psmcpp.bfgs, psmcpp._pypsmcpp
+import psmcpp.scrm, psmcpp.inference, psmcpp.bfgs, psmcpp._pypsmcpp, psmcpp.util
 
 num_threads = 2
-block_size = 20
-num_samples = 20
+block_size = 10
+num_samples = 1
 np.set_printoptions(linewidth=120, precision=6, suppress=True)
 
 # 1. Generate some data. 
-n = 4
+n = 10
 N0 = 10000
 rho = 1e-8
 theta = 1e-8
 L = 2000000
-a = np.log([1000, 100, 400])
-b = np.log([100, 100, 400])
-s = np.array([1.0, 1.0, 1.0])
+a = np.log([10, 2, 5])
+b = np.log([1, 2, 4])
+s = np.array([5000.0, 20000.0, 70000.]) / 25.0 / N0
 true_parameters = (a, b, s)
 print("true parameters")
 print(np.array(true_parameters))
 demography = psmcpp.scrm.demography_from_params(true_parameters)
 # Generate 3 datasets from this code by distinguishing different columns
-data = psmcpp.scrm.simulate(n, N0, theta, rho, L, demography, include_trees=False)
-obs_list = [psmcpp.scrm.hmm_data_format(data, cols) for cols in ((0,1),)]
-
-def grouper(iterable, n, fillvalue=None):
-    "Collect data into fixed-length chunks or blocks"
-    # grouper('ABCDEFG', 3, 'x') --> ABC DEF Gxx
-    args = [iter(iterable)] * n
-    return itertools.izip_longest(fillvalue=fillvalue, *args)
-
-# Format trees
-def tree_obs_iter(trees):
-    fs = frozenset([1, 2])
-    for sec, d in trees:
-        for i in range(sec):
-            yield d[fs]
-
-def trueB(trees, hs):
-    tb = []
-    M = len(hs) - 1
-    for block in grouper(tree_obs_iter(data[3]), block_size):
-        a = np.zeros([M, 1])
-        c = Counter(block)
-        s = sum(c.values())
-        for k in c:
-            ip = np.searchsorted(hs, k) - 1
-            a[ip] = 1. * c[k] / s
-        tb.append(a)
-    return np.array(tb).T
+data = psmcpp.scrm.simulate(n, N0, theta, rho, L, demography, include_coalescence_times=True)
+obs_pairs = ((0, 1),)
+obs_list = [psmcpp.scrm.hmm_data_format(data, cols) for cols in obs_pairs]
 
 # 4. Optimize this function
-hidden_states = np.array([0., 1.0, 2.0, 3.0, 4.0, np.inf])
+hidden_states = np.array([0., 100., 500., 1000., 5000., 10000., 50000., 100000., np.inf]) / 25.0
 im = psmcpp._pypsmcpp.PyInferenceManager(n - 2, obs_list, hidden_states,
         4.0 * N0 * theta / 2.0, 4.0 * N0 * rho * block_size,
         block_size, num_threads, num_samples)
@@ -92,7 +67,7 @@ def loglik(x):
     return -np.mean(ll)
 
 K = 6
-s = [0.5] * K
+s = [1.5] * K
 x0 = np.random.normal(3.0, 0.8, 2 * K)
 a, b = x0.reshape((2, K))
 print(x0)
@@ -108,7 +83,7 @@ im.Estep()
 # tb = trueB(data[3], hs1)
 # print(tb)
 llold = loglik(x0)
-while True:
+while i < 200:
     res = scipy.optimize.fmin_l_bfgs_b(f, x0, fprime, bounds=bounds, factr=1e14, disp=False)
     # res = scipy.optimize.fmin_bfgs(f, x0, fprime, disp=True)
     xlast = x0.reshape((2, K))
@@ -122,7 +97,6 @@ while True:
     im.Estep()
     if i % 10 == 0:
         im.seed = np.random.randint(0, sys.maxint)
-    # print(im.gammas())
     ll = loglik(x0)
     print(" - New loglik:" + str(ll))
     print(" - Old loglik:" + str(llold))
@@ -137,4 +111,6 @@ while True:
     #    im.Estep()
     #    print("new hidden states", hs1)
     i += 1
-
+for (l1, l2), gamma in zip(obs_pairs, im.gammas()):
+    pd = psmcpp.inference.posterior_decode_score(l1, l2, block_size, hidden_states, gamma, data[3])
+    print(pd)

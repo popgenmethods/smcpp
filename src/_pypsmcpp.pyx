@@ -29,6 +29,17 @@ cdef ParameterVector make_params(params):
         ret.push_back(p)
     return ret
 
+cdef _make_em_matrix(vector[pMatrixD] mats):
+    cdef double[:, ::1] v
+    ret = []
+    for i in range(mats.size()):
+        m = mats[i][0].rows()
+        n = mats[i][0].cols()
+        ary = aca(np.zeros([m, n]))
+        v = ary
+        store_matrix(mats[i], &v[0, 0])
+        ret.append(ary)
+    return ret
 
 cdef class PyInferenceManager:
     cdef InferenceManager *_im
@@ -36,6 +47,7 @@ cdef class PyInferenceManager:
     cdef int _num_hmms
     cdef object _moran_mats
     cdef object _moran_ts
+    cdef object _observations
     cdef public long long seed
 
     def __cinit__(self, int n, observations, hidden_states, double theta, double rho, 
@@ -45,6 +57,7 @@ cdef class PyInferenceManager:
         cdef int[:, ::1] vob
         cdef vector[int*] obs
         cdef int L = observations[0].shape[0]
+        self._observations = observations
         for ob in observations:
             if np.isfortran(ob):
                 raise ValueError("Input arrays must be C-ordered")
@@ -60,6 +73,9 @@ cdef class PyInferenceManager:
                 MatrixInterpolator(n + 1, self._moran_ts, make_mats(self._moran_mats)), 
                 n, L, obs, hidden_states, theta, rho, block_size, 
                 num_threads, num_samples)
+
+    def getObservations(self):
+        return self._observations
 
     def setParams(self, params, ad):
         # if not np.all(np.array(params) > 0):
@@ -79,18 +95,44 @@ cdef class PyInferenceManager:
     def Estep(self):
         self._im.Estep()
 
+    def alphas(self):
+        return _make_em_matrix(self._im.getAlphas())
+
+    def betas(self):
+        return _make_em_matrix(self._im.getBetas())
+
     def gammas(self):
-        cdef vector[pMatrixD] gammas = self._im.getGammas()
+        return _make_em_matrix(self._im.getGammas())
+
+    def pi(self):
+        cdef Matrix[double] mat = self._im.getPi()
         cdef double[:, ::1] v
-        ret = []
-        for i in range(gammas.size()):
-            m = gammas[i][0].rows()
-            n = gammas[i][0].cols()
-            ary = aca(np.zeros([m, n]))
-            v = ary
-            store_matrix(gammas[i], &v[0, 0])
-            ret.append(ary)
-        return ret
+        m = mat.rows()
+        n = mat.cols()
+        ary = aca(np.zeros([m, n]))
+        v = ary
+        store_matrix(&mat, &v[0, 0])
+        return ary
+
+    def transition(self):
+        cdef Matrix[double] mat = self._im.getTransition()
+        cdef double[:, ::1] v
+        m = mat.rows()
+        n = mat.cols()
+        ary = aca(np.zeros([m, n]))
+        v = ary
+        store_matrix(&mat, &v[0, 0])
+        return ary
+
+    def emission(self):
+        cdef Matrix[double] mat = self._im.getEmission()
+        cdef double[:, ::1] v
+        m = mat.rows()
+        n = mat.cols()
+        ary = aca(np.zeros([m, n]))
+        v = ary
+        store_matrix(&mat, &v[0, 0])
+        return ary
 
     def _call_inference_func(self, func, lam):
         if func == "loglik":

@@ -14,9 +14,32 @@ from Bio import Phylo
 from cStringIO import StringIO
 import networkx as nx
 
+import util
+
 logger = logging.getLogger(__name__)
 
 scrm = sh.Command(os.environ['SCRM_PATH'])
+
+# Stuff related to posterior decoding
+# Format trees
+def tree_obs_iter(l1, l2, trees):
+    fs = frozenset([l1, l2])
+    for sec, d in trees:
+        for i in range(sec):
+            yield d[fs]
+
+def true_hidden_states(trees, distinguished_lineages):
+    tb = []
+    M = len(hs) - 1
+    for block in util.grouper(tree_obs_iter(trees), block_size):
+        a = np.zeros([M, 1])
+        c = Counter(block)
+        s = sum(c.values())
+        for k in c:
+            ip = np.searchsorted(hs, k) - 1
+            a[ip] = 1. * c[k] / s
+        tb.append(a)
+    return np.array(tb).T
 
 def splitter(_iter, key="//"):
     def f(line):
@@ -62,12 +85,11 @@ def parse_scrm(n, L, output, include_trees):
         span = int(l[1:k])
         ts += span
         tree = Phylo.to_networkx(Phylo.read(StringIO(l[k:]), "newick"))
-        leaves = {node.confidence: node for node in tree.nodes() 
-                if node.confidence}
+        leaves = {node.name: node for node in tree.nodes() if node.name}
         dsts = {}
         all_dsts = nx.shortest_path_length(tree, weight='weight')
         for n1, n2 in itertools.combinations(leaves, 2):
-            dsts[frozenset([n1, n2])] = all_dsts[leaves[n1]][leaves[n2]] / 2.0
+            dsts[frozenset([int(n1) - 1, int(n2) - 1])] = all_dsts[leaves[n1]][leaves[n2]] / 2.0
         coal_times.append((span, dsts))
     positions = next(output).strip()
     if positions:
@@ -80,14 +102,16 @@ def parse_scrm(n, L, output, include_trees):
         return ret
     return None
 
-def simulate(n, N0, theta, rho, L, demography=[], include_trees=False):
+def simulate(n, N0, theta, rho, L, demography=[], include_coalescence_times=False):
     r = 4 * N0 * rho * (L - 1)
     t = 4 * N0 * theta * L
     args = [n, 1, '-p', int(math.log10(L)) + 1, '-t', t, '-r', r, L, '-l', 
-            1000, '-T', '-seed', np.random.randint(0, sys.maxint)] + demography
+            1000, '-seed', np.random.randint(0, sys.maxint)] + demography
+    if include_coalescence_times:
+        args.append("-T")
     output = scrm(*args, _iter=True)
     cmd_line, seed, _, _ = [line.strip() for line in itertools.islice(output, 4)]
-    return parse_scrm(n, L, output, include_trees)
+    return parse_scrm(n, L, output, include_coalescence_times)
 
 def distinguished_sfs(n, M, N0, theta, demography):
     t = 4 * N0 * theta

@@ -44,7 +44,12 @@ class InferenceManager
     }
 
     bool debug;
+    std::vector<Matrix<double>*> getAlphas();
+    std::vector<Matrix<double>*> getBetas();
     std::vector<Matrix<double>*> getGammas();
+    Matrix<double> getPi();
+    Matrix<double> getTransition();
+    Matrix<double> getEmission();
 
     private:
     // Passed-in parameters

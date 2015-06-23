@@ -1,23 +1,20 @@
+from __future__ import division
 import numpy as np
 import logging
-import moran_model
 
 logger = logging.getLogger(__name__)
 
-import _pypsmcpp
+from _pypsmcpp import PyInferenceManager
+from util import grouper
+from scrm import tree_obs_iter
 
-def loglik(params, n, S, M, obs_list, hidden_states, rho, theta, 
-        reg, numthreads=1, seed=None, viterbi=False, jacobian=False):
-    '''Return probability of observing <obs> under demography <demo>, as
-    computed by forward algorithm.'''
-    for obs in obs_list:
-        _validate_obs(n, obs)
-    return _pypsmcpp.log_likelihood(params, n, S, M, obs_list, hidden_states, rho, theta, 
-            reg, numthreads, seed, viterbi, jacobian)
+def posterior_decode_score(l1, l2, block_size, hidden_states, gamma, true_coal_times):
+    st = np.arange(len(hidden_states) - 1)[:, None]
+    ret = []
+    for gamma_col, block in zip(gamma.T, grouper(tree_obs_iter(l1, l2, true_coal_times), block_size)):
+        m = np.searchsorted(hidden_states, block) - 1
+        ret.append(((st - m)**2 * gamma_col[:, None]).mean())
+    return ret
 
-def _validate_obs(n, obs):
-    sfs = obs[:, 1:]
-    os = sfs.sum(axis=1)
-    mx = np.max(sfs, axis=0)
-    if any([not np.all([0 <= os, os < n + 2]), mx[0] < 0, mx[0] > 2, mx[1] < 0, mx[1] > n]):
-        raise RuntimeError("invalid?")
+
+
