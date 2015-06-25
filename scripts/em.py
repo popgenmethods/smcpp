@@ -11,17 +11,17 @@ import sys
 
 import psmcpp.scrm, psmcpp.inference, psmcpp.bfgs, psmcpp._pypsmcpp, psmcpp.util
 
-num_threads = 2
-block_size = 10
-num_samples = 1
+num_threads = 16
+block_size = 20
+num_samples = 20
 np.set_printoptions(linewidth=120, precision=6, suppress=True)
 
 # 1. Generate some data. 
-n = 10
+n = int(sys.argv[1])
 N0 = 10000
 rho = 1e-8
 theta = 1e-8
-L = 2000000
+L = 10000000
 a = np.log([10, 2, 5])
 b = np.log([1, 2, 4])
 s = np.array([5000.0, 20000.0, 70000.]) / 25.0 / N0
@@ -31,12 +31,16 @@ print(np.array(true_parameters))
 demography = psmcpp.scrm.demography_from_params(true_parameters)
 # Generate 3 datasets from this code by distinguishing different columns
 data = psmcpp.scrm.simulate(n, N0, theta, rho, L, demography, include_coalescence_times=True)
-obs_pairs = ((0, 1),)
+obs_pairs = ((0, 1),(2, 3))[:int(sys.argv[2])]
 obs_list = [psmcpp.scrm.hmm_data_format(data, cols) for cols in obs_pairs]
 
 # 4. Optimize this function
-hidden_states = np.array([0., 100., 500., 1000., 5000., 10000., 50000., 100000., np.inf]) / 25.0
+hidden_states = np.array([0., 500., 1000., 5000., 10000., 50000., 100000., np.inf]) / 25.0 / N0
 im = psmcpp._pypsmcpp.PyInferenceManager(n - 2, obs_list, hidden_states,
+        4.0 * N0 * theta / 2.0, 4.0 * N0 * rho * block_size,
+        block_size, num_threads, num_samples)
+hs1 = im.balance_hidden_states((a, b, s), 10)
+im = psmcpp._pypsmcpp.PyInferenceManager(n - 2, obs_list, hs1,
         4.0 * N0 * theta / 2.0, 4.0 * N0 * rho * block_size,
         block_size, num_threads, num_samples)
 lam = 0.0
@@ -66,8 +70,8 @@ def loglik(x):
     # print('ll', ll)
     return -np.mean(ll)
 
-K = 6
-s = [1.5] * K
+K = 3
+# s = np.array([10000] * K) / 25.0 / N0
 x0 = np.random.normal(3.0, 0.8, 2 * K)
 a, b = x0.reshape((2, K))
 print(x0)
