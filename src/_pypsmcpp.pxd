@@ -1,6 +1,5 @@
 from libcpp.vector cimport vector
 
-
 cdef extern from "common.h":
     cdef cppclass adouble:
         pass
@@ -24,6 +23,7 @@ cdef extern from "inference_manager.h":
         InferenceManager(const MatrixInterpolator&, const int, const int,
                 const vector[int*], const vector[double], const double,
                 const double, const int, const int, const int)
+        Matrix[double] sfs_cython(const ParameterVector, double, double)
         void setParams_d(const ParameterVector)
         void setParams_ad(const ParameterVector)
         void Estep()
