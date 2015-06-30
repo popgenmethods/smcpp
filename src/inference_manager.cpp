@@ -61,12 +61,19 @@ void InferenceManager::setParams(const ParameterVector params)
     {
         tmp = sfs<T>(params, hidden_states[m], hidden_states[m + 1]);
         emission.row(m) = Matrix<T>::Map(tmp.data(), 1, 3 * (n + 1)).template cast<adouble>();
+        if (debug)
+        {
+            std::cout << "hidden state [" << hidden_states[m] << "," << hidden_states[m + 1] <<
+                "):\n" << tmp.template cast<double>() << std::endl << "---> " <<
+                emission.row(m).template cast<double>() << std::endl;
+        }
     }
     parallel_do([] (HMM &hmm) { hmm.recompute_B(); });
     if (debug)
     {
-        std::cout << emission.template cast<double>() << std::endl << std::endl;
+        std::cout << emission.template cast<double>() << std::endl << std::endl << std::endl;
         std::cout << hmms[0].B.leftCols(10).template cast<double>() << std::endl << std::endl;
+        std::cout << hmms[0].obs.topRows(30).template cast<double>().transpose() << std::endl << std::endl;
     }
     
 }
@@ -79,8 +86,8 @@ Matrix<T> InferenceManager::sfs(const ParameterVector params, double t1, double 
     PiecewiseExponentialRateFunction<T> eta(params);
     return ConditionedSFS<T>::calculate_sfs(eta, n, num_samples, moran_interp, t1, t2, num_threads, theta);
 }
-template Matrix<double> InferenceManager::sfs<double>(const ParameterVector, double, double);
-template Matrix<adouble> InferenceManager::sfs<adouble>(const ParameterVector, double, double);
+template Matrix<double> InferenceManager::sfs(const ParameterVector, double, double);
+template Matrix<adouble> InferenceManager::sfs(const ParameterVector, double, double);
 
 void InferenceManager::parallel_do(std::function<void(HMM &)> lambda)
 {
