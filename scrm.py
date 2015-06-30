@@ -50,18 +50,26 @@ def splitter(_iter, key="//"):
     for (k, subiter) in itertools.groupby(_iter, f):
         yield (k, (line for line in subiter if line.strip() != key))
 
-def demography_from_params(params):
+def demography_from_params(params, t0=0.0, t1=np.inf):
     demography = []
+    t0 /= 2.0
+    t1 /= 2.0
+    if t0 > 0.0:
+        demography += ['-eN', 0.0, 1e10, '-eN', t0, 1.0]
     ct = 0.0
     z = list(zip(*params))
     for ai, bi, si in z[:-1]:
         si2 = si * 0.5
         beta = (ai - bi) / si2
-        demography += ['-eN', ct, np.exp(ai)]
-        if beta != 0.0:
-            demography += ['-eG', ct, beta]
+        if t0 < ct < t1:
+            demography += ['-eN', ct, np.exp(ai)]
+            if beta != 0.0:
+                demography += ['-eG', ct, beta]
         ct += si2
-    demography += ['-eN', ct, np.exp(z[-1][0])]
+    if t0 < ct < t1:
+        demography += ['-eN', ct, np.exp(z[-1][0])]
+    if t1 < np.inf:
+        demography += ['-eN', t1, 1e-8]
     return demography
 
 def print_data_stats(positions, haps):

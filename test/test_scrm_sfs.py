@@ -16,18 +16,19 @@ def test_two_period0():
     N0 = 10000
     rho = 1e-8
     theta = 1e-8
-    L = 10000000
     a = np.log([10, 2, 5])
     b = np.log([1, 2, 4])
     s = np.array([5000.0, 20000.0, 70000.]) / 25.0 / N0
-    n = 10
-    sfs, rsfs = _pypsmcpp.sfs([a, b, s], n - 2, M, 0., np.inf, THREADS, 4 * N0 * theta / 2.0, jacobian=False)
+    n = 3
+    t0 = 0.
+    t1 = np.inf
+    sfs, rsfs = _pypsmcpp.sfs([a, b, s], n - 2, M, t0, t1, THREADS, 4 * N0 * theta / 2.0, jacobian=False)
     L = 1000000
-    demography = scrm.demography_from_params([a, b, s])
+    demography = scrm.demography_from_params([a, b, s], t0, t1)
     print(demography)
     args = (n, L, N0, theta, demography)
-    # scrm_sfs = np.mean(list(multiprocessing.Pool(THREADS).map(_scrm_sfs, [args for _ in range(THREADS)])), axis=0) / L
-    scrm_sfs = scrm.distinguished_sfs(*args)
+    scrm_sfs = np.mean(list(multiprocessing.Pool(THREADS).map(_scrm_sfs, [args for _ in range(THREADS)])), axis=0)
+    # scrm_sfs = scrm.distinguished_sfs(*args)
     print("")
     print(scrm_sfs)
     print(sfs)
