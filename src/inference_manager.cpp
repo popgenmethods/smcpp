@@ -59,23 +59,14 @@ void InferenceManager::setParams(const ParameterVector params)
     Eigen::Matrix<T, 3, Eigen::Dynamic, Eigen::RowMajor> tmp;
     for (int m = 0; m < M; ++m)
     {
+        PROGRESS("emission (" << m << ")");
         tmp = sfs<T>(params, hidden_states[m], hidden_states[m + 1]);
+        PROGRESS_DONE();
         emission.row(m) = Matrix<T>::Map(tmp.data(), 1, 3 * (n + 1)).template cast<adouble>();
-        if (debug)
-        {
-            std::cout << "hidden state [" << hidden_states[m] << "," << hidden_states[m + 1] <<
-                "):\n" << tmp.template cast<double>() << std::endl << "---> " <<
-                emission.row(m).template cast<double>() << std::endl;
-        }
     }
+    PROGRESS("compute B");
     parallel_do([] (HMM &hmm) { hmm.recompute_B(); });
-    if (debug)
-    {
-        std::cout << emission.template cast<double>() << std::endl << std::endl << std::endl;
-        std::cout << hmms[0].B.leftCols(10).template cast<double>() << std::endl << std::endl;
-        std::cout << hmms[0].obs.topRows(30).template cast<double>().transpose() << std::endl << std::endl;
-    }
-    
+    PROGRESS_DONE();
 }
 template void InferenceManager::setParams<double>(const ParameterVector);
 template void InferenceManager::setParams<adouble>(const ParameterVector);
@@ -114,18 +105,22 @@ template std::vector<adouble> InferenceManager::parallel_select(std::function<ad
 
 void InferenceManager::Estep(void)
 {
+    PROGRESS("E step");
     parallel_do([] (HMM &hmm) { hmm.Estep(); });
+    PROGRESS_DONE();
 }
 
 std::vector<adouble> InferenceManager::Q(double lambda)
 {
     adouble reg = regularizer;
+    PROGRESS("Q");
     return parallel_select<adouble>([lambda, reg] (HMM &hmm) { 
             adouble q = hmm.Q();
             adouble rr = reg * lambda;
             adouble ret = q - rr;
             return ret;
             });
+    PROGRESS_DONE();
 }
 
 std::vector<Matrix<double>*> InferenceManager::getAlphas()

@@ -19,6 +19,9 @@
 #define _DEBUG(x) x
 #endif
 
+#define PROGRESS(x) std::cout << x << "... " << std::flush;
+#define PROGRESS_DONE() std::cout << "done." << std::endl << std::flush;
+
 template <typename T> using Matrix = Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic>;
 template <typename T> using Vector = Eigen::Matrix<T, Eigen::Dynamic, 1>;
 // For cython

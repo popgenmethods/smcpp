@@ -44,6 +44,8 @@ class InferenceManager
         return (*eta.getR())(t);
     }
 
+    void set_num_samples(int nsamples) { num_samples = nsamples; }
+
     bool debug;
     std::vector<Matrix<double>*> getAlphas();
     std::vector<Matrix<double>*> getBetas();
@@ -60,7 +62,9 @@ class InferenceManager
     const std::vector<int*> observations;
     const std::vector<double> hidden_states;
     double theta, rho;
-    const int block_size, num_threads, num_samples, M;
+    const int block_size, num_threads;
+    int num_samples;
+    const int M;
     ThreadPool tp;
     adouble regularizer;
 

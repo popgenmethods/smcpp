@@ -161,6 +161,23 @@ adouble HMM::Q(void)
     adouble r2 = (gam * B.array().log()).sum();
     adouble r3 = (xis * transition->array().log()).sum();
     adouble ret = r1 + r2 + r3;
+    Matrix<adouble> Bl = B.array().log().matrix();
+    /*
+    for (int i = 0; i < Bl.rows(); ++i)
+        for (int j = 0; j < Bl.cols(); ++j)
+        {
+            Vector<double> bd = Bl(i, j).derivatives();
+            for (int k = 0; k < bd.rows(); ++k)
+            {
+                double x = bd(k);
+                if (isnan(x) or isinf(x))
+                {
+                    std::cout << i << "," << j << " " << bd.transpose() << std::endl;
+                    std::cout << B.col(j).transpose().template cast<double>() << std::endl;
+                }
+            }
+        }
+    */
     domain_error(toDouble(ret));
     return ret;
 }

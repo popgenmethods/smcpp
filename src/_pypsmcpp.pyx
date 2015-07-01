@@ -97,6 +97,9 @@ cdef class PyInferenceManager:
         else:
             self._im.setParams_d(p)
 
+    def set_num_samples(self, int nsamples):
+        self._im.set_num_samples(nsamples)
+
     def setDebug(self, val):
         self._im.debug = val
 
