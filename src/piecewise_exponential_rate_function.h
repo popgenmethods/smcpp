@@ -9,7 +9,7 @@ template <typename T>
 class PiecewiseExponentialRateFunction : public RateFunction<T>
 {
     public:
-    PiecewiseExponentialRateFunction(const std::vector<std::vector<double>> &params);
+    PiecewiseExponentialRateFunction(const std::vector<std::vector<double>> params);
     PiecewiseExponentialRateFunction(const PiecewiseExponentialRateFunction &other) : 
         PiecewiseExponentialRateFunction(other.params) {}
     virtual std::vector<T> getTimes() const { return ts; }
@@ -40,9 +40,11 @@ template <typename T>
 class BasePExpEvaluator : public FunctionEvaluator<T>
 {
     public:
-    BasePExpEvaluator(const std::vector<T> &ada, const std::vector<T> &adb, 
-            const std::vector<T> &ts, const std::vector<T> &Rrng) :
+    BasePExpEvaluator(const std::vector<T> ada, const std::vector<T> adb, 
+            const std::vector<T> ts, const std::vector<T> Rrng) :
         ada(ada), adb(adb), ts(ts), Rrng(Rrng) {}
+
+    virtual ~BasePExpEvaluator() = default;
 
     virtual std::vector<T> getTimes(void) const
     {
@@ -78,8 +80,8 @@ template <typename T>
 class PExpEvaluator : public BasePExpEvaluator<T>
 {
     public:
-    PExpEvaluator(const std::vector<T> &ada, const std::vector<T> &adb, 
-            const std::vector<T> &ts, const std::vector<T> &Rrng) :
+    PExpEvaluator(const std::vector<T> ada, const std::vector<T> adb, 
+            const std::vector<T> ts, const std::vector<T> Rrng) :
         BasePExpEvaluator<T>(ada, adb, ts, Rrng) {}
     protected:
     virtual const std::vector<T>& insertion_list(void) const { return this->ts; } 
@@ -93,8 +95,8 @@ template <typename T>
 class PExpIntegralEvaluator : public BasePExpEvaluator<T>
 {
     public:
-    PExpIntegralEvaluator(const std::vector<T> &ada, const std::vector<T> &adb, 
-            const std::vector<T> &ts, const std::vector<T> &Rrng) :
+    PExpIntegralEvaluator(const std::vector<T> ada, const std::vector<T> adb, 
+            const std::vector<T> ts, const std::vector<T> Rrng) :
         BasePExpEvaluator<T>(ada, adb, ts, Rrng) {}
     protected:
     virtual const std::vector<T>& insertion_list(void) const { return this->ts; } 
@@ -112,8 +114,8 @@ template <typename T>
 class PExpInverseIntegralEvaluator : public BasePExpEvaluator<T>
 {
     public:
-    PExpInverseIntegralEvaluator(const std::vector<T> &ada, const std::vector<T> &adb, 
-            const std::vector<T> &ts, const std::vector<T> &Rrng) :
+    PExpInverseIntegralEvaluator(const std::vector<T> ada, const std::vector<T> adb, 
+            const std::vector<T> ts, const std::vector<T> Rrng) :
         BasePExpEvaluator<T>(ada, adb, ts, Rrng) {}
     private:
     virtual const std::vector<T>& insertion_list(void) const { return this->Rrng; } 

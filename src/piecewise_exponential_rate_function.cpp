@@ -1,7 +1,7 @@
 #include "piecewise_exponential_rate_function.h"
 
 template <typename T>
-PiecewiseExponentialRateFunction<T>::PiecewiseExponentialRateFunction(const std::vector<std::vector<double>> &params) :
+PiecewiseExponentialRateFunction<T>::PiecewiseExponentialRateFunction(const std::vector<std::vector<double>> params) :
     RateFunction<T>(params), K(params[0].size()), ada(params[0].begin(), params[0].end()), 
     adb(params[1].begin(), params[1].end()), ads(params[2].begin(), params[2].end()),
     ts(K + 1), Rrng(K), _reg(0.0)

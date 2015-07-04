@@ -36,9 +36,9 @@ Matrix<T> compute_transition(const RateFunction<T> &eta, const std::vector<doubl
     return trans.matrix();
 }
 
-void cython_calculate_transition(const std::vector<std::vector<double>> &params,
+void cython_calculate_transition(const std::vector<std::vector<double>> params,
         const std::vector<double> hidden_states, double rho, double* outtrans);
-void cython_calculate_transition_jac(const std::vector<std::vector<double>> &params,
+void cython_calculate_transition_jac(const std::vector<std::vector<double>> params,
         const std::vector<double> hidden_states, double rho, double* outtrans, double* outjac);
 
 #endif

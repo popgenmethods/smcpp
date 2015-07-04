@@ -184,7 +184,7 @@ void store_transition(const Matrix<adouble> &trans, double* outtrans, double* ou
         }
 }
 
-void cython_calculate_transition(const std::vector<std::vector<double>> &params,
+void cython_calculate_transition(const std::vector<std::vector<double>> params,
         const std::vector<double> hidden_states, double rho, double* outtrans)
 {
     RATE_FUNCTION<double> eta(params);
@@ -192,7 +192,7 @@ void cython_calculate_transition(const std::vector<std::vector<double>> &params,
     store_transition(trans, outtrans);
 }
 
-void cython_calculate_transition_jac(const std::vector<std::vector<double>> &params,
+void cython_calculate_transition_jac(const std::vector<std::vector<double>> params,
         const std::vector<double> hidden_states, double rho, double* outtrans, double* outjac)
 {
     RATE_FUNCTION<adouble> eta(params);

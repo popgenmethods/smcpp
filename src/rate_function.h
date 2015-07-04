@@ -17,7 +17,8 @@ template <typename T>
 class RateFunction
 {
     public:
-    RateFunction(const std::vector<std::vector<double>> &params);
+    RateFunction(const std::vector<std::vector<double>> params);
+    virtual ~RateFunction() = default;
     // virtual const FunctionEvaluator<T>* getEta() const = 0;
     virtual const FunctionEvaluator<T>* geteta() const = 0;
     virtual const FunctionEvaluator<T>* getR() const = 0;
@@ -51,7 +52,7 @@ class RateFunction
 };
 
 template <typename T>
-RateFunction<T>::RateFunction(const std::vector<std::vector<double>> &params) : 
+RateFunction<T>::RateFunction(const std::vector<std::vector<double>> params) : 
     J(params.size()), K(params[0].size()), z(Eigen::VectorXd::Zero(J * K)),
     zero(derivative_initializer(0.0)), one(derivative_initializer(1.0)), 
     params(params), ad_params(J, std::vector<T>(K))

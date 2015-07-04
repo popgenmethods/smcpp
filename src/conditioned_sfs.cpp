@@ -432,7 +432,7 @@ void store_sfs_results(const Matrix<adouble> &csfs, double* outsfs, double* outj
         }
 }
 
-void cython_calculate_sfs(const std::vector<std::vector<double>> &params,
+void cython_calculate_sfs(const std::vector<std::vector<double>> params,
         int n, int num_samples, const MatrixInterpolator &moran_interp,
         double tau1, double tau2, int numthreads, double theta, 
         double* outsfs)
@@ -443,7 +443,7 @@ void cython_calculate_sfs(const std::vector<std::vector<double>> &params,
     store_sfs_results(out, outsfs);
 }
 
-void cython_calculate_sfs_jac(const std::vector<std::vector<double>> &params,
+void cython_calculate_sfs_jac(const std::vector<std::vector<double>> params,
         int n, int num_samples, const MatrixInterpolator &moran_interp,
         double tau1, double tau2, int numthreads, double theta, 
         double* outsfs, double* outjac)

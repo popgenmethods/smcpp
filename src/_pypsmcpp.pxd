@@ -41,17 +41,17 @@ cdef extern from "inference_manager.h":
 
 cdef extern from "conditioned_sfs.h":
     void set_seed(long long)
-    void cython_calculate_sfs(const vector[vector[double]] &params,
+    void cython_calculate_sfs(const vector[vector[double]] params,
             int n, int num_samples, const MatrixInterpolator&,
             double tau1, double tau2, int numthreads, double theta, 
             double* outsfs)
-    void cython_calculate_sfs_jac(const vector[vector[double]] &params,
+    void cython_calculate_sfs_jac(const vector[vector[double]] params,
             int n, int num_samples, const MatrixInterpolator&,
             double tau1, double tau2, int numthreads, double theta, 
             double* outsfs, double* outjac)
 
 cdef extern from "transition.h":
-    void cython_calculate_transition(const vector[vector[double]] &params,
+    void cython_calculate_transition(const vector[vector[double]] params,
             const vector[double] hidden_states, double rho, double* outtrans)
-    void cython_calculate_transition_jac(const vector[vector[double]] &params,
+    void cython_calculate_transition_jac(const vector[vector[double]] params,
             const vector[double] hidden_states, double rho, double* outtrans, double* outjac)
