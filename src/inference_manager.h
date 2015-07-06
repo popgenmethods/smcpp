@@ -33,6 +33,7 @@ class InferenceManager
     template <typename T>
     Matrix<T> sfs(const ParameterVector, double, double);
     Matrix<double> sfs_cython(const ParameterVector p, double t1, double t2) { return sfs<double>(p, t1, t2); }
+    Matrix<adouble> dsfs_cython(const ParameterVector p, double t1, double t2) { return sfs<adouble>(p, t1, t2); }
     
     // Unfortunately these are necessary to work around a bug in Cython
     void setParams_d(const ParameterVector params) { setParams<double>(params); }

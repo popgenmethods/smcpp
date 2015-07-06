@@ -24,6 +24,7 @@ cdef extern from "inference_manager.h":
                 const vector[int*], const vector[double], const double,
                 const double, const int, const int, const int)
         Matrix[double] sfs_cython(const ParameterVector, double, double)
+        Matrix[adouble] dsfs_cython(const ParameterVector, double, double)
         void set_num_samples(int)
         void setParams_d(const ParameterVector)
         void setParams_ad(const ParameterVector)
@@ -49,6 +50,7 @@ cdef extern from "conditioned_sfs.h":
             int n, int num_samples, const MatrixInterpolator&,
             double tau1, double tau2, int numthreads, double theta, 
             double* outsfs, double* outjac)
+    void store_sfs_results(const Matrix[adouble]&, double*, double*)
 
 cdef extern from "transition.h":
     void cython_calculate_transition(const vector[vector[double]] params,

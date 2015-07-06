@@ -11,9 +11,9 @@ import sys
 
 import psmcpp.scrm, psmcpp.inference, psmcpp.bfgs, psmcpp._pypsmcpp, psmcpp.util
 
-num_threads = 2
-block_size = 20
-num_samples = 100
+num_threads = 12
+block_size = 25
+num_samples = 50
 np.set_printoptions(linewidth=120, precision=6, suppress=True)
 
 # 1. Generate some data. 
@@ -28,61 +28,57 @@ s = np.array([5000.0, 20000.0, 70000.]) / 25.0 / (2 * N0)
 true_parameters = (a, b, s)
 print("true parameters")
 print(np.array(true_parameters))
-demography = psmcpp.scrm.demography_from_params(true_parameters)
+demography = psmcpp.scrm.demography_from_params((a, b, s / 2.0))
 data = psmcpp.scrm.simulate(n, N0, theta, rho, L, demography, include_coalescence_times=False)
 obs_pairs = [(2 * k, 2 * k + 1) for k in range(int(sys.argv[2]))]
 obs_list = [psmcpp.scrm.hmm_data_format(data, cols) for cols in obs_pairs]
-obsfs = np.zeros([3, n - 1])
-ol0 = obs_list[0]
-for r, c1, c2 in ol0[ol0[:, 1:].sum(axis=1) > 0]:
-    obsfs[c1, c2] += r
-obsfs /= L
-obsfs[0, 0] = 1. - obsfs.sum()
 
 # 4. Optimize this function
 hidden_states = np.array([0., np.inf]) / 25.0 / (2 * N0)
 im = psmcpp._pypsmcpp.PyInferenceManager(n - 2, obs_list, hidden_states,
         2.0 * N0 * theta, 2.0 * N0 * rho * block_size,
         block_size, num_threads, num_samples)
-hs1 = im.balance_hidden_states((a, b, s), 5)
+hs1 = im.balance_hidden_states((a, b, s), 10)
 im = psmcpp._pypsmcpp.PyInferenceManager(n - 2, obs_list, hs1,
         2.0 * N0 * theta, 2.0 * N0 * rho * block_size,
         block_size, num_threads, num_samples)
-im.setDebug(True)
-im.setParams((a, b, s), False)
-im.Estep()
-lam = 0.0
-print("log likelikhood at true parameters:", im.loglik(lam))
+# im.setDebug(True)
+# im.setParams((a, b, s), True)
+# im.Estep()
+# lam = 0.0
+# print("log likelikhood at true parameters:", im.loglik(lam))
+# print("Q at true parameters:", im.Q(lam))
+
 print(" - Estimated sfs:")
 print(im.sfs((a, b, s), 0, np.inf))
-print(" - Observed sfs:")
-print(obsfs)
+for ol0 in obs_list:
+    obsfs = np.zeros([3, n - 1])
+    for r, c1, c2 in ol0[ol0[:, 1:].sum(axis=1) > 0]:
+        obsfs[c1, c2] += r
+    obsfs /= L
+    obsfs[0, 0] = 1. - obsfs.sum()
+    print(" - Observed sfs:")
+    print(obsfs)
 
 def f(x):
     # print("f", x, recompute)
     a, b = x.reshape((2, K))
     k = (tuple(a), tuple(b))
-    if k not in f._memo:
-        im.setParams((a, b, s), False)
-        ret = [a for a, b in im.Q(lam)]
-        print('Q', x, ret)
-        f._memo[k] = -np.mean(ret)
-    return f._memo[k]
-f._memo = {}
+    im.setParams((a, b, s), False)
+    ret = [a for a, b in im.Q(lam)]
+    print('Q', x, ret)
+    return -np.mean(ret)
 
 def fprime(x, recompute=False):
     a, b = x.reshape((2, K))
     k = (tuple(a), tuple(b))
-    if k not in fprime._memo:
-        im.setParams((a, b, s), True)
-        res = im.Q(lam)
-        jacs = np.array([jac[:2] for ll, jac in res])
-        ret = -np.mean(jacs, axis=0).reshape((2 * K))
-        print('fprime', x, ret)
-        fprime._memo[k] = ret
-    return fprime._memo[k]
-    # print("f'(%s) = %s" % (str(x.reshape((2, K))), str(ret)))
-fprime._memo = {}
+    im.setParams((a, b, s), True)
+    res = im.Q(lam)
+    lls = np.array([ll for ll, jac in res])
+    jacs = np.array([jac[:2] for ll, jac in res])
+    ret = -np.mean(jacs, axis=0).reshape((2 * K))
+    print('fprime', x, ret)
+    return ret
 
 def loglik(x):
     a, b = x.reshape((2, K))
@@ -93,20 +89,44 @@ def loglik(x):
 
 K = 3
 # s = np.array([2000, 2000, 3000, 5000, 20000, 50000, 50000]) / 25.0 / N0
-x0 = np.random.normal(3.0, 0.8, 2 * K)
-# x0 = np.array([a, b]).flatten()
-a, b = x0.reshape((2, K))
+x0 = np.random.normal(5.0, 1.0, 2 * K)
+
 bounds = ((0.10001, 100.0001),) * K + ((0.1, 100),) * K 
+
+# Pretrain
+def pretrain(x):
+    a, b = x.reshape((2, K))
+    # sfs, _= psmcpp._pypsmcpp.sfs((a, b, s), n - 2, num_samples, 0., np.inf, num_threads, 2 * N0 * theta, jacobian=True, seed=1)
+    im.seed = 1
+    sfs = im.sfs((a, b, s), 0, np.inf)
+    print(x.reshape((2, K)))
+    C = (obsfs * np.log(sfs))
+    # print(C)
+    return -C.sum()
+
+def dpretrain(x):
+    a, b = x.reshape((2, K))
+    im.seed = 1
+    sfs, jac = im.sfs((a, b, s), 0, np.inf, True)
+    # sfs = im.sfs((a, b, s), 0, np.inf)
+    dj = (obsfs[:, :, None] * jac / sfs[:, :, None])
+    # print(C)
+    return -dj.sum(axis=(0, 1))[:(2 * K)]
+
+# print scipy.optimize.check_grad(pretrain, dpretrain, x0)
+# aoeu
+# scipy.optimize.minimize(pretrain, x0, method="L-BFGS-B", bounds=bounds)
+print("best ll", pretrain(np.array([a, b]).flatten()))
+scipy.optimize.basinhopping(pretrain, x0, stepsize=1.0, 
+        minimizer_kwargs={"method": "L-BFGS-B", "bounds": bounds, "jac": dpretrain}, 
+        disp=True)
+
 i = 0
-# hs1 = im.balance_hidden_states((a, b, s), 5)
-# im = psmcpp._pypsmcpp.PyInferenceManager(n - 2, obs_list, hs1,
-#         4.0 * N0 * theta / 2.0, 4.0 * N0 * rho * block_size,
-#         block_size, num_threads, num_samples)
 im.seed = 1234
 im.setParams((a, b, s), False)
 im.Estep()
 llold = loglik(x0)
-while i < 200:
+while i < 100:
     res = scipy.optimize.fmin_l_bfgs_b(f, x0, fprime, bounds=bounds, factr=1e14, disp=False)
     # res = scipy.optimize.fmin_tnc(f, x0, fprime, bounds=bounds)
     # res = scipy.optimize.fmin_bfgs(f, x0, fprime, disp=True)

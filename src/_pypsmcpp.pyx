@@ -74,13 +74,23 @@ cdef class PyInferenceManager:
                 n, L, obs, hidden_states, theta, rho, block_size, 
                 num_threads, num_samples)
 
-    def sfs(self, params, double t1, double t2):
+    def sfs(self, params, double t1, double t2, jacobian=False):
+        set_csfs_seed(self.seed)
         cdef ParameterVector p = make_params(params)
-        cdef Matrix[double] sfs = self._im.sfs_cython(p, t1, t2)
+        cdef Matrix[double] sfs
+        cdef Matrix[adouble] dsfs
         ret = aca(np.zeros([3, self._n + 1]))
         cdef double[:, ::1] vret = ret
-        store_matrix(&sfs, &vret[0, 0])
-        return ret
+        if not jacobian:
+            sfs = self._im.sfs_cython(p, t1, t2)
+            store_matrix(&sfs, &vret[0, 0])
+            return ret
+        J = len(params) * len(params[0])
+        jac = aca(np.zeros([3, self._n + 1, J]))
+        cdef double[:, :, ::1] vjac = jac
+        dsfs = self._im.dsfs_cython(p, t1, t2)
+        store_sfs_results(dsfs, &vret[0, 0], &vjac[0, 0, 0])
+        return ret, jac
 
     def getObservations(self):
         return self._observations
