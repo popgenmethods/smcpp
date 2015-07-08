@@ -6,7 +6,7 @@ import scrm
 
 np.set_printoptions(suppress=True, linewidth=120)
 M = 1000
-THREADS = 4
+THREADS = 2
 theta = 1e-8
 
 def _scrm_sfs(args):
@@ -18,7 +18,7 @@ def test_two_period0():
     b = np.array([1, 2, 5])
     # s = np.array([5000.0, 20000.0, 70000.]) / 25.0 / (2 * N0)
     s = np.array([0.5, 1.0, 1.5])
-    n = 3
+    n = 7
     L = 100000
     demography = scrm.demography_from_params([a, b, s])
     print(demography)
