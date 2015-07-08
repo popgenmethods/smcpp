@@ -360,8 +360,10 @@ Matrix<T> ConditionedSFS<T>::average_csfs(std::vector<ConditionedSFS<T>> &csfs, 
     }
     ret /= (double)m;
     T tauh = ret.sum();
-    ret *= -expm1(-theta * tauh) / tauh;
-    ret(0, 0) = exp(-theta * tauh);
+    // ret *= -expm1(-theta * tauh) / tauh;
+    // ret(0, 0) = exp(-theta * tauh);
+    ret *= theta;
+    ret(0, 0) = 1. - ret.sum();
     return ret;
 }
 

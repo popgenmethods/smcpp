@@ -125,6 +125,19 @@ cdef class PyInferenceManager:
     def gammas(self):
         return _make_em_matrix(self._im.getGammas())
 
+    def Bs(self):
+        cdef vector[pMatrixAd] mats = self._im.getBs()
+        cdef double[:, ::1] v
+        ret = []
+        for i in range(mats.size()):
+            m = mats[i][0].rows()
+            n = mats[i][0].cols()
+            ary = aca(np.zeros([m, n]))
+            v = ary
+            store_matrix(mats[i], &v[0, 0])
+            ret.append(ary)
+        return ret
+
     def pi(self):
         cdef Matrix[double] mat = self._im.getPi()
         cdef double[:, ::1] v

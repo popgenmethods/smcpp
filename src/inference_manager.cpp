@@ -48,6 +48,16 @@ InferenceManager::InferenceManager(
     }
 }
 
+template <typename T>
+Matrix<T> matpow(Matrix<T> M, int p)
+{
+    if (p == 1)
+        return M;
+    Matrix<T> P = matpow(M, std::floor(p / 2.0));
+    if (p % 2 == 0)
+        return P * P;
+    return M * P * P;
+}
 
 template <typename T>
 void InferenceManager::setParams(const ParameterVector params)
@@ -55,7 +65,8 @@ void InferenceManager::setParams(const ParameterVector params)
     PiecewiseExponentialRateFunction<T> eta(params);
     regularizer = adouble(eta.regularizer());
     pi = compute_initial_distribution<T>(eta, hidden_states).template cast<adouble>();
-    transition = compute_transition<T>(eta, hidden_states, rho).template cast<adouble>();
+    Matrix<adouble> ttmp = compute_transition<T>(eta, hidden_states, rho).template cast<adouble>();
+    transition = matpow(ttmp, block_size);
     Eigen::Matrix<T, 3, Eigen::Dynamic, Eigen::RowMajor> tmp;
     for (int m = 0; m < M; ++m)
     {
@@ -149,6 +160,16 @@ std::vector<Matrix<double>*> InferenceManager::getGammas()
     for (auto &hmm : hmms)
     {
         ret.push_back(&hmm.gamma);
+    }
+    return ret;
+}
+
+std::vector<Matrix<adouble>*> InferenceManager::getBs()
+{
+    std::vector<Matrix<adouble>*> ret;
+    for (auto &hmm : hmms)
+    {
+        ret.push_back(&hmm.B);
     }
     return ret;
 }

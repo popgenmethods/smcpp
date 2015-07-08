@@ -10,8 +10,10 @@ cdef extern from "common.h":
     void init_eigen()
     void fill_jacobian(const adouble &, double*)
     void store_matrix(const Matrix[double] *, double*)
+    void store_matrix(const Matrix[adouble] *, double*)
 
 ctypedef Matrix[double]* pMatrixD
+ctypedef Matrix[adouble]* pMatrixAd
 
 cdef extern from "matrix_interpolator.h":
     cdef cppclass MatrixInterpolator:
@@ -36,6 +38,7 @@ cdef extern from "inference_manager.h":
         vector[pMatrixD] getAlphas()
         vector[pMatrixD] getBetas()
         vector[pMatrixD] getGammas()
+        vector[pMatrixAd] getBs()
         Matrix[double] getPi()
         Matrix[double] getTransition()
         Matrix[double] getEmission()

@@ -150,6 +150,12 @@ inline void store_matrix(Matrix<double> *M, double* out)
 {
     Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>::Map(out, M->rows(), M->cols()) = *M;
 }
+inline void store_matrix(Matrix<adouble> *M, double* out)
+{
+    Matrix<double> MM = M->template cast<double>();
+    Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>::Map(out, MM.rows(), MM.cols()) = MM;
+}
+
 
 inline double dmin(double a, double b) { return std::min(a, b); }
 inline double dmax(double a, double b) { return std::max(a, b); }
