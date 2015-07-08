@@ -54,11 +54,11 @@ def demography_from_params(params):
     ct = 0.0
     z = list(zip(*params))
     for ai, bi, si in z[:-1]:
-        beta = (np.log(ai) - np.log(bi)) / si
-        demography += ['-eN', ct, ai]
+        beta = (np.log(ai * 2.0) - np.log(bi * 2.0)) / (si * 2.0)
+        demography += ['-eN', ct, ai * 2.0]
         if beta != 0.0:
             demography += ['-eG', ct, beta]
-        ct += si
+        ct += si * 2.0
     demography += ['-eN', ct, z[-1][0]]
     return demography
 
@@ -93,7 +93,7 @@ def parse_scrm(n, L, output, include_trees):
         k = l.index("(") - 1
         span = int(l[1:k])
         ts += span
-        dsts = newick_to_dists(l[k:])
+        dsts = newick_to_dists(l[k:], include_trees)
         coal_times.append((span, dsts))
     positions = next(output).strip()
     if positions:
@@ -110,7 +110,7 @@ def simulate(n, N0, theta, rho, L, demography=[], include_coalescence_times=Fals
     r = 4 * N0 * rho * (L - 1)
     t = 4 * N0 * theta * L
     args = [n, 1, '-p', int(math.log10(L)) + 1, '-t', t, '-r', r, L, '-l', 
-            1000, '-seed', np.random.randint(0, sys.maxint)] + demography
+            10000, '-seed', np.random.randint(0, sys.maxint)] + demography
     if include_coalescence_times:
         args.append("-T")
     output = scrm(*args, _iter=True)
