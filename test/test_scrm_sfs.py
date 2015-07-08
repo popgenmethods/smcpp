@@ -6,7 +6,7 @@ import scrm
 
 np.set_printoptions(suppress=True, linewidth=120)
 M = 1000
-THREADS = 16
+THREADS = 4
 theta = 1e-8
 
 def _scrm_sfs(args):
@@ -18,7 +18,7 @@ def test_two_period0():
     b = np.array([1, 2, 5])
     # s = np.array([5000.0, 20000.0, 70000.]) / 25.0 / (2 * N0)
     s = np.array([0.5, 1.0, 1.5])
-    n = 10
+    n = 3
     L = 100000
     demography = scrm.demography_from_params([a, b, s])
     print(demography)
@@ -27,7 +27,7 @@ def test_two_period0():
     # scrm_sfs = scrm.distinguished_sfs(*args, t0=1.0, t1=2.0)
     print("")
     print(scrm_sfs)
-    sfs, rsfs = _pypsmcpp.sfs([a, b, s * 2.0], n - 2, M, 0.0, np.inf, THREADS, 2 * N0 * theta, jacobian=False)
+    sfs, rsfs = _pypsmcpp.sfs([a, b, s], n - 2, M, 0.0, np.inf, THREADS, 2 * N0 * theta, jacobian=False)
     print(sfs)
     print("")
     print(_pypsmcpp.reduced_sfs(scrm_sfs))
