@@ -19,17 +19,17 @@ np.set_printoptions(linewidth=120, precision=6, suppress=True)
 # 1. Generate some data. 
 n = int(sys.argv[1])
 N0 = 10000
-rho = 1e-8
-theta = 1e-8
-L = int(1e8)
-a = np.array([10, 2, 5])
-b = np.array([1, 2, 4])
-s = np.array([5000.0, 20000.0, 70000.]) / 25.0 / (2 * N0)
+rho = 1e-9
+theta = 2.5e-8
+L = int(2e7)
+a = np.array([10., 1., .1, 2.])
+b = np.array([1., 1., .1, 2.])
+s = np.array([5000.0, 50000.0, 10000., 10000.]) / 25.0 / (2 * N0)
 true_parameters = (a, b, s)
 print("true parameters")
 print(np.array(true_parameters))
-demography = psmcpp.scrm.demography_from_params((a, b, s / 2.0))
-data = psmcpp.scrm.simulate(n, N0, theta, rho, L, demography, include_coalescence_times=False)
+demography = psmcpp.scrm.demography_from_params((a * 2.0, b * 2.0, s))
+data = psmcpp.scrm.simulate(n, N0, theta, rho, L, demography, False)
 obs_pairs = [(2 * k, 2 * k + 1) for k in range(int(sys.argv[2]))]
 obs_list = [psmcpp.scrm.hmm_data_format(data, cols) for cols in obs_pairs]
 
@@ -40,14 +40,19 @@ im = psmcpp._pypsmcpp.PyInferenceManager(n - 2, obs_list, hidden_states,
         block_size, num_threads, num_samples)
 hs1 = im.balance_hidden_states((a, b, s), 10)
 im = psmcpp._pypsmcpp.PyInferenceManager(n - 2, obs_list, hs1,
-        2.0 * N0 * theta, 2.0 * N0 * rho * block_size,
+        4.0 * N0 * theta, 4.0 * N0 * rho * block_size,
         block_size, num_threads, num_samples)
 # im.setDebug(True)
-# im.setParams((a, b, s), True)
-# im.Estep()
-# lam = 0.0
-# print("log likelikhood at true parameters:", im.loglik(lam))
-# print("Q at true parameters:", im.Q(lam))
+im.setParams((a, b, s), True)
+im.Estep()
+lam = 0.0
+print("log likelikhood at true parameters:", im.loglik(lam))
+print("Q at true parameters:", im.Q(lam))
+im.setParams((a * [.1, 1, 1, 1], b, s), True)
+im.Estep()
+print("log likelikhood at wrong parameters:", im.loglik(lam))
+print("Q at wrong parameters:", im.Q(lam))
+aoeu
 
 print(" - Estimated sfs:")
 print(im.sfs((a, b, s), 0, np.inf))
@@ -87,39 +92,39 @@ def loglik(x):
     # print('ll', ll)
     return -np.mean(ll)
 
-K = 3
+K = len(s)
 # s = np.array([2000, 2000, 3000, 5000, 20000, 50000, 50000]) / 25.0 / N0
 x0 = np.random.normal(5.0, 1.0, 2 * K)
 
 bounds = ((0.10001, 100.0001),) * K + ((0.1, 100),) * K 
 
-# Pretrain
-def pretrain(x):
-    a, b = x.reshape((2, K))
-    # sfs, _= psmcpp._pypsmcpp.sfs((a, b, s), n - 2, num_samples, 0., np.inf, num_threads, 2 * N0 * theta, jacobian=True, seed=1)
-    im.seed = 1
-    sfs = im.sfs((a, b, s), 0, np.inf)
-    print(x.reshape((2, K)))
-    C = (obsfs * np.log(sfs))
-    # print(C)
-    return -C.sum()
-
-def dpretrain(x):
-    a, b = x.reshape((2, K))
-    im.seed = 1
-    sfs, jac = im.sfs((a, b, s), 0, np.inf, True)
-    # sfs = im.sfs((a, b, s), 0, np.inf)
-    dj = (obsfs[:, :, None] * jac / sfs[:, :, None])
-    # print(C)
-    return -dj.sum(axis=(0, 1))[:(2 * K)]
+# # Pretrain
+# def pretrain(x):
+#     a, b = x.reshape((2, K))
+#     # sfs, _= psmcpp._pypsmcpp.sfs((a, b, s), n - 2, num_samples, 0., np.inf, num_threads, 2 * N0 * theta, jacobian=True, seed=1)
+#     im.seed = 1
+#     sfs = im.sfs((a, b, s), 0, np.inf)
+#     print(x.reshape((2, K)))
+#     C = (obsfs * np.log(sfs))
+#     # print(C)
+#     return -C.sum()
+# 
+# def dpretrain(x):
+#     a, b = x.reshape((2, K))
+#     im.seed = 1
+#     sfs, jac = im.sfs((a, b, s), 0, np.inf, True)
+#     # sfs = im.sfs((a, b, s), 0, np.inf)
+#     dj = (obsfs[:, :, None] * jac / sfs[:, :, None])
+#     # print(C)
+#     return -dj.sum(axis=(0, 1))[:(2 * K)]
 
 # print scipy.optimize.check_grad(pretrain, dpretrain, x0)
 # aoeu
 # scipy.optimize.minimize(pretrain, x0, method="L-BFGS-B", bounds=bounds)
-print("best ll", pretrain(np.array([a, b]).flatten()))
-scipy.optimize.basinhopping(pretrain, x0, stepsize=1.0, 
-        minimizer_kwargs={"method": "L-BFGS-B", "bounds": bounds, "jac": dpretrain}, 
-        disp=True)
+# print("best ll", pretrain(np.array([a, b]).flatten()))
+# scipy.optimize.basinhopping(pretrain, x0, stepsize=1.0, 
+#         minimizer_kwargs={"method": "L-BFGS-B", "bounds": bounds, "jac": dpretrain}, 
+#         disp=True)
 
 i = 0
 im.seed = 1234
