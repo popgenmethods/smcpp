@@ -65,7 +65,7 @@ true_parameters = (a, b, s)
 width = 2000
 M = 10
 
-nns = [2, 3, 5, 10, 25, 50, 100]
+nns = [2, 3, 5, 10, 25]
 n = max(nns)
 demography = psmcpp.scrm.demography_from_params((a * 2.0, b * 2.0, s))
 print(" ".join(map(str, demography)))
