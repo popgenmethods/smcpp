@@ -3,9 +3,11 @@
 
 HMM::HMM(Eigen::Matrix<int, Eigen::Dynamic, 2> obs, const int block_size,
         const Vector<adouble> *pi, const Matrix<adouble> *transition, 
-        const Matrix<adouble> *emission) : 
+        const Matrix<adouble> *emission, const Matrix<adouble> *emission_mask,
+        const int mask_freq) : 
     obs(obs), block_size(block_size), 
-    pi(pi), transition(transition), emission(emission),
+    pi(pi), transition(transition), emission(emission), emission_mask(emission_mask),
+    mask_freq(mask_freq),
     M(pi->rows()), Ltot(ceil(obs.col(0).sum() / block_size)), 
     B(M, Ltot), alpha_hat(M, Ltot), beta_hat(M, Ltot), gamma(M, Ltot), xisum(M, M), c(Ltot) 
 { }
@@ -19,7 +21,7 @@ double HMM::loglik()
 
 void HMM::domain_error(double ret)
 {
-    if (isinf(ret) or isnan(ret))
+    if (std::isinf(ret) or std::isnan(ret))
     {
         std::cout << pi->template cast<double>() << std::endl << std::endl;
         std::cout << transition->template cast<double>() << std::endl << std::endl;
@@ -99,6 +101,7 @@ void HMM::recompute_B(void)
     int block = 0;
     int i = 0, ob, R;
     std::map<int, int> powers;
+    const Matrix<adouble> *em_ptr;
     for (int ell = 0; ell < obs.rows(); ++ell)
     {
         R = obs(ell, 0);
@@ -109,8 +112,9 @@ void HMM::recompute_B(void)
             if (++i == block_size)
             {
                 i = 0;
+                em_ptr = (block % mask_freq == 0) ? emission : emission_mask;
                 for (auto &p : powers)
-                    B.col(block) = B.col(block).cwiseProduct(emission->col(p.first).array().pow(p.second).matrix());
+                    B.col(block) = B.col(block).cwiseProduct(em_ptr->col(p.first).array().pow(p.second).matrix());
                 powers.clear();
                 block++;
             }
@@ -129,7 +133,7 @@ void HMM::forward_backward(void)
     {
         alpha_hat.col(ell) = bt.col(ell).asDiagonal() * tt * alpha_hat.col(ell - 1);
         c(ell) = alpha_hat.col(ell).sum();
-        if (isnan(toDouble(c(ell))))
+        if (std::isnan(toDouble(c(ell))))
             throw std::domain_error("something went wrong in forward algorithm");
         alpha_hat.col(ell) /= c(ell);
     }

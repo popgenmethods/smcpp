@@ -19,6 +19,8 @@ class InferenceManager
             const int n, const int L,
             const std::vector<int*> observations,
             const std::vector<double> hidden_states,
+            const int* emission_mask,
+            const int mask_freq,
             const double theta, const double rho, 
             const int block_size, const int num_threads,
             const int num_samples);
@@ -55,6 +57,7 @@ class InferenceManager
     Matrix<double> getPi();
     Matrix<double> getTransition();
     Matrix<double> getEmission();
+    Matrix<double> getMaskedEmission();
 
     private:
     // Passed-in parameters
@@ -63,6 +66,8 @@ class InferenceManager
     const int n, L;
     const std::vector<int*> observations;
     const std::vector<double> hidden_states;
+    const Eigen::Map<const Eigen::Matrix<int, 3, Eigen::Dynamic, Eigen::RowMajor>> emask;
+    const int mask_freq;
     double theta, rho;
     const int block_size, num_threads;
     int num_samples;
@@ -72,7 +77,7 @@ class InferenceManager
 
     std::vector<HMM> hmms;
     Vector<adouble> pi;
-    Matrix<adouble> transition, emission;
+    Matrix<adouble> transition, emission, emission_mask;
 
     // Methods
     void parallel_do(std::function<void(HMM &)>);

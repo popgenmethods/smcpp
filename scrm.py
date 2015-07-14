@@ -23,7 +23,7 @@ scrm = sh.Command(os.environ['SCRM_PATH'])
 # Format trees
 def tree_obs_iter(l1, l2, trees):
     fs = frozenset([l1, l2])
-    for sec, d in trees:
+    for sec, d, _ in trees:
         for i in range(sec):
             yield d[fs]
 
@@ -54,11 +54,11 @@ def demography_from_params(params):
     ct = 0.0
     z = list(zip(*params))
     for ai, bi, si in z[:-1]:
-        beta = (np.log(ai * 2.0) - np.log(bi * 2.0)) / (si * 2.0)
-        demography += ['-eN', ct, ai * 2.0]
+        beta = (np.log(ai) - np.log(bi)) / si
+        demography += ['-eN', ct, ai]
         if beta != 0.0:
             demography += ['-eG', ct, beta]
-        ct += si * 2.0
+        ct += si
     demography += ['-eN', ct, z[-1][0]]
     return demography
 
@@ -73,6 +73,7 @@ def print_data_stats(positions, haps):
 def newick_to_dists(newick, leaves=None):
     tree = Phylo.to_networkx(Phylo.read(StringIO(newick), "newick"))
     ldict = {node.name: node for node in tree.nodes() if node.name}
+    leaves = list(leaves)
     if leaves:
         ldict = {k: v for k, v in ldict.items() if k in leaves}
     dsts = {}
@@ -93,8 +94,8 @@ def parse_scrm(n, L, output, include_trees):
         k = l.index("(") - 1
         span = int(l[1:k])
         ts += span
-        dsts = newick_to_dists(l[k:], include_trees)
-        coal_times.append((span, dsts))
+        # dsts = newick_to_dists(l[(k+1):], include_trees)
+        coal_times.append((span, l[(k+1):]))
     positions = next(output).strip()
     if positions:
         positions = (L * np.array([float(x) for x in positions.split(" ")[1:]])).astype('int')
@@ -106,16 +107,17 @@ def parse_scrm(n, L, output, include_trees):
         return ret
     return None
 
-def simulate(n, N0, theta, rho, L, demography=[], include_coalescence_times=False):
+def simulate(n, N0, theta, rho, L, demography=[], include_trees=False, seed=None):
+    if not seed:
+        seed = np.random.randint(0, sys.maxint)
     r = 4 * N0 * rho * (L - 1)
     t = 4 * N0 * theta * L
-    args = [n, 1, '-p', int(math.log10(L)) + 1, '-t', t, '-r', r, L, '-l', 
-            10000, '-seed', np.random.randint(0, sys.maxint)] + demography
-    if include_coalescence_times:
+    args = [n, 1, '-p', int(math.log10(L)) + 1, '-t', t, '-r', r, L, '-l', 10000, '-seed', seed] + demography
+    if include_trees:
         args.append("-T")
     output = scrm(*args, _iter=True)
     cmd_line, seed, _, _ = [line.strip() for line in itertools.islice(output, 4)]
-    return parse_scrm(n, L, output, include_coalescence_times)
+    return parse_scrm(n, L, output, include_trees)
 
 def distinguished_sfs(n, M, N0, theta, demography, t0=0.0, t1=np.inf):
     t = 4 * N0 * theta
@@ -151,6 +153,30 @@ def distinguished_sfs(n, M, N0, theta, demography, t0=0.0, t1=np.inf):
     print(m, M)
     avgsfs /= m
     return avgsfs
+
+def tjj_transition(n, N0, rho, L, hidden_states, demography=[], seed=None):
+    r = 4 * N0 * rho * (L - 1)
+    cmd = r'''./tjj.sh {scrm} {n:d} 1 -l 1000 -r {r:f} {L:d} -T {demography}'''.format(
+            scrm=os.environ['SCRM_PATH'], n=n, r=r, L=L, demography=" ".join(demography))
+    output = check_output(cmd, shell=True)
+    ary = []
+    for line in output.split("\n")[:-1]:
+        tjj, span = line.strip().split(" ")
+        ary.append([int(span), float(tjj), 0])
+    ary = np.array(ary)
+    ary[:, 2] = np.searchsorted(hidden_states, ary[:, 1]) - 1
+    print(ary.mean(axis=0))
+    M = len(hidden_states) - 1
+    trans = np.zeros([M, M])
+    last = ary[0]
+    trans[last[2], last[2]] += last[0]
+    for row in ary[1:]:
+        ind = row[2]
+        trans[last[2], ind] += 1
+        trans[ind, ind] += row[0] - 1
+        last = row
+    return trans / L
+
 
 def sfs(n, M, N0, theta, demography):
     t = 4 * N0 * theta
