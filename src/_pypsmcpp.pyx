@@ -48,10 +48,12 @@ cdef class PyInferenceManager:
     cdef object _moran_mats
     cdef object _moran_ts
     cdef object _observations
+    cdef np.ndarray _emission_mask
     cdef public long long seed
 
-    def __cinit__(self, int n, observations, hidden_states, double theta, double rho, 
-            int block_size, int num_threads, int num_samples):
+    def __cinit__(self, int n, observations, hidden_states, 
+            double theta, double rho, int block_size, int num_threads, int num_samples,
+            emission_mask = None):
         self.seed = 1
         self._n = n
         cdef int[:, ::1] vob
@@ -69,9 +71,13 @@ cdef class PyInferenceManager:
         mats, ts = moran_model.interpolators(n)
         self._moran_mats = mats
         self._moran_ts = ts
+        if emission_mask is None:
+            emission_mask = np.arange(3 * (n + 1)).reshape([3, n + 1])
+        self._emission_mask = aca(np.array(emission_mask, dtype=np.int32))
+        cdef int[:, ::1] emv = self._emission_mask
         self._im = new InferenceManager(
                 MatrixInterpolator(n + 1, self._moran_ts, make_mats(self._moran_mats)), 
-                n, L, obs, hidden_states, theta, rho, block_size, 
+                n, L, obs, hidden_states, &emv[0, 0], theta, rho, block_size, 
                 num_threads, num_samples)
 
     def sfs(self, params, double t1, double t2, jacobian=False):

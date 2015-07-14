@@ -22,6 +22,7 @@ InferenceManager::InferenceManager(
             const int n, const int L,
             const std::vector<int*> observations,
             const std::vector<double> hidden_states,
+            const int* emission_mask,
             const double theta, const double rho, 
             const int block_size, const int num_threads, 
             const int num_samples) : 
@@ -29,6 +30,7 @@ InferenceManager::InferenceManager(
     moran_interp(moran_interp), n(n), L(L),
     observations(observations), 
     hidden_states(hidden_states),
+    emission_mask(emission_mask, 3, n + 1),
     theta(theta), rho(rho),
     block_size(block_size), num_threads(num_threads),
     num_samples(num_samples), M(hidden_states.size() - 1), 
@@ -68,10 +70,22 @@ void InferenceManager::setParams(const ParameterVector params)
     Matrix<adouble> ttmp = compute_transition<T>(eta, hidden_states, rho).template cast<adouble>();
     transition = matpow(ttmp, block_size);
     Eigen::Matrix<T, 3, Eigen::Dynamic, Eigen::RowMajor> tmp;
+    std::map<int, std::vector<T>> tmask;
+    std::map<int, T> tavg;
     for (int m = 0; m < M; ++m)
     {
         PROGRESS("emission (" << m << ")");
+        tmask.clear();
+        tavg.clear();
         tmp = sfs<T>(params, hidden_states[m], hidden_states[m + 1]);
+        for (int i = 0; i < 3; ++i)
+            for (int j = 0; j < n + 1; ++j)
+                tmask[emission_mask(i, j)].push_back(tmp(i, j));
+        for (auto p : tmask)
+            tavg[p.first] = std::accumulate(p.second.begin(), p.second.end(), (T)0.0);
+        for (int i = 0; i < 3; ++i)
+            for (int j = 0; j < n + 1; ++j)
+                tmp(i, j) = tavg[emission_mask(i, j)];
         PROGRESS_DONE();
         emission.row(m) = Matrix<T>::Map(tmp.data(), 1, 3 * (n + 1)).template cast<adouble>();
     }
