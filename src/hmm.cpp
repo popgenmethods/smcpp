@@ -129,7 +129,7 @@ void HMM::forward_backward(void)
     {
         alpha_hat.col(ell) = bt.col(ell).asDiagonal() * tt * alpha_hat.col(ell - 1);
         c(ell) = alpha_hat.col(ell).sum();
-        if (isnan(toDouble(c(ell))))
+        if (std::isnan(toDouble(c(ell))))
             throw std::domain_error("something went wrong in forward algorithm");
         alpha_hat.col(ell) /= c(ell);
     }
