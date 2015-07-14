@@ -19,7 +19,7 @@ double HMM::loglik()
 
 void HMM::domain_error(double ret)
 {
-    if (isinf(ret) or isnan(ret))
+    if (std::isinf(ret) or std::isnan(ret))
     {
         std::cout << pi->template cast<double>() << std::endl << std::endl;
         std::cout << transition->template cast<double>() << std::endl << std::endl;
