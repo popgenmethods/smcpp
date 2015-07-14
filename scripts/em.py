@@ -9,7 +9,7 @@ import itertools
 from collections import Counter
 import sys
 
-import psmcpp.scrm, psmcpp.inference, psmcpp.bfgs, psmcpp._pypsmcpp, psmcpp.util
+import psmcpp.scrm, psmcpp.bfgs, psmcpp._pypsmcpp, psmcpp.util
 
 num_threads = 12
 block_size = 25

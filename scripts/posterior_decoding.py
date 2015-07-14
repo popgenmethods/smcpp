@@ -12,7 +12,7 @@ import bitarray
 
 import matplotlib
 matplotlib.use('Agg')
-import psmcpp.scrm, psmcpp.inference, psmcpp.bfgs, psmcpp._pypsmcpp, psmcpp.util, psmcpp.plotting
+import psmcpp.scrm, psmcpp.bfgs, psmcpp._pypsmcpp, psmcpp.util, psmcpp.plotting
 
 def norm_counter(c, nn): 
     s = sum(c.values()); 
@@ -65,7 +65,7 @@ true_parameters = (a, b, s)
 width = 2000
 M = 10
 
-nns = [2, 3, 5, 10, 25]
+nns = [2, 3, 5]
 n = max(nns)
 demography = psmcpp.scrm.demography_from_params((a * 2.0, b * 2.0, s))
 print(" ".join(map(str, demography)))
@@ -102,15 +102,19 @@ for nn in nns:
             block_size, num_threads, num_samples)
     hidden_states = im.balance_hidden_states((a, b, s), M)
     print("balanced hidden states", hidden_states)
-    em = np.zeros([3, nn - 1], dtype=int)
-    em[0] = 0
+    em = np.arange(3 *  (nn - 1), dtype=int).reshape([3, nn - 1])
+    em[0] = em[2] = 0
     em[1] = 1
-    em[2] = 2
-    em[0, 1:2] = 3
-    em[1, 1:2] = 4
+    print(em)
+    # em = np.zeros([3, nn - 1], dtype=int)
+    # em[0] = 0
+    # em[1] = 1
+    # em[2] = 2
+    # em[0, 1:2] = 3
+    # em[1, 1:2] = 4
     im = psmcpp._pypsmcpp.PyInferenceManager(nn - 2, [obs], hidden_states,
             4.0 * N0 * theta, 4.0 * N0 * rho,
-            block_size, num_threads, num_samples)
+            block_size, num_threads, num_samples, em)
     im.seed = np.random.randint(0, sys.maxint)
     im.setParams((a, b, s), False)
     im.Estep()
