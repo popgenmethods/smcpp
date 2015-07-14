@@ -23,7 +23,7 @@ cdef extern from "inference_manager.h":
     ctypedef vector[vector[double]] ParameterVector
     cdef cppclass InferenceManager:
         InferenceManager(const MatrixInterpolator&, const int, const int,
-                const vector[int*], const vector[double], const int*, 
+                const vector[int*], const vector[double], const int*, const int,
                 const double, const double, const int, const int, const int)
         Matrix[double] sfs_cython(const ParameterVector, double, double)
         Matrix[adouble] dsfs_cython(const ParameterVector, double, double)
@@ -42,6 +42,7 @@ cdef extern from "inference_manager.h":
         Matrix[double] getPi()
         Matrix[double] getTransition()
         Matrix[double] getEmission()
+        Matrix[double] getMaskedEmission()
 
 cdef extern from "conditioned_sfs.h":
     void set_seed(long long)

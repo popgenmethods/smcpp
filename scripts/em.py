@@ -37,11 +37,14 @@ obs_list = [psmcpp.scrm.hmm_data_format(data, cols) for cols in obs_pairs]
 hidden_states = np.array([0., np.inf]) / 25.0 / (2 * N0)
 im = psmcpp._pypsmcpp.PyInferenceManager(n - 2, obs_list, hidden_states,
         2.0 * N0 * theta, 2.0 * N0 * rho * block_size,
-        block_size, num_threads, num_samples)
+        block_size, num_threads, num_samples, 10)
 hs1 = im.balance_hidden_states((a, b, s), 10)
+em = np.arange(3 *  (n - 1), dtype=int).reshape([3, n - 1])
+em[0] = em[2] = 0
+em[1] = 1
 im = psmcpp._pypsmcpp.PyInferenceManager(n - 2, obs_list, hs1,
         4.0 * N0 * theta, 4.0 * N0 * rho * block_size,
-        block_size, num_threads, num_samples)
+        block_size, num_threads, num_samples, 20, em)
 # im.setDebug(True)
 im.setParams((a, b, s), True)
 im.Estep()

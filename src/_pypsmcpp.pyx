@@ -53,7 +53,7 @@ cdef class PyInferenceManager:
 
     def __cinit__(self, int n, observations, hidden_states, 
             double theta, double rho, int block_size, int num_threads, int num_samples,
-            emission_mask = None):
+            int mask_freq, emission_mask = None):
         self.seed = 1
         self._n = n
         cdef int[:, ::1] vob
@@ -77,7 +77,7 @@ cdef class PyInferenceManager:
         cdef int[:, ::1] emv = self._emission_mask
         self._im = new InferenceManager(
                 MatrixInterpolator(n + 1, self._moran_ts, make_mats(self._moran_mats)), 
-                n, L, obs, hidden_states, &emv[0, 0], theta, rho, block_size, 
+                n, L, obs, hidden_states, &emv[0, 0], mask_freq, theta, rho, block_size, 
                 num_threads, num_samples)
 
     def sfs(self, params, double t1, double t2, jacobian=False):
@@ -166,6 +166,16 @@ cdef class PyInferenceManager:
 
     def emission(self):
         cdef Matrix[double] mat = self._im.getEmission()
+        cdef double[:, ::1] v
+        m = mat.rows()
+        n = mat.cols()
+        ary = aca(np.zeros([m, n]))
+        v = ary
+        store_matrix(&mat, &v[0, 0])
+        return ary
+
+    def masked_emission(self):
+        cdef Matrix[double] mat = self._im.getMaskedEmission()
         cdef double[:, ::1] v
         m = mat.rows()
         n = mat.cols()

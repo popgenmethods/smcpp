@@ -51,13 +51,13 @@ def subset_data(d, start, end):
             list(pack(itertools.islice(unpack(d[3]), start, end))))
 
 num_threads = 2
-block_size = 10
-num_samples = 1000
+block_size = 25
+num_samples = 100
 np.set_printoptions(linewidth=120, precision=6, suppress=True)
 N0 = 10000
 rho = 1e-8
 theta = 2.5e-8
-L = int(1e6)
+L = int(float(sys.argv[1]))
 a = np.array([10., 1., .1, 2.])
 b = np.array([1., 1., .1, 2.])
 s = np.array([5000.0, 50000.0, 10000., 10000.]) / 25.0 / (2 * N0)
@@ -65,17 +65,18 @@ true_parameters = (a, b, s)
 width = 2000
 M = 10
 
-nns = [2, 3, 5]
+nns = [2, 3, 5, 10, 25]
 n = max(nns)
 demography = psmcpp.scrm.demography_from_params((a * 2.0, b * 2.0, s))
 print(" ".join(map(str, demography)))
-full_data = psmcpp.scrm.simulate(n, N0, theta, rho, L, demography, include_trees=True, seed=int(sys.argv[3]))
+full_data = psmcpp.scrm.simulate(n, N0, theta, rho, L, demography, include_trees=True, seed=int(sys.argv[2]))
 
-start = int(float(sys.argv[1]))
-end = int(float(sys.argv[2]))
+start = 0
+end = L
 mid = (end - start) // 2
-plot_start = int((mid - 1e5) // block_size)
-plot_end = int((mid + 1e5) // block_size)
+span = mid / 2
+plot_start = int((mid - span / 2) // block_size)
+plot_end = int((mid + span / 2) // block_size)
 ma_window = int((plot_end - plot_start) / width)
 print(start, end, mid, plot_start, plot_end)
 data = subset_data(full_data, start, end)
@@ -99,7 +100,7 @@ for nn in nns:
     hidden_states = np.array([0., np.inf])
     im = psmcpp._pypsmcpp.PyInferenceManager(nn - 2, [obs], hidden_states,
             4.0 * N0 * theta, 4.0 * N0 * rho,
-            block_size, num_threads, num_samples)
+            block_size, num_threads, num_samples, 10, None)
     hidden_states = im.balance_hidden_states((a, b, s), M)
     print("balanced hidden states", hidden_states)
     em = np.arange(3 *  (nn - 1), dtype=int).reshape([3, nn - 1])
@@ -114,7 +115,7 @@ for nn in nns:
     # em[1, 1:2] = 4
     im = psmcpp._pypsmcpp.PyInferenceManager(nn - 2, [obs], hidden_states,
             4.0 * N0 * theta, 4.0 * N0 * rho,
-            block_size, num_threads, num_samples, em)
+            block_size, num_threads, num_samples, 20, em)
     im.seed = np.random.randint(0, sys.maxint)
     im.setParams((a, b, s), False)
     im.Estep()
