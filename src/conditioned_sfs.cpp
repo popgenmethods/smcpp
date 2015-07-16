@@ -388,17 +388,6 @@ void ConditionedSFS<T>::compute(int num_samples, T t1, T t2)
         csfs_above.block(2, 0, 1, n) += (tmpmat * sfs_tau).transpose();
     }
     csfs = csfs_below + csfs_above;
-    bool doPrint = false;
-    for (int i = 0; i < csfs.rows(); ++i)
-        for (int j = 0; j < csfs.cols(); ++j)
-        {
-            if (csfs(i, j) < -1e-2)
-            {
-                std::cout << "csfs is strongly negative at (" << i << "," << j << ")" << std::endl;
-                doPrint = true;
-            }
-            csfs(i, j) = dmax(csfs(i, j), 1e-20);
-        }
     if (false)
     {
         std::cout << "csfs_below" << std::endl << csfs_below.template cast<double>() << std::endl << std::endl;

@@ -23,8 +23,8 @@ cdef extern from "inference_manager.h":
     ctypedef vector[vector[double]] ParameterVector
     cdef cppclass InferenceManager:
         InferenceManager(const MatrixInterpolator&, const int, const int,
-                const vector[int*], const vector[double], const int*, const int,
-                const double, const double, const int, const int, const int)
+                const vector[int*], const vector[double], const int*, const int, 
+                const vector[int], const double, const double, const int, const int, const int)
         Matrix[double] sfs_cython(const ParameterVector, double, double)
         Matrix[adouble] dsfs_cython(const ParameterVector, double, double)
         void set_num_samples(int)

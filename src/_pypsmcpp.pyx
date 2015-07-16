@@ -53,7 +53,7 @@ cdef class PyInferenceManager:
 
     def __cinit__(self, int n, observations, hidden_states, 
             double theta, double rho, int block_size, int num_threads, int num_samples,
-            int mask_freq, emission_mask = None):
+            int mask_freq, mask_offset, emission_mask = None):
         self.seed = 1
         self._n = n
         cdef int[:, ::1] vob
@@ -77,7 +77,7 @@ cdef class PyInferenceManager:
         cdef int[:, ::1] emv = self._emission_mask
         self._im = new InferenceManager(
                 MatrixInterpolator(n + 1, self._moran_ts, make_mats(self._moran_mats)), 
-                n, L, obs, hidden_states, &emv[0, 0], mask_freq, theta, rho, block_size, 
+                n, L, obs, hidden_states, &emv[0, 0], mask_freq, mask_offset, theta, rho, block_size, 
                 num_threads, num_samples)
 
     def sfs(self, params, double t1, double t2, jacobian=False):
@@ -222,7 +222,8 @@ cdef class PyInferenceManager:
 
 def reduced_sfs(sfs):
     n = sfs.shape[1] - 1
-    reduced_sfs = np.zeros(n + 2)
+    new_shape = [n + 2] + list(sfs.shape[2:])
+    reduced_sfs = np.zeros(new_shape)
     for i in range(3):
         for j in range(n + 1):
             if 0 <= i + j < n + 2:
@@ -246,7 +247,7 @@ def sfs(params, int n, int num_samples, double tau1, double tau2, int numthreads
         mjac = jac
         cython_calculate_sfs_jac(cparams, n, num_samples, MatrixInterpolator(n + 1, ts, make_mats(mats)),
                 tau1, tau2, numthreads, theta, &msfs[0, 0], &mjac[0, 0, 0, 0])
-        return (sfs, reduced_sfs(sfs), jac)
+        return (sfs, reduced_sfs(sfs), jac, reduced_sfs(jac))
     else:
         cython_calculate_sfs(cparams, n, num_samples, MatrixInterpolator(n + 1, ts, make_mats(mats)), 
                 tau1, tau2, numthreads, theta, &msfs[0, 0])

@@ -14,7 +14,7 @@ class HMM
     HMM(Eigen::Matrix<int, Eigen::Dynamic, 2> obs, const int block_size,
         const Vector<adouble> *pi, const Matrix<adouble> *transition, 
         const Matrix<adouble> *emission, const Matrix<adouble> *emission_mask, 
-        const int mask_freq);
+        const int mask_freq, const int mask_offset);
     void Estep(void);
     double loglik(void);
     adouble Q(void);
@@ -32,7 +32,7 @@ class HMM
     // Instance variables
     const Vector<adouble> *pi;
     const Matrix<adouble> *transition, *emission, *emission_mask;
-    const int mask_freq, M, Ltot;
+    const int mask_freq, mask_offset, M, Ltot;
     Matrix<adouble> B;
     Matrix<double> alpha_hat, beta_hat, gamma, xisum;
     Vector<double> c;
