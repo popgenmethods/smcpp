@@ -1,4 +1,5 @@
 from libcpp.vector cimport vector
+from libcpp.pair cimport pair
 
 cdef extern from "common.h":
     cdef cppclass adouble:
@@ -29,7 +30,7 @@ cdef extern from "inference_manager.h":
         Matrix[adouble] dsfs_cython(const ParameterVector, double, double)
         void set_num_samples(int)
         void setParams_d(const ParameterVector)
-        void setParams_ad(const ParameterVector)
+        void setParams_ad(const ParameterVector, vector[pair[int, int]] derivatives)
         void Estep()
         vector[double] loglik(double)
         vector[adouble] Q(double)

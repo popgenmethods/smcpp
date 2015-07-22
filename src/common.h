@@ -6,6 +6,7 @@
 #include <random>
 #include <array>
 #include <Eigen/Dense>
+#include <mpreal.h>
 
 #include "prettyprint.hpp"
 
@@ -19,8 +20,13 @@
 #define _DEBUG(x) x
 #endif
 
+#if 0
 #define PROGRESS(x) std::cout << x << "... " << std::flush;
 #define PROGRESS_DONE() std::cout << "done." << std::endl << std::flush;
+#else
+#define PROGRESS(x)
+#define PROGRESS_DONE()
+#endif
 
 template <typename T> using Matrix = Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic>;
 template <typename T> using Vector = Eigen::Matrix<T, Eigen::Dynamic, 1>;
@@ -139,6 +145,8 @@ inline int insertion_point(const T x, const std::vector<T>& ary, int first, int 
 
 inline double myabs(double a) { return std::abs(a); }
 inline adouble myabs(adouble a) { return Eigen::abs(a); }
+inline mpfr::mpreal myabs(mpfr::mpreal a) { return mpfr::abs(a); }
+
 inline void init_eigen() { Eigen::initParallel(); }
 inline void fill_jacobian(const adouble &ll, double* outjac)
 {

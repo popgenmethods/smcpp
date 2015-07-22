@@ -1,7 +1,7 @@
 #include "inference_manager.h"
 
 template <typename T>
-Vector<T> compute_initial_distribution(const RateFunction<T> &eta, const std::vector<double> &hidden_states)
+Vector<T> compute_initial_distribution(const PiecewiseExponentialRateFunction<T> &eta, const std::vector<double> &hidden_states)
 {
     auto R = eta.getR();
     int M = hidden_states.size() - 1;
@@ -66,9 +66,9 @@ Matrix<T> matpow(Matrix<T> M, int p)
 }
 
 template <typename T>
-void InferenceManager::setParams(const ParameterVector params)
+void InferenceManager::setParams(const ParameterVector params, const std::vector<std::pair<int, int>> derivatives)
 {
-    PiecewiseExponentialRateFunction<T> eta(params);
+    PiecewiseExponentialRateFunction<T> eta(params, derivatives);
     regularizer = adouble(eta.regularizer());
     pi = compute_initial_distribution<T>(eta, hidden_states).template cast<adouble>();
     Matrix<adouble> ttmp = compute_transition<T>(eta, hidden_states, rho).template cast<adouble>();
@@ -81,7 +81,7 @@ void InferenceManager::setParams(const ParameterVector params)
         PROGRESS("emission (" << m << ")");
         tmask.clear();
         tavg.clear();
-        tmp = sfs<T>(params, hidden_states[m], hidden_states[m + 1]);
+        tmp = sfs<T>(eta, hidden_states[m], hidden_states[m + 1]);
         emission.row(m) = Matrix<T>::Map(tmp.data(), 1, 3 * (n + 1)).template cast<adouble>();
         for (int i = 0; i < 3; ++i)
             for (int j = 0; j < n + 1; ++j)
@@ -98,17 +98,16 @@ void InferenceManager::setParams(const ParameterVector params)
     parallel_do([] (HMM &hmm) { hmm.recompute_B(); });
     PROGRESS_DONE();
 }
-template void InferenceManager::setParams<double>(const ParameterVector);
-template void InferenceManager::setParams<adouble>(const ParameterVector);
+template void InferenceManager::setParams<double>(const ParameterVector, const std::vector<std::pair<int, int>>);
+template void InferenceManager::setParams<adouble>(const ParameterVector, const std::vector<std::pair<int, int>>);
 
 template <typename T>
-Matrix<T> InferenceManager::sfs(const ParameterVector params, double t1, double t2)
+Matrix<T> InferenceManager::sfs(PiecewiseExponentialRateFunction<T> eta, double t1, double t2)
 {
-    PiecewiseExponentialRateFunction<T> eta(params);
     return ConditionedSFS<T>::calculate_sfs(eta, n, num_samples, moran_interp, t1, t2, num_threads, theta);
 }
-template Matrix<double> InferenceManager::sfs(const ParameterVector, double, double);
-template Matrix<adouble> InferenceManager::sfs(const ParameterVector, double, double);
+template Matrix<double> InferenceManager::sfs(PiecewiseExponentialRateFunction<double>, double, double);
+template Matrix<adouble> InferenceManager::sfs(PiecewiseExponentialRateFunction<adouble>, double, double);
 
 void InferenceManager::parallel_do(std::function<void(HMM &)> lambda)
 {

@@ -3,21 +3,31 @@
 
 #include <Eigen/Dense>
 #include "common.h"
-#include "rate_function.h"
+#include "specialfunctions.h"
+#include "function_evaluator.h"
 
 template <typename T>
-class PiecewiseExponentialRateFunction : public RateFunction<T>
+using feval = std::unique_ptr<FunctionEvaluator<T>>;
+
+template <typename T>
+class PiecewiseExponentialRateFunction
 {
     public:
+    PiecewiseExponentialRateFunction(const std::vector<std::vector<double>>, const std::vector<std::pair<int, int>>);
     PiecewiseExponentialRateFunction(const std::vector<std::vector<double>> params);
     PiecewiseExponentialRateFunction(const PiecewiseExponentialRateFunction &other) : 
-        PiecewiseExponentialRateFunction(other.params) {}
-    virtual std::vector<T> getTimes() const { return ts; }
-    virtual const FunctionEvaluator<T>* geteta() const { return eta.get(); }
-    virtual const FunctionEvaluator<T>* getR() const { return R.get(); }
-    virtual const FunctionEvaluator<T>* getRinv() const { return Rinv.get(); }
+        PiecewiseExponentialRateFunction(other.params, other.derivatives) {}
+    std::vector<T> getTimes() const { return ts; }
+    const FunctionEvaluator<T>* geteta() const { return eta.get(); }
+    const FunctionEvaluator<T>* getR() const { return R.get(); }
+    const FunctionEvaluator<T>* getRinv() const { return Rinv.get(); }
     void print_debug() const;
-    virtual const T regularizer(void) const { return _reg; }
+    const T regularizer(void) const { return _reg; }
+    T tjj_integral(double, T, T, T) const;
+    mpfr::mpreal mpfr_tjj_integral(double, T, T, T) const;
+    const std::vector<std::pair<int, int>> derivatives;
+    const T zero;
+    const T one;
 
     friend std::ostream& operator<<(std::ostream& os, const PiecewiseExponentialRateFunction& pexp)
     {
@@ -28,6 +38,8 @@ class PiecewiseExponentialRateFunction : public RateFunction<T>
     }
     
     private:
+    T init_derivative(double x);
+    std::vector<std::vector<double>> params;
     const int K;
     std::vector<T> ada, adb, ads, ts, Rrng;
     void initialize_derivatives();
@@ -74,6 +86,8 @@ class BasePExpEvaluator : public FunctionEvaluator<T>
     const std::vector<T> ada, adb, ts, Rrng;
     virtual T pexp_eval(const T &, int) const = 0;
     virtual const std::vector<T>& insertion_list(void) const = 0;
+
+    friend class PiecewiseExponentialRateFunction<T>;
 };
 
 template <typename T>

@@ -6,6 +6,8 @@
 #include <map>
 #include <thread>
 #include <random>
+#include <unsupported/Eigen/MPRealSupport>
+#include <mpreal.h>
 
 #include "common.h"
 #include "rate_function.h"
@@ -30,6 +32,7 @@ class ConditionedSFS
     void fill_matrices();
     void construct_ad_vars();
     void compute_ETnk_below(const Vector<T>&);
+    void compute_ETnk_below2(const Vector<T>&);
     double exp1();
     T exp1_conditional(T, T);
     double unif();

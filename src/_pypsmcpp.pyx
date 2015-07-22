@@ -43,7 +43,7 @@ cdef _make_em_matrix(vector[pMatrixD] mats):
 
 cdef class PyInferenceManager:
     cdef InferenceManager *_im
-    cdef int _n, _J, _K
+    cdef int _n, _nder
     cdef int _num_hmms
     cdef object _moran_mats
     cdef object _moran_ts
@@ -101,15 +101,17 @@ cdef class PyInferenceManager:
     def getObservations(self):
         return self._observations
 
-    def setParams(self, params, ad):
+    def setParams(self, params, derivatives):
         # if not np.all(np.array(params) > 0):
             # raise ValueError("All parameters must be strictly positive")
-        self._J = len(params)
-        self._K = len(params[0])
         cdef ParameterVector p = make_params(params)
         set_csfs_seed(self.seed)
-        if ad:
-            self._im.setParams_ad(p)
+        if derivatives is True:
+            derivatives = [(a, b) for a in range(len(params)) for b in range(len(params[0]))]
+        if derivatives:
+            # It should be pairs of tuples in this case
+            self._nder = len(derivatives)
+            self._im.setParams_ad(p, derivatives)
         else:
             self._im.setParams_d(p)
 
@@ -190,11 +192,11 @@ cdef class PyInferenceManager:
         cdef vector[adouble] ad_rets = self._im.Q(lam)
         cdef int K = ad_rets.size()
         ret = []
-        cdef double[:, ::1] vjac
+        cdef double[::1] vjac
         for i in range(self._num_hmms):
-            jac = aca(np.zeros([self._J, self._K]))
+            jac = aca(np.zeros([self._nder]))
             vjac = jac
-            fill_jacobian(ad_rets[i], &vjac[0, 0])
+            fill_jacobian(ad_rets[i], &vjac[0])
             ret.append((toDouble(ad_rets[i]), jac))
         return ret
 

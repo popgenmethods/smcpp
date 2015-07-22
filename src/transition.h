@@ -6,22 +6,20 @@
 #include <unsupported/Eigen/NumericalDiff>
 
 #include "common.h"
-#include "rate_function.h"
-#include "spline_rate_function.h"
 #include "piecewise_exponential_rate_function.h"
 
 template <typename T>
 class Transition
 {
     public:
-        Transition(const RateFunction<T> &eta, const std::vector<double>&, double);
+        Transition(const PiecewiseExponentialRateFunction<T> &eta, const std::vector<double>&, double);
         void compute(void);
         // void store_results(double*, double*);
         Matrix<T>& matrix(void);
 
     private:
         Matrix<T> expm(int, int);
-        const RateFunction<T> *eta;
+        const PiecewiseExponentialRateFunction<T> *eta;
         const std::vector<double>& _hs;
         double rho;
         int M;
@@ -30,7 +28,7 @@ class Transition
 };
 
 template <typename T>
-Matrix<T> compute_transition(const RateFunction<T> &eta, const std::vector<double> &hidden_states, double rho)
+Matrix<T> compute_transition(const PiecewiseExponentialRateFunction<T> &eta, const std::vector<double> &hidden_states, double rho)
 {
     Transition<T> trans(eta, hidden_states, rho);
     return trans.matrix();

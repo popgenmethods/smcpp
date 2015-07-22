@@ -60,7 +60,7 @@ Matrix<adouble> transition_exp(double c_rho, adouble c_eta)
 }
 
 template <typename T>
-Transition<T>::Transition(const RateFunction<T> &eta, const std::vector<double> &hidden_states, double rho) :
+Transition<T>::Transition(const PiecewiseExponentialRateFunction<T> &eta, const std::vector<double> &hidden_states, double rho) :
     eta(&eta), _hs(hidden_states), rho(rho), M(hidden_states.size()), I(4, 4), Phi(M - 1, M - 1)
 {
     I.setIdentity();

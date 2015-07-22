@@ -26,24 +26,41 @@ class InferenceManager
             const int num_samples);
     
     template <typename T>
-    void setParams(const ParameterVector);
+    void setParams(const ParameterVector, const std::vector<std::pair<int, int>>);
 
     void Estep(void);
     std::vector<adouble> Q(double);
     std::vector<double> loglik(double);
 
     template <typename T>
-    Matrix<T> sfs(const ParameterVector, double, double);
-    Matrix<double> sfs_cython(const ParameterVector p, double t1, double t2) { return sfs<double>(p, t1, t2); }
-    Matrix<adouble> dsfs_cython(const ParameterVector p, double t1, double t2) { return sfs<adouble>(p, t1, t2); }
+    Matrix<T> sfs(PiecewiseExponentialRateFunction<T>, double, double);
+    Matrix<double> sfs_cython(const ParameterVector p, double t1, double t2) 
+    { 
+        PiecewiseExponentialRateFunction<double> eta(p);
+        return sfs<double>(eta, t1, t2);
+    }
+    Matrix<adouble> dsfs_cython(const ParameterVector p, double t1, double t2) 
+    { 
+        PiecewiseExponentialRateFunction<adouble> eta(p);
+        return sfs<adouble>(p, t1, t2); 
+    }
     
     // Unfortunately these are necessary to work around a bug in Cython
-    void setParams_d(const ParameterVector params) { setParams<double>(params); }
-    void setParams_ad(const ParameterVector params) { setParams<adouble>(params); }
+    void setParams_d(const ParameterVector params) 
+    { 
+        std::vector<std::pair<int, int>> d;
+        setParams<double>(params, d);
+    }
+    void setParams_ad(const ParameterVector params, 
+            const std::vector<std::pair<int, int>> derivatives) 
+    {  
+        setParams<adouble>(params, derivatives);
+    }
 
     double R(const ParameterVector params, double t)
     {
-        PiecewiseExponentialRateFunction<double> eta(params);
+        std::vector<std::pair<int, int>> d;
+        PiecewiseExponentialRateFunction<double> eta(params, d);
         return (*eta.getR())(t);
     }
 

@@ -120,6 +120,7 @@ void HMM::recompute_B(void)
             }
         }
     }
+    std::cout << B(0,0).derivatives().transpose() << std::endl;
 }
 
 void HMM::forward_backward(void)
