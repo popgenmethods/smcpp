@@ -10,9 +10,7 @@
 #include <mpreal.h>
 
 #include "common.h"
-#include "rate_function.h"
 #include "piecewise_exponential_rate_function.h"
-#include "spline_rate_function.h"
 #include "matrix_interpolator.h"
 
 
