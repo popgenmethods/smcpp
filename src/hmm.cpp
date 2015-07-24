@@ -4,10 +4,10 @@
 HMM::HMM(Eigen::Matrix<int, Eigen::Dynamic, 2> obs, const int block_size,
         const Vector<adouble> *pi, const Matrix<adouble> *transition, 
         const Matrix<adouble> *emission, const Matrix<adouble> *emission_mask,
-        const int mask_freq) : 
+        const int mask_freq, const int mask_offset) : 
     obs(obs), block_size(block_size), 
     pi(pi), transition(transition), emission(emission), emission_mask(emission_mask),
-    mask_freq(mask_freq),
+    mask_freq(mask_freq), mask_offset(mask_offset),
     M(pi->rows()), Ltot(ceil(obs.col(0).sum() / block_size)), 
     B(M, Ltot), alpha_hat(M, Ltot), beta_hat(M, Ltot), gamma(M, Ltot), xisum(M, M), c(Ltot) 
 { }
@@ -112,7 +112,7 @@ void HMM::recompute_B(void)
             if (++i == block_size)
             {
                 i = 0;
-                em_ptr = (block % mask_freq == 0) ? emission : emission_mask;
+                em_ptr = ((block + mask_offset) % mask_freq == 0) ? emission : emission_mask;
                 for (auto &p : powers)
                     B.col(block) = B.col(block).cwiseProduct(em_ptr->col(p.first).array().pow(p.second).matrix());
                 powers.clear();

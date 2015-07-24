@@ -24,6 +24,7 @@ InferenceManager::InferenceManager(
             const std::vector<double> hidden_states,
             const int* emask,
             const int mask_freq,
+            std::vector<int> mask_offset,
             const double theta, const double rho, 
             const int block_size, const int num_threads, 
             const int num_samples) : 
@@ -33,6 +34,7 @@ InferenceManager::InferenceManager(
     hidden_states(hidden_states),
     emask(emask, 3, n + 1),
     mask_freq(mask_freq),
+    mask_offset(mask_offset),
     theta(theta), rho(rho),
     block_size(block_size), num_threads(num_threads),
     num_samples(num_samples), 
@@ -50,7 +52,8 @@ InferenceManager::InferenceManager(
         tmp = Eigen::Matrix<int, Eigen::Dynamic, 3, Eigen::RowMajor>::Map(obs, L, 3);
         ob.col(0) = tmp.col(0);
         ob.col(1) = (n + 1) * tmp.col(1) + tmp.col(2);
-        hmms.emplace_back(ob, block_size, &pi, &transition, &emission, &emission_mask, mask_freq);
+        for (int off : mask_offset)
+            hmms.emplace_back(ob, block_size, &pi, &transition, &emission, &emission_mask, mask_freq, off);
     }
 }
 

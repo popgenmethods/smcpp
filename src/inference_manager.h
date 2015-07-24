@@ -21,6 +21,7 @@ class InferenceManager
             const std::vector<double> hidden_states,
             const int* emission_mask,
             const int mask_freq,
+            const std::vector<int> mask_offset,
             const double theta, const double rho, 
             const int block_size, const int num_threads,
             const int num_samples);
@@ -85,6 +86,7 @@ class InferenceManager
     const std::vector<double> hidden_states;
     const Eigen::Map<const Eigen::Matrix<int, 3, Eigen::Dynamic, Eigen::RowMajor>> emask;
     const int mask_freq;
+    const std::vector<int> mask_offset;
     double theta, rho;
     const int block_size, num_threads;
     int num_samples;
