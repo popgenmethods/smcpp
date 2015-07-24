@@ -183,12 +183,9 @@ void ConditionedSFS<T>::compute_ETnk_below2(const Vector<T> &etjj)
     {
         Vector<T> tmp = m[{n, k - 2}].template cast<double>().cwiseProduct(etjj).template cast<T>();
         Vector<mpfr::mpreal> hitmp = m[{n, k - 2}].cwiseProduct(etjj.template cast<double>().template cast<mpfr::mpreal>());
-        // std::cout << k << " " << m[{n, k - 2}].transpose().template cast<double>() << std::endl;
         ETnk_below(n, k - 2) = kahan_summation(tmp);
         hirow(k - 2) = kahan_summation(hitmp);
     }
-    std::cout << "low precision: " << ETnk_below.row(n).template cast<double>() << std::endl;
-    std::cout << "high precision: " << hirow.template cast<double>().transpose() << std::endl;
 }
 
 template <typename T>
