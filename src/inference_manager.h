@@ -70,7 +70,7 @@ class InferenceManager
     std::vector<Matrix<double>*> getAlphas();
     std::vector<Matrix<double>*> getBetas();
     std::vector<Matrix<double>*> getGammas();
-    std::vector<Matrix<adouble>*> getBs();
+    std::vector<Matrix<double>*> getBs();
     Matrix<double> getPi();
     Matrix<double> getTransition();
     Matrix<double> getEmission();
