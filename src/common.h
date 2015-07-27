@@ -20,7 +20,7 @@
 #define _DEBUG(x) x
 #endif
 
-#if 0
+#if 1
 #define PROGRESS(x) std::cout << x << "... " << std::flush;
 #define PROGRESS_DONE() std::cout << "done." << std::endl << std::flush;
 #else

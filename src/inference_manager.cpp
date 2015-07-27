@@ -185,9 +185,9 @@ std::vector<Matrix<double>*> InferenceManager::getGammas()
     return ret;
 }
 
-std::vector<Matrix<double>*> InferenceManager::getBs()
+std::vector<Matrix<adouble>*> InferenceManager::getBs()
 {
-    std::vector<Matrix<double>*> ret;
+    std::vector<Matrix<adouble>*> ret;
     for (auto &hmm : hmms)
     {
         ret.push_back(&hmm.B);

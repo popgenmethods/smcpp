@@ -5,9 +5,25 @@
 #include "common.h"
 #include "specialfunctions.h"
 #include "function_evaluator.h"
+#include "sad.h"
 
 template <typename T>
 using feval = std::unique_ptr<FunctionEvaluator<T>>;
+
+// Ugly alias-specialization workaround stuff
+template <typename T>
+struct mpreal_wrapper_generic {};
+template <typename T>
+struct mpreal_wrapper_type
+{ typedef mpreal_wrapper_generic<T> type; };
+template <>
+struct mpreal_wrapper_type<double>
+  { typedef mpfr::mpreal type; };
+template <>
+struct mpreal_wrapper_type<adouble>
+  { typedef sad::simple_autodiff<mpfr::mpreal> type; };
+template <typename T>
+using mpreal_wrapper = typename mpreal_wrapper_type<T>::type;
 
 template <typename T>
 class PiecewiseExponentialRateFunction
@@ -24,7 +40,7 @@ class PiecewiseExponentialRateFunction
     void print_debug() const;
     const T regularizer(void) const { return _reg; }
     T tjj_integral(double, T, T, T) const;
-    mpfr::mpreal mpfr_tjj_integral(double, T, T, T) const;
+    mpreal_wrapper<T> mpfr_tjj_integral(double, T, T, T) const;
     const std::vector<std::pair<int, int>> derivatives;
     const T zero;
     const T one;

@@ -8,14 +8,26 @@
 #include <random>
 #include <unsupported/Eigen/MPRealSupport>
 #include <mpreal.h>
+#include <gmpxx.h>
 
 #include "common.h"
 #include "piecewise_exponential_rate_function.h"
 #include "matrix_interpolator.h"
 
+typedef struct 
+{
+    std::vector<std::valarray<mpfr::mpreal>> coeffs;
+    mp_prec_t prec;
+} below_coeff;
+
+class ConditionedSFSBase
+{
+    protected:
+    static std::map<int, below_coeff> below_coeffs_memo;
+};
 
 template <typename T>
-class ConditionedSFS
+class ConditionedSFS : public ConditionedSFSBase
 {
     public:
     ConditionedSFS(const PiecewiseExponentialRateFunction<T>, int, const MatrixInterpolator);
@@ -29,8 +41,8 @@ class ConditionedSFS
     // Methods
     void fill_matrices();
     void construct_ad_vars();
-    void compute_ETnk_below(const Vector<T>&);
-    void compute_ETnk_below2(const Vector<T>&);
+    Vector<T> compute_etnk_below(const Vector<T>&);
+    Vector<T> compute_etnk_below(const std::vector<mpreal_wrapper<T>>&);
     double exp1();
     T exp1_conditional(T, T);
     double unif();
@@ -42,6 +54,7 @@ class ConditionedSFS
     const PiecewiseExponentialRateFunction<T> eta;
     const int n;
     const MatrixInterpolator moran_interp;
+    below_coeff bc;
     Matrix<T> D_subtend_above, D_not_subtend_above, D_subtend_below, 
         D_not_subtend_below, Wnbj, P_dist, P_undist, tK, 
         csfs, csfs_above, csfs_below, ETnk_below;

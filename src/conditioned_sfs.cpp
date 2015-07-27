@@ -1,24 +1,48 @@
 #include "conditioned_sfs.h"
-#include "gauss_legendre.h"
 
 std::mt19937 sfs_gen;
 
-void print_nder(adouble x) { std::cout << "nder:" << x.derivatives().rows() << std::endl; }
-void print_nder(double x) {}
+std::map<int, below_coeff> ConditionedSFSBase::below_coeffs_memo;
 
-template <typename T>
-struct helper_struct
+below_coeff compute_below_coeffs(int n)
 {
-    const FunctionEvaluator<T>* f;
-    double rate;
-    T offset;
-};
-
-template <typename T>
-T helper(T x, void* obj)
-{
-    helper_struct<T>* args = (helper_struct<T>*)obj;
-    T ret = exp(-((*args->f)(x) - args->offset) * args->rate);
+    below_coeff ret;
+    std::valarray<mpq_class> a(0_mpq, n + 1);
+    std::vector<std::valarray<mpq_class>> mlast;
+    for (int nn = 2; nn < n + 3; ++nn)
+    {
+        std::vector<std::valarray<mpq_class>> mnew(nn - 1);
+        mnew[nn - 2] = a;
+        mnew[nn - 2][nn - 2] = 1_mpq;
+        for (int k = nn - 1; k > 1; --k)
+        {
+            mpz_class denom = (nn + 1) * (nn - 2) - (k + 1) * (k - 2);
+            mnew[k - 2] = mlast[k - 2] * mpq_class((nn + 1) * (nn - 2), denom);
+            mnew[k - 2] -= mnew[k - 1] * mpq_class((k + 1) * (k - 2), denom);
+            /*
+            m[{nn - 2, k - 2}] = m[{nn - 3, k - 2}] * mpq_class((nn + 1) * (nn - 2), denom);
+            m[{nn - 2, k - 2}] -= m[{nn - 2, k - 1}] * mpq_class((k + 1) * (k - 2), denom);
+            */
+        }
+        mlast = mnew;
+    }
+    double p = 1;
+    for (int k = 2; k < n + 3; ++k)
+        p = std::accumulate(std::begin(mlast[k - 2]), std::end(mlast[k - 2]), p,
+                [] (double pp, mpq_class &x) 
+                {
+                    mpfr::mpreal r(x.get_mpq_t());
+                    return std::max(pp, (double)log10(abs(r)));
+                });
+    ret.prec = mpfr::digits2bits(p) + 20;
+    std::vector<std::valarray<mpfr::mpreal>> v(n + 1, std::valarray<mpfr::mpreal>(n + 1));
+    for (int k = 2; k < n + 3; ++k)
+        std::transform(std::begin(mlast[k - 2]), std::end(mlast[k - 2]), std::begin(v[k - 2]),
+                [&ret] (mpq_class &x)
+                {
+                    return mpfr::mpreal(x.get_mpq_t(), ret.prec);
+                });
+    ret.coeffs = v;
     return ret;
 }
 
@@ -85,18 +109,20 @@ double pnkb_undist(int n, int m, int l3)
 
 
 template <typename T>
-ConditionedSFS<T>::ConditionedSFS(const PiecewiseExponentialRateFunction<T> eta, int n, 
-        MatrixInterpolator moran_interp) : 
-    eta(eta), n(n), moran_interp(moran_interp),
+ConditionedSFS<T>::ConditionedSFS(const PiecewiseExponentialRateFunction<T> eta, int n, MatrixInterpolator moran_interp) :
+    eta(eta), n(n), moran_interp(moran_interp), 
     D_subtend_above(n, n), D_not_subtend_above(n, n),
 	D_subtend_below(n + 1, n + 1), D_not_subtend_below(n + 1, n + 1),
 	Wnbj(n, n), P_dist(n + 1, n + 1), 
     P_undist(n + 1, n), tK(n + 1, n + 1), csfs(3, n + 1), 
-    csfs_above(3, n + 1), csfs_below(3, n + 1), ETnk_below(n + 1, n + 1)
+    csfs_above(3, n + 1), csfs_below(3, n + 1), bc(compute_below_coeffs(n))
 {
     long long seed = std::uniform_int_distribution<long long>{}(sfs_gen);
     gen.seed(seed);
     fill_matrices();
+    if (below_coeffs_memo.count(n) == 0)
+        below_coeffs_memo[n] = compute_below_coeffs(n);
+    bc = below_coeffs_memo[n];
 }
 
 template <typename T>
@@ -127,81 +153,18 @@ T ConditionedSFS<T>::exp1_conditional(T a, T b)
 }
 
 template <typename T>
-void ConditionedSFS<T>::compute_ETnk_below(const Vector<T> &etjj)
+Vector<T> ConditionedSFS<T>::compute_etnk_below(const std::vector<mpreal_wrapper<T>> &etjj)
 {
-    ETnk_below.setZero();
-    ETnk_below.diagonal() = etjj;
-    for (int nn = 2; nn < n + 3; ++nn)
-    {
-        for (int k = nn - 1; k > 1; --k)
-        {
-            ETnk_below(nn - 2, k - 2) = ETnk_below(nn - 3, k - 2) -
-                (double)(k + 2) * (k - 1) / (nn + 1) / (nn - 2) * ETnk_below(nn - 2, k - 1);
-            ETnk_below(nn - 2, k - 2) /= 1.0 - (double)(k + 1) * (k - 2) / (nn + 1) / (nn - 2);
-        }
-    }
-}
-
-template <typename T>
-T kahan_summation(Vector<T> xs)
-{
-    T sum = 0.0;
-    T c = 0.0;
-    T y, t;
-    for (int i = 0; i < xs.size(); ++i)
-    {
-        y = xs[i] - c;
-        t = sum + y;
-        c = (t - sum) - y;
-        sum = t;
-    }
-    return sum;
-}
-
-template <typename T>
-void ConditionedSFS<T>::compute_ETnk_below2(const Vector<T> &etjj)
-{
-    mpfr::mpreal::set_default_prec(256);
-    ETnk_below.setZero();
-    ETnk_below.diagonal() = etjj;
-    std::map<std::pair<int, int>, Eigen::Matrix<mpfr::mpreal, Eigen::Dynamic, 1>> m;
-    Eigen::Matrix<mpfr::mpreal, Eigen::Dynamic, Eigen::Dynamic> I = Eigen::Matrix<mpfr::mpreal, Eigen::Dynamic, Eigen::Dynamic>::Identity(n + 1, n + 1);
-    for (int j = 2; j < n + 3; ++j)
-        m[{j - 2, j - 2}] = I.col(j - 2);
-    for (int nn = 2; nn < n + 3; ++nn)
-    {
-        for (int k = nn - 1; k > 1; --k)
-        {
-            double num = (double)(k + 2) * (k - 1) / (nn + 1) / (nn - 2);
-            double denom = 1.0 - (double)(k + 1) * (k - 2) / (nn + 1) / (nn - 2);
-            m[{nn - 2, k - 2}] = m[{nn - 3, k - 2}] / denom;
-            m[{nn - 2, k - 2}] += -m[{nn - 2, k - 1}] * num / denom;
-        }
-    }
-    Vector<mpfr::mpreal> hirow(n + 1);
-    for (int k = 2; k < n + 3; ++k)
-    {
-        Vector<T> tmp = m[{n, k - 2}].template cast<double>().cwiseProduct(etjj).template cast<T>();
-        Vector<mpfr::mpreal> hitmp = m[{n, k - 2}].cwiseProduct(etjj.template cast<double>().template cast<mpfr::mpreal>());
-        ETnk_below(n, k - 2) = kahan_summation(tmp);
-        hirow(k - 2) = kahan_summation(hitmp);
-    }
-}
-
-template <typename T>
-T etnk_recursion(std::map<std::pair<int, int>, T> &memo, const Vector<T> &etjj, int n, int k) 
-{
-    if (k == n)
-        return etjj(k - 2);
-    std::pair<int, int> key = {n, k};
-    if (memo.count(key) == 0)
-    {
-        T ret = etnk_recursion(memo, etjj, n - 1, k);
-        ret -= (double)(k + 2) * (k - 1) / (n + 1) / (n - 2) * etnk_recursion(memo, etjj, n, k + 1);
-        ret /= 1.0 - (double)(k + 1) * (k - 2) / (n + 1) / (n - 2);
-        memo[key] = ret;
-    }
-    return memo[key];
+    std::cout << bc.prec << " bits of precision needed..." << std::endl;
+    mpfr::mpreal::set_default_prec(bc.prec);
+    Vector<T> ret = Vector<T>::Zero(n + 1);
+    std::valarray<mpreal_wrapper<T>> v(n + 1);
+    for (int i = 0; i < n + 1; ++i)
+        v[i] = etjj[i];
+    for (int i = 0; i < n + 1; ++i)
+        for (int j = 0; j < n + 1; ++j)
+            ret(i) += (bc.coeffs[i][j] * v[j]).toDouble();
+    return tK * ret;
 }
 
 template <typename T>
@@ -224,13 +187,14 @@ void check_for_nans(Vector<adouble> x)
         check_for_nans(x(i).derivatives());
 }
 
+int get_nd(double x) { return 0; }
+int get_nd(adouble x) { return x.derivatives().size(); }
+
 template <typename T>
 void ConditionedSFS<T>::compute(int num_samples, T t1, T t2)
 {
     // feenableexcept(FE_INVALID | FE_OVERFLOW);
-    auto R = eta.getR();
     auto Rinv = eta.getRinv();
-    auto feta = eta.geteta();
     T tau;
     // There are n + 2 (undistinguished + distinguished) at time 0.
     // Above tau there are between 2 and n + 1.
@@ -238,12 +202,14 @@ void ConditionedSFS<T>::compute(int num_samples, T t1, T t2)
 	// the matrix class instead.
     Vector<T> etjj_above(n), etjj_below(n + 1), sfs_tau(n, 1);
     Vector<T> tjj_above(n), tjj_below(n + 1);
+    std::vector<mpreal_wrapper<T>> mpfr_tjj_below(n + 1);
     Vector<T> gauss_tjj_above(n), gauss_tjj_below(n + 1);
     Vector<T> etnk_below(n + 1), etnk_above(n);
 	Matrix<T> eM(n + 1, n + 1);
     int m;
     T y, Rt;
     Matrix<T> tmpmat;
+    eta.print_debug();
 
 	// Mixing constants with adoubles causes problems because the library
 	// doesn't know how to allocate the VectorXd of derivatives(). 
@@ -257,103 +223,20 @@ void ConditionedSFS<T>::compute(int num_samples, T t1, T t2)
     std::sort(ys.begin(), ys.end());
     std::vector<int> eis(num_samples);
     std::vector<T> taus = (*Rinv)(ys);
-
     for (m = 0; m < num_samples; ++m)
     {
         tau = taus[m];
         y = ys[m];
-        gauss_tjj_below(0) = tau;
-
-        // quadrature approach
-        /*
-        T right, left, intg;
-        helper_struct<T> hs;
-        hs.f = R;
-        std::vector<T> eta_ts = R->getTimes();
-        int K = eta_ts.size();
-        for (int j = 2; j < n + 2; ++j)
-        {
-            gauss_tjj_below(j - 1) = 0.0;
-            gauss_tjj_above(j - 2) = 0.0;
-            int k = 0;
-            hs.rate = (double)((j + 1) * j / 2 - 1);
-            hs.offset = 0.0;
-            while (eta_ts[k] < tau)
-            {
-                left = eta_ts[k];
-                // ts[K-1] = inf
-                if (k == K - 2)
-                    right = tau;
-                else
-                    right = dmin(eta_ts[k + 1], tau);
-                intg = gauss_legendre<T>(1024, &helper<T>, (void*)&hs, left, right);
-                gauss_tjj_below(j - 1) += intg;
-                k++;
-            }
-            k--;
-            hs.rate = (double)(j * (j - 1) / 2);
-            hs.offset = y; 
-            while (k < K - 2)
-            {
-                left = dmax(eta_ts[k], tau);
-                right = eta_ts[k + 1];
-                intg = gauss_legendre<T>(1024, &helper<T>, (void*)&hs, left, right);
-                gauss_tjj_above(j - 2) += intg;
-                k++;
-            }
-            // Add in the last piece which goes to infinity and is linear
-            left = dmax(eta_ts[K - 2], tau);
-            gauss_tjj_above(j - 2) += exp(-hs.rate * ((*R)(left) - y)) / hs.rate / (*feta)(left);
-        }
-        std::cout << "gauss_tjj_below " << gauss_tjj_below.transpose().template cast<double>() << std::endl;
-        */
+        tjj_below(0) = tau;
+        mpfr_tjj_below[0] = mpreal_wrapper<T>(tau);
         for (int j = 2; j < n + 2; ++j)
         {
             double rate = (double)((j + 1) * j / 2 - 1);
-            gauss_tjj_below(j - 1) = eta.tjj_integral(rate, zero, tau, zero);
+            mpfr_tjj_below[j - 1] = eta.mpfr_tjj_integral(rate, zero, tau, zero);
             rate = (double)(j * (j - 1) / 2);
-            gauss_tjj_above(j - 2) = eta.tjj_integral(rate, tau, INFINITY, y);
+            tjj_above(j - 2) = eta.tjj_integral(rate, tau, INFINITY, y);
         }
-        check_for_nans(gauss_tjj_above);
-        check_for_nans(gauss_tjj_below);
-        // std::cout << "ei_tjj_below " << gauss_tjj_below.transpose().template cast<double>() << std::endl;
-        compute_ETnk_below(gauss_tjj_below);
-        /*
-        std::cout << "ETnks...\n";
-        std::cout << ETnk_below.row(n).template cast<double>() << std::endl;
-        compute_ETnk_below2(gauss_tjj_below);
-        std::cout << ETnk_below.row(n).template cast<double>() << std::endl;
-        ////////////////
-        std::map<std::pair<int, int>, Eigen::Matrix<mpfr::mpreal, Eigen::Dynamic, 1>> m;
-        Eigen::Matrix<mpfr::mpreal, Eigen::Dynamic, Eigen::Dynamic> I = 
-            Eigen::Matrix<mpfr::mpreal, Eigen::Dynamic, Eigen::Dynamic>::Identity(n + 1, n + 1);
-        for (int j = 2; j < n + 3; ++j)
-            m[{j - 2, j - 2}] = I.col(j - 2);
-        for (int nn = 2; nn < n + 3; ++nn)
-        {
-            for (int k = nn - 1; k > 1; --k)
-            {
-                double num = (double)(k + 2) * (k - 1) / (nn + 1) / (nn - 2);
-                double denom = 1.0 - (double)(k + 1) * (k - 2) / (nn + 1) / (nn - 2);
-                m[{nn - 2, k - 2}] = m[{nn - 3, k - 2}] / denom;
-                m[{nn - 2, k - 2}] += -m[{nn - 2, k - 1}] * num / denom;
-            }
-        }
-        Vector<mpfr::mpreal> hirow(n + 1);
-        for (int k = 2; k < n + 3; ++k)
-        {
-            Vector<mpfr::mpreal> hitmp = m[{n, k - 2}].cwiseProduct(mpfr_tjj_below);
-            hirow(k - 2) = kahan_summation(hitmp);
-        }
-        std::cout << "full precision: " << hirow.template cast<double>().transpose() << std::endl;
-        ///////////////
-        */
-        tjj_above = gauss_tjj_above;
-        // etnk_below_sample = tK * etnk_below_sample;
-        // std::cout << "simulation: " << etnk_below_sample.template cast<double>().transpose() << std::endl;
-        etnk_below = tK * ETnk_below.row(n).transpose();
-        // std::cout << "recursion: " << etnk_below.template cast<double>().transpose() << std::endl;
-        // etnk_below = etnk_below_sample;
+        etnk_below = compute_etnk_below(mpfr_tjj_below);
         csfs_below.block(0, 1, 1, n) += etnk_below.transpose() * D_not_subtend_below * P_undist / num_samples;
         csfs_below.block(1, 0, 1, n + 1) += etnk_below.transpose() * D_subtend_below * P_dist / num_samples;
         // Compute sfs above using polanski-kimmel + matrix exponential

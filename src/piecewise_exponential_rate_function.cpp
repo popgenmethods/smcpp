@@ -7,10 +7,9 @@ PiecewiseExponentialRateFunction<T>::PiecewiseExponentialRateFunction(const std:
 std::vector<std::pair<int, int>> derivatives_from_params(const std::vector<std::vector<double>> params)
 {
     std::vector<std::pair<int, int>> ret;
-    for (int i = 0; i < params.size(); ++i)
-        for (int j = 0; j < params[0].size(); ++j)
+    for (size_t i = 0; i < params.size(); ++i)
+        for (size_t j = 0; j < params[0].size(); ++j)
             ret.emplace_back(i, j);
-    // std::cout << "building in all derivatives" << std::endl;
     return ret;
 } 
 
@@ -82,10 +81,13 @@ PiecewiseExponentialRateFunction<T>::PiecewiseExponentialRateFunction(const std:
 template <typename T>
 void PiecewiseExponentialRateFunction<T>::initialize_derivatives(void) {}
 
+int sad::simple_autodiff_base::nd = 0;
+
 template <>
 void PiecewiseExponentialRateFunction<adouble>::initialize_derivatives(void)
 {
     int nd = derivatives.size();
+    sad::simple_autodiff_base::nd = nd;
     Eigen::VectorXd z = Eigen::VectorXd::Zero(nd);
     Eigen::MatrixXd I = Eigen::MatrixXd::Identity(nd, nd);
     for (int k = 0; k < K; ++k)
@@ -102,9 +104,18 @@ void PiecewiseExponentialRateFunction<adouble>::initialize_derivatives(void)
     Rrng[0].derivatives() = z;
 }
 
+inline int get_nd(double x) { return -1; }
+inline int get_nd(adouble x) { return x.derivatives().size(); }
+
 template <typename T>
-mpfr::mpreal PiecewiseExponentialRateFunction<T>::mpfr_tjj_integral(double rate, T t1, T t2, T offset) const
+void print_mpwrap(mpreal_wrapper<T> x) { std::cout << x.toDouble() << std::endl; }
+template void print_mpwrap<double>(mpreal_wrapper<double>);
+template void print_mpwrap<adouble>(mpreal_wrapper<adouble>);
+
+template <typename T>
+mpreal_wrapper<T> PiecewiseExponentialRateFunction<T>::mpfr_tjj_integral(double rate, T t1, T t2, T offset) const
 {
+    using namespace sad;
     // Compute \int_0^(t2-t1) exp(-rate * \int_t1^t eta(s) ds) dt
     //  = \int_0^(t2-t1) exp(-rate * (R(t) - R(t1))) dt
     int start = 0;
@@ -113,22 +124,24 @@ mpfr::mpreal PiecewiseExponentialRateFunction<T>::mpfr_tjj_integral(double rate,
     int end = K;
     if (! std::isinf(toDouble(t2)))
         end = insertion_point(t2, ts, 0, K) + 1;
-    mpfr::mpreal ret = 0.0, left, right;
+    mpreal_wrapper<T> ret(0.0);
+    // std::cout << ret << std::endl;
+    mpreal_wrapper<T> left, right;
     for (int m = start; m < end; ++m)
     {
-        double R = toDouble(Rrng[m]);
-        double c = R - toDouble(offset);
-        double a = toDouble(ada[m]);
-        double b = toDouble(adb[m]);
-        double tsm = toDouble(ts[m]);
-        double tsm1 = toDouble(ts[m + 1]);
+        mpreal_wrapper<T> R(Rrng[m]);
+        mpreal_wrapper<T> c(R - offset);
+        mpreal_wrapper<T> a(ada[m]);
+        mpreal_wrapper<T> b(adb[m]);
+        mpreal_wrapper<T> tsm(ts[m]);
+        mpreal_wrapper<T> tsm1(ts[m + 1]);
         left = tsm;
         if (t1 > tsm)
-            left = toDouble(t1);
+            left = mpreal_wrapper<T>(t1);
         right = tsm1;
         if (m == K - 1 or t2 < tsm1)
-            right = toDouble(t2);
-        if (mpfr::isinf(right))
+            right = mpreal_wrapper<T>(t2);
+        if (isinf(right))
         {
             // here we assume that adb[k] == 0 (flat last piece)
             // R(t) = Rrng[K - 1] + ada[K - 1](t - ts[K - 1])
@@ -141,13 +154,14 @@ mpfr::mpreal PiecewiseExponentialRateFunction<T>::mpfr_tjj_integral(double rate,
         }
         else
         {
-            mpfr::mpreal c1 = -a / b * rate;
-            mpfr::mpreal arg1 = c1 * exp(b * (left - tsm));
-            mpfr::mpreal arg2 = c1 * exp(b * (right - tsm));
-            mpfr::mpreal ei1 = exponentialintegralei(arg1);
-            mpfr::mpreal ei2 = exponentialintegralei(arg2);
-            ret += (ei2 - ei1) * exp(rate * (a / b - c)) / b;
+            mpreal_wrapper<T> c1(-a / b * rate);
+            mpreal_wrapper<T> arg1(c1 * exp(b * (left - tsm)));
+            mpreal_wrapper<T> arg2(c1 * exp(b * (right - tsm)));
+            mpreal_wrapper<T> ei1 = eint(arg1);
+            mpreal_wrapper<T> ei2 = eint(arg2);
+            ret += (ei2 - ei1) * exp(-(c1 + rate * c)) / b;
         }
+        // std::cout << "start:" << start << " end:" << end << " ret:" << ret << std::endl;
     }
     return ret;
 }
@@ -210,7 +224,6 @@ T PiecewiseExponentialRateFunction<T>::tjj_integral(double rate, T t1, T t2, T o
                 {
                     out[i] = exponentialintegralei(argi) * exp(-c1 - rate * c);
                 }
-                // std::cout << i << " argsi=" << args[i] << ";c1=" << c1 << ";rate=" << rate << ";c=" << c << ";out=" << out[i] << std::endl;
             }
             // ei1 = exponentialintegralei(arg1)
             // ei2 = exponentialintegralei(arg2)
