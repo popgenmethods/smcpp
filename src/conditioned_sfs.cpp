@@ -18,7 +18,7 @@ below_coeff compute_below_coeffs(int n)
         {
             mpz_class denom = (nn + 1) * (nn - 2) - (k + 1) * (k - 2);
             mnew[k - 2] = mlast[k - 2] * mpq_class((nn + 1) * (nn - 2), denom);
-            mnew[k - 2] -= mnew[k - 1] * mpq_class((k + 1) * (k - 2), denom);
+            mnew[k - 2] -= mnew[k - 1] * mpq_class((k + 2) * (k - 1), denom);
             /*
             m[{nn - 2, k - 2}] = m[{nn - 3, k - 2}] * mpq_class((nn + 1) * (nn - 2), denom);
             m[{nn - 2, k - 2}] -= m[{nn - 2, k - 1}] * mpq_class((k + 1) * (k - 2), denom);
@@ -32,17 +32,10 @@ below_coeff compute_below_coeffs(int n)
                 [] (double pp, mpq_class &x) 
                 {
                     mpfr::mpreal r(x.get_mpq_t());
-                    return std::max(pp, (double)log10(abs(r)));
+                    return std::max(pp, log10(abs(r)).toDouble());
                 });
     ret.prec = mpfr::digits2bits(p) + 20;
-    std::vector<std::valarray<mpfr::mpreal>> v(n + 1, std::valarray<mpfr::mpreal>(n + 1));
-    for (int k = 2; k < n + 3; ++k)
-        std::transform(std::begin(mlast[k - 2]), std::end(mlast[k - 2]), std::begin(v[k - 2]),
-                [&ret] (mpq_class &x)
-                {
-                    return mpfr::mpreal(x.get_mpq_t(), ret.prec);
-                });
-    ret.coeffs = v;
+    ret.coeffs = mlast;
     return ret;
 }
 
@@ -86,10 +79,23 @@ double pnkb_dist(int n, int m, int l1)
     // the time at which 1 and 2 coalesce, when there are k 
     // undistinguished lineages remaining, in a sample of n
     // undistinguished (+2 distinguished) lineages overall.
+    mpz_class binom1;
+    mpz_bin_uiui(binom1.get_mpz_t(), n + 3, m + 3);
+    mpq_class ret(l1 * (n + 2 - l1), binom1);
+    if (m > 0)
+    {
+        mpz_class binom2;
+        mpz_bin_uiui(binom2.get_mpz_t(), n - l1, m - 1);
+        mpq_class r2((n + 1 - l1) * binom2, m * (m + 1));
+        ret *= r2;
+    }
+    return ret.get_d();
+    /*
+     * Numerically unstable for large n
     double ret = l1 * (n + 2 - l1) / (double) binom(n + 3, m + 3);
     if (m > 0)
         ret *= (n + 1 - l1) * (double)binom(n - l1, m - 1) / m / (m + 1);
-    return ret;
+    */
 }
 
 double pnkb_undist(int n, int m, int l3)
@@ -98,23 +104,37 @@ double pnkb_undist(int n, int m, int l3)
     // the time at which 1 and 2 coalesce, when there are k 
     // undistinguished lineages remaining, in a sample of n
     // undistinguished (+2 distinguished) lineages overall.
-    assert(m > 0);
+    mpz_class binom1;
+    mpz_bin_uiui(binom1.get_mpz_t(), n + 3, m + 3);
+    mpq_class ret((n + 3 - l3) * (n + 2 - l3) * (n + 1 - l3), binom1);
+    if (m == 1)
+        ret /= 6;
+    else
+    {
+        mpz_class binom2;
+        mpz_bin_uiui(binom2.get_mpz_t(), n - l3 - 1, m - 2);
+        mpq_class r2((n - l3) * binom2, (m - 1) * m * (m + 1) * (m + 2));
+        ret *= r2;
+    }
+    return ret.get_d();
+    /*
+     * Numerically unstable for large n
     double ret = (n + 3 - l3) * (n + 2 - l3) * (n + 1 - l3) / (double) binom(n + 3, m + 3);
     if (m == 1)
         ret /= 6.0;
     else
         ret *= (n - l3) * (double)binom(n - l3 - 1, m - 2) / (m - 1) / m / (m + 1) / (m + 2);
     return ret;
+    */
 }
 
 
 template <typename T>
 ConditionedSFS<T>::ConditionedSFS(const PiecewiseExponentialRateFunction<T> eta, int n, MatrixInterpolator moran_interp) :
     eta(eta), n(n), moran_interp(moran_interp), 
-    D_subtend_above(n, n), D_not_subtend_above(n, n),
-	D_subtend_below(n + 1, n + 1), D_not_subtend_below(n + 1, n + 1),
+    D_subtend_above(n), D_subtend_below(n + 1),
 	Wnbj(n, n), P_dist(n + 1, n + 1), 
-    P_undist(n + 1, n), tK(n + 1, n + 1), csfs(3, n + 1), 
+    P_undist(n + 1, n), csfs(3, n + 1), 
     csfs_above(3, n + 1), csfs_below(3, n + 1), bc(compute_below_coeffs(n))
 {
     long long seed = std::uniform_int_distribution<long long>{}(sfs_gen);
@@ -123,6 +143,8 @@ ConditionedSFS<T>::ConditionedSFS(const PiecewiseExponentialRateFunction<T> eta,
     if (below_coeffs_memo.count(n) == 0)
         below_coeffs_memo[n] = compute_below_coeffs(n);
     bc = below_coeffs_memo[n];
+    std::cout << bc.prec << " bits of precision needed..." << std::endl;
+    mpfr::mpreal::set_default_prec(bc.prec);
 }
 
 template <typename T>
@@ -155,16 +177,19 @@ T ConditionedSFS<T>::exp1_conditional(T a, T b)
 template <typename T>
 Vector<T> ConditionedSFS<T>::compute_etnk_below(const std::vector<mpreal_wrapper<T>> &etjj)
 {
-    std::cout << bc.prec << " bits of precision needed..." << std::endl;
-    mpfr::mpreal::set_default_prec(bc.prec);
     Vector<T> ret = Vector<T>::Zero(n + 1);
+    ret.fill(eta.zero);
     std::valarray<mpreal_wrapper<T>> v(n + 1);
     for (int i = 0; i < n + 1; ++i)
         v[i] = etjj[i];
     for (int i = 0; i < n + 1; ++i)
+    {
+        mpreal_wrapper<T> tmp(0);
         for (int j = 0; j < n + 1; ++j)
-            ret(i) += (bc.coeffs[i][j] * v[j]).toDouble();
-    return tK * ret;
+            tmp += v[j] * bc.coeffs[i][j].get_mpq_t();
+        ret(i) = ((i + 2) * tmp).toDouble();
+    }
+    return ret;
 }
 
 template <typename T>
@@ -179,6 +204,7 @@ void check_for_nans(Vector<double> x)
         if (std::isnan(x(i)))
             throw std::domain_error("got nans in x");
 }
+
 void check_for_nans(Vector<adouble> x) 
 {
     Vector<double> vd = x.template cast<double>();
@@ -186,9 +212,6 @@ void check_for_nans(Vector<adouble> x)
     for (int i = 0; i < x.rows(); ++i)
         check_for_nans(x(i).derivatives());
 }
-
-int get_nd(double x) { return 0; }
-int get_nd(adouble x) { return x.derivatives().size(); }
 
 template <typename T>
 void ConditionedSFS<T>::compute(int num_samples, T t1, T t2)
@@ -209,7 +232,6 @@ void ConditionedSFS<T>::compute(int num_samples, T t1, T t2)
     int m;
     T y, Rt;
     Matrix<T> tmpmat;
-    eta.print_debug();
 
 	// Mixing constants with adoubles causes problems because the library
 	// doesn't know how to allocate the VectorXd of derivatives(). 
@@ -227,18 +249,18 @@ void ConditionedSFS<T>::compute(int num_samples, T t1, T t2)
     {
         tau = taus[m];
         y = ys[m];
-        tjj_below(0) = tau;
-        mpfr_tjj_below[0] = mpreal_wrapper<T>(tau);
+        mpfr_tjj_below[0] = tau;
+        // mpreal_wrapper<T>(tau);
         for (int j = 2; j < n + 2; ++j)
         {
-            double rate = (double)((j + 1) * j / 2 - 1);
-            mpfr_tjj_below[j - 1] = eta.mpfr_tjj_integral(rate, zero, tau, zero);
-            rate = (double)(j * (j - 1) / 2);
+            unsigned long int lrate = (j + 1) * j / 2 - 1;
+            mpfr_tjj_below[j - 1] = eta.mpfr_tjj_integral(lrate, zero, tau, zero, bc.prec);
+            double rate = j * (j - 1) / 2;
             tjj_above(j - 2) = eta.tjj_integral(rate, tau, INFINITY, y);
         }
         etnk_below = compute_etnk_below(mpfr_tjj_below);
-        csfs_below.block(0, 1, 1, n) += etnk_below.transpose() * D_not_subtend_below * P_undist / num_samples;
-        csfs_below.block(1, 0, 1, n + 1) += etnk_below.transpose() * D_subtend_below * P_dist / num_samples;
+        csfs_below.block(0, 1, 1, n) += etnk_below.cwiseProduct(Vector<T>::Ones(n) - D_subtend_below) * P_undist / num_samples;
+        csfs_below.block(1, 0, 1, n + 1) += etnk_below.cwiseProduct(D_subtend_below) * P_dist / num_samples;
         // Compute sfs above using polanski-kimmel + matrix exponential
         // Get the correct linear-interpolated matrix exponential
         eM = moran_interp.interpolate<T>(y);
@@ -248,11 +270,11 @@ void ConditionedSFS<T>::compute(int num_samples, T t1, T t2)
         // tau, it's sum_b p(|B|=b at tau) * ({1,2} not a subset of B) * p(|B| -> (0, k))
         // Recall that the rate matrix for the a = 0 case is the reverse of the a = 2 case,
         // which is what gets passed in.
-        tmpmat = eM.reverse().bottomRightCorner(n, n).transpose() * D_not_subtend_above / num_samples;
+        tmpmat = eM.reverse().bottomRightCorner(n, n).transpose() * (Vector<T>::Ones(n) - D_subtend_above).asDiagonal() / num_samples;
 		csfs_above.block(0, 1, 1, n) += (tmpmat * sfs_tau).transpose();
         // If a = 2 (both distinguished lineages derived) then immediately after
         // tau, it's sum_b p(b at tau) * ({1,2} in b) * p((b - 1) -> (2, k))
-        tmpmat = eM.topLeftCorner(n, n).transpose() * D_subtend_above / num_samples;
+        tmpmat = eM.topLeftCorner(n, n).transpose() * D_subtend_above.asDiagonal() / num_samples;
         csfs_above.block(2, 0, 1, n) += (tmpmat * sfs_tau).transpose();
     }
     csfs = csfs_below + csfs_above;
@@ -267,21 +289,10 @@ void ConditionedSFS<T>::compute(int num_samples, T t1, T t2)
 template <typename T>
 void ConditionedSFS<T>::fill_matrices(void)
 {
-	Matrix<T> I = Matrix<T>::Identity(n, n);
-	Matrix<T> I1 = Matrix<T>::Identity(n + 1, n + 1);
-    // Construct some matrices that will be used later on
-    D_subtend_above.setZero();
-    D_subtend_above.diagonal() = Eigen::VectorXd::LinSpaced(n, 1, n).template cast<T>() / (n + 1);
-	D_not_subtend_above = I - D_subtend_above;
-
-    D_subtend_below.setZero();
-    for (int k = 2; k < n + 3; ++k)
-        D_subtend_below.diagonal()(k - 2) = 2. / k;
-	D_not_subtend_below = I1 - D_subtend_below;
-
-    tK.setZero();
-    tK.diagonal() = Eigen::VectorXd::LinSpaced(n + 1, 2, n + 2).template cast<T>();
-
+    D_subtend_above = Eigen::VectorXd::LinSpaced(n, 1, n).template cast<T>();
+    D_subtend_above /= n + 1;
+    D_subtend_below = (Eigen::ArrayXd::Ones(n + 1) / Eigen::ArrayXd::LinSpaced(n + 1, 2, n + 2)).template cast<T>();
+    D_subtend_below *= 2;
     // Calculate the Polanski-Kimmel matrix
     // TODO: this could be sped up by storing the matrix outside of the class
     Wnbj.setZero();

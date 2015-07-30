@@ -16,7 +16,7 @@
 
 typedef struct 
 {
-    std::vector<std::valarray<mpfr::mpreal>> coeffs;
+    std::vector<std::valarray<mpq_class>> coeffs;
     mp_prec_t prec;
 } below_coeff;
 
@@ -37,12 +37,13 @@ class ConditionedSFS : public ConditionedSFSBase
     static Matrix<T> calculate_sfs(const PiecewiseExponentialRateFunction<T> &eta, int n, int num_samples, 
             const MatrixInterpolator &moran_interp, double tau1, double tau2, int numthreads, double theta);
 
-    private:
+    // private:
     // Methods
     void fill_matrices();
     void construct_ad_vars();
     Vector<T> compute_etnk_below(const Vector<T>&);
     Vector<T> compute_etnk_below(const std::vector<mpreal_wrapper<T>>&);
+
     double exp1();
     T exp1_conditional(T, T);
     double unif();
@@ -55,9 +56,8 @@ class ConditionedSFS : public ConditionedSFSBase
     const int n;
     const MatrixInterpolator moran_interp;
     below_coeff bc;
-    Matrix<T> D_subtend_above, D_not_subtend_above, D_subtend_below, 
-        D_not_subtend_below, Wnbj, P_dist, P_undist, tK, 
-        csfs, csfs_above, csfs_below, ETnk_below;
+    Vector<T> D_subtend_above, D_subtend_below;
+    Matrix<T> Wnbj, P_dist, P_undist, csfs, csfs_above, csfs_below, ETnk_below;
 };
 
 void set_seed(long long);

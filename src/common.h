@@ -6,8 +6,8 @@
 #include <random>
 #include <array>
 #include <Eigen/Dense>
-#include <mpreal.h>
 
+#include "mpreal.h"
 #include "prettyprint.hpp"
 
 #define AUTODIFF 1

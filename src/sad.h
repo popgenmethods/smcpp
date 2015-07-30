@@ -3,9 +3,11 @@
 
 #include "mpreal.h"
 
-
 namespace sad
 {
+    using std::exp; 
+    using std::expm1;
+
     template <typename T>
     class simple_autodiff;
 
@@ -40,6 +42,13 @@ namespace sad
         public:
         static int nd;
     };
+
+    inline std::valarray<mpfr::mpreal> operator*(std::valarray<mpfr::mpreal> lhs, const mpq_ptr &rhs)
+    {
+        std::valarray<mpfr::mpreal> ret(lhs.size());
+        std::transform(std::begin(lhs), std::end(lhs), std::begin(ret), [&rhs] (mpfr::mpreal x) { return x * rhs; });
+        return ret;
+    }
 
     template <typename T>
     class simple_autodiff : simple_autodiff_base
@@ -96,6 +105,10 @@ namespace sad
         friend simple_autodiff<T> operator*(simple_autodiff<T> lhs, const simple_autodiff<T> &rhs)
         {
             return simple_autodiff<T>(lhs.x * rhs.x, lhs.x * rhs.d + lhs.d * rhs.x);
+        }
+        friend simple_autodiff<T> operator*(simple_autodiff<T> lhs, const mpq_ptr &rhs)
+        {
+            return simple_autodiff<T>(lhs.x * rhs, lhs.d * rhs);
         }
         friend simple_autodiff<T> operator/(simple_autodiff<T> lhs, const simple_autodiff<T> &rhs)
         {

@@ -40,7 +40,7 @@ class PiecewiseExponentialRateFunction
     void print_debug() const;
     const T regularizer(void) const { return _reg; }
     T tjj_integral(double, T, T, T) const;
-    mpreal_wrapper<T> mpfr_tjj_integral(double, T, T, T) const;
+    mpreal_wrapper<T> mpfr_tjj_integral(const long, T, T, T, mp_prec_t) const;
     const std::vector<std::pair<int, int>> derivatives;
     const T zero;
     const T one;

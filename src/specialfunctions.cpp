@@ -1,7 +1,22 @@
-// Adapted from ALGLIB
 
 #include "specialfunctions.h"
 
+// exp(-c) * Ei(c * x)
+/*
+template <typename T>
+mpreal_wrapper<T> myeint(const mpreal_wrapper<T> &c, const mpreal_wrapper<T> &x)
+{
+    mpreal_wrapper<T> cx = c * x;
+    double mag = log2(cx) + 20;
+    if (mag > mpfr::mpreal::get_default_prec())
+    {
+        // asymptotic expansion
+    }
+}
+*/
+
+//
+// Adapted from ALGLIB
 void setZeroDerivatives(double x, double proto) {}
 void setZeroDerivatives(mpfr::mpreal x, mpfr::mpreal proto) {}
 
