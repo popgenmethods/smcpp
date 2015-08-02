@@ -39,7 +39,7 @@ InferenceManager::InferenceManager(
     block_size(block_size), num_threads(num_threads),
     num_samples(num_samples), 
     M(hidden_states.size() - 1), 
-    tp(num_threads) 
+    tp(num_threads), seed(1)
 {
     pi = Vector<adouble>::Zero(M);
     transition = Matrix<adouble>::Zero(M, M);
@@ -107,10 +107,10 @@ template void InferenceManager::setParams<adouble>(const ParameterVector, const 
 template <typename T>
 Matrix<T> InferenceManager::sfs(PiecewiseExponentialRateFunction<T> eta, double t1, double t2)
 {
-    return ConditionedSFS<T>::calculate_sfs(eta, n, num_samples, moran_interp, t1, t2, num_threads, theta);
+    static CSFSManager<T> c(n, moran_interp, num_threads, theta);
+    c.set_seed(seed);
+    return c.compute(eta, num_samples, t1, t2);
 }
-template Matrix<double> InferenceManager::sfs(PiecewiseExponentialRateFunction<double>, double, double);
-template Matrix<adouble> InferenceManager::sfs(PiecewiseExponentialRateFunction<adouble>, double, double);
 
 void InferenceManager::parallel_do(std::function<void(HMM &)> lambda)
 {

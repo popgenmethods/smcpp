@@ -28,6 +28,7 @@ cdef extern from "inference_manager.h":
                 const vector[int], const double, const double, const int, const int, const int)
         Matrix[double] sfs_cython(const ParameterVector, double, double)
         Matrix[adouble] dsfs_cython(const ParameterVector, double, double)
+        void set_seed(long long)
         void set_num_samples(int)
         void setParams_d(const ParameterVector)
         void setParams_ad(const ParameterVector, vector[pair[int, int]] derivatives)
@@ -46,7 +47,6 @@ cdef extern from "inference_manager.h":
         Matrix[double] getMaskedEmission()
 
 cdef extern from "conditioned_sfs.h":
-    void set_seed(long long)
     void cython_calculate_sfs(const vector[vector[double]] params,
             int n, int num_samples, const MatrixInterpolator&,
             double tau1, double tau2, int numthreads, double theta, 

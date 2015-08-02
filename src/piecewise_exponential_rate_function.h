@@ -2,10 +2,10 @@
 #define PIECEWISE_EXPONENTIAL_RATE_FUNCTION_H
 
 #include <Eigen/Dense>
+#include <unsupported/Eigen/MPRealSupport>
 #include "common.h"
 #include "specialfunctions.h"
 #include "function_evaluator.h"
-#include "sad.h"
 
 template <typename T>
 using feval = std::unique_ptr<FunctionEvaluator<T>>;
@@ -18,12 +18,43 @@ struct mpreal_wrapper_type
 { typedef mpreal_wrapper_generic<T> type; };
 template <>
 struct mpreal_wrapper_type<double>
-  { typedef mpfr::mpreal type; };
+  { 
+      typedef mpfr::mpreal type; 
+      static type convert(const double &x)
+      {
+          return type(x);
+      }
+      static double convertBack(const type &x)
+      {
+          return x.toDouble();
+      }
+  };
 template <>
 struct mpreal_wrapper_type<adouble>
-  { typedef sad::simple_autodiff<mpfr::mpreal> type; };
+  { 
+    typedef Eigen::Matrix<mpfr::mpreal, Eigen::Dynamic, 1> VectorXmp;
+    typedef Eigen::AutoDiffScalar<VectorXmp> type;
+    static type convert(const adouble &x)
+    {
+        return type(x.value(), x.derivatives().template cast<mpfr::mpreal>());
+    }
+    static adouble convertBack(const type &x)
+    {
+        return adouble(x.value().toDouble(), x.derivatives().template cast<double>());
+    }
+  };
 template <typename T>
 using mpreal_wrapper = typename mpreal_wrapper_type<T>::type;
+template <typename T>
+mpreal_wrapper<T> mpreal_wrapper_convert(const T &x)
+{
+    return mpreal_wrapper_type<T>::convert(x);
+}
+template <typename T>
+T mpreal_wrapper_convertBack(const mpreal_wrapper<T> &x)
+{
+    return mpreal_wrapper_type<T>::convertBack(x);
+}
 
 template <typename T>
 class PiecewiseExponentialRateFunction

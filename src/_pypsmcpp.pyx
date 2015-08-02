@@ -81,7 +81,7 @@ cdef class PyInferenceManager:
                 num_threads, num_samples)
 
     def sfs(self, params, double t1, double t2, jacobian=False):
-        set_csfs_seed(self.seed)
+        self._im.set_seed(self.seed)
         cdef ParameterVector p = make_params(params)
         cdef Matrix[double] sfs
         cdef Matrix[adouble] dsfs
@@ -105,7 +105,7 @@ cdef class PyInferenceManager:
         # if not np.all(np.array(params) > 0):
             # raise ValueError("All parameters must be strictly positive")
         cdef ParameterVector p = make_params(params)
-        set_csfs_seed(self.seed)
+        self._im.set_seed(self.seed)
         if derivatives is True:
             derivatives = [(a, b) for a in range(len(params)) for b in range(len(params[0]))]
         if derivatives:
@@ -238,9 +238,6 @@ def sfs(params, int n, int num_samples, double tau1, double tau2, int numthreads
         assert len(p) == K
     cdef vector[vector[double]] cparams = make_params(params)
     mats, ts = moran_model.interpolators(n)
-    if not seed:
-        seed = np.random.randint(0, sys.maxint)
-    set_seed(seed)
     sfs = aca(np.zeros([3, n + 1]))
     cdef double[:, ::1] msfs = sfs
     cdef double[:, :, :, ::1] mjac 
@@ -276,6 +273,3 @@ def transition(params, hidden_states, rho, jacobian=False):
     else:
         cython_calculate_transition(cparams, hidden_states, rho, &mtrans[0, 0])
         return trans
-
-def set_csfs_seed(long long seed):
-    set_seed(seed)

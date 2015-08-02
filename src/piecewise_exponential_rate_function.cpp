@@ -83,13 +83,12 @@ PiecewiseExponentialRateFunction<T>::PiecewiseExponentialRateFunction(const std:
 template <typename T>
 void PiecewiseExponentialRateFunction<T>::initialize_derivatives(void) {}
 
-int sad::simple_autodiff_base::nd = 0;
+static int nd;
 
 template <>
 void PiecewiseExponentialRateFunction<adouble>::initialize_derivatives(void)
 {
-    int nd = derivatives.size();
-    sad::simple_autodiff_base::nd = nd;
+    nd = derivatives.size();
     Eigen::VectorXd z = Eigen::VectorXd::Zero(nd);
     Eigen::MatrixXd I = Eigen::MatrixXd::Identity(nd, nd);
     for (int k = 0; k < K; ++k)
@@ -106,19 +105,15 @@ void PiecewiseExponentialRateFunction<adouble>::initialize_derivatives(void)
     Rrng[0].derivatives() = z;
 }
 
-inline int get_nd(double x) { return -1; }
-inline int get_nd(adouble x) { return x.derivatives().size(); }
-
-template <typename T>
-void print_mpwrap(mpreal_wrapper<T> x) { std::cout << x.toDouble() << std::endl; }
-template void print_mpwrap<double>(mpreal_wrapper<double>);
-template void print_mpwrap<adouble>(mpreal_wrapper<adouble>);
+mpreal_wrapper<double> convert(double d) { return mpfr::mpreal(d); }
+mpreal_wrapper<adouble> convert(adouble d) { return mpreal_wrapper<adouble>(d.value(), d.derivatives().template cast<mpfr::mpreal>()); }
 
 template <typename T>
 mpreal_wrapper<T> PiecewiseExponentialRateFunction<T>::mpfr_tjj_integral(const long rate, T t1, T t2, T offset, mp_prec_t prec) const
 {
     mpfr::mpreal::set_default_prec(prec);
-    using namespace sad;
+    T right;
+    mpreal_wrapper<T> ret;
     // Compute \int_0^(t2-t1) exp(-rate * \int_t1^t eta(s) ds) dt
     //  = \int_0^(t2-t1) exp(-rate * (R(t) - R(t1))) dt
     int start = 0;
@@ -127,38 +122,38 @@ mpreal_wrapper<T> PiecewiseExponentialRateFunction<T>::mpfr_tjj_integral(const l
     int end = K;
     if (! std::isinf(toDouble(t2)))
         end = insertion_point(t2, ts, 0, K) + 1;
-    mpreal_wrapper<T> ret(0.0);
-    // std::cout << ret << std::endl;
-    mpreal_wrapper<T> left, right;
+    ret = mpfr::mpreal("0");
+    mpreal_wrapper<T> _rate, _Rrng, _offset, _ada, _ts, _right, c1, c2, c3;
     for (int m = start; m < end; ++m)
     {
-        mpreal_wrapper<T> R(Rrng[m]);
-        mpreal_wrapper<T> off(offset);
-        mpreal_wrapper<T> c(R - off);
-        mpreal_wrapper<T> a(ada[m]);
-        mpreal_wrapper<T> b(adb[m]);
-        mpreal_wrapper<T> tsm(ts[m]);
-        mpreal_wrapper<T> tsm1(ts[m + 1]);
-        left = tsm;
+        // c = Rrng[m] - offset;
+        // left = tsm;
         // if (t1 > tsm)
             // left = mpreal_wrapper<T>(t1);
-        right = tsm1;
-        if (m == K - 1 or t2 < tsm1)
-            right = mpreal_wrapper<T>(t2);
+        right = ts[m + 1];
+        if (m == K - 1 or t2 < ts[m + 1])
+            right = t2;
+        _Rrng = convert(Rrng[m]);
+        _offset = convert(offset);
+        _ada = convert(ada[m]);
+        _ts = convert(ts[m]);
+        _right = convert(right);
+        c1 = rate * (_Rrng - _offset);
+        c2 = rate * _ada * (_ts - _right);
+        c3 = _ada * rate;
+        ret -= (exp(-c1) * expm1(c2)) / c3;
         //FIXME: this now assumes left := tsm for stability reasons
+        /*
         if (isinf(right))
         {
             // here we assume that adb[k] == 0 (flat last piece)
             // R(t) = Rrng[K - 1] + ada[K - 1](t - ts[K - 1])
-            ret += exp(-rate * c) / a / rate;
+            ret += exp(-rate * c) / ada[m] / rate;
         } 
-        else if (b == 0.0)
-        {
-            mpreal_wrapper<T> r1 = exp(-rate * c);
-            ret -= r1 * expm1(rate * a * (tsm - right)) / a / rate;
-        }
-        else
-        {
+        */
+        // else if (b == 0.0)
+        // else
+        // {
             /*
             mpreal_wrapper<T> c1(-a / b * rate);
             mpreal_wrapper<T> arg1(exp(b * (left - tsm)));
@@ -167,8 +162,8 @@ mpreal_wrapper<T> PiecewiseExponentialRateFunction<T>::mpfr_tjj_integral(const l
             mpreal_wrapper<T> ei2 = eint(c1, arg2);
             ret += (ei2 - ei1) * exp(-rate * c) / b;
             */
-            throw std::domain_error("exponential growith is disabled");
-        }
+            // throw std::domain_error("exponential growith is disabled");
+        // }
         // std::cout << "start:" << start << " end:" << end << " ret:" << ret << std::endl;
     }
     return ret;
@@ -204,6 +199,7 @@ T PiecewiseExponentialRateFunction<T>::tjj_integral(double rate, T t1, T t2, T o
         } 
         else if (adb[m] == 0.0)
         {
+            /* ret += exp(-rate * (ada[m] * (right - ts[m]) + c)) * expm1(-rate * (ada[m] * (left - right))) / ada[m] / rate; */
             ret -= (exp(-rate * (ada[m] * (right - ts[m]) + c)) - 
                     exp(-rate * (ada[m] * (left - ts[m]) + c))) / ada[m] / rate;
         }

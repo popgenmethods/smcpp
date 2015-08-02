@@ -8,6 +8,8 @@
 #include <Eigen/Dense>
 
 #include "mpreal.h"
+#include <cmath>
+
 #include "prettyprint.hpp"
 
 #define AUTODIFF 1
@@ -88,20 +90,22 @@ namespace Eigen {
     CODE; \
   }
 
+using mpfr::exp;
+using mpfr::expm1;
+using std::exp;
+using std::expm1;
+using mpfr::log1p;
+using std::log1p;
+
 EIGEN_AUTODIFF_DECLARE_GLOBAL_UNARY(expm1,
-  Scalar expm1x = std::expm1(x.value());
-  Scalar expx = std::exp(x.value());
+  Scalar expm1x = expm1(x.value());
+  Scalar expx = exp(x.value());
   return ReturnType(expm1x,x.derivatives() * expx);
 )
 
 EIGEN_AUTODIFF_DECLARE_GLOBAL_UNARY(log1p,
   Scalar log1px = std::log1p(x.value());
   return ReturnType(log1px, x.derivatives() * (Scalar(1) / (Scalar(1) + x.value())));
-)
-
-EIGEN_AUTODIFF_DECLARE_GLOBAL_UNARY(atan,
-  Scalar atanx = std::atan(x.value());
-  return ReturnType(atanx, x.derivatives() * (Scalar(1) / (Scalar(1) + x.value() * x.value())));
 )
 
 #undef EIGEN_AUTODIFF_DECLARE_GLOBAL_UNARY

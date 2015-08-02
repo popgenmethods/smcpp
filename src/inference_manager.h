@@ -26,6 +26,8 @@ class InferenceManager
             const int block_size, const int num_threads,
             const int num_samples);
     
+    void set_seed(long long s) { seed = s; }
+
     template <typename T>
     void setParams(const ParameterVector, const std::vector<std::pair<int, int>>);
 
@@ -92,6 +94,7 @@ class InferenceManager
     int num_samples;
     const int M;
     ThreadPool tp;
+    long long seed;
     adouble regularizer;
 
     std::vector<HMM> hmms;
