@@ -16,3 +16,6 @@ src/*.o
 doc/
 valgrind-python.supp
 environ.sh
+.nfs*
+.moran_model.dat
+.ipynb_checkpoints/

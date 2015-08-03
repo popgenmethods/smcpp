@@ -75,7 +75,8 @@ void InferenceManager::setParams(const ParameterVector params, const std::vector
     regularizer = adouble(eta.regularizer());
     pi = compute_initial_distribution<T>(eta, hidden_states).template cast<adouble>();
     Matrix<adouble> ttmp = compute_transition<T>(eta, hidden_states, rho).template cast<adouble>();
-    transition = matpow(ttmp, block_size);
+    // transition = matpow(ttmp, block_size);
+    transition = ttmp;
     Eigen::Matrix<T, 3, Eigen::Dynamic, Eigen::RowMajor> tmp;
     std::map<int, std::vector<T>> tmask;
     std::map<int, T> tavg;

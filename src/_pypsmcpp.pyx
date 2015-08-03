@@ -75,10 +75,14 @@ cdef class PyInferenceManager:
             emission_mask = np.arange(3 * (n + 1)).reshape([3, n + 1])
         self._emission_mask = aca(np.array(emission_mask, dtype=np.int32))
         cdef int[:, ::1] emv = self._emission_mask
+        cdef vector[double] hs = hidden_states
         self._im = new InferenceManager(
                 MatrixInterpolator(n + 1, self._moran_ts, make_mats(self._moran_mats)), 
-                n, L, obs, hidden_states, &emv[0, 0], mask_freq, mask_offset, theta, rho, block_size, 
+                n, L, obs, hs, &emv[0, 0], mask_freq, mask_offset, theta, rho, block_size, 
                 num_threads, num_samples)
+
+    def __dealloc__(self):
+        del self._im
 
     def sfs(self, params, double t1, double t2, jacobian=False):
         self._im.set_seed(self.seed)
@@ -205,9 +209,6 @@ cdef class PyInferenceManager:
 
     def loglik(self, lam):
         return self._call_inference_func("loglik", lam)
-
-    def __dealloc__(self):
-        del self._im
 
     def balance_hidden_states(self, params, int M):
         cdef ParameterVector p = make_params(params)

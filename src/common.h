@@ -6,6 +6,7 @@
 #include <random>
 #include <array>
 #include <Eigen/Dense>
+#include <unsupported/Eigen/MatrixFunctions>
 
 #include "mpreal.h"
 #include <cmath>
