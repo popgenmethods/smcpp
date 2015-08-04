@@ -53,7 +53,7 @@ InferenceManager::InferenceManager(
         ob.col(0) = tmp.col(0);
         ob.col(1) = (n + 1) * tmp.col(1) + tmp.col(2);
         for (int off : mask_offset)
-            hmms.emplace_back(ob, block_size, &pi, &transition, &emission, &emission_mask, mask_freq, off);
+            hmms.push_back(hmmptr(new HMM(ob, block_size, &pi, &transition, &emission, &emission_mask, mask_freq, off)));
     }
 }
 
@@ -99,7 +99,7 @@ void InferenceManager::setParams(const ParameterVector params, const std::vector
         PROGRESS_DONE();
     }
     PROGRESS("compute B");
-    parallel_do([] (HMM &hmm) { hmm.recompute_B(); });
+    parallel_do([] (hmmptr &hmm) { hmm->recompute_B(); });
     PROGRESS_DONE();
 }
 template void InferenceManager::setParams<double>(const ParameterVector, const std::vector<std::pair<int, int>>);
@@ -113,33 +113,33 @@ Matrix<T> InferenceManager::sfs(PiecewiseExponentialRateFunction<T> eta, double 
     return c.compute(eta, num_samples, t1, t2);
 }
 
-void InferenceManager::parallel_do(std::function<void(HMM &)> lambda)
+void InferenceManager::parallel_do(std::function<void(hmmptr&)> lambda)
 {
     std::vector<std::future<void>> results;
-    for (auto &hmm : hmms)
-        results.emplace_back(tp.enqueue(std::bind(lambda, std::ref(hmm))));
+    for (auto &hmmptr : hmms)
+        results.emplace_back(tp.enqueue(std::bind(lambda, std::ref(hmmptr))));
     for (auto &res : results) 
         res.wait();
 }
 
 template <typename T>
-std::vector<T> InferenceManager::parallel_select(std::function<T(HMM &)> lambda)
+std::vector<T> InferenceManager::parallel_select(std::function<T(hmmptr &)> lambda)
 {
     std::vector<std::future<T>> results;
-    for (auto &hmm : hmms)
-        results.emplace_back(tp.enqueue(std::bind(lambda, std::ref(hmm))));
+    for (auto &hmmptr : hmms)
+        results.emplace_back(tp.enqueue(std::bind(lambda, std::ref(hmmptr))));
     std::vector<T> ret; 
     for (auto &res : results) 
         ret.push_back(res.get());
     return ret;
 }
-template std::vector<double> InferenceManager::parallel_select(std::function<double(HMM &)>);
-template std::vector<adouble> InferenceManager::parallel_select(std::function<adouble(HMM &)>);
+template std::vector<double> InferenceManager::parallel_select(std::function<double(hmmptr &)>);
+template std::vector<adouble> InferenceManager::parallel_select(std::function<adouble(hmmptr &)>);
 
 void InferenceManager::Estep(void)
 {
     PROGRESS("E step");
-    parallel_do([] (HMM &hmm) { hmm.Estep(); });
+    parallel_do([] (hmmptr &hmm) { hmm->Estep(); });
     PROGRESS_DONE();
 }
 
@@ -147,13 +147,12 @@ std::vector<adouble> InferenceManager::Q(double lambda)
 {
     adouble reg = regularizer;
     PROGRESS("Q");
-    return parallel_select<adouble>([lambda, reg] (HMM &hmm) { 
-            adouble q = hmm.Q();
+    return parallel_select<adouble>([lambda, reg] (hmmptr &hmm) { 
+            adouble q = hmm->Q();
             adouble rr = reg * lambda;
             adouble ret = q - rr;
             return ret;
             });
-    PROGRESS_DONE();
 }
 
 std::vector<Matrix<double>*> InferenceManager::getAlphas()
@@ -161,7 +160,7 @@ std::vector<Matrix<double>*> InferenceManager::getAlphas()
     std::vector<Matrix<double>*> ret;
     for (auto &hmm : hmms)
     {
-        ret.push_back(&hmm.alpha_hat);
+        ret.push_back(&hmm->alpha_hat);
     }
     return ret;
 }
@@ -171,7 +170,7 @@ std::vector<Matrix<double>*> InferenceManager::getBetas()
     std::vector<Matrix<double>*> ret;
     for (auto &hmm : hmms)
     {
-        ret.push_back(&hmm.beta_hat);
+        ret.push_back(&hmm->beta_hat);
     }
     return ret;
 }
@@ -181,7 +180,7 @@ std::vector<Matrix<double>*> InferenceManager::getGammas()
     std::vector<Matrix<double>*> ret;
     for (auto &hmm : hmms)
     {
-        ret.push_back(&hmm.gamma);
+        ret.push_back(&hmm->gamma);
     }
     return ret;
 }
@@ -191,33 +190,34 @@ std::vector<Matrix<adouble>*> InferenceManager::getBs()
     std::vector<Matrix<adouble>*> ret;
     for (auto &hmm : hmms)
     {
-        ret.push_back(&hmm.B);
+        ret.push_back(&hmm->B);
     }
     return ret;
 }
 
 Matrix<double> InferenceManager::getPi(void)
 {
-    return hmms[0].pi->cast<double>();
+    return hmms[0]->pi->cast<double>();
 }
 
 Matrix<double> InferenceManager::getTransition(void)
 {
-    return hmms[0].transition->cast<double>();
+    return hmms[0]->transition->cast<double>();
 }
 
 Matrix<double> InferenceManager::getEmission(void)
 {
-    return hmms[0].emission->cast<double>();
+    return hmms[0]->emission->cast<double>();
 }
 
 Matrix<double> InferenceManager::getMaskedEmission(void)
 {
-    return hmms[0].emission_mask->cast<double>();
+    return hmms[0]->emission_mask->cast<double>();
 }
 
 std::vector<double> InferenceManager::loglik(double lambda)
 {
     double reg = toDouble(regularizer);
-    return parallel_select<double>([lambda, reg] (HMM &hmm) { return hmm.loglik() - lambda * reg; });
+    return parallel_select<double>([lambda, reg] (hmmptr &hmm) { return hmm->loglik() - lambda * reg; });
 }
+

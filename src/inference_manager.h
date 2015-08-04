@@ -1,6 +1,8 @@
 #ifndef INFERENCE_MANAGER_H
 #define INFERENCE_MANAGER_H
 
+#include <memory>
+
 #include "common.h"
 #include "matrix_interpolator.h"
 #include "ThreadPool.h"
@@ -80,6 +82,8 @@ class InferenceManager
     Matrix<double> getMaskedEmission();
 
     private:
+    typedef std::unique_ptr<HMM> hmmptr;
+
     // Passed-in parameters
     std::mt19937 gen;
     const MatrixInterpolator moran_interp;
@@ -97,15 +101,15 @@ class InferenceManager
     long long seed;
     adouble regularizer;
 
-    std::vector<HMM> hmms;
+    std::vector<hmmptr> hmms;
     Vector<adouble> pi;
     Matrix<adouble> transition, emission, emission_mask;
 
     // Methods
-    void parallel_do(std::function<void(HMM &)>);
+    void parallel_do(std::function<void(hmmptr &)>);
 
     template <typename T>
-    std::vector<T> parallel_select(std::function<T(HMM &)>);
+    std::vector<T> parallel_select(std::function<T(hmmptr &)>);
 };
 
 #endif

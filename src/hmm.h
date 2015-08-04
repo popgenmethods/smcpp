@@ -1,10 +1,58 @@
 #ifndef HMM_H
 #define HMM_H
 
+#include <unordered_map>
 #include <map>
 #include "common.h"
 
-typedef Eigen::Map<const Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> npArray;
+// Allow for hashing of map<T, U>
+// a little helper that should IMHO be standardized
+namespace
+{
+    template<typename T>
+    std::size_t make_hash(const T& v)
+    {
+        return std::hash<T>()(v);
+    }
+
+    // adapted from boost::hash_combine
+    void hash_combine(std::size_t& h, const std::size_t& v)
+    {
+        h ^= v + 0x9e3779b9 + (h << 6) + (h >> 2);
+    }
+
+    // hash any container
+    template<typename T>
+    struct hash_container
+    {
+        size_t operator()(const T& v) const
+        {
+            size_t h=0;
+            for( const auto& e : v ) {
+                hash_combine(h, make_hash(e));
+            }
+            return h;
+        }
+    };
+}
+
+// the same for map<T,U> if T and U are hashable
+namespace std
+{
+    template<typename T, typename U>
+    struct hash<pair<T, U>>
+    {
+        size_t operator()(const pair<T,U>& v) const
+        {
+            size_t h=make_hash(v.first);
+            hash_combine(h, make_hash(v.second));
+            return h;
+        }
+    };
+    template<typename... T>
+    struct hash<map<T...>> : hash_container<map<T...>> {};
+}
+
 
 class InferenceManager;
 
@@ -21,7 +69,10 @@ class HMM
     // std::vector<int>& viterbi(void);
 
     private:
+    HMM(HMM const&) = delete;
+    HMM& operator=(HMM const&) = delete;
     // Methods
+    void prepare_B(void);
     void recompute_B(void);
     void forward_backward(void);
     void domain_error(double);
@@ -34,10 +85,12 @@ class HMM
     const Matrix<adouble> *transition, *emission, *emission_mask;
     const int mask_freq, mask_offset, M, Ltot;
     Matrix<adouble> B;
+    std::vector<Vector<adouble>*> Bptr;
     Matrix<double> alpha_hat, beta_hat, gamma, xisum;
     Vector<double> c;
     std::vector<int> viterbi_path;
-
+    std::unordered_map<std::pair<bool, std::map<int, int> >, Vector<adouble> > block_prob_map;
+    std::unordered_map<std::pair<bool, std::map<int, int> >, int > block_prob_counts;
     friend class InferenceManager;
 };
 

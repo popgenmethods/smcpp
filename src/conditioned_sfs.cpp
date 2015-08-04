@@ -152,7 +152,6 @@ ConditionedSFS<T>::ConditionedSFS(int n, MatrixInterpolator moran_interp) :
     csfs_above(3, n + 1), csfs_below(3, n + 1), bc(compute_below_coeffs(n))
 {
     fill_matrices();
-    std::cout << bc.prec << " bits of precision needed..." << std::endl;
     mpfr::mpreal::set_default_prec(bc.prec);
 }
 
