@@ -9,6 +9,7 @@ import subprocess
 import itertools
 import logging
 import sys
+from collections import Counter
 
 from Bio import Phylo
 from cStringIO import StringIO
@@ -100,8 +101,18 @@ def parse_scrm(n, L, output, include_trees):
     if positions:
         positions = (L * np.array([float(x) for x in positions.split(" ")[1:]])).astype('int')
         # ignore trailing newline
-        haps = [bitarray.bitarray(str(line).strip()) for line in output if line.strip()] 
-        ret = (L, positions, haps)
+        haps = np.zeros([n, len(positions)], dtype=np.uint8)
+        # haps = []
+        i = 0
+        for line in output:
+            if line.strip():
+                haps[i] = np.fromstring(str(line.strip()), np.uint8) - 48
+                i += 1
+                # .append(bitarray.bitarray(str(line).strip()))
+                # print(len(haps))
+        # haps = [bitarray.bitarray(str(line).strip()) for line in output if line.strip()] 
+        uniqpos = np.concatenate(([True], positions[1:] != positions[:-1]))
+        ret = (L, positions[uniqpos], haps[:, uniqpos])
         if include_trees:
             ret += (coal_times,)
         return ret
@@ -196,20 +207,31 @@ def hmm_data_format(dataset, distinguished_cols):
     ret = []
     p = 0
     L, positions, haps = dataset[:3]
-    for i, pos in enumerate(positions):
-        pp = pos - p
-        if pp == 0:
-            logger.warn("Tri-allelic site at position %d; ignoring" % pos)
-            continue
-        if pp > 1:
-            ret.append([pp - 1, 0, 0])
-        d = sum([haps[c][i] for c in distinguished_cols])
-        t = sum([h[i] for h in haps])
-        ret.append([1, d, t - d])
-        p = pos
-    if L > pos:
-        ret.append([L - pos, 0, 0])
-    return np.array(ret, dtype=np.int32)
+    d = haps[list(distinguished_cols)].sum(axis=0)
+    t = haps.sum(axis=0)
+    nd = d.shape[0]
+    nrow = 2 * nd - 1
+    ret = np.zeros([nrow, 3], dtype=int)
+    ret[::2, 0] = 1
+    ret[::2, 1] = d
+    ret[::2, 2] = t - d
+    gaps = positions[1:] - positions[:-1] - 1
+    ret[1::2, 0] = gaps
+    ret[1::2, 1:] = 0
+    if positions[0] > 0:
+        ret = np.vstack(([positions[0], 0, 0], ret))
+    if positions[-1] < L - 1:
+        ret = np.vstack((ret, [L - 1 - positions[-1], 0, 0]))
+    # eliminate "no gaps"
+    ret = ret[ret[:, 0] > 0]
+    assert np.all(ret >= 0)
+    assert ret.sum(axis=0)[0] == L
+    ret = np.array(ret, dtype=np.int32)
+    assert ret.sum(axis=0)[0] == L
+    assert np.all(ret >= 0)
+    assert np.all(ret[:, 0] >= 1)
+    return ret
+            
 
 if __name__ == "__main__":
     L = 1000000
