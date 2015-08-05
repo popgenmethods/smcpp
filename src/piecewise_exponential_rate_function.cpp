@@ -109,62 +109,32 @@ mpreal_wrapper<double> convert(double d) { return mpfr::mpreal(d); }
 mpreal_wrapper<adouble> convert(adouble d) { return mpreal_wrapper<adouble>(d.value(), d.derivatives().template cast<mpfr::mpreal>()); }
 
 template <typename T>
-mpreal_wrapper<T> PiecewiseExponentialRateFunction<T>::mpfr_tjj_integral(const long rate, T t1, T t2, T offset, mp_prec_t prec) const
+mpreal_wrapper<T> PiecewiseExponentialRateFunction<T>::mpfr_tjj_integral(const int n, mp_prec_t prec) const
 {
     mpfr::mpreal::set_default_prec(prec);
-    T right;
-    mpreal_wrapper<T> ret;
-    // Compute \int_0^(t2-t1) exp(-rate * \int_t1^t eta(s) ds) dt
-    //  = \int_0^(t2-t1) exp(-rate * (R(t) - R(t1))) dt
-    int start = 0;
-    if (t1 > 0)
-        start = insertion_point(t1, ts, 0, K);
-    int end = K;
-    if (! std::isinf(toDouble(t2)))
-        end = insertion_point(t2, ts, 0, K) + 1;
-    ret = mpfr::mpreal("0");
-    mpreal_wrapper<T> _rate, _Rrng, _offset, _ada, _ts, _right, c1, c2, c3;
-    for (int m = start; m < end; ++m)
+    mpreal_wrapper<T> _rate, _Rrng, _ada, _ts, _tsm1;
+    Matrix<mpreal_wrapper<T> > inner_integrals(K, n + 1), double_integrals(K, n);
+    inner_integrals.setZero();
+    double_integrals.setZero();
+    Vector<mpreal_wrapper<T> > tjj(n + 1);
+    mpreal_wrapper<T> c1;
+    for (int m = 0; m < K; ++m)
     {
-        // c = Rrng[m] - offset;
-        // left = tsm;
-        // if (t1 > tsm)
-            // left = mpreal_wrapper<T>(t1);
-        right = ts[m + 1];
-        if (m == K - 1 or t2 < ts[m + 1])
-            right = t2;
         _Rrng = convert(Rrng[m]);
-        _offset = convert(offset);
         _ada = convert(ada[m]);
         _ts = convert(ts[m]);
-        _right = convert(right);
-        c1 = rate * (_Rrng - _offset);
-        c2 = rate * _ada * (_ts - _right);
-        c3 = _ada * rate;
-        ret -= (exp(-c1) * expm1(c2)) / c3;
-        //FIXME: this now assumes left := tsm for stability reasons
-        /*
-        if (isinf(right))
+        _tsm1 = convert(ts[m + 1]);
+        diff = _tsm1 - _tsm;
+        c1 = _ada * diff + _Rrng;
+        for (int j = 3; j < n + 3; ++j)
         {
-            // here we assume that adb[k] == 0 (flat last piece)
-            // R(t) = Rrng[K - 1] + ada[K - 1](t - ts[K - 1])
-            ret += exp(-rate * c) / ada[m] / rate;
-        } 
-        */
-        // else if (b == 0.0)
-        // else
-        // {
-            /*
-            mpreal_wrapper<T> c1(-a / b * rate);
-            mpreal_wrapper<T> arg1(exp(b * (left - tsm)));
-            mpreal_wrapper<T> arg2(exp(b * (right - tsm)));
-            mpreal_wrapper<T> ei1 = eint(c1, arg1);
-            mpreal_wrapper<T> ei2 = eint(c1, arg2);
-            ret += (ei2 - ei1) * exp(-rate * c) / b;
-            */
-            // throw std::domain_error("exponential growith is disabled");
-        // }
-        // std::cout << "start:" << start << " end:" << end << " ret:" << ret << std::endl;
+            rate = j * (j - 1) / 2 - 1;
+            inner_integrals(m, j - 2) = (exp(-rate * c1) - exp(-rate * _Rrng)) / ada[m] / rate + inner_integrals(m, j - 3);
+            double_integrals(m, j - 3) = exp(-(rate + 1) * c1) + exp(-(rate + 1) * _Rrng) * rate;
+            double_integrals(m, j - 3) /= rate + 1;
+            double_integrals(m, j - 3) -= exp(-(rate + 1) * _Rrng - _ada * diff);
+            double_integrals(m, j - 3) /= rate * _ada;
+        }
     }
     return ret;
 }
