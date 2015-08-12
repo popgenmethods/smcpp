@@ -109,33 +109,152 @@ mpreal_wrapper<double> convert(double d) { return mpfr::mpreal(d); }
 mpreal_wrapper<adouble> convert(adouble d) { return mpreal_wrapper<adouble>(d.value(), d.derivatives().template cast<mpfr::mpreal>()); }
 
 template <typename T>
-mpreal_wrapper<T> PiecewiseExponentialRateFunction<T>::mpfr_tjj_integral(const int n, mp_prec_t prec) const
+mpreal_wrapper<T> PiecewiseExponentialRateFunction<T>::mpfr_tjj_integral(
+    const long rate, T t1, T t2, T offset, mp_prec_t prec) const
 {
     mpfr::mpreal::set_default_prec(prec);
-    mpreal_wrapper<T> _rate, _Rrng, _ada, _ts, _tsm1;
-    Matrix<mpreal_wrapper<T> > inner_integrals(K, n + 1), double_integrals(K, n);
+    T right;
+    mpreal_wrapper<T> ret;
+    // Compute \int_0^(t2-t1) exp(-rate * \int_t1^t eta(s) ds) dt
+    //  = \int_0^(t2-t1) exp(-rate * (R(t) - R(t1))) dt
+    int start = 0;
+    if (t1 > 0)
+        start = insertion_point(t1, ts, 0, K);
+    int end = K;
+    if (! std::isinf(toDouble(t2)))
+        end = insertion_point(t2, ts, 0, K) + 1;
+    ret = mpfr::mpreal("0");
+    mpreal_wrapper<T> _rate, _Rrng, _offset, _ada, _ts, _right, c1, c2, c3;
+    for (int m = start; m < end; ++m)
+    {
+        // c = Rrng[m] - offset;
+        // left = tsm;
+        // if (t1 > tsm)
+            // left = mpreal_wrapper<T>(t1);
+        right = ts[m + 1];
+        if (m == K - 1 or t2 < ts[m + 1])
+            right = t2;
+        _Rrng = convert(Rrng[m]);
+        _offset = convert(offset);
+        _ada = convert(ada[m]);
+        _ts = convert(ts[m]);
+        _right = convert(right);
+        c1 = rate * (_Rrng - _offset);
+        c2 = rate * _ada * (_ts - _right);
+        c3 = _ada * rate;
+        ret -= (exp(-c1) * expm1(c2)) / c3;
+    }
+    return ret;
+} 
+
+
+template <typename T>
+Matrix<mpreal_wrapper<T> > PiecewiseExponentialRateFunction<T>::mpfr_tjj_double_integral(const int n, const std::vector<double> hidden_states, const mp_prec_t prec) const
+{
+    mpfr::mpreal::set_default_prec(prec);
+    long int rate;
+    mpreal_wrapper<T> _Rrng, _Rrng1, _ada, _ts, _tsm1, diff, _hs;
+    Matrix<mpreal_wrapper<T> > inner_integrals(K, n + 1), double_integrals(K, n + 1);
+    Vector<mpreal_wrapper<T> > single_integrals(K);
     inner_integrals.setZero();
     double_integrals.setZero();
-    Vector<mpreal_wrapper<T> > tjj(n + 1);
-    mpreal_wrapper<T> c1;
+    //
+    // \int_0^t_k alpha(tau) exp(-R(tau)) \int_0^\tau exp(-rate * R(t)) dt
+    //    = \sum_{m=0}^{k-1} \int_{t_m}^{t_{m+1}} a[m] * exp(-(a[m](t - t[m]) + Rrng[m])) * 
+    //      [(\sum_{ell=0}^{m-2} \int_t[ell]^t[ell+1] exp(-rate * (a[ell](t - t[ell]) + Rrng[ell]))) + 
+    //      (\int_t[m]^tau exp(-rate * (a[m](t - t[m]) + Rrng[m])))]
+    //
+    /*
+    std::vector<mpreal_wrapper<T> > mpRrng(K + 1), mpts(K + 1);
+    std::transform(Rrng.begin(), Rrng.end(), mpRrng.begin(), convert);
+    std::transform(ts.begin(), ts.end(), mpts.begin(), convert);
+    */
     for (int m = 0; m < K; ++m)
     {
         _Rrng = convert(Rrng[m]);
+        _Rrng1 = convert(Rrng[m + 1]);
         _ada = convert(ada[m]);
         _ts = convert(ts[m]);
         _tsm1 = convert(ts[m + 1]);
-        diff = _tsm1 - _tsm;
-        c1 = _ada * diff + _Rrng;
+        diff = _tsm1 - _ts;
+        if (m + 1 < K)
+        {
+            inner_integrals(m + 1, 0) = _tsm1;
+            double_integrals(m, 0) = exp(-_Rrng) * (1 - exp(-_ada * diff) * (1 + _ada * diff)) / _ada;
+            single_integrals(m) = exp(-_Rrng) - exp(-_Rrng1);
+        }
+        else
+        {
+            double_integrals(m, 0) = exp(-_Rrng) / _ada;
+            single_integrals(m) = exp(-_Rrng);
+        }
         for (int j = 3; j < n + 3; ++j)
         {
             rate = j * (j - 1) / 2 - 1;
-            inner_integrals(m, j - 2) = (exp(-rate * c1) - exp(-rate * _Rrng)) / ada[m] / rate + inner_integrals(m, j - 3);
-            double_integrals(m, j - 3) = exp(-(rate + 1) * c1) + exp(-(rate + 1) * _Rrng) * rate;
-            double_integrals(m, j - 3) /= rate + 1;
-            double_integrals(m, j - 3) -= exp(-(rate + 1) * _Rrng - _ada * diff);
-            double_integrals(m, j - 3) /= rate * _ada;
+            // \int_0^t[m] exp(-rate * R(t)) dt
+            if (m + 1 < K)
+            {
+                inner_integrals(m + 1, j - 2) = (exp(-rate * _Rrng) - exp(-rate * _Rrng1)) / _ada / rate + 
+                    inner_integrals(m, j - 2);
+                double_integrals(m, j - 2) = exp(-(rate + 1) * _Rrng1) + exp(-(rate + 1) * _Rrng) * rate;
+            } 
+            else 
+            {
+                double_integrals(m, j - 2) = exp(-(rate + 1) * _Rrng) * rate;
+            }
+            double_integrals(m, j - 2) /= rate + 1;
+            double_integrals(m, j - 2) -= exp(-(rate + 1) * _Rrng - _ada * diff);
+            double_integrals(m, j - 2) /= rate * _ada;
         }
     }
+    // \int_ts[m]^ts[m+1] eta(tau) * exp(-R(tau)) * \int_0^ts[m] exp(-rate * R(t))
+    Matrix<mpreal_wrapper<T> > ts_integrals = double_integrals + single_integrals.asDiagonal() * inner_integrals;
+    std::vector<double> hs(hidden_states.begin(), hidden_states.end());
+    if (hidden_states[0] > 0.0)
+        hs.insert(hs.begin(), 0.0);
+    if (! isinf(hidden_states.back()))
+        hs.push_back(INFINITY);
+    size_t H = hs.size();
+    Matrix<mpreal_wrapper<T> > tmp(1, n + 1), prev_int(1, n + 1), new_int(1, n + 1), ret(H - 1, n + 1);
+    mpreal_wrapper<T> _Rcur, _Rlast;
+    // Make sure it has the correct # of derivatives
+    _Rlast = convert(ada[0]);
+    _Rlast -= _Rlast;
+    prev_int.setZero();
+    for (int h = 1; h < H - 1; ++h)
+    {
+        int hi = insertion_point((T)hs[h], ts, 0, K);
+        _Rrng = convert(Rrng[hi]);
+        _Rrng1 = convert(Rrng[hi + 1]);
+        _ada = convert(ada[hi]);
+        _ts = convert(ts[hi]);
+        _hs = convert(hs[h]);
+        diff = _hs - _ts;
+        new_int = ts_integrals.topRows(hi).colwise().sum();
+        new_int += inner_integrals.row(hi) * (exp(-_Rrng) - exp(-(_ada * diff + _Rrng)));
+        new_int(0) += exp(-_Rrng) * (1 - exp(-_ada * diff) * (1 + _ada * diff)) / _ada;
+        for (int j = 3; j < n + 3; ++j)
+        {
+            rate = j * (j - 1) / 2 - 1;
+            // \int_0^t[m] exp(-rate * R(t)) dt
+            tmp(j - 2) = exp(-(rate + 1) * (_ada * diff + _Rrng)) + exp(-(rate + 1) * _Rrng) * rate;
+            tmp(j - 2) /= rate + 1;
+            tmp(j - 2) -= exp(-(rate + 1) * _Rrng - _ada * diff);
+            tmp(j - 2) /= rate * _ada;
+        }
+        new_int += tmp;
+        ret.row(h - 1) = new_int - prev_int;
+        // Conditional coalescence distribution
+        _Rcur = _Rrng + _ada * diff;
+        ret.row(h - 1) /= exp(-_Rlast) - exp(-_Rcur);
+        _Rlast = _Rcur;
+        prev_int = new_int;
+    }
+    ret.bottomRows(1) = (ts_integrals.colwise().sum() - prev_int) / exp(-_Rlast);
+    if (hidden_states[0] > 0.0)
+        ret = ret.bottomRows(ret.rows() - 1).eval();
+    if (! isinf(hidden_states.back()))
+        ret = ret.topRows(ret.rows() - 1).eval();
     return ret;
 }
 

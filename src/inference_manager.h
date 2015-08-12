@@ -38,16 +38,16 @@ class InferenceManager
     std::vector<double> loglik(double);
 
     template <typename T>
-    Matrix<T> sfs(PiecewiseExponentialRateFunction<T>, double, double);
+    std::vector<Matrix<T> > sfs(PiecewiseExponentialRateFunction<T>, const std::vector<double>);
     Matrix<double> sfs_cython(const ParameterVector p, double t1, double t2) 
     { 
         PiecewiseExponentialRateFunction<double> eta(p);
-        return sfs<double>(eta, t1, t2);
+        return sfs<double>(eta, {t1, t2})[0];
     }
     Matrix<adouble> dsfs_cython(const ParameterVector p, double t1, double t2) 
     { 
         PiecewiseExponentialRateFunction<adouble> eta(p);
-        return sfs<adouble>(p, t1, t2); 
+        return sfs<adouble>(p, {t1, t2})[0];
     }
     
     // Unfortunately these are necessary to work around a bug in Cython

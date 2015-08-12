@@ -18,20 +18,20 @@ struct mpreal_wrapper_type
 { typedef mpreal_wrapper_generic<T> type; };
 template <>
 struct mpreal_wrapper_type<double>
-  { 
-      typedef mpfr::mpreal type; 
-      static type convert(const double &x)
-      {
-          return type(x);
-      }
-      static double convertBack(const type &x)
-      {
-          return x.toDouble();
-      }
-  };
+{ 
+    typedef mpfr::mpreal type; 
+    static type convert(const double &x)
+    {
+        return type(x);
+    }
+    static double convertBack(const type &x)
+    {
+        return x.toDouble();
+    }
+};
 template <>
 struct mpreal_wrapper_type<adouble>
-  { 
+{ 
     typedef Eigen::Matrix<mpfr::mpreal, Eigen::Dynamic, 1> VectorXmp;
     typedef Eigen::AutoDiffScalar<VectorXmp> type;
     static type convert(const adouble &x)
@@ -42,7 +42,7 @@ struct mpreal_wrapper_type<adouble>
     {
         return adouble(x.value().toDouble(), x.derivatives().template cast<double>());
     }
-  };
+};
 template <typename T>
 using mpreal_wrapper = typename mpreal_wrapper_type<T>::type;
 template <typename T>
@@ -54,6 +54,23 @@ template <typename T>
 T mpreal_wrapper_convertBack(const mpreal_wrapper<T> &x)
 {
     return mpreal_wrapper_type<T>::convertBack(x);
+}
+
+template <typename T>
+inline void print_derivatives(const T&)
+{
+}
+
+template <>
+inline void print_derivatives(const mpreal_wrapper_type<adouble>::type &x)
+{
+    std::cout << "derivatives: " << x.derivatives().transpose() << std::endl;
+}
+
+template <>
+inline void print_derivatives(const adouble &x)
+{
+    std::cout << "derivatives: " << x.derivatives().transpose() << std::endl;
 }
 
 template <typename T>
@@ -71,7 +88,8 @@ class PiecewiseExponentialRateFunction
     void print_debug() const;
     const T regularizer(void) const { return _reg; }
     T tjj_integral(double, T, T, T) const;
-    mpreal_wrapper<T> mpfr_tjj_integral(const long, T, T, T, mp_prec_t) const;
+    mpreal_wrapper<T> mpfr_tjj_integral(const long rate, T t1, T t2, T offset, mp_prec_t prec) const;
+    Matrix<mpreal_wrapper<T> > mpfr_tjj_double_integral(const int, const std::vector<double>, const mp_prec_t) const;
     const std::vector<std::pair<int, int>> derivatives;
     const T zero;
     const T one;

@@ -80,12 +80,13 @@ void InferenceManager::setParams(const ParameterVector params, const std::vector
     Eigen::Matrix<T, 3, Eigen::Dynamic, Eigen::RowMajor> tmp;
     std::map<int, std::vector<T>> tmask;
     std::map<int, T> tavg;
+    std::vector<Matrix<T> > sfss = sfs<T>(eta, hidden_states);
     for (int m = 0; m < M; ++m)
     {
         PROGRESS("emission (" << m << ")");
         tmask.clear();
         tavg.clear();
-        tmp = sfs<T>(eta, hidden_states[m], hidden_states[m + 1]);
+        tmp = sfss[m];
         emission.row(m) = Matrix<T>::Map(tmp.data(), 1, 3 * (n + 1)).template cast<adouble>();
         for (int i = 0; i < 3; ++i)
             for (int j = 0; j < n + 1; ++j)
@@ -106,11 +107,12 @@ template void InferenceManager::setParams<double>(const ParameterVector, const s
 template void InferenceManager::setParams<adouble>(const ParameterVector, const std::vector<std::pair<int, int>>);
 
 template <typename T>
-Matrix<T> InferenceManager::sfs(PiecewiseExponentialRateFunction<T> eta, double t1, double t2)
+std::vector<Matrix<T> > InferenceManager::sfs(PiecewiseExponentialRateFunction<T> eta, 
+    const std::vector<double> hidden_states)
 {
     static CSFSManager<T> c(n, moran_interp, num_threads, theta);
     c.set_seed(seed);
-    return c.compute(eta, num_samples, t1, t2);
+    return c.compute(eta, num_samples, hidden_states);
 }
 
 void InferenceManager::parallel_do(std::function<void(hmmptr&)> lambda)

@@ -41,7 +41,9 @@ class ConditionedSFS : public ConditionedSFSBase
     void fill_matrices();
     void construct_ad_vars();
     Vector<T> compute_etnk_below(const Vector<T>&);
-    Vector<T> compute_etnk_below(const std::vector<mpreal_wrapper<T>>&);
+    Vector<T> compute_etnk_below(const std::vector<mpreal_wrapper<T> >&);
+    Matrix<T> compute_etnk_below_mat(const Matrix<mpreal_wrapper<T> >&);
+    std::vector<Matrix<T> > compute_below(const PiecewiseExponentialRateFunction<T> &, const std::vector<double>);
 
     double exp1();
     T exp1_conditional(T, T);
@@ -64,7 +66,7 @@ template <typename T>
 class CSFSManager
 {
     public:
-    CSFSManager(int n, const MatrixInterpolator &moran_interp, int numthreads, double theta) : theta_(theta), tp_(numthreads)
+    CSFSManager(int n, const MatrixInterpolator &moran_interp, int numthreads, double theta) : c0(n, moran_interp), theta_(theta), tp_(numthreads + 1)
     {
         for (int i = 0; i < numthreads; ++i)
             csfss.emplace_back(n, moran_interp);
@@ -77,32 +79,48 @@ class CSFSManager
             c.set_seed(gen());
     }
 
-    Matrix<T> compute(const PiecewiseExponentialRateFunction<T> &eta, int num_samples, double tau1, double tau2)
+    std::vector<Matrix<T> > compute(const PiecewiseExponentialRateFunction<T> &eta, int num_samples, 
+        const std::vector<double> &hidden_states)
     {
-        std::vector<std::thread> t;
-        T t1 = (*eta.getR())(tau1);
-        T t2;
-        if (std::isinf(tau2))
-            t2 = INFINITY;
-        else
-            t2 = (*eta.getR())(tau2);
-        std::vector<std::future<void>> results;
-        for (ConditionedSFS<T> &c : csfss)
-            results.emplace_back(tp_.enqueue([&c, eta, num_samples, t1, t2] { c.compute(eta, num_samples, t1, t2); }));
-        for (auto &res : results) 
-            res.wait();
-        Eigen::Matrix<T, 3, Eigen::Dynamic> ret = average_csfs();
-        if (ret(0,0) <= 0.0 or ret(0.0) >= 1.0)
+        std::vector<Matrix<T> > ret2;
+        ConditionedSFS<T> cc0 = c0;
+        std::future<std::vector<Matrix<T> > > below_res(tp_.enqueue(
+            [&cc0, eta, hidden_states] { return cc0.compute_below(eta, hidden_states); }));
+        for (int h = 1; h < hidden_states.size(); ++h)
         {
-            std::cout << ret.template cast<double>() << std::endl << std::endl;
-            std::cout << t1 << " " << t2 << std::endl << std::endl;
-            std::cerr << "sfs is no longer a probability distribution. branch lengths are too long." << std::endl;
+            double tau1 = hidden_states[h - 1];
+            double tau2 = hidden_states[h];
+            std::vector<std::thread> t;
+            T t1 = (*eta.getR())(tau1);
+            T t2;
+            if (std::isinf(tau2))
+                t2 = INFINITY;
+            else
+                t2 = (*eta.getR())(tau2);
+            std::vector<std::future<void>> results;
+            for (ConditionedSFS<T> &c : csfss)
+                results.emplace_back(tp_.enqueue([&c, eta, num_samples, t1, t2] { c.compute(eta, num_samples, t1, t2); }));
+            for (auto &res : results) 
+                res.wait();
+            Eigen::Matrix<T, 3, Eigen::Dynamic> ret = average_csfs();
+            ret2.push_back(ret);
         }
-        return ret;
+        std::vector<Matrix<T> > below = below_res.get();
+        for (size_t h = 0; h < hidden_states.size() - 1; ++h)
+        {
+            ret2[h] += below[h];
+            T tauh = ret2[h].sum();
+            ret2[h] *= -expm1(-theta_ * tauh) / tauh;
+            ret2[h](0, 0) = exp(-theta_ * tauh);
+            std::cout << "hidden_state: " << h << std::endl << ret2[h].template cast<double>() << std::endl << std::endl;
+            // ret *= theta;
+            // ret(0, 0) = 1. - ret.sum();
         }
+        return ret2;
+    }
 
     private:
-    Matrix<T> average_csfs()
+    Matrix<T> average_csfs(void)
     {
         Matrix<T> ret = Matrix<T>::Zero(csfss[0].matrix().rows(), csfss[0].matrix().cols());
         int m = 0;
@@ -112,14 +130,10 @@ class CSFSManager
             ++m;
         }
         ret /= (double)m;
-        T tauh = ret.sum();
-        ret *= -expm1(-theta_ * tauh) / tauh;
-        ret(0, 0) = exp(-theta_ * tauh);
-        // ret *= theta;
-        // ret(0, 0) = 1. - ret.sum();
         return ret;
     }
-    std::vector<ConditionedSFS<T>> csfss;
+    std::vector<ConditionedSFS<T> > csfss;
+    ConditionedSFS<T> c0;
     double theta_;
     ThreadPool tp_;
     std::mt19937 gen;

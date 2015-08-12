@@ -201,6 +201,22 @@ Vector<T> ConditionedSFS<T>::compute_etnk_below(const std::vector<mpreal_wrapper
     return ret;
 }
 
+template <typename T>
+Matrix<T> ConditionedSFS<T>::compute_etnk_below_mat(const Matrix<mpreal_wrapper<T> > &etjj)
+{
+    Matrix<T> ret(etjj.rows(), etjj.cols());
+    mpreal_wrapper<T> tmp;
+    for (int i = 0; i < ret.rows(); ++i)
+        for (int j = 0; j < ret.cols(); ++j)
+            {
+                tmp -= tmp;
+                for (int k = 0; k < ret.cols(); ++k)
+                    tmp += etjj(i, k) * bc.coeffs[j][k].get_mpq_t();
+                ret(i, j) = mpreal_wrapper_convertBack<T>((j + 2) * tmp);
+            }
+    return ret;
+}
+
 void check_for_nans(Vector<double> x) 
 {
     for (int i = 0; i < x.rows(); ++i)
@@ -216,6 +232,25 @@ void check_for_nans(Vector<adouble> x)
         check_for_nans(x(i).derivatives());
 }
 
+
+template <typename T>
+std::vector<Matrix<T> > ConditionedSFS<T>::compute_below(
+    const PiecewiseExponentialRateFunction<T> &eta, 
+    const std::vector<double> hidden_states)
+{
+    Matrix<mpreal_wrapper<T> > mpfr_tjj_below = eta.mpfr_tjj_double_integral(n, hidden_states, bc.prec);
+    Matrix<T> etnk_below = compute_etnk_below_mat(mpfr_tjj_below);
+    std::vector<Matrix<T> > ret(hidden_states.size() - 1, Matrix<T>::Zero(3, n + 1));
+    Vector<T> ones = Vector<T>::Ones(n + 1);
+    for (int i = 0; i < hidden_states.size() - 1; ++i) 
+    {
+        ret[i].block(0, 1, 1, n) = etnk_below.row(i).transpose().
+            cwiseProduct(ones - D_subtend_below).transpose() * P_undist;
+        ret[i].block(1, 0, 1, n + 1) = etnk_below.row(i).transpose().cwiseProduct(D_subtend_below).transpose() * P_dist;
+    }
+    return ret;
+}
+
 template <typename T>
 void ConditionedSFS<T>::compute(const PiecewiseExponentialRateFunction<T> &eta, int num_samples, T t1, T t2)
 {
@@ -224,22 +259,22 @@ void ConditionedSFS<T>::compute(const PiecewiseExponentialRateFunction<T> &eta, 
     T tau;
     // There are n + 2 (undistinguished + distinguished) at time 0.
     // Above tau there are between 2 and n + 1.
-	// For some reason it does not like initializing these as AdVectors. So use
-	// the matrix class instead.
+        // For some reason it does not like initializing these as AdVectors. So use
+        // the matrix class instead.
     Vector<T> etjj_above(n), etjj_below(n + 1), sfs_tau(n, 1);
     Vector<T> tjj_above(n), tjj_below(n + 1);
     std::vector<mpreal_wrapper<T>> mpfr_tjj_below(n + 1);
     Vector<T> gauss_tjj_above(n), gauss_tjj_below(n + 1);
     Vector<T> etnk_below(n + 1), etnk_above(n);
-	Matrix<T> eM(n + 1, n + 1);
+    Matrix<T> eM(n + 1, n + 1);
     int m;
     T y, Rt;
     Matrix<T> tmpmat;
 
-	// Mixing constants with adoubles causes problems because the library
-	// doesn't know how to allocate the VectorXd of derivatives(). 
-	// Here, we do it by hand.
-	T zero = eta.zero;
+    // Mixing constants with adoubles causes problems because the library
+    // doesn't know how to allocate the VectorXd of derivatives().
+    // Here, we do it by hand.
+    T zero = eta.zero;
     csfs.fill(zero);
     csfs_above.fill(zero);
     csfs_below.fill(zero);
@@ -252,18 +287,17 @@ void ConditionedSFS<T>::compute(const PiecewiseExponentialRateFunction<T> &eta, 
     {
         tau = taus[m];
         y = ys[m];
-        mpfr_tjj_below[0] = mpreal_wrapper_convert<T>(tau);
-        // mpreal_wrapper<T>(tau);
+        // mpfr_tjj_below[0] = mpreal_wrapper_convert<T>(tau);
         for (int j = 2; j < n + 2; ++j)
         {
-            unsigned long int lrate = (j + 1) * j / 2 - 1;
-            mpfr_tjj_below[j - 1] = eta.mpfr_tjj_integral(lrate, zero, tau, zero, bc.prec);
+            // unsigned long int lrate = (j + 1) * j / 2 - 1;
+            // mpfr_tjj_below[j - 1] = eta.mpfr_tjj_integral(lrate, zero, tau, zero, bc.prec);
             double rate = j * (j - 1) / 2;
             tjj_above(j - 2) = eta.tjj_integral(rate, tau, INFINITY, y);
         }
-        etnk_below = compute_etnk_below(mpfr_tjj_below);
-        csfs_below.block(0, 1, 1, n) += etnk_below.cwiseProduct(Vector<T>::Ones(n + 1) - D_subtend_below).transpose() * P_undist / num_samples;
-        csfs_below.block(1, 0, 1, n + 1) += etnk_below.cwiseProduct(D_subtend_below).transpose() * P_dist / num_samples;
+        // etnk_below = compute_etnk_below(mpfr_tjj_below);
+        // csfs_below.block(0, 1, 1, n) += etnk_below.cwiseProduct(Vector<T>::Ones(n + 1) - D_subtend_below).transpose() * P_undist / num_samples;
+        // csfs_below.block(1, 0, 1, n + 1) += etnk_below.cwiseProduct(D_subtend_below).transpose() * P_dist / num_samples;
         // Compute sfs above using polanski-kimmel + matrix exponential
         // Get the correct linear-interpolated matrix exponential
         eM = moran_interp.interpolate<T>(y);
@@ -280,7 +314,8 @@ void ConditionedSFS<T>::compute(const PiecewiseExponentialRateFunction<T> &eta, 
         tmpmat = eM.topLeftCorner(n, n).transpose() * D_subtend_above.asDiagonal() / num_samples;
         csfs_above.block(2, 0, 1, n) += (tmpmat * sfs_tau).transpose();
     }
-    csfs = csfs_below + csfs_above;
+    // csfs = csfs_below + csfs_above;
+    csfs = csfs_above;
     if (false)
     {
         std::cout << "csfs_below" << std::endl << csfs_below.template cast<double>() << std::endl << std::endl;
@@ -296,8 +331,6 @@ void ConditionedSFS<T>::fill_matrices(void)
     D_subtend_above /= n + 1;
     D_subtend_below = (Eigen::ArrayXd::Ones(n + 1) / Eigen::ArrayXd::LinSpaced(n + 1, 2, n + 2)).template cast<T>();
     D_subtend_below *= 2;
-    // Calculate the Polanski-Kimmel matrix
-    // TODO: this could be sped up by storing the matrix outside of the class
 }
 
 template <typename T> 
@@ -384,7 +417,7 @@ void cython_calculate_sfs(const std::vector<std::vector<double>> params,
     PiecewiseExponentialRateFunction<double> eta(params);
     // eta.print_debug();
     CSFSManager<double> man(n, moran_interp, numthreads, theta);
-    Matrix<double> out = man.compute(eta, num_samples, tau1, tau2);
+    Matrix<double> out = man.compute(eta, num_samples, {tau1, tau2})[0];
     store_sfs_results(out, outsfs);
 }
 
@@ -396,7 +429,7 @@ void cython_calculate_sfs_jac(const std::vector<std::vector<double>> params,
     PiecewiseExponentialRateFunction<adouble> eta(params);
     // eta.print_debug();
     CSFSManager<adouble> man(n, moran_interp, numthreads, theta);
-    Matrix<adouble> out = man.compute(eta, num_samples, tau1, tau2);
+    Matrix<adouble> out = man.compute(eta, num_samples, {tau1, tau2})[0];
     store_sfs_results(out, outsfs, outjac);
 }
 
