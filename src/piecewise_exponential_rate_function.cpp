@@ -203,7 +203,8 @@ Matrix<mpreal_wrapper<T> > PiecewiseExponentialRateFunction<T>::mpfr_tjj_double_
                 double_integrals(m, j - 2) = exp(-(rate + 1) * _Rrng) * rate;
             }
             double_integrals(m, j - 2) /= rate + 1;
-            double_integrals(m, j - 2) -= exp(-(rate + 1) * _Rrng - _ada * diff);
+            if (m + 1 < K)
+                double_integrals(m, j - 2) -= exp(-(rate + 1) * _Rrng - _ada * diff);
             double_integrals(m, j - 2) /= rate * _ada;
         }
     }
@@ -218,9 +219,8 @@ Matrix<mpreal_wrapper<T> > PiecewiseExponentialRateFunction<T>::mpfr_tjj_double_
     Matrix<mpreal_wrapper<T> > tmp(1, n + 1), prev_int(1, n + 1), new_int(1, n + 1), ret(H - 1, n + 1);
     mpreal_wrapper<T> _Rcur, _Rlast;
     // Make sure it has the correct # of derivatives
-    _Rlast = convert(ada[0]);
-    _Rlast -= _Rlast;
-    prev_int.setZero();
+    _Rlast = convert(zero);
+    prev_int.fill(_Rlast);
     for (int h = 1; h < H - 1; ++h)
     {
         int hi = insertion_point((T)hs[h], ts, 0, K);

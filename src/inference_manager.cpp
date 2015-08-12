@@ -83,7 +83,6 @@ void InferenceManager::setParams(const ParameterVector params, const std::vector
     std::vector<Matrix<T> > sfss = sfs<T>(eta, hidden_states);
     for (int m = 0; m < M; ++m)
     {
-        PROGRESS("emission (" << m << ")");
         tmask.clear();
         tavg.clear();
         tmp = sfss[m];
@@ -97,7 +96,6 @@ void InferenceManager::setParams(const ParameterVector params, const std::vector
             for (int j = 0; j < n + 1; ++j)
                 tmp(i, j) = tavg[emask(i, j)];
         emission_mask.row(m) = Matrix<T>::Map(tmp.data(), 1, 3 * (n + 1)).template cast<adouble>();
-        PROGRESS_DONE();
     }
     PROGRESS("compute B");
     parallel_do([] (hmmptr &hmm) { hmm->recompute_B(); });

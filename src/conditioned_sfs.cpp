@@ -1,10 +1,23 @@
 #include "conditioned_sfs.h"
 
+#if 0
+#undef PROGRESS
+#undef PROGRESS_DONE
+#define PROGRESS(x) progress_mtx.lock(); std::cout << x << "... " << std::flush; progress_mtx.unlock();
+#define PROGRESS_DONE() progress_mtx.lock(); std::cout << "done." << std::endl << std::flush; progress_mtx.unlock();
+#else
+#define PROGRESS(x)
+#define PROGRESS_DONE()
+#endif
+
+std::mutex progress_mtx;
+
 std::map<int, below_coeff> below_coeffs_memo;
 below_coeff compute_below_coeffs(int n)
 {
     if (below_coeffs_memo.count(n) == 0)
     {
+        PROGRESS("Computing below_coeffs");
         below_coeff ret;
         std::valarray<mpq_class> a(0_mpq, n + 1);
         std::vector<std::valarray<mpq_class>> mlast;
@@ -38,6 +51,7 @@ below_coeff compute_below_coeffs(int n)
             ret.prec = 53;
         ret.coeffs = mlast;
         below_coeffs_memo[n] = ret;
+        PROGRESS_DONE();
     }
     return below_coeffs_memo[n];
 }
@@ -238,16 +252,20 @@ std::vector<Matrix<T> > ConditionedSFS<T>::compute_below(
     const PiecewiseExponentialRateFunction<T> &eta, 
     const std::vector<double> hidden_states)
 {
+    PROGRESS("mpfr double integration");
     Matrix<mpreal_wrapper<T> > mpfr_tjj_below = eta.mpfr_tjj_double_integral(n, hidden_states, bc.prec);
+    PROGRESS("mpfr etnk");
     Matrix<T> etnk_below = compute_etnk_below_mat(mpfr_tjj_below);
     std::vector<Matrix<T> > ret(hidden_states.size() - 1, Matrix<T>::Zero(3, n + 1));
     Vector<T> ones = Vector<T>::Ones(n + 1);
+    PROGRESS("mpfr sfs below");
     for (int i = 0; i < hidden_states.size() - 1; ++i) 
     {
         ret[i].block(0, 1, 1, n) = etnk_below.row(i).transpose().
             cwiseProduct(ones - D_subtend_below).transpose() * P_undist;
         ret[i].block(1, 0, 1, n + 1) = etnk_below.row(i).transpose().cwiseProduct(D_subtend_below).transpose() * P_dist;
     }
+    PROGRESS("compute below done");
     return ret;
 }
 
@@ -255,6 +273,7 @@ template <typename T>
 void ConditionedSFS<T>::compute(const PiecewiseExponentialRateFunction<T> &eta, int num_samples, T t1, T t2)
 {
     // feenableexcept(FE_INVALID | FE_OVERFLOW);
+    PROGRESS("compute above");
     auto Rinv = eta.getRinv();
     T tau;
     // There are n + 2 (undistinguished + distinguished) at time 0.
@@ -295,9 +314,6 @@ void ConditionedSFS<T>::compute(const PiecewiseExponentialRateFunction<T> &eta, 
             double rate = j * (j - 1) / 2;
             tjj_above(j - 2) = eta.tjj_integral(rate, tau, INFINITY, y);
         }
-        // etnk_below = compute_etnk_below(mpfr_tjj_below);
-        // csfs_below.block(0, 1, 1, n) += etnk_below.cwiseProduct(Vector<T>::Ones(n + 1) - D_subtend_below).transpose() * P_undist / num_samples;
-        // csfs_below.block(1, 0, 1, n + 1) += etnk_below.cwiseProduct(D_subtend_below).transpose() * P_dist / num_samples;
         // Compute sfs above using polanski-kimmel + matrix exponential
         // Get the correct linear-interpolated matrix exponential
         eM = moran_interp.interpolate<T>(y);
@@ -322,6 +338,7 @@ void ConditionedSFS<T>::compute(const PiecewiseExponentialRateFunction<T> &eta, 
         std::cout << "csfs_above" << std::endl << csfs_above.template cast<double>() << std::endl << std::endl;
         std::cout << "csfs" << std::endl << csfs.template cast<double>() << std::endl << std::endl;
     }
+    PROGRESS("compute above done");
 }
 
 template <typename T>

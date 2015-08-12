@@ -112,7 +112,6 @@ class CSFSManager
             T tauh = ret2[h].sum();
             ret2[h] *= -expm1(-theta_ * tauh) / tauh;
             ret2[h](0, 0) = exp(-theta_ * tauh);
-            std::cout << "hidden_state: " << h << std::endl << ret2[h].template cast<double>() << std::endl << std::endl;
             // ret *= theta;
             // ret(0, 0) = 1. - ret.sum();
         }
