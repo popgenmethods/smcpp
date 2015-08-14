@@ -86,10 +86,11 @@ class HMM
     const int mask_freq, mask_offset, M, Ltot;
     Matrix<adouble> B;
     std::vector<Vector<adouble>*> Bptr;
+    std::vector<Eigen::Array<adouble, Eigen::Dynamic, 1>*> logBptr;
     Matrix<double> alpha_hat, beta_hat, gamma, xisum;
     Vector<double> c;
     std::vector<int> viterbi_path;
-    std::unordered_map<std::pair<bool, std::map<int, int> >, Vector<adouble> > block_prob_map;
+    std::unordered_map<std::pair<bool, std::map<int, int> >, std::pair<Vector<adouble>, Eigen::Array<adouble, Eigen::Dynamic, 1> > > block_prob_map;
     std::unordered_map<std::pair<bool, std::map<int, int> >, int > block_prob_counts;
     friend class InferenceManager;
 };

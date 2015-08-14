@@ -30,7 +30,7 @@ HMM::HMM(Eigen::Matrix<int, Eigen::Dynamic, 2> obs, const int block_size,
     pi(pi), transition(transition), emission(emission), emission_mask(emission_mask),
     mask_freq(mask_freq), mask_offset(mask_offset),
     M(pi->rows()), Ltot(num_blocks(obs.col(0).sum(), block_size, mask_freq, mask_offset)),
-    Bptr(Ltot), alpha_hat(M, Ltot), beta_hat(M, Ltot), gamma(M, Ltot), xisum(M, M), c(Ltot) 
+    Bptr(Ltot), logBptr(Ltot), alpha_hat(M, Ltot), beta_hat(M, Ltot), gamma(M, Ltot), xisum(M, M), c(Ltot) 
 { 
     prepare_B();
 }
@@ -67,9 +67,10 @@ void HMM::prepare_B()
                     tmp.setOnes();
                     for (auto &p : powers)
                         tmp = tmp.cwiseProduct(em_ptr->col(p.first).array().pow(p.second).matrix());
-                    block_prob_map[key] = tmp;
+                    block_prob_map[key] = {tmp, tmp.array().log()};
                 }
-                Bptr[block++] = &block_prob_map[key];
+                Bptr[block] = &block_prob_map[key].first;
+                logBptr[block++] = &block_prob_map[key].second;
                 block_prob_counts[key]++;
                 current_block_size = (alt_block_next) ? 1 : block_size;
                 powers.clear();
@@ -161,9 +162,6 @@ std::vector<int>& HMM<T>::viterbi(void)
 }
 */
 
-#include <mutex>
-std::mutex mtx; 
-
 void HMM::recompute_B(void)
 {
     const Matrix<adouble> *em_ptr;
@@ -177,7 +175,7 @@ void HMM::recompute_B(void)
         tmp.setOnes();
         for (auto &pow : power)
             tmp = tmp.cwiseProduct(em_ptr->col(pow.first).array().pow(pow.second).matrix());
-        block_prob_map[bp_pair.first] = tmp;
+        block_prob_map[bp_pair.first] = {tmp, tmp.array().log()};
         /*
         if (! alt_block) continue;
         if (block_prob_counts[bp_pair.first] < 5) continue;
@@ -235,27 +233,40 @@ adouble HMM::Q(void)
 {
     Eigen::Array<adouble, Eigen::Dynamic, Eigen::Dynamic> gam = gamma.template cast<adouble>().array();
     Eigen::Array<adouble, Eigen::Dynamic, Eigen::Dynamic> xis = xisum.template cast<adouble>().array();
-    adouble r1 = (gam.col(0) * pi->array().log()).sum();
-    adouble r2 = (gam * B.array().log()).sum();
-    adouble r3 = (xis * transition->array().log()).sum();
-    adouble ret = r1 + r2 + r3;
-    Matrix<adouble> Bl = B.array().log().matrix();
+    adouble ret = (gam.col(0) * pi->array().log()).sum();
     /*
-    for (int i = 0; i < Bl.rows(); ++i)
-        for (int j = 0; j < Bl.cols(); ++j)
+    std::cout << ret.derivatives().transpose() << std::endl;
+    double last = 0, dd;
+    for (int ell = 0; ell < Ltot; ++ell)
+    {
+        ret += (gam.col(ell) * (*logBptr[ell])).sum();
+        dd = ret.derivatives()(19);
+        if ((dd - last) > .1)
         {
-            Vector<double> bd = Bl(i, j).derivatives();
-            for (int k = 0; k < bd.rows(); ++k)
-            {
-                double x = bd(k);
-                if (isnan(x) or isinf(x))
-                {
-                    std::cout << i << "," << j << " " << bd.transpose() << std::endl;
-                    std::cout << B.col(j).transpose().template cast<double>() << std::endl;
-                }
-            }
+            std::cout << ell << " " << ret.derivatives()(19) << std::endl;
+            std::cout << "gamma: " << gamma.col(ell).transpose() << std::endl;
+            Vector<adouble> lB = *logBptr[ell];
+            Matrix<double> deriv(20, lB.rows());
+            for (int i = 0; i < lB.rows(); ++i)
+                deriv.col(i) = lB(i).derivatives().head(20);
+            std::cout << "logB derivatives:\n" << deriv.transpose() << std::endl;
+            break;
         }
+        last = dd;
+    }
     */
+    ret += (xis * transition->array().log()).sum();
+    // std::cout << ret.derivatives().transpose() << std::endl;
     domain_error(toDouble(ret));
+    std::list<std::pair<int, decltype(block_prob_map)::value_type> > pairs;
+    // for (auto p : block_prob_map)
+    //     pairs.emplace_back(block_prob_counts[p.first], p);
+    // pairs.sort([] (const decltype(pairs)::value_type &a, const decltype(pairs)::value_type &b) { return a.first > b.first; });
+    // int i = 0;
+    // for (auto &v : pairs)
+    // {
+    //     if (i++ > 20) break;
+    //     std::cout << v.first << " :: " << v.second.first << " :: " << v.second.second.second(4).derivatives().transpose() << std::endl << std::endl;
+    // }
     return ret;
 }

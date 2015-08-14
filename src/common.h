@@ -183,4 +183,19 @@ inline adouble dmax(adouble a, adouble b)
     return (a + b + myabs(a - b)) / 2;
 }
 
+inline void check_for_nans(Vector<double> x) 
+{
+    for (int i = 0; i < x.rows(); ++i)
+        if (std::isnan(x(i)))
+            throw std::domain_error("got nans in x");
+}
+
+inline void check_for_nans(Vector<adouble> x) 
+{
+    Vector<double> vd = x.template cast<double>();
+    check_for_nans(vd);
+    for (int i = 0; i < x.rows(); ++i)
+        check_for_nans(x(i).derivatives());
+}
+
 #endif

@@ -10,6 +10,15 @@
 template <typename T>
 using feval = std::unique_ptr<FunctionEvaluator<T>>;
 
+namespace myfsum
+{
+    inline double fsum(const std::vector<mpfr::mpreal> &v)
+    {
+        int status;
+        return mpfr::sum(v.data(), v.size(), status).toDouble();
+    }
+}
+
 // Ugly alias-specialization workaround stuff
 template <typename T>
 struct mpreal_wrapper_generic {};
@@ -28,7 +37,12 @@ struct mpreal_wrapper_type<double>
     {
         return x.toDouble();
     }
+    static double fsum(const std::vector<type> &v)
+    {
+        return myfsum::fsum(v);
+    }
 };
+
 template <>
 struct mpreal_wrapper_type<adouble>
 { 
@@ -41,6 +55,23 @@ struct mpreal_wrapper_type<adouble>
     static adouble convertBack(const type &x)
     {
         return adouble(x.value().toDouble(), x.derivatives().template cast<double>());
+    }
+    static adouble fsum(const std::vector<type> &v)
+    {
+        int nd = v[0].derivatives().rows();
+        std::vector<mpfr::mpreal> x; 
+        std::vector<std::vector<mpfr::mpreal> > d(nd);
+        for (auto &vv : v)
+        {
+            x.push_back(vv.value());
+            for (int i = 0; i < nd; ++i)
+                d[i].push_back(vv.derivatives()(i));
+        }
+        int status;
+        adouble ret = myfsum::fsum(x);
+        for (int i = 0; i < nd; ++i)
+            ret.derivatives()(i) = myfsum::fsum(d[i]);
+        return ret;
     }
 };
 template <typename T>

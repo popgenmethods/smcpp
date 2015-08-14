@@ -153,7 +153,7 @@ Matrix<mpreal_wrapper<T> > PiecewiseExponentialRateFunction<T>::mpfr_tjj_double_
 {
     mpfr::mpreal::set_default_prec(prec);
     long int rate;
-    mpreal_wrapper<T> _Rrng, _Rrng1, _ada, _ts, _tsm1, diff, _hs;
+    mpreal_wrapper<T> _Rrng, _Rrng1, _ada, _ts, _tsm1, diff, _hs, _adadiff;
     Matrix<mpreal_wrapper<T> > inner_integrals(K, n + 1), double_integrals(K, n + 1);
     Vector<mpreal_wrapper<T> > single_integrals(K);
     inner_integrals.setZero();
@@ -177,11 +177,14 @@ Matrix<mpreal_wrapper<T> > PiecewiseExponentialRateFunction<T>::mpfr_tjj_double_
         _ts = convert(ts[m]);
         _tsm1 = convert(ts[m + 1]);
         diff = _tsm1 - _ts;
+        _adadiff = _ada * diff;
         if (m + 1 < K)
         {
             inner_integrals(m + 1, 0) = _tsm1;
-            double_integrals(m, 0) = exp(-_Rrng) * (1 - exp(-_ada * diff) * (1 + _ada * diff)) / _ada;
-            single_integrals(m) = exp(-_Rrng) - exp(-_Rrng1);
+            // double_integrals(m, 0) = exp(-_Rrng) * (1 - exp(-_adadiff) * (1 + _adadiff)) / _ada;
+            double_integrals(m, 0) = -exp(-_Rrng) * (expm1(-_adadiff) + _adadiff * exp(-_adadiff)) / _ada;
+            // single_integrals(m) = exp(-_Rrng) - exp(-_Rrng1);
+            single_integrals(m) = -exp(-_Rrng) * expm1(-_adadiff);
         }
         else
         {
@@ -194,7 +197,9 @@ Matrix<mpreal_wrapper<T> > PiecewiseExponentialRateFunction<T>::mpfr_tjj_double_
             // \int_0^t[m] exp(-rate * R(t)) dt
             if (m + 1 < K)
             {
-                inner_integrals(m + 1, j - 2) = (exp(-rate * _Rrng) - exp(-rate * _Rrng1)) / _ada / rate + 
+                // inner_integrals(m + 1, j - 2) = (exp(-rate * _Rrng) - exp(-rate * _Rrng1)) / _ada / rate + 
+                    // inner_integrals(m, j - 2);
+                inner_integrals(m + 1, j - 2) = -(exp(-rate * _Rrng) * expm1(-rate * _adadiff)) / _ada / rate + 
                     inner_integrals(m, j - 2);
                 double_integrals(m, j - 2) = exp(-(rate + 1) * _Rrng1) + exp(-(rate + 1) * _Rrng) * rate;
             } 
@@ -230,14 +235,19 @@ Matrix<mpreal_wrapper<T> > PiecewiseExponentialRateFunction<T>::mpfr_tjj_double_
         _ts = convert(ts[hi]);
         _hs = convert(hs[h]);
         diff = _hs - _ts;
+        _adadiff = _ada * diff;
+        // Integrals
         new_int = ts_integrals.topRows(hi).colwise().sum();
-        new_int += inner_integrals.row(hi) * (exp(-_Rrng) - exp(-(_ada * diff + _Rrng)));
-        new_int(0) += exp(-_Rrng) * (1 - exp(-_ada * diff) * (1 + _ada * diff)) / _ada;
+        // new_int += inner_integrals.row(hi) * (exp(-_Rrng) - exp(-(_ada * diff + _Rrng)));
+        new_int += inner_integrals.row(hi) * -(exp(-_Rrng) * expm1(-_adadiff));
+        // new_int(0) += exp(-_Rrng) * (1 - exp(-_ada * diff) * (1 + _ada * diff)) / _ada;
+        new_int(0) += exp(-_Rrng) * -(expm1(-_adadiff) + exp(-_adadiff) * _adadiff) / _ada;
         for (int j = 3; j < n + 3; ++j)
         {
             rate = j * (j - 1) / 2 - 1;
             // \int_0^t[m] exp(-rate * R(t)) dt
-            tmp(j - 2) = exp(-(rate + 1) * (_ada * diff + _Rrng)) + exp(-(rate + 1) * _Rrng) * rate;
+            // tmp(j - 2) = exp(-(rate + 1) * (_ada * diff + _Rrng)) + exp(-(rate + 1) * _Rrng) * rate;
+            tmp(j - 2) = exp(-(rate + 1) * (_adadiff + _Rrng)) + exp(-(rate + 1) * _Rrng) * rate;
             tmp(j - 2) /= rate + 1;
             tmp(j - 2) -= exp(-(rate + 1) * _Rrng - _ada * diff);
             tmp(j - 2) /= rate * _ada;
@@ -245,12 +255,11 @@ Matrix<mpreal_wrapper<T> > PiecewiseExponentialRateFunction<T>::mpfr_tjj_double_
         new_int += tmp;
         ret.row(h - 1) = new_int - prev_int;
         // Conditional coalescence distribution
-        _Rcur = _Rrng + _ada * diff;
-        ret.row(h - 1) /= exp(-_Rlast) - exp(-_Rcur);
-        _Rlast = _Rcur;
+        // ret.row(h - 1) /= exp(-_Rlast) - exp(-_Rcur);
+        ret.row(h - 1) /= exp(-_Rrng) * -expm1(-_adadiff);
         prev_int = new_int;
     }
-    ret.bottomRows(1) = (ts_integrals.colwise().sum() - prev_int) / exp(-_Rlast);
+    ret.bottomRows(1) = (ts_integrals.colwise().sum() - prev_int) / exp(-_Rrng);
     if (hidden_states[0] > 0.0)
         ret = ret.bottomRows(ret.rows() - 1).eval();
     if (! isinf(hidden_states.back()))

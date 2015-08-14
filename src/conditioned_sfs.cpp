@@ -204,13 +204,13 @@ Vector<T> ConditionedSFS<T>::compute_etnk_below(const std::vector<mpreal_wrapper
     std::valarray<mpreal_wrapper<T>> v(n + 1);
     for (int i = 0; i < n + 1; ++i)
         v[i] = etjj[i];
-    mpreal_wrapper<T> tmp;
+    std::vector<mpreal_wrapper<T> > tmp;
     for (int i = 0; i < n + 1; ++i)
     {
-        tmp -= tmp;
+        tmp.clear();
         for (int j = 0; j < n + 1; ++j)
-            tmp += v[j] * bc.coeffs[i][j].get_mpq_t();
-        ret(i) = mpreal_wrapper_convertBack<T>((i + 2) * tmp);
+            tmp.push_back(v[j] * bc.coeffs[i][j].get_mpq_t());
+        mpreal_wrapper_type<T>::fsum(tmp);
     }
     return ret;
 }
@@ -227,25 +227,12 @@ Matrix<T> ConditionedSFS<T>::compute_etnk_below_mat(const Matrix<mpreal_wrapper<
                 for (int k = 0; k < ret.cols(); ++k)
                     tmp += etjj(i, k) * bc.coeffs[j][k].get_mpq_t();
                 ret(i, j) = mpreal_wrapper_convertBack<T>((j + 2) * tmp);
+                if (ret(i, j) < -1e-8)
+                    throw std::domain_error("highly negative etnk entry");
+                ret(i, j) = dmax(ret(i, j), 1e-20);
             }
     return ret;
 }
-
-void check_for_nans(Vector<double> x) 
-{
-    for (int i = 0; i < x.rows(); ++i)
-        if (std::isnan(x(i)))
-            throw std::domain_error("got nans in x");
-}
-
-void check_for_nans(Vector<adouble> x) 
-{
-    Vector<double> vd = x.template cast<double>();
-    check_for_nans(vd);
-    for (int i = 0; i < x.rows(); ++i)
-        check_for_nans(x(i).derivatives());
-}
-
 
 template <typename T>
 std::vector<Matrix<T> > ConditionedSFS<T>::compute_below(
@@ -330,7 +317,8 @@ void ConditionedSFS<T>::compute(const PiecewiseExponentialRateFunction<T> &eta, 
         tmpmat = eM.topLeftCorner(n, n).transpose() * D_subtend_above.asDiagonal() / num_samples;
         csfs_above.block(2, 0, 1, n) += (tmpmat * sfs_tau).transpose();
     }
-    // csfs = csfs_below + csfs_above;
+    if (csfs_above.minCoeff() < 0)
+        throw std::domain_error("csfs_above is negative in places");
     csfs = csfs_above;
     if (false)
     {
@@ -413,7 +401,7 @@ void store_sfs_results(const Matrix<adouble> &csfs, double* outsfs, double* outj
 {
     store_sfs_results(csfs.cast<double>(), outsfs);
     int n = csfs.cols();
-    int num_derivatives = csfs(0,1).derivatives().rows();
+    int num_derivatives = csfs(0,0).derivatives().rows();
     Eigen::VectorXd d;
     int m = 0;
     for (int i = 0; i < 3; ++i)
