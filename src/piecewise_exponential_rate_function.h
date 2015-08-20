@@ -12,10 +12,10 @@ using feval = std::unique_ptr<FunctionEvaluator<T>>;
 
 namespace myfsum
 {
-    inline double fsum(const std::vector<mpfr::mpreal> &v)
+    inline mpfr::mpreal fsum(const std::vector<mpfr::mpreal> &v)
     {
         int status;
-        return mpfr::sum(v.data(), v.size(), status).toDouble();
+        return mpfr::sum(v.data(), v.size(), status);
     }
 }
 
@@ -37,7 +37,7 @@ struct mpreal_wrapper_type<double>
     {
         return x.toDouble();
     }
-    static double fsum(const std::vector<type> &v)
+    static type fsum(const std::vector<type> &v)
     {
         return myfsum::fsum(v);
     }
@@ -56,7 +56,7 @@ struct mpreal_wrapper_type<adouble>
     {
         return adouble(x.value().toDouble(), x.derivatives().template cast<double>());
     }
-    static adouble fsum(const std::vector<type> &v)
+    static type fsum(const std::vector<type> &v)
     {
         int nd = v[0].derivatives().rows();
         std::vector<mpfr::mpreal> x; 
@@ -68,7 +68,8 @@ struct mpreal_wrapper_type<adouble>
                 d[i].push_back(vv.derivatives()(i));
         }
         int status;
-        adouble ret = myfsum::fsum(x);
+        type ret = myfsum::fsum(x);
+        ret.derivatives() = Vector<mpfr::mpreal>::Zero(nd);
         for (int i = 0; i < nd; ++i)
             ret.derivatives()(i) = myfsum::fsum(d[i]);
         return ret;
@@ -85,6 +86,16 @@ template <typename T>
 T mpreal_wrapper_convertBack(const mpreal_wrapper<T> &x)
 {
     return mpreal_wrapper_type<T>::convertBack(x);
+}
+
+inline bool isinf(const mpreal_wrapper<double> &x)
+{
+    return mpfr::isinf(x);
+}
+
+inline bool isinf(const mpreal_wrapper<adouble> &x)
+{
+    return mpfr::isinf(x.value());
 }
 
 template <typename T>
@@ -108,22 +119,26 @@ template <typename T>
 class PiecewiseExponentialRateFunction
 {
     public:
-    PiecewiseExponentialRateFunction(const std::vector<std::vector<double>>, const std::vector<std::pair<int, int>>);
-    PiecewiseExponentialRateFunction(const std::vector<std::vector<double>> params);
+    PiecewiseExponentialRateFunction(const std::vector<std::vector<double>>, 
+            const std::vector<std::pair<int, int>>, const std::vector<double>);
+    PiecewiseExponentialRateFunction(const std::vector<std::vector<double>> params, const std::vector<double>);
     PiecewiseExponentialRateFunction(const PiecewiseExponentialRateFunction &other) : 
-        PiecewiseExponentialRateFunction(other.params, other.derivatives) {}
+        PiecewiseExponentialRateFunction(other.params, other.derivatives, other.hidden_states) {}
     std::vector<T> getTimes() const { return ts; }
     const FunctionEvaluator<T>* geteta() const { return eta.get(); }
     const FunctionEvaluator<T>* getR() const { return R.get(); }
     const FunctionEvaluator<T>* getRinv() const { return Rinv.get(); }
     void print_debug() const;
     const T regularizer(void) const { return _reg; }
-    T tjj_integral(double, T, T, T) const;
-    mpreal_wrapper<T> mpfr_tjj_integral(const long rate, T t1, T t2, T offset, mp_prec_t prec) const;
-    Matrix<mpreal_wrapper<T> > mpfr_tjj_double_integral(const int, const std::vector<double>, const mp_prec_t) const;
     const std::vector<std::pair<int, int>> derivatives;
     const T zero;
     const T one;
+    // Integration helpers
+    Vector<mpreal_wrapper<T> > single_integrals(const mp_prec_t, const int) const;
+    Matrix<mpreal_wrapper<T> > double_integrals(const int, const mp_prec_t prec, const int, bool) const;
+    Matrix<mpreal_wrapper<T> > inner_integrals(const int, const mp_prec_t, bool) const;
+    Matrix<mpreal_wrapper<T> > mpfr_tjj_double_integral_above(const int, const mp_prec_t, long) const;
+    Matrix<mpreal_wrapper<T> > mpfr_tjj_double_integral_below(const int, const mp_prec_t) const;
 
     friend std::ostream& operator<<(std::ostream& os, const PiecewiseExponentialRateFunction& pexp)
     {
@@ -136,12 +151,14 @@ class PiecewiseExponentialRateFunction
     private:
     T init_derivative(double x);
     std::vector<std::vector<double>> params;
-    const int K;
+    int K;
     std::vector<T> ada, adb, ads, ts, Rrng;
     void initialize_derivatives();
     void compute_antiderivative();
     feval<T> eta, R, Rinv;
     T _reg;
+    const std::vector<double> hidden_states;
+    std::vector<int> hs_indices;
 };
 
 template <typename T>

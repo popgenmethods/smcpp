@@ -1,15 +1,4 @@
-#include <Eigen/Dense>
-#include <Eigen/Sparse>
-#include <iostream>
-#include <gmpxx.h>
-#include "mpq_support.h"
-
-typedef struct 
-{
-    MatrixXq U, Uinv;
-    Eigen::VectorXi D;
-} 
-MoranEigensystem;
+#include "moran_eigensystem.h"
 
 Eigen::SparseMatrix<mpq_class, Eigen::RowMajor> moran_rate_matrix(int N, int a)
 {
