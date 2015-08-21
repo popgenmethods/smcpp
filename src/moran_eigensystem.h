@@ -10,7 +10,7 @@
 typedef struct 
 {
     MatrixXq U, Uinv;
-    Eigen::VectorXi D;
+    VectorXq D;
 } 
 MoranEigensystem;
 
