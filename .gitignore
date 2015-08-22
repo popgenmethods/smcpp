@@ -13,7 +13,6 @@ build/
 src/_expm.cpp
 .moran.dat
 src/*.o
-doc/
 valgrind-python.supp
 environ.sh
 .nfs*
