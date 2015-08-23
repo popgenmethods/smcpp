@@ -12,12 +12,13 @@
 
 #include "common.h"
 #include "piecewise_exponential_rate_function.h"
-#include "matrix_interpolator.h"
+#include "moran_eigensystem.h"
 #include "ThreadPool.h"
+#include "mpq_support.h"
 
 typedef struct 
 {
-    std::vector<std::valarray<mpq_class>> coeffs;
+    MatrixXq coeffs;
     mp_prec_t prec;
 } below_coeff;
 
@@ -31,7 +32,7 @@ template <typename T>
 class ConditionedSFS : public ConditionedSFSBase
 {
     public:
-    ConditionedSFS(int, const MatrixInterpolator);
+    ConditionedSFS(int);
     void compute(const PiecewiseExponentialRateFunction<T>&, int, T, T);
     Matrix<T> matrix() const { return csfs; }
     void set_seed(long long s) { gen.seed(s); }
@@ -43,7 +44,8 @@ class ConditionedSFS : public ConditionedSFSBase
     Vector<T> compute_etnk_below(const Vector<T>&);
     Vector<T> compute_etnk_below(const std::vector<mpreal_wrapper<T> >&);
     Matrix<T> compute_etnk_below_mat(const Matrix<mpreal_wrapper<T> >&);
-    std::vector<Matrix<T> > compute_below(const PiecewiseExponentialRateFunction<T> &, const std::vector<double>);
+    std::vector<Matrix<T> > compute_below(const PiecewiseExponentialRateFunction<T> &);
+    std::vector<Matrix<T> > compute_above(const PiecewiseExponentialRateFunction<T> &);
 
     double exp1();
     T exp1_conditional(T, T);
@@ -53,23 +55,23 @@ class ConditionedSFS : public ConditionedSFSBase
     // Variables
     std::mt19937 gen;
     const int n;
-    const MatrixInterpolator moran_interp;
     const below_coeff bc;
     Vector<T> D_subtend_above, D_subtend_below;
-    Matrix<T> &Wnbj, &P_dist, &P_undist, csfs, csfs_above, csfs_below, ETnk_below;
+    MatrixXq &Wnbj, &P_dist, &P_undist;
+    Matrix<T> csfs, csfs_above, csfs_below, ETnk_below;
 
-    static std::map<int, std::array<Matrix<T>, 3> > matrix_cache;
-    static std::array<Matrix<T>, 3>& cached_matrices(int n);
+    static std::map<int, std::array<MatrixXq, 3> > matrix_cache;
+    static std::array<MatrixXq, 3>& cached_matrices(int n);
 };
 
 template <typename T>
 class CSFSManager
 {
     public:
-    CSFSManager(int n, const MatrixInterpolator &moran_interp, int numthreads, double theta) : c0(n, moran_interp), theta_(theta), tp_(numthreads + 1)
+    CSFSManager(int n, int numthreads, double theta) : c0(n), theta_(theta), tp_(numthreads + 1)
     {
         for (int i = 0; i < numthreads; ++i)
-            csfss.emplace_back(n, moran_interp);
+            csfss.emplace_back(n);
     }
 
     void set_seed(long long seed)
@@ -79,13 +81,16 @@ class CSFSManager
             c.set_seed(gen());
     }
 
-    std::vector<Matrix<T> > compute(const PiecewiseExponentialRateFunction<T> &eta, int num_samples, 
-        const std::vector<double> &hidden_states)
+    std::vector<Matrix<T> > compute(const PiecewiseExponentialRateFunction<T> &eta, int num_samples)
     {
         std::vector<Matrix<T> > ret2;
+        return ret2;
         ConditionedSFS<T> cc0 = c0;
+        /*
+        Matrix<T> below = c0.compute_below();
+        Matrix<T> above = c0.compute_above();
         std::future<std::vector<Matrix<T> > > below_res(tp_.enqueue(
-            [&cc0, eta, hidden_states] { return cc0.compute_below(eta, hidden_states); }));
+            [&cc0, eta] { return cc0.compute_below(eta); }));
         for (int h = 1; h < hidden_states.size(); ++h)
         {
             double tau1 = hidden_states[h - 1];
@@ -116,6 +121,7 @@ class CSFSManager
             // ret(0, 0) = 1. - ret.sum();
         }
         return ret2;
+        */
     }
 
     private:
@@ -143,12 +149,10 @@ void store_sfs_results(const Matrix<adouble>&, double*, double*);
 
 // These methods are used for testing purposes only
 void cython_calculate_sfs(const std::vector<std::vector<double>> params,
-        int n, int num_samples, const MatrixInterpolator &,
-        double tau1, double tau2, int numthreads, double theta, 
+        int n, int num_samples, double tau1, double tau2, int numthreads, double theta, 
         double* outsfs);
 void cython_calculate_sfs_jac(const std::vector<std::vector<double>> params,
-        int n, int num_samples, const MatrixInterpolator &,
-        double tau1, double tau2, int numthreads, double theta, 
+        int n, int num_samples, double tau1, double tau2, int numthreads, double theta, 
         double* outsfs, double* outjac);
 
 void init_eigen();

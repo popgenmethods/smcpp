@@ -8,6 +8,9 @@
 #include "function_evaluator.h"
 
 template <typename T>
+class ConditionedSFS;
+
+template <typename T>
 using feval = std::unique_ptr<FunctionEvaluator<T>>;
 
 namespace myfsum
@@ -75,6 +78,7 @@ struct mpreal_wrapper_type<adouble>
         return ret;
     }
 };
+
 template <typename T>
 using mpreal_wrapper = typename mpreal_wrapper_type<T>::type;
 template <typename T>
@@ -97,6 +101,22 @@ inline bool isinf(const mpreal_wrapper<adouble> &x)
 {
     return mpfr::isinf(x.value());
 }
+
+namespace Eigen
+{
+    namespace internal
+    {
+        template <>
+            struct cast_impl<mpreal_wrapper<adouble>, adouble>
+            {
+                static inline adouble run(const mpreal_wrapper<adouble> &x)
+                {
+                    return adouble(x.value().toDouble(), x.derivatives().template cast<double>());
+                }
+            };
+    }
+}
+
 
 template <typename T>
 inline void print_derivatives(const T&)
@@ -139,6 +159,8 @@ class PiecewiseExponentialRateFunction
     Matrix<mpreal_wrapper<T> > inner_integrals(const int, const mp_prec_t, bool) const;
     Matrix<mpreal_wrapper<T> > mpfr_tjj_double_integral_above(const int, const mp_prec_t, long) const;
     Matrix<mpreal_wrapper<T> > mpfr_tjj_double_integral_below(const int, const mp_prec_t) const;
+
+    friend class ConditionedSFS<T>;
 
     friend std::ostream& operator<<(std::ostream& os, const PiecewiseExponentialRateFunction& pexp)
     {

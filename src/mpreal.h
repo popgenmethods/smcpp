@@ -58,6 +58,7 @@
 #include <limits>
 #include <cstdint>
 #include <complex>
+#include <gmpxx.h>
 
 // Options
 #define MPREAL_HAVE_MSVC_DEBUGVIEW              // Enable Debugger Visualizer for "Debug" builds in MSVC.
@@ -157,6 +158,9 @@ public:
     mpreal(const mpf_t u);    
     mpreal(const mpz_t u,                  mp_prec_t prec = mpreal::get_default_prec(), mp_rnd_t mode = mpreal::get_default_rnd());    
     mpreal(const mpq_t u,                  mp_prec_t prec = mpreal::get_default_prec(), mp_rnd_t mode = mpreal::get_default_rnd());    
+    // Add a method
+    mpreal(const mpq_class u) : mpreal(u.get_mpq_t()) {}
+    // Done adding methods
     mpreal(const double u,                 mp_prec_t prec = mpreal::get_default_prec(), mp_rnd_t mode = mpreal::get_default_rnd());
     mpreal(const long double u,            mp_prec_t prec = mpreal::get_default_prec(), mp_rnd_t mode = mpreal::get_default_rnd());
     mpreal(const unsigned long long int u, mp_prec_t prec = mpreal::get_default_prec(), mp_rnd_t mode = mpreal::get_default_rnd());

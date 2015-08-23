@@ -63,11 +63,13 @@ MoranEigensystem compute_moran_eigensystem(int n)
     return ret;
 }
 
+
 /*
 int main(int argc, char** argv)
 {
     int n = atoi(argv[1]);
     MoranEigensystem ret = compute_moran_eigensystem(n);
-    std::cout << (ret.U * ret.D.asDiagonal() * ret.Uinv).template cast<double>() << std::endl;
+    std::cout << (ret.U.reverse() * ret.D.reverse().asDiagonal() * ret.Uinv.reverse()).template cast<double>() << std::endl;
 }
 */
+
