@@ -250,18 +250,20 @@ std::vector<Matrix<T> > ConditionedSFS<T>::compute_above(
     mpfr::mpreal::set_default_prec(53);
     MoranEigensystem mei = compute_moran_eigensystem(n);
     int H = eta.hidden_states.size() - 1;
-    std::vector<Matrix<mpreal_wrapper<T> > > C(H, Matrix<mpreal_wrapper<T> >::Zero(n + 1, n));
-    for (int i = 2; i < n + 3; ++i)
+    std::vector<Matrix<T> > C(H, Matrix<T>::Zero(n + 1, n));
+    ThreadPool tp(12);
+    std::vector<std::future<Matrix<T> > > results;
+    int nn = n;
+    std::vector<double> hidden_states = eta.hidden_states;
+    for (int h = 0; h < H; ++h)
     {
-        long lam = i * (i - 1) / 2 - 1; // == mei.D(i - 2);
-        Matrix<mpreal_wrapper<T> > mpfr_tjj_above = eta.mpfr_tjj_double_integral_above(n, 53, lam);
-        for (int h = 0; h < H; ++h)
-            C[h].row(i - 2) = mpfr_tjj_above.row(h);
+        PiecewiseExponentialRateFunction<T> e2(eta.params, {hidden_states[h], hidden_states[h + 1]});
+        results.emplace_back(tp.enqueue([e2, nn] { return e2.tjj_all_above(nn); }));
     }
-    Matrix<mpreal_wrapper<T> > X0 = (Wnbj.transpose() * mei.U.bottomRows(n)).template cast<mpreal_wrapper<T> >(),
-        Uinv_mp0 = mei.Uinv.rightCols(n).template cast<mpreal_wrapper<T> >();
-    Matrix<mpreal_wrapper<T> > X2 = (Wnbj.transpose() * mei.U.reverse().topRows(n)).template cast<mpreal_wrapper<T> >(),
-        Uinv_mp2 = mei.Uinv.reverse().leftCols(n).template cast<mpreal_wrapper<T> >();
+    for (int h = 0; h < H; ++h)
+        C[h] = results[h].get();
+    Matrix<T> X0 = (Wnbj.transpose() * mei.U.bottomRows(n)).template cast<T>(), Uinv_mp0 = mei.Uinv.rightCols(n).template cast<T>();
+    Matrix<T> X2 = (Wnbj.transpose() * mei.U.reverse().topRows(n)).template cast<T>(), Uinv_mp2 = mei.Uinv.reverse().leftCols(n).template cast<T>();
     Matrix<T> T_subtend(1, n);
     std::vector<Matrix<T> > ret(H, Matrix<T>::Zero(3, n + 1));
     for (int h = 0; h < H; ++h) 
