@@ -234,39 +234,9 @@ adouble HMM::Q(void)
     Eigen::Array<adouble, Eigen::Dynamic, Eigen::Dynamic> gam = gamma.template cast<adouble>().array();
     Eigen::Array<adouble, Eigen::Dynamic, Eigen::Dynamic> xis = xisum.template cast<adouble>().array();
     adouble ret = (gam.col(0) * pi->array().log()).sum();
-    /*
-    std::cout << ret.derivatives().transpose() << std::endl;
-    double last = 0, dd;
     for (int ell = 0; ell < Ltot; ++ell)
-    {
         ret += (gam.col(ell) * (*logBptr[ell])).sum();
-        dd = ret.derivatives()(19);
-        if ((dd - last) > .1)
-        {
-            std::cout << ell << " " << ret.derivatives()(19) << std::endl;
-            std::cout << "gamma: " << gamma.col(ell).transpose() << std::endl;
-            Vector<adouble> lB = *logBptr[ell];
-            Matrix<double> deriv(20, lB.rows());
-            for (int i = 0; i < lB.rows(); ++i)
-                deriv.col(i) = lB(i).derivatives().head(20);
-            std::cout << "logB derivatives:\n" << deriv.transpose() << std::endl;
-            break;
-        }
-        last = dd;
-    }
-    */
     ret += (xis * transition->array().log()).sum();
-    // std::cout << ret.derivatives().transpose() << std::endl;
     domain_error(toDouble(ret));
-    std::list<std::pair<int, decltype(block_prob_map)::value_type> > pairs;
-    // for (auto p : block_prob_map)
-    //     pairs.emplace_back(block_prob_counts[p.first], p);
-    // pairs.sort([] (const decltype(pairs)::value_type &a, const decltype(pairs)::value_type &b) { return a.first > b.first; });
-    // int i = 0;
-    // for (auto &v : pairs)
-    // {
-    //     if (i++ > 20) break;
-    //     std::cout << v.first << " :: " << v.second.first << " :: " << v.second.second.second(4).derivatives().transpose() << std::endl << std::endl;
-    // }
     return ret;
 }

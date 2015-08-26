@@ -68,7 +68,6 @@ PiecewiseExponentialRateFunction<T>::PiecewiseExponentialRateFunction(
         ts[k + 1] = ts[k] + ads[k];
         // adb[k] = 0.0 * (log(adb[k]) - log(ada[k])) / (ts[k + 1] - ts[k]);
     }
-    adb[K - 1] *= 0.0;
     ts[K] = INFINITY;
 
     int ip;

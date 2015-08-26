@@ -109,6 +109,8 @@ std::vector<Matrix<T> > InferenceManager::sfs(const PiecewiseExponentialRateFunc
     static ConditionedSFS<T> csfs(n, num_threads);
     return csfs.compute(eta, theta);
 }
+template std::vector<Matrix<double> > InferenceManager::sfs(const PiecewiseExponentialRateFunction<double> &);
+template std::vector<Matrix<adouble> > InferenceManager::sfs(const PiecewiseExponentialRateFunction<adouble> &);
 
 void InferenceManager::parallel_do(std::function<void(hmmptr&)> lambda)
 {

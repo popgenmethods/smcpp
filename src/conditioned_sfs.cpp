@@ -153,30 +153,8 @@ ConditionedSFS<T>::ConditionedSFS(int n, int num_threads) :
     D_subtend_above(cached_matrices(n)[5]), 
     D_subtend_below(cached_matrices(n)[6]),
     csfs(3, n + 1), csfs_above(3, n + 1), csfs_below(3, n + 1)
-{
-    mpfr::mpreal::set_default_prec(bc.prec);
-}
+{}
 
-/*
-template <typename T>
-Vector<T> ConditionedSFS<T>::compute_etnk_below(const std::vector<mpreal_wrapper<T>> &etjj)
-{
-    Vector<T> ret = Vector<T>::Zero(n + 1);
-    ret.fill(0);
-    std::valarray<mpreal_wrapper<T>> v(n + 1);
-    for (int i = 0; i < n + 1; ++i)
-        v[i] = etjj[i];
-    std::vector<mpreal_wrapper<T> > tmp;
-    for (int i = 0; i < n + 1; ++i)
-    {
-        tmp.clear();
-        for (int j = 0; j < n + 1; ++j)
-            tmp.push_back(v[j] * bc.coeffs(j, i).get_mpq_t());
-        mpreal_wrapper_type<T>::fsum(tmp);
-    }
-    return ret;
-}
-*/
 template <typename T>
 Matrix<T> ConditionedSFS<T>::compute_etnk_below_mat(const Matrix<mpreal_wrapper<T> > &etjj)
 {
@@ -203,6 +181,7 @@ std::vector<Matrix<T> > ConditionedSFS<T>::compute_below(
     const PiecewiseExponentialRateFunction<T> &eta
     )
 {
+    mpfr::mpreal::set_default_prec(bc.prec);
     PROGRESS("mpfr double integration below");
     Matrix<mpreal_wrapper<T> > tjj_below = eta.tjj_double_integral_below(n, bc.prec);
     PROGRESS("mpfr etnk");
@@ -227,25 +206,24 @@ std::vector<Matrix<T> > ConditionedSFS<T>::compute_above(
     const PiecewiseExponentialRateFunction<T> &eta
     )
 {
+    mpfr::mpreal::set_default_prec(53);
     PROGRESS("mpfr double integration");
     MoranEigensystem mei = compute_moran_eigensystem(n);
     int H = eta.hidden_states.size() - 1;
     std::vector<Matrix<mpreal_wrapper<T> > > C(H, Matrix<mpreal_wrapper<T> >::Zero(n + 1, n));
-    ThreadPool tp(12);
+    ThreadPool tp(8);
     std::vector<std::future<Matrix<mpreal_wrapper<T> > > > results;
     int nn = n;
     std::vector<double> hidden_states = eta.hidden_states;
     for (int h = 0; h < H; ++h)
     {
-        PiecewiseExponentialRateFunction<T> e2(eta.params, {hidden_states[h], hidden_states[h + 1]});
+        PiecewiseExponentialRateFunction<T> e2(eta.params, eta.derivatives, {hidden_states[h], hidden_states[h + 1]});
         results.emplace_back(tp.enqueue([e2, nn] { return e2.template tjj_all_above(nn); }));
+        // std::cout << h << " " << std::flush;
+        // C[h] = e2.template tjj_all_above(nn);
     }
     for (int h = 0; h < H; ++h)
-    {
         C[h] = results[h].get();
-    }
-    // Matrix<double> trans = (mei.U.template cast<double>() * mei.D.array().template cast<double>().exp().matrix().asDiagonal() * mei.Uinv.template cast<double>());
-    // std::cout << trans << std::endl << std::endl;
     MatrixXq Uinv_mp0 = mei.Uinv.rightCols(n);
     MatrixXq Uinv_mp2 = mei.Uinv.reverse().leftCols(n);
     Matrix<mpreal_wrapper<T> > T_subtend(1, n);
@@ -287,6 +265,7 @@ std::array<MatrixXq, 7>& ConditionedSFSBase::cached_matrices(int n)
     const MoranEigensystem mei = compute_moran_eigensystem(n);
     if (matrix_cache.count(n) == 0)
     {
+        std::cout << "computing cached matrices..." << std::endl;
         VectorXq _D_subtend_above = VectorXq::LinSpaced(n, 1, n);
         _D_subtend_above /= n + 1;
 
@@ -315,6 +294,7 @@ std::array<MatrixXq, 7>& ConditionedSFSBase::cached_matrices(int n)
         _X0 = _Wnbj.transpose() * (VectorXq::Ones(n) - _D_subtend_above).asDiagonal() * mei.U.bottomRows(n);
         _X2 =  _Wnbj.transpose() * _D_subtend_above.asDiagonal() * mei.U.reverse().topRows(n);
         matrix_cache[n] = {_Wnbj, _P_dist, _P_undist, _X0, _X2, _D_subtend_above, _D_subtend_below};
+        std::cout << "done" << std::endl;
     }
     return matrix_cache[n];
 }
