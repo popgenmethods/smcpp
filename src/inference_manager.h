@@ -4,7 +4,6 @@
 #include <memory>
 
 #include "common.h"
-#include "matrix_interpolator.h"
 #include "ThreadPool.h"
 #include "hmm.h"
 #include "piecewise_exponential_rate_function.h"
@@ -17,7 +16,6 @@ class InferenceManager
 {
     public:
     InferenceManager(
-            const MatrixInterpolator &moran_interp,
             const int n, const int L,
             const std::vector<int*> observations,
             const std::vector<double> hidden_states,
@@ -38,16 +36,17 @@ class InferenceManager
     std::vector<double> loglik(double);
 
     template <typename T>
-    std::vector<Matrix<T> > sfs(PiecewiseExponentialRateFunction<T>, const std::vector<double>);
+    std::vector<Matrix<T> > sfs(const PiecewiseExponentialRateFunction<T>&);
+
     Matrix<double> sfs_cython(const ParameterVector p, double t1, double t2) 
     { 
-        PiecewiseExponentialRateFunction<double> eta(p);
-        return sfs<double>(eta, {t1, t2})[0];
+        PiecewiseExponentialRateFunction<double> eta(p, {t1, t2});
+        return sfs<double>(eta)[0];
     }
     Matrix<adouble> dsfs_cython(const ParameterVector p, double t1, double t2) 
     { 
-        PiecewiseExponentialRateFunction<adouble> eta(p);
-        return sfs<adouble>(p, {t1, t2})[0];
+        PiecewiseExponentialRateFunction<adouble> eta(p, {t1, t2});
+        return sfs<adouble>(eta)[0];
     }
     
     // Unfortunately these are necessary to work around a bug in Cython
@@ -64,8 +63,7 @@ class InferenceManager
 
     double R(const ParameterVector params, double t)
     {
-        std::vector<std::pair<int, int>> d;
-        PiecewiseExponentialRateFunction<double> eta(params, d);
+        PiecewiseExponentialRateFunction<double> eta(params, std::vector<std::pair<int, int> >(), std::vector<double>());
         return (*eta.getR())(t);
     }
 
@@ -86,7 +84,6 @@ class InferenceManager
 
     // Passed-in parameters
     std::mt19937 gen;
-    const MatrixInterpolator moran_interp;
     const int n, L;
     const std::vector<int*> observations;
     const std::vector<double> hidden_states;

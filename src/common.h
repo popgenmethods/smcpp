@@ -23,7 +23,7 @@
 #define _DEBUG(x) x
 #endif
 
-#if 1
+#if 0
 #define PROGRESS(x) std::cout << x << "... " << std::flush;
 #define PROGRESS_DONE() std::cout << "done." << std::endl << std::flush;
 #else
@@ -122,7 +122,6 @@ inline adouble pow(const adouble &x, const adouble &y)
 }
 
 };
- 
 
 #else
 
@@ -132,11 +131,6 @@ typedef double adouble;
 
 typedef Eigen::Matrix<adouble, Eigen::Dynamic, Eigen::Dynamic> AdMatrix;
 typedef Eigen::Matrix<adouble, Eigen::Dynamic, 1> AdVector;
-
-typedef struct AdMatrixWrapper {
-    AdMatrix mat;
-} AdMatrixWrapper;
-
 
 template <typename T, typename U>
 inline int insertion_point(const T x, const std::vector<U>& ary, int first, int last)

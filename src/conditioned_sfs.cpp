@@ -142,43 +142,22 @@ mpq_class pnkb_undist(int n, int m, int l3)
 }
 
 template <typename T>
-ConditionedSFS<T>::ConditionedSFS(int n) : 
-    n(n), D_subtend_above(n), D_subtend_below(n + 1),
-	Wnbj(cached_matrices(n)[0]), P_dist(cached_matrices(n)[1]),
-    P_undist(cached_matrices(n)[2]), csfs(3, n + 1), 
-    csfs_above(3, n + 1), csfs_below(3, n + 1), bc(compute_below_coeffs(n))
+ConditionedSFS<T>::ConditionedSFS(int n, int num_threads) : 
+    n(n), num_threads(num_threads),
+    mei(compute_moran_eigensystem(n)),
+    bc(compute_below_coeffs(n)),
+	Wnbj(cached_matrices(n)[0]),
+    P_dist(cached_matrices(n)[1]),
+    P_undist(cached_matrices(n)[2]), 
+    X0(cached_matrices(n)[3]), X2(cached_matrices(n)[4]),
+    D_subtend_above(cached_matrices(n)[5]), 
+    D_subtend_below(cached_matrices(n)[6]),
+    csfs(3, n + 1), csfs_above(3, n + 1), csfs_below(3, n + 1)
 {
-    fill_matrices();
     mpfr::mpreal::set_default_prec(bc.prec);
 }
 
-template <typename T>
-double ConditionedSFS<T>::rand_exp(void)
-{
-    return std::exponential_distribution<double>{1.0}(gen);
-}
-
-template <typename T>
-double ConditionedSFS<T>::unif(void)
-{
-    return std::uniform_real_distribution<double>{0.0, 1.0}(gen);
-}
-
-template <typename T>
-T ConditionedSFS<T>::exp1_conditional(T a, T b)
-{
-    // If X ~ Exp(1),
-    // P(X < x | a <= X <= b) = (e^-a - e^-x) / (e^-a - e^-b)
-    // so P^-1(y) = -log(e^-a - (e^-a - e^-b) * y)
-    //            = -log(e^-a(1 - (1 - e^-(b-a)) * y)
-    //            = a - log(1 - (1 - e^-(b-a)) * y)
-    //            = a - log(1 + expm1(-(b-a)) * y)
-    if (std::isinf(toDouble(b)))
-        return a - log1p(-unif());
-    else
-        return a - log1p(expm1(-(b - a)) * unif());
-}
-
+/*
 template <typename T>
 Vector<T> ConditionedSFS<T>::compute_etnk_below(const std::vector<mpreal_wrapper<T>> &etjj)
 {
@@ -197,7 +176,7 @@ Vector<T> ConditionedSFS<T>::compute_etnk_below(const std::vector<mpreal_wrapper
     }
     return ret;
 }
-
+*/
 template <typename T>
 Matrix<T> ConditionedSFS<T>::compute_etnk_below_mat(const Matrix<mpreal_wrapper<T> > &etjj)
 {
@@ -217,15 +196,17 @@ Matrix<T> ConditionedSFS<T>::compute_etnk_below_mat(const Matrix<mpreal_wrapper<
     return ret;
 }
 
+void print_derivatives(const Matrix<adouble> &x) { std::cout << x(0, 1).derivatives() << std::endl; }
+
 template <typename T>
 std::vector<Matrix<T> > ConditionedSFS<T>::compute_below(
     const PiecewiseExponentialRateFunction<T> &eta
     )
 {
     PROGRESS("mpfr double integration below");
-    Matrix<mpreal_wrapper<T> > mpfr_tjj_below = eta.mpfr_tjj_double_integral_below(n, bc.prec);
+    Matrix<mpreal_wrapper<T> > tjj_below = eta.tjj_double_integral_below(n, bc.prec);
     PROGRESS("mpfr etnk");
-    Matrix<T> etnk_below = compute_etnk_below_mat(mpfr_tjj_below);
+    Matrix<T> etnk_below = compute_etnk_below_mat(tjj_below);
     int H = etnk_below.rows();
     std::vector<Matrix<T> > ret(H, Matrix<T>::Zero(3, n + 1));
     Vector<T> ones = Vector<T>::Ones(n + 1);
@@ -233,8 +214,8 @@ std::vector<Matrix<T> > ConditionedSFS<T>::compute_below(
     for (int i = 0; i < H; ++i) 
     {
         ret[i].block(0, 1, 1, n) = etnk_below.row(i).transpose().
-            cwiseProduct(ones - D_subtend_below).transpose() * P_undist.template cast<double>();
-        ret[i].block(1, 0, 1, n + 1) = etnk_below.row(i).transpose().cwiseProduct(D_subtend_below).
+            cwiseProduct(ones - D_subtend_below.template cast<T>()).transpose() * P_undist.template cast<double>();
+        ret[i].block(1, 0, 1, n + 1) = etnk_below.row(i).transpose().cwiseProduct(D_subtend_below.template cast<T>()).
             transpose() * P_dist.template cast<double>();
     }
     PROGRESS("compute below done");
@@ -247,128 +228,73 @@ std::vector<Matrix<T> > ConditionedSFS<T>::compute_above(
     )
 {
     PROGRESS("mpfr double integration");
-    mpfr::mpreal::set_default_prec(53);
     MoranEigensystem mei = compute_moran_eigensystem(n);
     int H = eta.hidden_states.size() - 1;
-    std::vector<Matrix<T> > C(H, Matrix<T>::Zero(n + 1, n));
+    std::vector<Matrix<mpreal_wrapper<T> > > C(H, Matrix<mpreal_wrapper<T> >::Zero(n + 1, n));
     ThreadPool tp(12);
-    std::vector<std::future<Matrix<T> > > results;
+    std::vector<std::future<Matrix<mpreal_wrapper<T> > > > results;
     int nn = n;
     std::vector<double> hidden_states = eta.hidden_states;
     for (int h = 0; h < H; ++h)
     {
         PiecewiseExponentialRateFunction<T> e2(eta.params, {hidden_states[h], hidden_states[h + 1]});
-        results.emplace_back(tp.enqueue([e2, nn] { return e2.tjj_all_above(nn); }));
+        results.emplace_back(tp.enqueue([e2, nn] { return e2.template tjj_all_above(nn); }));
     }
     for (int h = 0; h < H; ++h)
+    {
         C[h] = results[h].get();
-    Matrix<T> X0 = (Wnbj.transpose() * mei.U.bottomRows(n)).template cast<T>(), Uinv_mp0 = mei.Uinv.rightCols(n).template cast<T>();
-    Matrix<T> X2 = (Wnbj.transpose() * mei.U.reverse().topRows(n)).template cast<T>(), Uinv_mp2 = mei.Uinv.reverse().leftCols(n).template cast<T>();
-    Matrix<T> T_subtend(1, n);
+    }
+    // Matrix<double> trans = (mei.U.template cast<double>() * mei.D.array().template cast<double>().exp().matrix().asDiagonal() * mei.Uinv.template cast<double>());
+    // std::cout << trans << std::endl << std::endl;
+    MatrixXq Uinv_mp0 = mei.Uinv.rightCols(n);
+    MatrixXq Uinv_mp2 = mei.Uinv.reverse().leftCols(n);
+    Matrix<mpreal_wrapper<T> > T_subtend(1, n);
+    /*
+    Matrix<double> sfs = Wnbj.template cast<double>() * C[0].row(0).transpose().template cast<double>();
+    std::cout << "sfs " << sfs.transpose() << std::endl;
+    */
     std::vector<Matrix<T> > ret(H, Matrix<T>::Zero(3, n + 1));
     for (int h = 0; h < H; ++h) 
     {
-        T_subtend = ((X0.cwiseProduct(C[h].transpose()).colwise().sum()) * Uinv_mp0).template cast<T>();
-        ret[h].block(0, 1, 1, n) += T_subtend * (Vector<T>::Ones(n) - D_subtend_above).asDiagonal();
-        T_subtend = ((X2.cwiseProduct(C[h].colwise().reverse().transpose()).colwise().sum()) * Uinv_mp2).template cast<T>();
-        ret[h].block(2, 0, 1, n) += T_subtend * D_subtend_above.asDiagonal();
+        T_subtend = ((X0.template cast<mpreal_wrapper<T> >().cwiseProduct(C[h].transpose()).colwise().sum()) * 
+                Uinv_mp0.template cast<mpreal_wrapper<T> >());
+        ret[h].block(0, 1, 1, n) += T_subtend.template cast<T>();
+        T_subtend = ((X2.template cast<mpreal_wrapper<T> >().cwiseProduct(C[h].colwise().reverse().transpose()).colwise().sum()) * 
+                Uinv_mp2.template cast<mpreal_wrapper<T> >());
+        ret[h].block(2, 0, 1, n) += T_subtend.template cast<T>();
     }
     return ret;
 }
 
-/*
 template <typename T>
-void ConditionedSFS<T>::compute(const PiecewiseExponentialRateFunction<T> &eta, int num_samples, T t1, T t2)
+std::vector<Matrix<T> > ConditionedSFS<T>::compute(const PiecewiseExponentialRateFunction<T> &eta, double theta)
 {
-    // feenableexcept(FE_INVALID | FE_OVERFLOW);
-    PROGRESS("compute above");
-    auto Rinv = eta.getRinv();
-    T tau;
-    // There are n + 2 (undistinguished + distinguished) at time 0.
-    // Above tau there are between 2 and n + 1.
-    // For some reason it does not like initializing these as AdVectors. So use
-    // the matrix class instead.
-    Vector<T> etjj_above(n), etjj_below(n + 1), sfs_tau(n, 1);
-    Vector<T> tjj_above(n), tjj_below(n + 1);
-    std::vector<mpreal_wrapper<T>> mpfr_tjj_below(n + 1);
-    Vector<T> gauss_tjj_above(n), gauss_tjj_below(n + 1);
-    Vector<T> etnk_below(n + 1), etnk_above(n);
-    Matrix<T> eM(n + 1, n + 1);
-    int m;
-    T y, Rt;
-    Matrix<T> tmpmat;
-
-    // Mixing constants with adoubles causes problems because the library
-    // doesn't know how to allocate the VectorXd of derivatives().
-    // Here, we do it by hand.
-    T zero = eta.zero;
-    csfs.fill(zero);
-    csfs_above.fill(zero);
-    csfs_below.fill(zero);
-    std::vector<T> ys(num_samples);
-    std::generate(ys.begin(), ys.end(), [&](){return exp1_conditional(t1, t2);});
-    std::sort(ys.begin(), ys.end());
-    std::vector<int> eis(num_samples);
-    std::vector<T> taus = (*Rinv)(ys);
-    for (m = 0; m < num_samples; ++m)
+    std::vector<Matrix<T> > above = compute_above(eta), below = compute_below(eta);
+    std::vector<Matrix<T> > ret(above.size());
+    for (int i = 0; i < above.size(); ++i)
     {
-        tau = taus[m];
-        y = ys[m];
-        // mpfr_tjj_below[0] = mpreal_wrapper_convert<T>(tau);
-        for (int j = 2; j < n + 2; ++j)
-        {
-            // unsigned long int lrate = (j + 1) * j / 2 - 1;
-            // mpfr_tjj_below[j - 1] = eta.mpfr_tjj_integral(lrate, zero, tau, zero, bc.prec);
-            double rate = j * (j - 1) / 2;
-            tjj_above(j - 2) = eta.tjj_integral(rate, tau, INFINITY, y);
-        }
-        // Compute sfs above using polanski-kimmel + matrix exponential
-        // Get the correct linear-interpolated matrix exponential
-        eM = moran_interp.interpolate<T>(y);
-        // Wnbj is the Polanski-Kimmel matrix of coefficients W_(n + 1, b, j)
-        sfs_tau = Wnbj * tjj_above; // n-vector; sfs_tau[b] = prob. lineage subtends b + 1
-        // If a = 0 (neither distinguished lineage is derived) then immediately after
-        // tau, it's sum_b p(|B|=b at tau) * ({1,2} not a subset of B) * p(|B| -> (0, k))
-        // Recall that the rate matrix for the a = 0 case is the reverse of the a = 2 case,
-        // which is what gets passed in.
-        tmpmat = eM.reverse().bottomRightCorner(n, n).transpose() * (Vector<T>::Ones(n) - D_subtend_above).asDiagonal() / num_samples;
-		csfs_above.block(0, 1, 1, n) += (tmpmat * sfs_tau).transpose();
-        // If a = 2 (both distinguished lineages derived) then immediately after
-        // tau, it's sum_b p(b at tau) * ({1,2} in b) * p((b - 1) -> (2, k))
-        tmpmat = eM.topLeftCorner(n, n).transpose() * D_subtend_above.asDiagonal() / num_samples;
-        csfs_above.block(2, 0, 1, n) += (tmpmat * sfs_tau).transpose();
+        ret[i] = above[i] + below[i];
+        T tauh = ret[i].sum();
+        ret[i] *= -expm1(-theta * tauh) / tauh;
+        ret[i](0, 0) = exp(-theta * tauh);
     }
-    if (csfs_above.minCoeff() < 0)
-        throw std::domain_error("csfs_above is negative in places");
-    csfs = csfs_above;
-    if (false)
-    {
-        std::cout << "csfs_below" << std::endl << csfs_below.template cast<double>() << std::endl << std::endl;
-        std::cout << "csfs_above" << std::endl << csfs_above.template cast<double>() << std::endl << std::endl;
-        std::cout << "csfs" << std::endl << csfs.template cast<double>() << std::endl << std::endl;
-    }
-    PROGRESS("compute above done");
-}
-*/
-
-template <typename T>
-void ConditionedSFS<T>::fill_matrices(void)
-{
-    D_subtend_above = Eigen::VectorXd::LinSpaced(n, 1, n).template cast<T>();
-    D_subtend_above /= n + 1;
-    D_subtend_below = (Eigen::ArrayXd::Ones(n + 1) / Eigen::ArrayXd::LinSpaced(n + 1, 2, n + 2)).template cast<T>();
-    D_subtend_below *= 2;
+    return ret;
 }
 
-template <typename T> 
-std::map<int, std::array<MatrixXq, 3> > ConditionedSFS<T>::matrix_cache;
-
-template <typename T>
-std::array<MatrixXq, 3>& ConditionedSFS<T>::cached_matrices(int n)
+std::map<int, std::array<MatrixXq, 7> > ConditionedSFSBase::matrix_cache;
+std::array<MatrixXq, 7>& ConditionedSFSBase::cached_matrices(int n)
 {
+    const MoranEigensystem mei = compute_moran_eigensystem(n);
     if (matrix_cache.count(n) == 0)
     {
-        MatrixXq _Wnbj(n, n), _P_dist(n + 1, n + 1), _P_undist(n + 1, n);
+        VectorXq _D_subtend_above = VectorXq::LinSpaced(n, 1, n);
+        _D_subtend_above /= n + 1;
+
+        VectorXq _D_subtend_below = Eigen::Array<mpq_class, Eigen::Dynamic, 1>::Ones(n + 1) / 
+            Eigen::Array<mpq_class, Eigen::Dynamic, 1>::LinSpaced(n + 1, 2, n + 2);
+        _D_subtend_below *= 2;
+
+        MatrixXq _Wnbj(n, n), _P_dist(n + 1, n + 1), _P_undist(n + 1, n), _X0, _X2;
         _Wnbj.setZero();
         for (int b = 1; b < n + 1; ++b)
             for (int j = 2; j < n + 2; ++j)
@@ -385,7 +311,10 @@ std::array<MatrixXq, 3>& ConditionedSFS<T>::cached_matrices(int n)
         for (int k = 1; k < n + 1; ++k)
             for (int b = 1; b < n - k + 2; ++b)
                 _P_undist(k, b - 1) = pnkb_undist(n, k, b);
-        matrix_cache[n] = {_Wnbj, _P_dist, _P_undist};
+
+        _X0 = _Wnbj.transpose() * (VectorXq::Ones(n) - _D_subtend_above).asDiagonal() * mei.U.bottomRows(n);
+        _X2 =  _Wnbj.transpose() * _D_subtend_above.asDiagonal() * mei.U.reverse().topRows(n);
+        matrix_cache[n] = {_Wnbj, _P_dist, _P_undist, _X0, _X2, _D_subtend_above, _D_subtend_below};
     }
     return matrix_cache[n];
 }
@@ -437,30 +366,25 @@ void store_sfs_results(const Matrix<adouble> &csfs, double* outsfs, double* outj
 }
 
 void cython_calculate_sfs(const std::vector<std::vector<double>> params,
-        int n, int num_samples, double tau1, double tau2, int numthreads, double theta, 
+        int n, double tau1, double tau2, int num_threads, double theta, 
         double* outsfs)
 {
     std::vector<double> hidden_states = {tau1, tau2};
     PiecewiseExponentialRateFunction<double> eta(params, hidden_states);
-    // eta.print_debug();
-    CSFSManager<double> man(n, numthreads, theta);
-    Matrix<double> out = man.compute(eta, num_samples)[0];
+    ConditionedSFS<double> csfs(n, num_threads);
+    Matrix<double> out = csfs.compute(eta, theta)[0];
     store_sfs_results(out, outsfs);
 }
 
-/*
 void cython_calculate_sfs_jac(const std::vector<std::vector<double>> params,
-        int n, int num_samples, const MatrixInterpolator &moran_interp,
-        double tau1, double tau2, int numthreads, double theta, 
+        int n, double tau1, double tau2, int num_threads, double theta, 
         double* outsfs, double* outjac)
 {
     PiecewiseExponentialRateFunction<adouble> eta(params, {tau1, tau2});
-    // eta.print_debug();
-    CSFSManager<adouble> man(n, moran_interp, numthreads, theta);
-    Matrix<adouble> out = man.compute(eta, num_samples, {tau1, tau2})[0];
+    ConditionedSFS<adouble> csfs(n, num_threads);
+    Matrix<adouble> out = csfs.compute(eta, theta)[0];
     store_sfs_results(out, outsfs, outjac);
 }
-*/
 
 template class ConditionedSFS<double>;
 template class ConditionedSFS<adouble>;

@@ -29,11 +29,6 @@ namespace Eigen {
     namespace internal
     {
         template <>
-        struct scalar_product_traits<int, mpq_class>
-        {
-            typedef mpq_class ReturnType;
-        };
-        template <>
         struct cast_impl<mpq_class, double>
         {
             static inline double run(const mpq_class &x)

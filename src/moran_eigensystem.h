@@ -1,6 +1,7 @@
 #ifndef MORAN_EIGENSYSTEM_H
 #define MORAN_EIGENSYSTEM_H
 
+#include <map>
 #include <Eigen/Dense>
 #include <Eigen/Sparse>
 #include <iostream>
@@ -14,6 +15,6 @@ typedef struct
 } 
 MoranEigensystem;
 
-MoranEigensystem compute_moran_eigensystem(int);
+MoranEigensystem& compute_moran_eigensystem(int);
 
 #endif

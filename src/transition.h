@@ -12,7 +12,7 @@ template <typename T>
 class Transition
 {
     public:
-        Transition(const PiecewiseExponentialRateFunction<T> &eta, const std::vector<double>&, double);
+        Transition(const PiecewiseExponentialRateFunction<T> &eta, double);
         void compute(void);
         // void store_results(double*, double*);
         Matrix<T>& matrix(void);
@@ -20,7 +20,6 @@ class Transition
     private:
         Matrix<T> expm(int, int);
         const PiecewiseExponentialRateFunction<T> *eta;
-        const std::vector<double>& _hs;
         double rho;
         int M;
         Matrix<T> I, Phi;
@@ -28,15 +27,17 @@ class Transition
 };
 
 template <typename T>
-Matrix<T> compute_transition(const PiecewiseExponentialRateFunction<T> &eta, const std::vector<double> &hidden_states, double rho)
+Matrix<T> compute_transition(const PiecewiseExponentialRateFunction<T> &eta, double rho)
 {
-    Transition<T> trans(eta, hidden_states, rho);
+    Transition<T> trans(eta, rho);
     return trans.matrix();
 }
 
+/*
 void cython_calculate_transition(const std::vector<std::vector<double>> params,
         const std::vector<double> hidden_states, double rho, double* outtrans);
 void cython_calculate_transition_jac(const std::vector<std::vector<double>> params,
         const std::vector<double> hidden_states, double rho, double* outtrans, double* outjac);
+*/
 
 #endif

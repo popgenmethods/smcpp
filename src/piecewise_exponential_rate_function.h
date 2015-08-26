@@ -107,6 +107,16 @@ namespace Eigen
     namespace internal
     {
         template <>
+            struct scalar_product_traits<mpfr::mpreal, adouble>
+            {
+                typedef mpreal_wrapper<adouble> ReturnType;
+            };
+        template <>
+            struct scalar_product_traits<mpfr::mpreal, double>
+            {
+                typedef mpreal_wrapper<double> ReturnType;
+            };
+        template <>
             struct cast_impl<mpreal_wrapper<adouble>, adouble>
             {
                 static inline adouble run(const mpreal_wrapper<adouble> &x)
@@ -141,7 +151,7 @@ class PiecewiseExponentialRateFunction
     public:
     PiecewiseExponentialRateFunction(const std::vector<std::vector<double>>, 
             const std::vector<std::pair<int, int>>, const std::vector<double>);
-    PiecewiseExponentialRateFunction(const std::vector<std::vector<double>> params, const std::vector<double>);
+    PiecewiseExponentialRateFunction(const std::vector<std::vector<double>>, const std::vector<double>);
     PiecewiseExponentialRateFunction(const PiecewiseExponentialRateFunction &other) : 
         PiecewiseExponentialRateFunction(other.params, other.derivatives, other.hidden_states) {}
     std::vector<T> getTimes() const { return ts; }
@@ -159,9 +169,9 @@ class PiecewiseExponentialRateFunction
     template <typename U> Matrix<U> double_integrals(const int, const int, bool) const;
     template <typename U> Matrix<U> inner_integrals(const int, bool) const;
 
-    Matrix<T> tjj_all_above(const int) const;
-    Matrix<T> tjj_double_integral_above(const int, long) const;
-    Matrix<mpreal_wrapper<T> > mpfr_tjj_double_integral_below(const int, const mp_prec_t) const;
+    Matrix<mpreal_wrapper<T> > tjj_all_above(const int) const;
+    Matrix<mpreal_wrapper<T> > tjj_double_integral_above(const int, long) const;
+    Matrix<mpreal_wrapper<T> > tjj_double_integral_below(const int, const mp_prec_t) const;
 
     friend class ConditionedSFS<T>;
 
@@ -182,8 +192,10 @@ class PiecewiseExponentialRateFunction
     void compute_antiderivative();
     feval<T> eta, R, Rinv;
     T _reg;
-    const std::vector<double> hidden_states;
     std::vector<int> hs_indices;
+
+    public:
+    const std::vector<double> hidden_states;
 };
 
 template <typename T>

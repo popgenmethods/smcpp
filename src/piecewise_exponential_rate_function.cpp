@@ -1,5 +1,7 @@
 #include "piecewise_exponential_rate_function.h"
 
+constexpr long nC2(int n) { return n * (n - 1) / 2; }
+
 template <typename T>
 PiecewiseExponentialRateFunction<T>::PiecewiseExponentialRateFunction(const std::vector<std::vector<double>> params,
         const std::vector<double> hidden_states) : 
@@ -15,7 +17,8 @@ std::vector<std::pair<int, int>> derivatives_from_params(const std::vector<std::
 } 
 
 template <>
-PiecewiseExponentialRateFunction<adouble>::PiecewiseExponentialRateFunction(const std::vector<std::vector<double>> params, 
+PiecewiseExponentialRateFunction<adouble>::PiecewiseExponentialRateFunction(
+        const std::vector<std::vector<double>> params, 
         const std::vector<double> hidden_states) :
     PiecewiseExponentialRateFunction(params, derivatives_from_params(params), hidden_states) {}
 
@@ -38,7 +41,8 @@ inline void vec_insert(std::vector<T> &v, const int pos, const T &x)
 }
 
 template <typename T>
-PiecewiseExponentialRateFunction<T>::PiecewiseExponentialRateFunction(const std::vector<std::vector<double>> params, 
+PiecewiseExponentialRateFunction<T>::PiecewiseExponentialRateFunction(
+        const std::vector<std::vector<double>> params, 
         const std::vector<std::pair<int, int>> derivatives,
         const std::vector<double> hidden_states) :
     params(params),
@@ -65,7 +69,7 @@ PiecewiseExponentialRateFunction<T>::PiecewiseExponentialRateFunction(const std:
         // adb[k] = 0.0 * (log(adb[k]) - log(ada[k])) / (ts[k + 1] - ts[k]);
     }
     adb[K - 1] *= 0.0;
-    ts[K] *= INFINITY;
+    ts[K] = INFINITY;
 
     int ip;
     for (double h : hidden_states)
@@ -142,8 +146,14 @@ mpreal_wrapper<adouble> convert(const adouble &d)
 }
 
 template <typename T>
-constexpr T _single_integral_helper(const int lam, const T &_tsm, const T &_tsm1, const T &_ada, const T &_Rrng) {
-    return -exp(-(lam + 1) * _Rrng) * expm1(-(lam + 1) * _ada * (_tsm1 - _tsm)) / (lam + 1);
+inline T _single_integral_helper(const int lam, const T &_tsm, const T &_tsm1, const T &_ada, const T &_Rrng) {
+    T diff = _tsm1 - _tsm;
+    T _adadiff = _ada * diff;
+    if (lam == -1)
+        return diff;
+    if (_tsm1 == INFINITY)
+        return exp(-(lam + 1) * _Rrng) / (lam + 1);
+    return -exp(-(lam + 1) * _Rrng) * expm1(-(lam + 1) * _adadiff) / (lam + 1);
 }
 
 #define SETUP_HELPER \
@@ -167,26 +177,43 @@ Vector<U> PiecewiseExponentialRateFunction<T>::single_integrals(const int lam) c
 }
 
 template <typename U>
-inline U _double_integral_helper(const int rate, const int lam, const U &_tsm, const U &_tsm1, const U &_ada, const U &_Rrng)
+inline U _double_integral_helper(const int rate, const U &_tsm, const U &_tsm1, const U &_ada, const U &_Rrng)
 {
-    const int l1 = lam + 1;
-    const int l1r = l1 + rate;
+    const int l1r = 1 + rate;
+    U z = _tsm - _tsm;
+    const U l1rinv = 1 / (z + U(l1r));
     U diff = _tsm1 - _tsm;
+    U _adadiff = _ada * diff;
     if (rate == 0)
     {
-        U e1 = exp(-l1 * _ada * diff);
+        U e1 = exp(-_adadiff);
         if (e1 == 0)
-            return exp(-l1 * _Rrng) / (l1 * l1 * _ada);
+            return exp(-_Rrng) / _ada;
         else
-            return exp(-l1 * _Rrng) * (1 - exp(-l1 * _ada * diff) * (1 + l1 * _ada * diff)) / (l1 * l1 * _ada);
+            return exp(-_Rrng) * (1 - exp(-_adadiff) * (1 + _adadiff)) / _ada;
     }
-    /*
-    return (
-            exp(-l1r * _Rrng) * expm1(-l1r * _ada * (_tsm1 - _tsm)) / l1r -
-            exp(-l1r * _Rrng) * expm1(-l1 * (_tsm1 - _tsm)) / l1
-           ) / (rate * _ada);
-           */
-    return exp(-l1r * _Rrng) * (expm1(-l1r * _ada * diff) / l1r - expm1(-l1 * _ada * diff) / l1) / (rate * _ada);
+    if (_tsm1 == INFINITY)
+        return exp(-l1r * _Rrng) * (1 - l1rinv) / (rate * _ada);
+    return exp(-l1r * _Rrng) * (expm1(-l1r * _adadiff) * l1rinv - expm1(-_adadiff)) / (rate * _ada);
+}
+
+template <typename U>
+inline U _double_integral_above_helper(const int rate, const int lam, const U &_tsm, const U &_tsm1, const U &_ada, const U &_Rrng)
+{
+    U diff = _tsm1 - _tsm;
+    U adadiff = _ada * diff;
+    long l1 = lam + 1;
+    if (rate == 0)
+        return exp(-l1 * _Rrng) * (expm1(-l1 * adadiff) + l1 * adadiff) / l1 / l1 / _ada;
+    if (l1 == rate)
+    {
+        if (_tsm1 == INFINITY)
+            return exp(-rate * _Rrng) / rate / rate / _ada;
+        return exp(-rate * _Rrng) * (1 - exp(-rate * adadiff) * (1 + rate * adadiff)) / rate / rate / _ada;
+    }
+    if (_tsm1 == INFINITY)
+        return exp(-l1 * _Rrng) / l1 / rate / _ada;
+    return -exp(-l1 * _Rrng) * (expm1(-l1 * adadiff) / l1 + (exp(-rate * adadiff) - exp(-l1 * adadiff)) / (l1 - rate)) / rate / _ada;
 }
 
 template <typename T>
@@ -208,8 +235,10 @@ Matrix<U> PiecewiseExponentialRateFunction<T>::double_integrals(const int n, con
         SETUP_HELPER;
         for (int j = 2; j < n + 1; ++j)
         {
-            rate = j * (j - 1) / 2 - (int)below;
-            double_integrals(m, j - 2) = _double_integral_helper<U>(rate, lam, _tsm, _tsm1, _ada, _Rrng);
+            if (below)
+                double_integrals(m, j - 2) = _double_integral_helper<U>(nC2(j) - 1, _tsm, _tsm1, _ada, _Rrng);
+            else
+                double_integrals(m, j - 2) = _double_integral_above_helper<U>(nC2(j), lam, _tsm, _tsm1, _ada, _Rrng);
         }
     }
     return double_integrals;
@@ -218,9 +247,12 @@ Matrix<U> PiecewiseExponentialRateFunction<T>::double_integrals(const int n, con
 template <typename T>
 inline T _inner_integral_helper(const int rate, const T &_tsm, const T &_tsm1, const T &_ada, const T &_Rrng)
 {
+    T diff = _tsm1 - _tsm;
     if (rate == 0)
-        return _tsm1 - _tsm;
-    return -exp(-rate * _Rrng) * expm1(-rate * _ada * (_tsm1 - _tsm)) / (rate * _ada);
+        return diff;
+    if (_tsm1 == INFINITY)
+        return exp(-rate * _Rrng) / (rate * _ada);
+    return -exp(-rate * _Rrng) * expm1(-rate * _ada * diff) / (rate * _ada);
 }
 
 template <typename T>
@@ -242,7 +274,7 @@ Matrix<U> PiecewiseExponentialRateFunction<T>::inner_integrals(const int n, bool
         SETUP_HELPER;
         for (int j = 2; j < n + 1; ++j)
         {
-            rate = j * (j - 1) / 2 - (int)below;
+            rate = nC2(j) - (int)below;
             inner_integrals(m, j - 2) = _inner_integral_helper<U>(rate, _tsm, _tsm1, _ada, _Rrng);
         }
     }
@@ -252,7 +284,7 @@ Matrix<U> PiecewiseExponentialRateFunction<T>::inner_integrals(const int n, bool
 template <typename T>
 inline T fsum(const std::vector<T> &v)
 {
-    T sum = 0.0, c = 0.0, y, t;
+    T sum(0.0), c(0.0), y, t;
     for (const T x : v)
     {
         y = x  - c;
@@ -266,52 +298,72 @@ inline T fsum(const std::vector<T> &v)
 #include <mutex>
 std::mutex mtx;
 
+#include <sstream>
+#include <string>
+
 template <typename T>
-Matrix<T> PiecewiseExponentialRateFunction<T>::tjj_all_above(const int n) const
+Matrix<mpreal_wrapper<T> > PiecewiseExponentialRateFunction<T>::tjj_all_above(const int n) const
 {
-    Matrix<T> ret(n + 1, n);
-    for (int i = 2; i < n + 3; ++i)
+    Matrix<mpreal_wrapper<T> > ret(n + 1, n);
+    for (int j = 2; j < n + 3; ++j)
     {
-        long lam = i * (i - 1) / 2 - 1;
-        ret.row(i - 2) = tjj_double_integral_above(n, lam).row(0);
+        long lam = nC2(j) - 1;
+        ret.row(j - 2) = tjj_double_integral_above(n, lam).row(0);
     }
+    std::ostringstream out; 
+    for (int i = 0; i < n + 1; ++i)
+        for (int j = 0; j < n; ++j)
+            if (ret(i, j) == INFINITY)
+            {
+                out << i << " " << j;
+                throw std::domain_error(out.str());
+            }
     return ret;
 
 }
 
 template <typename T>
-Matrix<T> PiecewiseExponentialRateFunction<T>::tjj_double_integral_above(const int n, long lam) const
+Matrix<mpreal_wrapper<T> > PiecewiseExponentialRateFunction<T>::tjj_double_integral_above(const int n, long lam) const
 {
-    Matrix<T> inner_int = inner_integrals<T>(n + 1, false);
-    Matrix<T> double_int = double_integrals<T>(n + 1, lam, false);
-    Vector<T> single_int = single_integrals<T>(lam);
-    // \int_0^t_k alpha(tau) exp(-(1 + lam) R(tau)) \int_\tau^\inf exp(-rate * R(t)) dt
-    //    = \sum_{m=0}^{k-1} \int_{t_m}^{t_{m+1}} a[m] * exp(-(1 + lam) * (a[m](t - t[m]) + Rrng[m])) * 
+    Matrix<mpreal_wrapper<T> > inner_int = inner_integrals<mpreal_wrapper<T> >(n + 1, false);
+    Matrix<mpreal_wrapper<T> > double_int = double_integrals<mpreal_wrapper<T> >(n + 1, lam, false);
+    Matrix<mpreal_wrapper<T> > single_int(K, n);
+    for (int j = 2; j < n + 2; ++j)
+        single_int.col(j - 2) = single_integrals<mpreal_wrapper<T> >(lam - nC2(j));
+    // \int_0^t_k alpha(tau) exp(-(1 + lam) R(tau)) \int_\tau^\inf exp(-rate * (R(t) - R(tau)) dt
+    //    = \int_0^t_k alpha(tau) exp(-(1 + lam - rate) R(tau)) \int_\tau^\inf exp(-rate R(t)) dt
+    //    = \sum_{m=0}^{k-1} \int_{t_m}^{t_{m+1}} a[m] * exp(-(1 + lam - rate) * (a[m](t - t[m]) + Rrng[m])) * 
     //      [(\sum_{ell=m+1}^K \int_t[ell]^t[ell+1] exp(-rate * (a[ell](t - t[ell]) + Rrng[ell]))) + 
     //      (\int_tau^t[m+1] exp(-rate * (a[m](t - t[m]) + Rrng[m])))]
-    //    = \sum_{m=0}^{k-1} \int_{t_m}^{t_{m+1}} a[m] * exp(-(1 + lam) * (a[m](t - t[m]) + Rrng[m])) * 
+    //    = \sum_{m=0}^{k-1} \int_{t_m}^{t_{m+1}} a[m] * exp(-(1 + lam - rate) * (a[m](t - t[m]) + Rrng[m])) * 
     //      [(\sum_{ell=m+1}^K \int_t[ell]^t[ell+1] exp(-rate * (a[ell](t - t[ell]) + Rrng[ell]))) + 
     //      (\int_t[m]^t[m+1] exp(-rate * (a[m](t - t[m]) + Rrng[m])) - \int_t[m]^\tau exp(-rate * (a[m]*(t - t[m]) + Rrng[m])))]
-    //    = \sum_{m=0}^{k-1} \int_{t_m}^{t_{m+1}} a[m] * exp(-(1 + lam) * (a[m](t - t[m]) + Rrng[m])) * 
+    //    = \sum_{m=0}^{k-1} \int_{t_m}^{t_{m+1}} a[m] * exp(-(1 + lam - rate) * (a[m](t - t[m]) + Rrng[m])) * 
     //      [(\sum_{ell=m}^K \int_t[ell]^t[ell+1] exp(-rate * (a[ell](t - t[ell]) + Rrng[ell]))) - 
     //          \int_t[m]^\tau exp(-rate * (a[m]*(t - t[m]) + Rrng[m])))]
-    std::vector<T> cs;
+    //    = \sum_{m=0}^{k-1} \int_{t_m}^{t_{m+1}} a[m] * exp(-(1 + lam - rate) * (a[m](t - t[m]) + Rrng[m])) * 
+    //      [(\sum_{ell=m}^K \int_t[ell]^t[ell+1] exp(-rate * (a[ell](t - t[ell]) + Rrng[ell]))) - 
+    //          \int_t[m]^\tau exp(-rate * (a[m]*(t - t[m]) + Rrng[m])))]
+    std::vector<mpreal_wrapper<T> > cs;
     // stably compute reverse cumulative sum
     for (int j = 2; j < n + 2; ++j)
     {
         cs.clear();
         for (int m = K - 1; m > -1; --m)
         {
+            mpreal_wrapper<T>  x = fsum(cs);
             cs.push_back(inner_int(m, j - 2));
-            inner_int(m, j - 2) = fsum(cs);
+            if (x != 0)
+                x *= single_int(m, j - 2);
+            inner_int(m, j - 2) = x;
         }
     }
     // ts_integrals[m] = \int_ts[m]^ts[m+1] \int_\tau^\infty
-    Matrix<T> ts_integrals = single_int.asDiagonal() * inner_int - double_int;
+    Matrix<mpreal_wrapper<T> > ts_integrals = inner_int + double_int;
     // Now calculate with hidden state integration limits
     size_t H = hidden_states.size();
-    Matrix<T> ret(H - 1, n);
-    Matrix<T> last = ts_integrals.topRows(hs_indices[0]).colwise().sum(), next;
+    Matrix<mpreal_wrapper<T> > ret(H - 1, n);
+    Matrix<mpreal_wrapper<T> > last = ts_integrals.topRows(hs_indices[0]).colwise().sum(), next;
     for (int h = 1; h < hs_indices.size(); ++h)
     {
         next = ts_integrals.topRows(hs_indices[h]).colwise().sum();
@@ -322,23 +374,13 @@ Matrix<T> PiecewiseExponentialRateFunction<T>::tjj_double_integral_above(const i
 }
 
 template <typename T>
-Matrix<mpreal_wrapper<T> > PiecewiseExponentialRateFunction<T>::mpfr_tjj_double_integral_below(
+Matrix<mpreal_wrapper<T> > PiecewiseExponentialRateFunction<T>::tjj_double_integral_below(
         const int n, const mp_prec_t prec) const
 {
     mpfr::mpreal::set_default_prec(prec);
     Matrix<mpreal_wrapper<T> > inner_int = inner_integrals<mpreal_wrapper<T> >(n + 2, true);
     Matrix<mpreal_wrapper<T> > double_int = double_integrals<mpreal_wrapper<T> >(n + 2, 0, true);
     Vector<mpreal_wrapper<T> > single_int = single_integrals<mpreal_wrapper<T> >(0);
-    // \int_0^t_k alpha(tau) exp(-(1 + lam) R(tau)) \int_\tau^\inf exp(-rate * R(t)) dt
-    //    = \sum_{m=0}^{k-1} \int_{t_m}^{t_{m+1}} a[m] * exp(-(1 + lam) * (a[m](t - t[m]) + Rrng[m])) * 
-    //      [(\sum_{ell=m+1}^K \int_t[ell]^t[ell+1] exp(-rate * (a[ell](t - t[ell]) + Rrng[ell]))) + 
-    //      (\int_tau^t[m+1] exp(-rate * (a[m](t - t[m]) + Rrng[m])))]
-    //    = \sum_{m=0}^{k-1} \int_{t_m}^{t_{m+1}} a[m] * exp(-(1 + lam) * (a[m](t - t[m]) + Rrng[m])) * 
-    //      [(\sum_{ell=m+1}^K \int_t[ell]^t[ell+1] exp(-rate * (a[ell](t - t[ell]) + Rrng[ell]))) + 
-    //      (\int_t[m]^t[m+1] exp(-rate * (a[m](t - t[m]) + Rrng[m])) - \int_t[m]^\tau exp(-rate * (a[m]*(t - t[m]) + Rrng[m])))]
-    //    = \sum_{m=0}^{k-1} \int_{t_m}^{t_{m+1}} a[m] * exp(-(1 + lam) * (a[m](t - t[m]) + Rrng[m])) * 
-    //      [(\sum_{ell=m}^K \int_t[ell]^t[ell+1] exp(-rate * (a[ell](t - t[ell]) + Rrng[ell]))) - 
-    //          \int_t[m]^\tau exp(-rate * (a[m]*(t - t[m]) + Rrng[m])))]
     Matrix<mpreal_wrapper<T> > ts_integrals, _cumsum(K, n + 1);
     _cumsum.setZero();
     std::vector<mpreal_wrapper<T> > cs;
@@ -350,11 +392,13 @@ Matrix<mpreal_wrapper<T> > PiecewiseExponentialRateFunction<T>::mpfr_tjj_double_
         {
             cs.push_back(inner_int(m - 1, j - 2));
             _cumsum(m, j - 2) = mpreal_wrapper_type<T>::fsum(cs);
+            if (_cumsum(m, j - 2) != 0.0)
+                _cumsum(m, j - 2) *= single_int(m);
         }
     }
     // ts_integrals[m] = \int_ts[m]^ts[m+1] \int_\tau^\infty
     inner_int = _cumsum;
-    ts_integrals = single_int.asDiagonal() * inner_int + double_int;
+    ts_integrals = inner_int + double_int;
     // Now calculate with hidden state integration limits
     size_t H = hidden_states.size();
     Matrix<mpreal_wrapper<T> > ret(H - 1, n + 1);

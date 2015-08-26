@@ -16,14 +16,10 @@ cdef extern from "common.h":
 ctypedef Matrix[double]* pMatrixD
 ctypedef Matrix[adouble]* pMatrixAd
 
-cdef extern from "matrix_interpolator.h":
-    cdef cppclass MatrixInterpolator:
-        MatrixInterpolator(int, vector[double], vector[double*])
-
 cdef extern from "inference_manager.h":
     ctypedef vector[vector[double]] ParameterVector
     cdef cppclass InferenceManager:
-        InferenceManager(const MatrixInterpolator&, const int, const int,
+        InferenceManager(const int, const int,
                 const vector[int*], const vector[double], const int*, const int, 
                 const vector[int], const double, const double, const int, const int, const int)
         Matrix[double] sfs_cython(const ParameterVector, double, double)
@@ -48,17 +44,16 @@ cdef extern from "inference_manager.h":
 
 cdef extern from "conditioned_sfs.h":
     void cython_calculate_sfs(const vector[vector[double]] params,
-            int n, int num_samples, const MatrixInterpolator&,
-            double tau1, double tau2, int numthreads, double theta, 
+            int n, double tau1, double tau2, int numthreads, double theta, 
             double* outsfs)
     void cython_calculate_sfs_jac(const vector[vector[double]] params,
-            int n, int num_samples, const MatrixInterpolator&,
-            double tau1, double tau2, int numthreads, double theta, 
+            int n, double tau1, double tau2, int numthreads, double theta, 
             double* outsfs, double* outjac)
     void store_sfs_results(const Matrix[adouble]&, double*, double*)
 
-cdef extern from "transition.h":
-    void cython_calculate_transition(const vector[vector[double]] params,
-            const vector[double] hidden_states, double rho, double* outtrans)
-    void cython_calculate_transition_jac(const vector[vector[double]] params,
-            const vector[double] hidden_states, double rho, double* outtrans, double* outjac)
+#
+# cdef extern from "transition.h":
+#     void cython_calculate_transition(const vector[vector[double]] params,
+#             const vector[double] hidden_states, double rho, double* outtrans)
+#     void cython_calculate_transition_jac(const vector[vector[double]] params,
+#             const vector[double] hidden_states, double rho, double* outtrans, double* outjac)

@@ -60,8 +60,8 @@ Matrix<adouble> transition_exp(double c_rho, adouble c_eta)
 }
 
 template <typename T>
-Transition<T>::Transition(const PiecewiseExponentialRateFunction<T> &eta, const std::vector<double> &hidden_states, double rho) :
-    eta(&eta), _hs(hidden_states), rho(rho), M(hidden_states.size()), I(4, 4), Phi(M - 1, M - 1)
+Transition<T>::Transition(const PiecewiseExponentialRateFunction<T> &eta, double rho) :
+    eta(&eta), M(eta.hidden_states.size()), I(4, 4), Phi(M - 1, M - 1)
 {
     I.setIdentity();
     Phi.setZero();
@@ -92,11 +92,11 @@ void Transition<T>::compute(void)
             }
             else
             {
-                p_coal = exp(-((*R)(_hs[k - 1]) - (*R)(_hs[j])));
+                p_coal = exp(-((*R)(eta->hidden_states[k - 1]) - (*R)(eta->hidden_states[j])));
                 if (k < M - 1)
                 {
                     // Else d[k] = +inf, coalescence in [d[k-1], +oo) is assured.
-                    p_coal *= -expm1(-((*R)(_hs[k]) - (*R)(_hs[k - 1])));
+                    p_coal *= -expm1(-((*R)(eta->hidden_states[k]) - (*R)(eta->hidden_states[k - 1])));
                 }
                 r = (expm(0, j)(0, 1) + expm(0, j)(0, 2)) * p_coal;
             }
@@ -141,8 +141,8 @@ Matrix<T> Transition<T>::expm(int i, int j)
             ret = I;
         else
         {
-            c_rho = rho * (_hs[j] - _hs[i]);
-            c_eta = (*R)(_hs[j]) - (*R)(_hs[i]);
+            c_rho = rho * (eta->hidden_states[j] - eta->hidden_states[i]);
+            c_eta = (*R)(eta->hidden_states[j]) - (*R)(eta->hidden_states[i]);
             /*
             AdMatrix A = c_rho * A_rho.cast<adouble>() + c_eta * A_eta.cast<adouble>();
             Eigen::HouseholderQR<AdMatrix> qr(A);
@@ -184,6 +184,7 @@ void store_transition(const Matrix<adouble> &trans, double* outtrans, double* ou
         }
 }
 
+/*
 void cython_calculate_transition(const std::vector<std::vector<double>> params,
         const std::vector<double> hidden_states, double rho, double* outtrans)
 {
@@ -199,7 +200,7 @@ void cython_calculate_transition_jac(const std::vector<std::vector<double>> para
     Matrix<adouble> trans = compute_transition(eta, hidden_states, rho);
     store_transition(trans, outtrans, outjac);
 }
-
+*/
 
 template class Transition<double>;
 template class Transition<adouble>;

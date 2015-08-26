@@ -35,32 +35,37 @@ VectorXq solve(const Eigen::SparseMatrix<mpq_class, Eigen::RowMajor> &M)
     return ret;
 }
 
-MoranEigensystem compute_moran_eigensystem(int n)
+std::map<int, MoranEigensystem> _memo;
+MoranEigensystem& compute_moran_eigensystem(int n)
 {
-    Eigen::SparseMatrix<mpq_class, Eigen::RowMajor> M = moran_rate_matrix(n, 0), Mt, I(n + 1, n + 1), A;
-    Mt = M.transpose();
-    MoranEigensystem ret;
-    ret.D = VectorXq::Zero(n + 1);
-    ret.U = MatrixXq::Zero(n + 1, n + 1);
-    ret.Uinv = MatrixXq::Zero(n + 1, n + 1);
-    ret.Uinv(0, 0) = 1_mpq;
-    I.setIdentity();
-    for (int k = 2; k < n + 3; ++k)
+    if (_memo.count(n) == 0)
     {
-        int rate = -(k * (k - 1) / 2 - 1);
-        ret.D(k - 2) = rate;
-        A = M - rate * I;
-        ret.U.col(k - 2) = solve(A);
-        if (k > 2)
+        Eigen::SparseMatrix<mpq_class, Eigen::RowMajor> M = moran_rate_matrix(n, 0), Mt, I(n + 1, n + 1), A;
+        Mt = M.transpose();
+        MoranEigensystem ret;
+        ret.D = VectorXq::Zero(n + 1);
+        ret.U = MatrixXq::Zero(n + 1, n + 1);
+        ret.Uinv = MatrixXq::Zero(n + 1, n + 1);
+        ret.Uinv(0, 0) = 1_mpq;
+        I.setIdentity();
+        for (int k = 2; k < n + 3; ++k)
         {
-            A = Mt - rate * I;
-            ret.Uinv.row(k - 2).tail(n) = solve(A.bottomRightCorner(n, n));
-            ret.Uinv(k - 2, 0) = -ret.Uinv(k - 2, 1) * A.coeff(0, 1) / A.coeff(0, 0);
+            int rate = -(k * (k - 1) / 2 - 1);
+            ret.D(k - 2) = rate;
+            A = M - rate * I;
+            ret.U.col(k - 2) = solve(A);
+            if (k > 2)
+            {
+                A = Mt - rate * I;
+                ret.Uinv.row(k - 2).tail(n) = solve(A.bottomRightCorner(n, n));
+                ret.Uinv(k - 2, 0) = -ret.Uinv(k - 2, 1) * A.coeff(0, 1) / A.coeff(0, 0);
+            }
         }
+        VectorXq D1 = (ret.Uinv * ret.U).diagonal().cwiseInverse();
+        ret.U = ret.U * D1.asDiagonal();
+        _memo[n] = ret;
     }
-    VectorXq D1 = (ret.Uinv * ret.U).diagonal().cwiseInverse();
-    ret.U = ret.U * D1.asDiagonal();
-    return ret;
+    return _memo[n];
 }
 
 

@@ -1,24 +1,23 @@
 #include "inference_manager.h"
 
 template <typename T>
-Vector<T> compute_initial_distribution(const PiecewiseExponentialRateFunction<T> &eta, const std::vector<double> &hidden_states)
+Vector<T> compute_initial_distribution(const PiecewiseExponentialRateFunction<T> &eta)
 {
     auto R = eta.getR();
-    int M = hidden_states.size() - 1;
+    int M = eta.hidden_states.size() - 1;
     Vector<T> pi(M);
     for (int m = 0; m < M - 1; ++m)
     {
-        pi(m) = dmax(exp(-(*R)(hidden_states[m])) - exp(-(*R)(hidden_states[m + 1])), 1e-16);
+        pi(m) = dmax(exp(-(*R)(eta.hidden_states[m])) - exp(-(*R)(eta.hidden_states[m + 1])), 1e-16);
         assert(pi(m) > 0.0); 
         assert(pi(m) < 1.0); 
     }
-    pi(M - 1) = dmax(exp(-(*R)(hidden_states[M - 1])), 1e-16);
+    pi(M - 1) = dmax(exp(-(*R)(eta.hidden_states[M - 1])), 1e-16);
     pi /= pi.sum();
     return pi;
 }
 
 InferenceManager::InferenceManager(
-            const MatrixInterpolator &moran_interp,
             const int n, const int L,
             const std::vector<int*> observations,
             const std::vector<double> hidden_states,
@@ -29,7 +28,7 @@ InferenceManager::InferenceManager(
             const int block_size, const int num_threads, 
             const int num_samples) : 
     debug(false),
-    moran_interp(moran_interp), n(n), L(L),
+    n(n), L(L),
     observations(observations), 
     hidden_states(hidden_states),
     emask(emask, 3, n + 1),
@@ -71,16 +70,16 @@ Matrix<T> matpow(Matrix<T> M, int p)
 template <typename T>
 void InferenceManager::setParams(const ParameterVector params, const std::vector<std::pair<int, int>> derivatives)
 {
-    PiecewiseExponentialRateFunction<T> eta(params, derivatives);
+    PiecewiseExponentialRateFunction<T> eta(params, derivatives, hidden_states);
     regularizer = adouble(eta.regularizer());
-    pi = compute_initial_distribution<T>(eta, hidden_states).template cast<adouble>();
-    Matrix<adouble> ttmp = compute_transition<T>(eta, hidden_states, rho).template cast<adouble>();
+    pi = compute_initial_distribution<T>(eta).template cast<adouble>();
+    Matrix<adouble> ttmp = compute_transition<T>(eta, rho).template cast<adouble>();
     // transition = matpow(ttmp, block_size);
     transition = ttmp;
     Eigen::Matrix<T, 3, Eigen::Dynamic, Eigen::RowMajor> tmp;
     std::map<int, std::vector<T>> tmask;
     std::map<int, T> tavg;
-    std::vector<Matrix<T> > sfss = sfs<T>(eta, hidden_states);
+    std::vector<Matrix<T> > sfss = sfs<T>(eta);
     for (int m = 0; m < M; ++m)
     {
         tmask.clear();
@@ -105,12 +104,10 @@ template void InferenceManager::setParams<double>(const ParameterVector, const s
 template void InferenceManager::setParams<adouble>(const ParameterVector, const std::vector<std::pair<int, int>>);
 
 template <typename T>
-std::vector<Matrix<T> > InferenceManager::sfs(PiecewiseExponentialRateFunction<T> eta, 
-    const std::vector<double> hidden_states)
+std::vector<Matrix<T> > InferenceManager::sfs(const PiecewiseExponentialRateFunction<T> &eta)
 {
-    static CSFSManager<T> c(n, moran_interp, num_threads, theta);
-    c.set_seed(seed);
-    return c.compute(eta, num_samples, hidden_states);
+    static ConditionedSFS<T> csfs(n, num_threads);
+    return csfs.compute(eta, theta);
 }
 
 void InferenceManager::parallel_do(std::function<void(hmmptr&)> lambda)

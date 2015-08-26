@@ -26,66 +26,50 @@ class ConditionedSFSBase
 {
     protected:
     static std::map<int, below_coeff> below_coeffs_memo;
+    static std::array<MatrixXq, 7>& cached_matrices(int n);
+    static std::map<int, std::array<MatrixXq, 7> > matrix_cache;
 };
 
 template <typename T>
 class ConditionedSFS : public ConditionedSFSBase
 {
     public:
-    ConditionedSFS(int);
-    void compute(const PiecewiseExponentialRateFunction<T>&, int, T, T);
-    Matrix<T> matrix() const { return csfs; }
-    void set_seed(long long s) { gen.seed(s); }
+    ConditionedSFS(int, int);
+    std::vector<Matrix<T> > compute(const PiecewiseExponentialRateFunction<T> &, double);
 
-    // private:
+    private:
     // Methods
-    void fill_matrices();
     void construct_ad_vars();
-    Vector<T> compute_etnk_below(const Vector<T>&);
-    Vector<T> compute_etnk_below(const std::vector<mpreal_wrapper<T> >&);
+    // Vector<T> compute_etnk_below(const Vector<T>&);
+    // Vector<T> compute_etnk_below(const std::vector<mpreal_wrapper<T> >&);
     Matrix<T> compute_etnk_below_mat(const Matrix<mpreal_wrapper<T> >&);
     std::vector<Matrix<T> > compute_below(const PiecewiseExponentialRateFunction<T> &);
     std::vector<Matrix<T> > compute_above(const PiecewiseExponentialRateFunction<T> &);
 
-    double exp1();
-    T exp1_conditional(T, T);
-    double unif();
-    double rand_exp();
-
     // Variables
-    std::mt19937 gen;
     const int n;
+    const int num_threads;
+    const MoranEigensystem mei;
     const below_coeff bc;
-    Vector<T> D_subtend_above, D_subtend_below;
-    MatrixXq &Wnbj, &P_dist, &P_undist;
+    VectorXq D_subtend_above, D_subtend_below;
+    MatrixXq &Wnbj, &P_dist, &P_undist, &X0, &X2;
     Matrix<T> csfs, csfs_above, csfs_below, ETnk_below;
-
-    static std::map<int, std::array<MatrixXq, 3> > matrix_cache;
-    static std::array<MatrixXq, 3>& cached_matrices(int n);
 };
 
 template <typename T>
 class CSFSManager
 {
     public:
-    CSFSManager(int n, int numthreads, double theta) : c0(n), theta_(theta), tp_(numthreads + 1)
+    CSFSManager(int n, int numthreads, double theta) : csfs(n), theta_(theta)
     {
-        for (int i = 0; i < numthreads; ++i)
-            csfss.emplace_back(n);
+        Eigen::setNbThreads(numthreads);
     }
 
-    void set_seed(long long seed)
-    {
-        gen.seed(seed);
-        for (ConditionedSFS<T> &c : csfss)
-            c.set_seed(gen());
-    }
-
-    std::vector<Matrix<T> > compute(const PiecewiseExponentialRateFunction<T> &eta, int num_samples)
+    std::vector<Matrix<T> > compute(const PiecewiseExponentialRateFunction<T> &eta)
     {
         std::vector<Matrix<T> > ret2;
         return ret2;
-        ConditionedSFS<T> cc0 = c0;
+        // ConditionedSFS<T> c(n);
         /*
         Matrix<T> below = c0.compute_below();
         Matrix<T> above = c0.compute_above();
@@ -123,24 +107,8 @@ class CSFSManager
         return ret2;
         */
     }
-
-    private:
-    Matrix<T> average_csfs(void)
-    {
-        Matrix<T> ret = Matrix<T>::Zero(csfss[0].matrix().rows(), csfss[0].matrix().cols());
-        int m = 0;
-        for (const ConditionedSFS<T> &c : csfss)
-        {
-            ret += c.matrix();
-            ++m;
-        }
-        ret /= (double)m;
-        return ret;
-    }
-    std::vector<ConditionedSFS<T> > csfss;
-    ConditionedSFS<T> c0;
+    ConditionedSFS<T> csfs;
     double theta_;
-    ThreadPool tp_;
     std::mt19937 gen;
 };
 
@@ -149,10 +117,10 @@ void store_sfs_results(const Matrix<adouble>&, double*, double*);
 
 // These methods are used for testing purposes only
 void cython_calculate_sfs(const std::vector<std::vector<double>> params,
-        int n, int num_samples, double tau1, double tau2, int numthreads, double theta, 
+        int n, double tau1, double tau2, int numthreads, double theta, 
         double* outsfs);
 void cython_calculate_sfs_jac(const std::vector<std::vector<double>> params,
-        int n, int num_samples, double tau1, double tau2, int numthreads, double theta, 
+        int n, double tau1, double tau2, int numthreads, double theta, 
         double* outsfs, double* outjac);
 
 void init_eigen();

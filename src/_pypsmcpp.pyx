@@ -45,8 +45,6 @@ cdef class PyInferenceManager:
     cdef InferenceManager *_im
     cdef int _n, _nder
     cdef int _num_hmms
-    cdef object _moran_mats
-    cdef object _moran_ts
     cdef object _observations
     cdef np.ndarray _emission_mask
     cdef public long long seed
@@ -68,16 +66,12 @@ cdef class PyInferenceManager:
             vob = ob
             obs.push_back(&vob[0, 0])
         self._num_hmms = len(observations)
-        mats, ts = moran_model.interpolators(n)
-        self._moran_mats = mats
-        self._moran_ts = ts
         if emission_mask is None:
             emission_mask = np.arange(3 * (n + 1)).reshape([3, n + 1])
         self._emission_mask = aca(np.array(emission_mask, dtype=np.int32))
         cdef int[:, ::1] emv = self._emission_mask
         cdef vector[double] hs = hidden_states
         self._im = new InferenceManager(
-                MatrixInterpolator(n + 1, self._moran_ts, make_mats(self._moran_mats)), 
                 n, L, obs, hs, &emv[0, 0], mask_freq, mask_offset, theta, rho, block_size, 
                 num_threads, num_samples)
 
@@ -238,39 +232,36 @@ def sfs(params, int n, int num_samples, double tau1, double tau2, int numthreads
     for p in params:
         assert len(p) == K
     cdef vector[vector[double]] cparams = make_params(params)
-    mats, ts = moran_model.interpolators(n)
     sfs = aca(np.zeros([3, n + 1]))
     cdef double[:, ::1] msfs = sfs
     cdef double[:, :, :, ::1] mjac 
     if jacobian:
         jac = aca(np.zeros((3, n + 1, len(params), K)))
         mjac = jac
-        cython_calculate_sfs_jac(cparams, n, num_samples, MatrixInterpolator(n + 1, ts, make_mats(mats)),
-                tau1, tau2, numthreads, theta, &msfs[0, 0], &mjac[0, 0, 0, 0])
+        cython_calculate_sfs_jac(cparams, n, tau1, tau2, numthreads, theta, &msfs[0, 0], &mjac[0, 0, 0, 0])
         return (sfs, reduced_sfs(sfs), jac, reduced_sfs(jac))
     else:
-        cython_calculate_sfs(cparams, n, num_samples, MatrixInterpolator(n + 1, ts, make_mats(mats)), 
-                tau1, tau2, numthreads, theta, &msfs[0, 0])
+        cython_calculate_sfs(cparams, n, tau1, tau2, numthreads, theta, &msfs[0, 0])
         return (sfs, reduced_sfs(sfs))
 
-def transition(params, hidden_states, rho, jacobian=False):
-    J = len(params)
-    K = len(params[0])
-    for p in params:
-        assert len(p) == K
-    cdef vector[vector[double]] cparams = make_params(params)
-    assert hidden_states[0] == 0.0
-    assert hidden_states[-1] == np.inf
-    M = len(hidden_states) - 1
-    trans = aca(np.zeros([M, M]))
-    cdef double[:, ::1] mtrans = trans
-    cdef double[:, :, :, ::1] mjac
-    if jacobian:
-        jac = aca(np.zeros((M, M, J, K)))
-        mjac = jac
-        cython_calculate_transition_jac(cparams, hidden_states, rho, 
-                &mtrans[0, 0], &mjac[0, 0, 0, 0])
-        return (trans, jac)
-    else:
-        cython_calculate_transition(cparams, hidden_states, rho, &mtrans[0, 0])
-        return trans
+# def transition(params, hidden_states, rho, jacobian=False):
+#     J = len(params)
+#     K = len(params[0])
+#     for p in params:
+#         assert len(p) == K
+#     cdef vector[vector[double]] cparams = make_params(params)
+#     assert hidden_states[0] == 0.0
+#     assert hidden_states[-1] == np.inf
+#     M = len(hidden_states) - 1
+#     trans = aca(np.zeros([M, M]))
+#     cdef double[:, ::1] mtrans = trans
+#     cdef double[:, :, :, ::1] mjac
+#     if jacobian:
+#         jac = aca(np.zeros((M, M, J, K)))
+#         mjac = jac
+#         cython_calculate_transition_jac(cparams, hidden_states, rho, 
+#                 &mtrans[0, 0], &mjac[0, 0, 0, 0])
+#         return (trans, jac)
+#     else:
+#         cython_calculate_transition(cparams, hidden_states, rho, &mtrans[0, 0])
+#         return trans
