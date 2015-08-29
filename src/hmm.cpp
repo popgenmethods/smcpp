@@ -189,9 +189,8 @@ void HMM::recompute_B(void)
 void HMM::forward_backward(void)
 {
     PROGRESS("forward backward");
-    Matrix<double> tt = transition->transpose().template cast<double>();
+    Matrix<double> tt = transition->template cast<double>();
     Matrix<double> ttpow = tt.pow(block_size);
-    // Matrix<double> bt = B.template cast<double>();
     alpha_hat.col(0) = pi->template cast<double>().cwiseProduct(Bptr[0]->template cast<double>());
 	c(0) = alpha_hat.col(0).sum();
     alpha_hat.col(0) /= c(0);
@@ -199,15 +198,13 @@ void HMM::forward_backward(void)
     {
         // alpha_hat.col(ell) = bt.col(ell).asDiagonal() * (((ell + mask_offset) % mask_freq == 0) ? tt : ttpow) * alpha_hat.col(ell - 1);
         alpha_hat.col(ell) = Bptr[ell]->template cast<double>().asDiagonal() * 
-            (((ell + mask_offset) % mask_freq == 0) ? tt : ttpow) * alpha_hat.col(ell - 1);
+            (((ell + mask_offset) % mask_freq == 0) ? tt : ttpow).transpose() * alpha_hat.col(ell - 1);
         c(ell) = alpha_hat.col(ell).sum();
         if (std::isnan(toDouble(c(ell))))
             throw std::domain_error("something went wrong in forward algorithm");
         alpha_hat.col(ell) /= c(ell);
     }
     beta_hat.col(Ltot - 1) = Vector<double>::Ones(M);
-    tt = transition->template cast<double>();
-    ttpow = tt.pow(block_size);
     for (int ell = Ltot - 2; ell >= 0; --ell)
         beta_hat.col(ell) = (((ell + 1 + mask_offset) % mask_freq == 0) ? tt : ttpow) * 
             Bptr[ell + 1]->template cast<double>().asDiagonal() * beta_hat.col(ell + 1) / c(ell + 1);
