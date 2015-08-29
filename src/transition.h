@@ -20,9 +20,9 @@ class Transition
     private:
         Matrix<T> expm(int, int);
         const PiecewiseExponentialRateFunction<T> *eta;
-        double rho;
         int M;
         Matrix<T> I, Phi;
+        double rho;
         std::map<std::pair<int, int>, Matrix<T>> _expm_memo;
 };
 

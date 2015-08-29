@@ -61,7 +61,7 @@ Matrix<adouble> transition_exp(double c_rho, adouble c_eta)
 
 template <typename T>
 Transition<T>::Transition(const PiecewiseExponentialRateFunction<T> &eta, double rho) :
-    eta(&eta), M(eta.hidden_states.size()), I(4, 4), Phi(M - 1, M - 1)
+    eta(&eta), M(eta.hidden_states.size()), I(4, 4), Phi(M - 1, M - 1), rho(rho)
 {
     I.setIdentity();
     Phi.setZero();
@@ -103,7 +103,7 @@ void Transition<T>::compute(void)
             Phi(j - 1, k - 1) = dmax(r, 1e-16);
         }
     // Normalize because small errors might throw off the fwd-backward algorithm later on
-    // Phi = Phi.array().colwise() / Phi.array().rowwise().sum();
+    Phi = Phi.array().colwise() / Phi.array().rowwise().sum();
 }
 
 template <typename T>
@@ -143,16 +143,6 @@ Matrix<T> Transition<T>::expm(int i, int j)
         {
             c_rho = rho * (eta->hidden_states[j] - eta->hidden_states[i]);
             c_eta = (*R)(eta->hidden_states[j]) - (*R)(eta->hidden_states[i]);
-            /*
-            AdMatrix A = c_rho * A_rho.cast<adouble>() + c_eta * A_eta.cast<adouble>();
-            Eigen::HouseholderQR<AdMatrix> qr(A);
-            AdMatrix Q = qr.householderQ();
-            AdMatrix R = qr.matrixQR().block(0,0,A.cols(),A.cols()).triangularView<Eigen::Upper>();
-            std::cout << Q.cast<double>() << std::endl;
-            std::cout << R.cast<double>() << std::endl;
-            std::cout << (Q * R).cast<double>() << std::endl;
-            std::cout << A.cast<double>() << std::endl;
-            */
             ret = transition_exp(c_rho, c_eta);
         }
         _expm_memo[key] = ret;

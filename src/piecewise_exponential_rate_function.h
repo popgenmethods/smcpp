@@ -6,6 +6,7 @@
 #include "common.h"
 #include "specialfunctions.h"
 #include "function_evaluator.h"
+#include "mpq_support.h"
 
 template <typename T>
 class ConditionedSFS;
@@ -164,13 +165,8 @@ class PiecewiseExponentialRateFunction
     const T zero;
     const T one;
     
-    // Integration helpers
-    template <typename U> Vector<U> single_integrals(const int) const;
-    template <typename U> Matrix<U> double_integrals(const int, const int, bool) const;
-    template <typename U> Matrix<U> inner_integrals(const int, bool) const;
-
-    Matrix<mpreal_wrapper<T> > tjj_all_above(const int) const;
-    Matrix<mpreal_wrapper<T> > tjj_double_integral_above(const int, long) const;
+    Matrix<T> tjj_all_above(const int, const MatrixXq&, const MatrixXq&, const MatrixXq&, const MatrixXq&) const;
+    Matrix<T> tjj_double_integral_above(const int, long) const;
     Matrix<mpreal_wrapper<T> > tjj_double_integral_below(const int, const mp_prec_t) const;
 
     friend class ConditionedSFS<T>;

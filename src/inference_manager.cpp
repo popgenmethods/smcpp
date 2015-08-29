@@ -96,9 +96,7 @@ void InferenceManager::setParams(const ParameterVector params, const std::vector
                 tmp(i, j) = tavg[emask(i, j)];
         emission_mask.row(m) = Matrix<T>::Map(tmp.data(), 1, 3 * (n + 1)).template cast<adouble>();
     }
-    PROGRESS("compute B");
     parallel_do([] (hmmptr &hmm) { hmm->recompute_B(); });
-    PROGRESS_DONE();
 }
 template void InferenceManager::setParams<double>(const ParameterVector, const std::vector<std::pair<int, int>>);
 template void InferenceManager::setParams<adouble>(const ParameterVector, const std::vector<std::pair<int, int>>);
@@ -106,8 +104,10 @@ template void InferenceManager::setParams<adouble>(const ParameterVector, const 
 template <typename T>
 std::vector<Matrix<T> > InferenceManager::sfs(const PiecewiseExponentialRateFunction<T> &eta)
 {
+    PROGRESS("sfs");
     static ConditionedSFS<T> csfs(n, num_threads);
     return csfs.compute(eta, theta);
+    PROGRESS("sfs done");
 }
 template std::vector<Matrix<double> > InferenceManager::sfs(const PiecewiseExponentialRateFunction<double> &);
 template std::vector<Matrix<adouble> > InferenceManager::sfs(const PiecewiseExponentialRateFunction<adouble> &);
@@ -145,7 +145,7 @@ void InferenceManager::Estep(void)
 std::vector<adouble> InferenceManager::Q(double lambda)
 {
     adouble reg = regularizer;
-    PROGRESS("Q");
+    PROGRESS("InferenceManager::Q");
     return parallel_select<adouble>([lambda, reg] (hmmptr &hmm) { 
             adouble q = hmm->Q();
             adouble rr = reg * lambda;

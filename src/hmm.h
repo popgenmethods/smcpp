@@ -91,6 +91,7 @@ class HMM
     Vector<double> c;
     std::vector<int> viterbi_path;
     std::unordered_map<std::pair<bool, std::map<int, int> >, std::pair<Vector<adouble>, Eigen::Array<adouble, Eigen::Dynamic, 1> > > block_prob_map;
+    std::unordered_map<Eigen::Array<adouble, Eigen::Dynamic, 1>*, decltype(block_prob_map)::key_type> reverse_map;
     std::unordered_map<std::pair<bool, std::map<int, int> >, int > block_prob_counts;
     friend class InferenceManager;
 };

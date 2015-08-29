@@ -1,14 +1,5 @@
 #include "conditioned_sfs.h"
 
-#if 0
-#undef PROGRESS
-#undef PROGRESS_DONE
-#define PROGRESS(x) progress_mtx.lock(); std::cout << x << "... " << std::flush; progress_mtx.unlock();
-#define PROGRESS_DONE() progress_mtx.lock(); std::cout << "done." << std::endl << std::flush; progress_mtx.unlock();
-#endif
-
-std::mutex progress_mtx;
-
 std::map<int, below_coeff> below_coeffs_memo;
 below_coeff compute_below_coeffs(int n)
 {
@@ -174,15 +165,13 @@ Matrix<T> ConditionedSFS<T>::compute_etnk_below_mat(const Matrix<mpreal_wrapper<
     return ret;
 }
 
-void print_derivatives(const Matrix<adouble> &x) { std::cout << x(0, 1).derivatives() << std::endl; }
-
 template <typename T>
 std::vector<Matrix<T> > ConditionedSFS<T>::compute_below(
     const PiecewiseExponentialRateFunction<T> &eta
     )
 {
     mpfr::mpreal::set_default_prec(bc.prec);
-    PROGRESS("mpfr double integration below");
+    PROGRESS("compute below");
     Matrix<mpreal_wrapper<T> > tjj_below = eta.tjj_double_integral_below(n, bc.prec);
     PROGRESS("mpfr etnk");
     Matrix<T> etnk_below = compute_etnk_below_mat(tjj_below);
@@ -197,7 +186,7 @@ std::vector<Matrix<T> > ConditionedSFS<T>::compute_below(
         ret[i].block(1, 0, 1, n + 1) = etnk_below.row(i).transpose().cwiseProduct(D_subtend_below.template cast<T>()).
             transpose() * P_dist.template cast<double>();
     }
-    PROGRESS("compute below done");
+    PROGRESS_DONE();
     return ret;
 }
 
@@ -207,40 +196,25 @@ std::vector<Matrix<T> > ConditionedSFS<T>::compute_above(
     )
 {
     mpfr::mpreal::set_default_prec(53);
-    PROGRESS("mpfr double integration");
+    PROGRESS("compute above");
     MoranEigensystem mei = compute_moran_eigensystem(n);
     int H = eta.hidden_states.size() - 1;
-    std::vector<Matrix<mpreal_wrapper<T> > > C(H, Matrix<mpreal_wrapper<T> >::Zero(n + 1, n));
+    std::vector<Matrix<T> > C(H, Matrix<T>::Zero(n + 1, n));
     ThreadPool tp(8);
-    std::vector<std::future<Matrix<mpreal_wrapper<T> > > > results;
-    int nn = n;
+    std::vector<std::future<Matrix<T> > > results;
     std::vector<double> hidden_states = eta.hidden_states;
+    MatrixXq Uinv_mp0 = mei.Uinv.rightCols(n);
+    MatrixXq Uinv_mp2 = mei.Uinv.reverse().leftCols(n);
     for (int h = 0; h < H; ++h)
     {
         PiecewiseExponentialRateFunction<T> e2(eta.params, eta.derivatives, {hidden_states[h], hidden_states[h + 1]});
-        results.emplace_back(tp.enqueue([e2, nn] { return e2.template tjj_all_above(nn); }));
-        // std::cout << h << " " << std::flush;
-        // C[h] = e2.template tjj_all_above(nn);
+        results.emplace_back(tp.enqueue([e2, this, &Uinv_mp0, &Uinv_mp2]
+                    { return e2.template tjj_all_above(this->n, this->X0, Uinv_mp0, this->X2, Uinv_mp2); }));
     }
-    for (int h = 0; h < H; ++h)
-        C[h] = results[h].get();
-    MatrixXq Uinv_mp0 = mei.Uinv.rightCols(n);
-    MatrixXq Uinv_mp2 = mei.Uinv.reverse().leftCols(n);
-    Matrix<mpreal_wrapper<T> > T_subtend(1, n);
-    /*
-    Matrix<double> sfs = Wnbj.template cast<double>() * C[0].row(0).transpose().template cast<double>();
-    std::cout << "sfs " << sfs.transpose() << std::endl;
-    */
     std::vector<Matrix<T> > ret(H, Matrix<T>::Zero(3, n + 1));
     for (int h = 0; h < H; ++h) 
-    {
-        T_subtend = ((X0.template cast<mpreal_wrapper<T> >().cwiseProduct(C[h].transpose()).colwise().sum()) * 
-                Uinv_mp0.template cast<mpreal_wrapper<T> >());
-        ret[h].block(0, 1, 1, n) += T_subtend.template cast<T>();
-        T_subtend = ((X2.template cast<mpreal_wrapper<T> >().cwiseProduct(C[h].colwise().reverse().transpose()).colwise().sum()) * 
-                Uinv_mp2.template cast<mpreal_wrapper<T> >());
-        ret[h].block(2, 0, 1, n) += T_subtend.template cast<T>();
-    }
+        ret[h] = results[h].get();
+    PROGRESS_DONE();
     return ret;
 }
 

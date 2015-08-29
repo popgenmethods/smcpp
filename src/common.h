@@ -1,6 +1,7 @@
 #ifndef COMMON_H
 #define COMMON_H
 
+#include <mutex>
 #include <iostream>
 #include <vector>
 #include <random>
@@ -23,9 +24,11 @@
 #define _DEBUG(x) x
 #endif
 
-#if 0
-#define PROGRESS(x) std::cout << x << "... " << std::flush;
-#define PROGRESS_DONE() std::cout << "done." << std::endl << std::flush;
+
+#if 1
+extern std::mutex mtx;
+#define PROGRESS(x) mtx.lock(); std::cout << __FILE__ << ":" << __func__ << "... " << std::flush; mtx.unlock();
+#define PROGRESS_DONE() mtx.lock(); std::cout << "done." << std::endl << std::flush; mtx.unlock();
 #else
 #define PROGRESS(x)
 #define PROGRESS_DONE()
@@ -101,7 +104,7 @@ using std::log1p;
 EIGEN_AUTODIFF_DECLARE_GLOBAL_UNARY(expm1,
   Scalar expm1x = expm1(x.value());
   Scalar expx = exp(x.value());
-  return ReturnType(expm1x,x.derivatives() * expx);
+  return ReturnType(expm1x, x.derivatives() * expx);
 )
 
 EIGEN_AUTODIFF_DECLARE_GLOBAL_UNARY(ceil,

@@ -1,5 +1,4 @@
 #include "hmm.h"
-#include <csignal>
 
 long num_blocks(int total_loci, int block_size, int mask_freq, int mask_offset)
 {
@@ -37,6 +36,7 @@ HMM::HMM(Eigen::Matrix<int, Eigen::Dynamic, 2> obs, const int block_size,
 
 void HMM::prepare_B()
 {
+    PROGRESS("preparing B");
     std::map<int, int> powers;
     Vector<adouble> tmp(M);
     const Matrix<adouble> *em_ptr;
@@ -77,6 +77,9 @@ void HMM::prepare_B()
             }
         }
     }
+    for (auto &p : block_prob_map)
+        reverse_map[&block_prob_map[p.first].second] = p.first;
+    PROGRESS_DONE();
 }
 
 double HMM::loglik()
@@ -164,32 +167,28 @@ std::vector<int>& HMM<T>::viterbi(void)
 
 void HMM::recompute_B(void)
 {
+    PROGRESS("recompute B");
     const Matrix<adouble> *em_ptr;
     Vector<adouble> tmp(M);
     bool alt_block;
+    double mult = 1.0;
     for (auto &bp_pair : block_prob_map)
     {
         alt_block = bp_pair.first.first;
         em_ptr = alt_block ? emission : emission_mask;
         std::map<int, int> power = bp_pair.first.second;
         tmp.setOnes();
+        // mult = alt_block ? 1000.0 : 1.0;
         for (auto &pow : power)
             tmp = tmp.cwiseProduct(em_ptr->col(pow.first).array().pow(pow.second).matrix());
-        block_prob_map[bp_pair.first] = {tmp, tmp.array().log()};
-        /*
-        if (! alt_block) continue;
-        if (block_prob_counts[bp_pair.first] < 5) continue;
-        mtx.lock();
-        std::cout << bp_pair.first << " (" << block_prob_counts[bp_pair.first] << " occurrences)" << std::endl;
-        for (int i = 0; i < tmp.size(); ++i)
-            std::cout << "\t" << tmp(i).value() << " [" << tmp(i).derivatives().transpose() << "]" << std::endl;
-        mtx.unlock();
-        */
+        block_prob_map[bp_pair.first] = {tmp, mult * tmp.array().log()};
     }
+    PROGRESS_DONE();
 }
 
 void HMM::forward_backward(void)
 {
+    PROGRESS("forward backward");
     Matrix<double> tt = transition->transpose().template cast<double>();
     Matrix<double> ttpow = tt.pow(block_size);
     // Matrix<double> bt = B.template cast<double>();
@@ -206,18 +205,19 @@ void HMM::forward_backward(void)
             throw std::domain_error("something went wrong in forward algorithm");
         alpha_hat.col(ell) /= c(ell);
     }
-
     beta_hat.col(Ltot - 1) = Vector<double>::Ones(M);
     tt = transition->template cast<double>();
     ttpow = tt.pow(block_size);
     for (int ell = Ltot - 2; ell >= 0; --ell)
         beta_hat.col(ell) = (((ell + 1 + mask_offset) % mask_freq == 0) ? tt : ttpow) * 
             Bptr[ell + 1]->template cast<double>().asDiagonal() * beta_hat.col(ell + 1) / c(ell + 1);
+    PROGRESS_DONE();
 }
 
 
 void HMM::Estep(void)
 {
+    PROGRESS("E step");
     forward_backward();
 	gamma = alpha_hat.cwiseProduct(beta_hat);
     Matrix<double> gs = gamma.colwise().sum();
@@ -227,16 +227,39 @@ void HMM::Estep(void)
             cwiseProduct(beta_hat.col(ell)).transpose() / c(ell);
     Matrix<double> tr = transition->template cast<double>();
     xisum = xisum.cwiseProduct(tr);
+    PROGRESS_DONE();
 }
 
 adouble HMM::Q(void)
 {
+    PROGRESS("HMM::Q");
     Eigen::Array<adouble, Eigen::Dynamic, Eigen::Dynamic> gam = gamma.template cast<adouble>().array();
     Eigen::Array<adouble, Eigen::Dynamic, Eigen::Dynamic> xis = xisum.template cast<adouble>().array();
     adouble ret = (gam.col(0) * pi->array().log()).sum();
+    std::map<const decltype(logBptr)::value_type, int> counts;
     for (int ell = 0; ell < Ltot; ++ell)
+    {
         ret += (gam.col(ell) * (*logBptr[ell])).sum();
+        counts[logBptr[ell]]++;
+        domain_error(toDouble(ret));
+    }
     ret += (xis * transition->array().log()).sum();
-    domain_error(toDouble(ret));
+    PROGRESS_DONE();
+    std::vector<decltype(counts)::value_type*> a;
+    for (auto &p : counts)
+        a.push_back(&p);
+    std::sort(a.begin(), a.end(), 
+            [] (const decltype(counts)::value_type *a, const decltype(counts)::value_type *b)
+            { return a->second > b->second; });
+    /*
+    for (auto aa : a)
+    {
+        if (aa->second < 100)
+            continue;
+        std::cout << "count: " << aa->second << std::endl;
+        std::cout << reverse_map[aa->first] << std::endl;
+        std::cout << aa->first->template cast<double>().transpose() << std::endl << std::endl;
+    }
+    */
     return ret;
 }
