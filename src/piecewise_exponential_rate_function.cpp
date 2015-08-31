@@ -157,7 +157,7 @@ inline T _single_double_integral_below(const int rate,
     }
     T e1, e2;
     if (_tsk1 == INFINITY) e1 = T(-1); else e1 = expm1(-rate * _ada_k * (_tsk1 - _tsk));
-    if (_tsm1 == INFINITY) e2 = T(-1); else e1 = expm1(-_ada_m * (_tsm1 - _tsm));
+    if (_tsm1 == INFINITY) e2 = T(-1); else e2 = expm1(-_ada_m * (_tsm1 - _tsm));
     return exp(-rate * _Rrng_k - _Rrng_m) * e1 * e2 / rate / _ada_k;
 }
 
@@ -243,6 +243,7 @@ Matrix<T> PiecewiseExponentialRateFunction<T>::tjj_all_above(const int n,
         long lam = nC2(j) - 1;
         Ch.row(j - 2) = tjj_double_integral_above(n, lam).row(0);
     }
+    ret.setZero();
     T_subtend = ((X0.template cast<T>().cwiseProduct(Ch.transpose()).colwise().sum()) * Uinv_mp0.template cast<T>());
     ret.block(0, 1, 1, n) += T_subtend.template cast<T>();
     T_subtend = ((X2.template cast<T>().cwiseProduct(Ch.colwise().reverse().transpose()).colwise().sum()) * Uinv_mp2.template cast<T>());
@@ -305,6 +306,7 @@ Matrix<mpreal_wrapper<T> > PiecewiseExponentialRateFunction<T>::tjj_double_integ
     size_t H = hidden_states.size();
     Matrix<mpreal_wrapper<T> > ret(H - 1, n + 1);
     Matrix<mpreal_wrapper<T> > last = ts_integrals.topRows(hs_indices[0]).colwise().sum(), next;
+    mpreal_wrapper<T> h1, h2;
     for (int h = 1; h < hs_indices.size(); ++h)
     {
         next = ts_integrals.topRows(hs_indices[h]).colwise().sum();

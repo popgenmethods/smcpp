@@ -179,12 +179,13 @@ std::vector<Matrix<T> > ConditionedSFS<T>::compute_below(
     std::vector<Matrix<T> > ret(H, Matrix<T>::Zero(3, n + 1));
     Vector<T> ones = Vector<T>::Ones(n + 1);
     PROGRESS("mpfr sfs below");
-    for (int i = 0; i < H; ++i) 
+    for (int h = 0; h < H; ++h) 
     {
-        ret[i].block(0, 1, 1, n) = etnk_below.row(i).transpose().
+        ret[h].block(0, 1, 1, n) = etnk_below.row(h).transpose().
             cwiseProduct(ones - D_subtend_below.template cast<T>()).transpose() * P_undist.template cast<double>();
-        ret[i].block(1, 0, 1, n + 1) = etnk_below.row(i).transpose().cwiseProduct(D_subtend_below.template cast<T>()).
+        ret[h].block(1, 0, 1, n + 1) = etnk_below.row(h).transpose().cwiseProduct(D_subtend_below.template cast<T>()).
             transpose() * P_dist.template cast<double>();
+        ret[h] /= exp(-eta.hidden_states[h]) - exp(-eta.hidden_states[h + 1]);
     }
     PROGRESS_DONE();
     return ret;
@@ -213,7 +214,7 @@ std::vector<Matrix<T> > ConditionedSFS<T>::compute_above(
     }
     std::vector<Matrix<T> > ret(H, Matrix<T>::Zero(3, n + 1));
     for (int h = 0; h < H; ++h) 
-        ret[h] = results[h].get();
+        ret[h] = results[h].get() / (exp(-eta.hidden_states[h]) - exp(-eta.hidden_states[h + 1]));
     PROGRESS_DONE();
     return ret;
 }
