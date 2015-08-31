@@ -36,7 +36,7 @@ cdef extern from "inference_manager.h":
         vector[pMatrixD] getAlphas()
         vector[pMatrixD] getBetas()
         vector[pMatrixD] getGammas()
-        vector[pMatrixD] getBs()
+        vector[pMatrixAd] getBs()
         Matrix[double] getPi()
         Matrix[double] getTransition()
         Matrix[double] getEmission()

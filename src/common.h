@@ -25,7 +25,7 @@
 #endif
 
 
-#if 1
+#if 0
 extern std::mutex mtx;
 #define PROGRESS(x) mtx.lock(); std::cout << __FILE__ << ":" << __func__ << "... " << std::flush; mtx.unlock();
 #define PROGRESS_DONE() mtx.lock(); std::cout << "done." << std::endl << std::flush; mtx.unlock();

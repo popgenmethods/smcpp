@@ -84,9 +84,9 @@ class HMM
     const Vector<adouble> *pi;
     const Matrix<adouble> *transition, *emission, *emission_mask;
     const int mask_freq, mask_offset, M, Ltot;
-    Matrix<adouble> B;
     std::vector<Vector<adouble>*> Bptr;
     std::vector<Eigen::Array<adouble, Eigen::Dynamic, 1>*> logBptr;
+    Matrix<adouble> B;
     Matrix<double> alpha_hat, beta_hat, gamma, xisum;
     Vector<double> c;
     std::vector<int> viterbi_path;

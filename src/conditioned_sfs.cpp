@@ -175,17 +175,24 @@ std::vector<Matrix<T> > ConditionedSFS<T>::compute_below(
     Matrix<mpreal_wrapper<T> > tjj_below = eta.tjj_double_integral_below(n, bc.prec);
     PROGRESS("mpfr etnk");
     Matrix<T> etnk_below = compute_etnk_below_mat(tjj_below);
+    // std::cout << "etnk below" << std::endl << etnk_below.template cast<T>().template cast<double>() << std::endl;
     int H = etnk_below.rows();
     std::vector<Matrix<T> > ret(H, Matrix<T>::Zero(3, n + 1));
     Vector<T> ones = Vector<T>::Ones(n + 1);
     PROGRESS("mpfr sfs below");
+    T h1(0.0), h2(0.0);
     for (int h = 0; h < H; ++h) 
     {
         ret[h].block(0, 1, 1, n) = etnk_below.row(h).transpose().
             cwiseProduct(ones - D_subtend_below.template cast<T>()).transpose() * P_undist.template cast<double>();
         ret[h].block(1, 0, 1, n + 1) = etnk_below.row(h).transpose().cwiseProduct(D_subtend_below.template cast<T>()).
             transpose() * P_dist.template cast<double>();
-        ret[h] /= exp(-eta.hidden_states[h]) - exp(-eta.hidden_states[h + 1]);
+        h1 = exp(-(*(eta.getR()))(eta.hidden_states[h]));
+        if (eta.hidden_states[h + 1] == INFINITY)
+            h2 *= 0.0;
+        else
+            h2 = exp(-(*(eta.getR()))(eta.hidden_states[h + 1]));
+        ret[h] /= h1 - h2;
     }
     PROGRESS_DONE();
     return ret;
@@ -213,8 +220,16 @@ std::vector<Matrix<T> > ConditionedSFS<T>::compute_above(
                     { return e2.template tjj_all_above(this->n, this->X0, Uinv_mp0, this->X2, Uinv_mp2); }));
     }
     std::vector<Matrix<T> > ret(H, Matrix<T>::Zero(3, n + 1));
+    T h1(0.0), h2(0.0);
     for (int h = 0; h < H; ++h) 
-        ret[h] = results[h].get() / (exp(-eta.hidden_states[h]) - exp(-eta.hidden_states[h + 1]));
+    {
+        h1 = exp(-(*(eta.getR()))(eta.hidden_states[h]));
+        if (eta.hidden_states[h + 1] == INFINITY)
+            h2 *= 0.0;
+        else
+            h2 = exp(-(*(eta.getR()))(eta.hidden_states[h + 1]));
+        ret[h] = results[h].get() / (h1 - h2);
+    }
     PROGRESS_DONE();
     return ret;
 }

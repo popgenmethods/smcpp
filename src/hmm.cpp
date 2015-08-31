@@ -29,7 +29,8 @@ HMM::HMM(Eigen::Matrix<int, Eigen::Dynamic, 2> obs, const int block_size,
     pi(pi), transition(transition), emission(emission), emission_mask(emission_mask),
     mask_freq(mask_freq), mask_offset(mask_offset),
     M(pi->rows()), Ltot(num_blocks(obs.col(0).sum(), block_size, mask_freq, mask_offset)),
-    Bptr(Ltot), logBptr(Ltot), alpha_hat(M, Ltot), beta_hat(M, Ltot), gamma(M, Ltot), xisum(M, M), c(Ltot) 
+    Bptr(Ltot), logBptr(Ltot), B(M, Ltot), 
+    alpha_hat(M, Ltot), beta_hat(M, Ltot), gamma(M, Ltot), xisum(M, M), c(Ltot) 
 { 
     prepare_B();
 }
@@ -60,13 +61,10 @@ void HMM::prepare_B()
                 i = 0;
                 alt_block = (block + mask_offset) % mask_freq == 0;
                 alt_block_next = (block + mask_offset) % mask_freq == mask_freq - 1;
-                em_ptr = alt_block ? emission : emission_mask;
                 key = {alt_block, powers};
                 if (block_prob_map.count(key) == 0)
                 {
                     tmp.setOnes();
-                    for (auto &p : powers)
-                        tmp = tmp.cwiseProduct(em_ptr->col(p.first).array().pow(p.second).matrix());
                     block_prob_map[key] = {tmp, tmp.array().log()};
                 }
                 Bptr[block] = &block_prob_map[key].first;
@@ -175,14 +173,23 @@ void HMM::recompute_B(void)
     for (auto &bp_pair : block_prob_map)
     {
         alt_block = bp_pair.first.first;
-        em_ptr = alt_block ? emission : emission_mask;
+        // em_ptr = alt_block ? emission : emission_mask;
+        em_ptr = emission_mask;
         std::map<int, int> power = bp_pair.first.second;
         tmp.setOnes();
         // mult = alt_block ? 1000.0 : 1.0;
-        for (auto &pow : power)
-            tmp = tmp.cwiseProduct(em_ptr->col(pow.first).array().pow(pow.second).matrix());
+        std::cout << "*** " << power << std::endl;
+        for (auto &p : power)
+        {
+            std::cout << "\t" << tmp.transpose().template cast<double>() << std::endl;
+            std::cout << "\t" << em_ptr->col(p.first).transpose().template cast<double>() << std::endl;
+            tmp = tmp.cwiseProduct(em_ptr->col(p.first).array().pow(p.second).matrix());
+            std::cout << "\t" << tmp.transpose().template cast<double>() << std::endl;
+        }
         block_prob_map[bp_pair.first] = {tmp, mult * tmp.array().log()};
     }
+    for (int ell = 0; ell < Ltot; ++ell)
+        B.col(ell) = *Bptr[ell];
     PROGRESS_DONE();
 }
 
