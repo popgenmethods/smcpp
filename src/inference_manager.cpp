@@ -73,9 +73,9 @@ void InferenceManager::setParams(const ParameterVector params, const std::vector
     PiecewiseExponentialRateFunction<T> eta(params, derivatives, hidden_states);
     regularizer = adouble(eta.regularizer());
     pi = compute_initial_distribution<T>(eta).template cast<adouble>();
-    Matrix<adouble> ttmp = compute_transition<T>(eta, rho).template cast<adouble>();
+    transition = compute_transition<T>(eta, rho).template cast<adouble>();
     // transition = matpow(ttmp, block_size);
-    transition = ttmp;
+    // transition = ttmp;
     Eigen::Matrix<T, 3, Eigen::Dynamic, Eigen::RowMajor> tmp;
     std::map<int, std::vector<T>> tmask;
     std::map<int, T> tavg;
