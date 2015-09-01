@@ -242,6 +242,7 @@ std::vector<Matrix<T> > ConditionedSFS<T>::compute(const PiecewiseExponentialRat
     for (int i = 0; i < above.size(); ++i)
     {
         ret[i] = above[i] + below[i];
+        ret[i] = ret[i].unaryExpr([](T x) { if (x < 1e-20) return T(1e-20); return x; });
         T tauh = ret[i].sum();
         ret[i] *= -expm1(-theta * tauh) / tauh;
         ret[i](0, 0) = exp(-theta * tauh);
