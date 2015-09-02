@@ -25,10 +25,12 @@
 #endif
 
 
-#if 0
+#if 1
+void doProgress(bool);
 extern std::mutex mtx;
-#define PROGRESS(x) mtx.lock(); std::cout << __FILE__ << ":" << __func__ << "... " << std::flush; mtx.unlock();
-#define PROGRESS_DONE() mtx.lock(); std::cout << "done." << std::endl << std::flush; mtx.unlock();
+extern bool do_progress;
+#define PROGRESS(x) if (do_progress) { mtx.lock(); std::cout << __FILE__ << ":" << __func__ << "... " << std::flush; mtx.unlock(); }
+#define PROGRESS_DONE() if (do_progress) { mtx.lock(); std::cout << "done." << std::endl << std::flush; mtx.unlock(); }
 #else
 #define PROGRESS(x)
 #define PROGRESS_DONE()

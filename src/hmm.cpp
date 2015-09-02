@@ -29,7 +29,9 @@ HMM::HMM(Eigen::Matrix<int, Eigen::Dynamic, 2> obs, const int block_size,
     pi(pi), transition(transition), emission(emission), emission_mask(emission_mask),
     mask_freq(mask_freq), mask_offset(mask_offset),
     M(pi->rows()), Ltot(ceil(obs.col(0).sum() / block_size)),
-    Bptr(Ltot), logBptr(Ltot), B(M, Ltot), 
+    Bptr(Ltot), logBptr(Ltot), 
+    B(M, Ltot), 
+    // B(1, 1), 
     alpha_hat(M, Ltot), beta_hat(M, Ltot), gamma(M, Ltot), xisum(M, M), c(Ltot) 
 { 
     prepare_B();
@@ -66,7 +68,9 @@ void HMM::prepare_B()
                     block_prob_map[key] = {tmp, tmp.array().log()};
                 }
                 Bptr[block] = &block_prob_map[key].first;
-                logBptr[block++] = &block_prob_map[key].second;
+                logBptr[block] = &block_prob_map[key].second;
+                block_map[logBptr[block]].push_back(block);
+                block++;
                 block_prob_counts[key]++;
                 // current_block_size = (alt_block_next) ? 1 : block_size;
                 powers.clear();
@@ -176,11 +180,13 @@ void HMM::recompute_B(void)
         tmp.setOnes();
         // mult = alt_block ? 1000.0 : 1.0;
         for (auto &p : power)
+        {
             tmp = tmp.cwiseProduct(em_ptr->col(p.first).array().pow(p.second).matrix());
+        }
         block_prob_map[bp_pair.first] = {tmp, mult * tmp.array().log()};
     }
-    for (int ell = 0; ell < Ltot; ++ell)
-        B.col(ell) = *Bptr[ell];
+    // for (int ell = 0; ell < Ltot; ++ell)
+        // B.col(ell) = *Bptr[ell];
     PROGRESS_DONE();
 }
 
@@ -237,18 +243,18 @@ Matrix<adouble> mymatpow(const Matrix<adouble> M, int p)
 adouble HMM::Q(void)
 {
     PROGRESS("HMM::Q");
-    Eigen::Array<adouble, Eigen::Dynamic, Eigen::Dynamic> gam = gamma.template cast<adouble>().array();
     Eigen::Array<adouble, Eigen::Dynamic, Eigen::Dynamic> xis = xisum.template cast<adouble>().array();
-    adouble ret = (gam.col(0) * pi->array().log()).sum();
-    std::map<const decltype(logBptr)::value_type, int> counts;
-    for (int ell = 0; ell < Ltot; ++ell)
+    adouble ret = (gamma.col(0).array().template cast<adouble>() * pi->array().log()).sum();
+    std::map<const decltype(logBptr)::value_type, Eigen::Array<adouble, Eigen::Dynamic, 1> > counts;
+    Vector<double> gamma_sum(M);
+    for (auto &p : block_map)
     {
-        ret += (*logBptr[ell] * gam.col(ell)).sum();
-        counts[logBptr[ell]]++;
-        domain_error(toDouble(ret));
+        gamma_sum.setZero();
+        for (int ell : p.second)
+            gamma_sum += gamma.col(ell);
+        ret += (*p.first * gamma_sum.array().template cast<adouble>()).sum();
     }
     Eigen::Array<adouble, Eigen::Dynamic, Eigen::Dynamic> ttpow = mymatpow(*transition, block_size).array().log();
-    // Eigen::Array<double, Eigen::Dynamic, Eigen::Dynamic> ttpow_check = transition->template cast<double>().pow(block_size).array().log();
     ret += (xis * ttpow).sum();
     PROGRESS_DONE();
     /*

@@ -80,6 +80,9 @@ class InferenceManager
     Matrix<double> getMaskedEmission();
 
     private:
+    template <typename T> 
+    ConditionedSFS<T> getCsfs();
+
     typedef std::unique_ptr<HMM> hmmptr;
 
     // Passed-in parameters
@@ -101,6 +104,8 @@ class InferenceManager
     std::vector<hmmptr> hmms;
     Vector<adouble> pi;
     Matrix<adouble> transition, emission, emission_mask;
+    ConditionedSFS<double> csfs_d;
+    ConditionedSFS<adouble> csfs_ad;
 
     // Methods
     void parallel_do(std::function<void(hmmptr &)>);

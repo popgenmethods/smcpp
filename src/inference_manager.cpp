@@ -38,7 +38,8 @@ InferenceManager::InferenceManager(
     block_size(block_size), num_threads(num_threads),
     num_samples(num_samples), 
     M(hidden_states.size() - 1), 
-    tp(num_threads), seed(1)
+    tp(num_threads), seed(1),
+    csfs_d(n, num_threads), csfs_ad(n, num_threads)
 {
     pi = Vector<adouble>::Zero(M);
     transition = Matrix<adouble>::Zero(M, M);
@@ -76,25 +77,25 @@ void InferenceManager::setParams(const ParameterVector params, const std::vector
     transition = compute_transition<T>(eta, rho).template cast<adouble>();
     // transition = matpow(ttmp, block_size);
     // transition = ttmp;
-    Eigen::Matrix<T, 3, Eigen::Dynamic, Eigen::RowMajor> tmp;
-    std::map<int, std::vector<T>> tmask;
-    std::map<int, T> tavg;
+    Eigen::Matrix<T, 3, Eigen::Dynamic, Eigen::RowMajor> em_tmp(3, n + 1);
+    std::map<int, T> tmask;
     std::vector<Matrix<T> > sfss = sfs<T>(eta);
     for (int m = 0; m < M; ++m)
     {
         tmask.clear();
-        tavg.clear();
-        tmp = sfss[m];
-        emission.row(m) = Matrix<T>::Map(tmp.data(), 1, 3 * (n + 1)).template cast<adouble>();
+        emission.row(m) = Matrix<T>::Map(sfss[m].data(), 1, 3 * (n + 1)).template cast<adouble>();
         for (int i = 0; i < 3; ++i)
             for (int j = 0; j < n + 1; ++j)
-                tmask[emask(i, j)].push_back(tmp(i, j));
-        for (auto p : tmask)
-            tavg[p.first] = std::accumulate(p.second.begin(), p.second.end(), (T)0.0);
+            {
+                if (tmask.count(emask(i, j)) == 0)
+                    tmask[emask(i, j)] = sfss[m](i, j);
+                else
+                    tmask[emask(i, j)] += sfss[m](i, j);
+            }
         for (int i = 0; i < 3; ++i)
             for (int j = 0; j < n + 1; ++j)
-                tmp(i, j) = tavg[emask(i, j)];
-        emission_mask.row(m) = Matrix<T>::Map(tmp.data(), 1, 3 * (n + 1)).template cast<adouble>();
+                em_tmp(i, j) = tmask[emask(i, j)];
+        emission_mask.row(m) = Matrix<T>::Map(em_tmp.data(), 1, 3 * (n + 1)).template cast<adouble>();
     }
     parallel_do([] (hmmptr &hmm) { hmm->recompute_B(); });
 }
@@ -105,12 +106,16 @@ template <typename T>
 std::vector<Matrix<T> > InferenceManager::sfs(const PiecewiseExponentialRateFunction<T> &eta)
 {
     PROGRESS("sfs");
-    static ConditionedSFS<T> csfs(n, num_threads);
-    return csfs.compute(eta, theta);
+    return getCsfs<T>().compute(eta, theta);
     PROGRESS("sfs done");
 }
 template std::vector<Matrix<double> > InferenceManager::sfs(const PiecewiseExponentialRateFunction<double> &);
 template std::vector<Matrix<adouble> > InferenceManager::sfs(const PiecewiseExponentialRateFunction<adouble> &);
+
+template <>
+ConditionedSFS<double> InferenceManager::getCsfs() { return csfs_d; }
+template <>
+ConditionedSFS<adouble> InferenceManager::getCsfs() { return csfs_ad; }
 
 void InferenceManager::parallel_do(std::function<void(hmmptr&)> lambda)
 {
@@ -189,6 +194,7 @@ std::vector<Matrix<adouble>*> InferenceManager::getBs()
     std::vector<Matrix<adouble>*> ret;
     for (auto &hmm : hmms)
     {
+        hmm->fill_B();
         ret.push_back(&hmm->B);
     }
     return ret;

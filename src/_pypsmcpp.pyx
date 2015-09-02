@@ -15,6 +15,9 @@ logger = logging.getLogger(__name__)
 # flat arrays
 aca = np.ascontiguousarray
 
+def do_progress(x):
+    doProgress(x)
+
 cdef vector[double*] make_mats(mats):
     cdef vector[double*] expM
     cdef double[:, :, ::1] mmats = aca(mats)
@@ -208,7 +211,7 @@ cdef class PyInferenceManager:
         cdef ParameterVector p = make_params(params)
         ret = [0.0]
         t = 0
-        T_MAX = 100
+        T_MAX = 14
         for m in range(1, M):
             def f(t):
                 return np.exp(-self._im.R(params, t)) - 1.0 * (M - m) / M

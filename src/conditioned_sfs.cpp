@@ -21,7 +21,7 @@ below_coeff compute_below_coeffs(int n)
             }
             mlast = mnew;
         }
-        ret.prec = int(log2(mlast.array().abs().maxCoeff().get_d())) + 20;
+        ret.prec = int(log2(mlast.array().abs().maxCoeff().get_d())) + 100;
         if (ret.prec < 53)
             ret.prec = 53;
         ret.coeffs = mlast;
@@ -135,58 +135,55 @@ mpq_class pnkb_undist(int n, int m, int l3)
 template <typename T>
 ConditionedSFS<T>::ConditionedSFS(int n, int num_threads) : 
     n(n), num_threads(num_threads),
-    mei(compute_moran_eigensystem(n)),
-    bc(compute_below_coeffs(n)),
-	Wnbj(cached_matrices(n)[0]),
-    P_dist(cached_matrices(n)[1]),
-    P_undist(cached_matrices(n)[2]), 
-    X0(cached_matrices(n)[3]), X2(cached_matrices(n)[4]),
-    D_subtend_above(cached_matrices(n)[5]), 
-    D_subtend_below(cached_matrices(n)[6]),
+    mei(compute_moran_eigensystem(n)), mcache(cached_matrices(n)),
     csfs(3, n + 1), csfs_above(3, n + 1), csfs_below(3, n + 1)
 {}
 
+/*
 template <typename T>
 Matrix<T> ConditionedSFS<T>::compute_etnk_below_mat(const Matrix<mpreal_wrapper<T> > &etjj)
 {
     Matrix<T> ret(etjj.rows(), etjj.cols());
-    mpreal_wrapper<T> tmp;
+    ret.setZero();
+    // This basically expresses:
+    // ret = T * bc where T(i, j) = E(Tjj | H[i])
     for (int i = 0; i < ret.rows(); ++i)
         for (int j = 0; j < ret.cols(); ++j)
             {
-                tmp -= tmp;
+                mpreal_wrapper<T> tmp(0.0);
                 for (int k = 0; k < ret.cols(); ++k)
                     tmp += etjj(i, k) * bc.coeffs(k, j).get_mpq_t();
                 ret(i, j) = mpreal_wrapper_convertBack<T>((j + 2) * tmp);
-                if (ret(i, j) < -1e-8)
+                if (ret(i, j) < -1e-4)
+                {
+                    std::cout << "(" << i << "," << j << "):\n" << ret.template cast<double>() << std::endl;
                     throw std::domain_error("highly negative etnk entry");
+                }
                 ret(i, j) = dmax(ret(i, j), 1e-20);
             }
     return ret;
 }
+*/
 
 template <typename T>
 std::vector<Matrix<T> > ConditionedSFS<T>::compute_below(
     const PiecewiseExponentialRateFunction<T> &eta
     )
 {
-    mpfr::mpreal::set_default_prec(bc.prec);
+    mpfr::mpreal::set_default_prec(mcache.prec);
     PROGRESS("compute below");
-    Matrix<mpreal_wrapper<T> > tjj_below = eta.tjj_double_integral_below(n, bc.prec);
-    PROGRESS("mpfr etnk");
-    Matrix<T> etnk_below = compute_etnk_below_mat(tjj_below);
-    // std::cout << "etnk below" << std::endl << etnk_below.template cast<T>().template cast<double>() << std::endl;
-    int H = etnk_below.rows();
+    Matrix<mpreal_wrapper<T> > tjj_below = eta.tjj_double_integral_below(n, mcache.prec);
+    Matrix<T> M0_below = (tjj_below.lazyProduct(mcache.M0)).template cast<T>();
+    Matrix<T> M1_below = (tjj_below.lazyProduct(mcache.M1)).template cast<T>();
+
+    int H = tjj_below.rows();
     std::vector<Matrix<T> > ret(H, Matrix<T>::Zero(3, n + 1));
-    Vector<T> ones = Vector<T>::Ones(n + 1);
     PROGRESS("mpfr sfs below");
     T h1(0.0), h2(0.0);
     for (int h = 0; h < H; ++h) 
     {
-        ret[h].block(0, 1, 1, n) = etnk_below.row(h).transpose().
-            cwiseProduct(ones - D_subtend_below.template cast<T>()).transpose() * P_undist.template cast<double>();
-        ret[h].block(1, 0, 1, n + 1) = etnk_below.row(h).transpose().cwiseProduct(D_subtend_below.template cast<T>()).
-            transpose() * P_dist.template cast<double>();
+        ret[h].block(0, 1, 1, n) = M0_below.row(h);
+        ret[h].block(1, 0, 1, n + 1) = M1_below.row(h);
         h1 = exp(-(*(eta.getR()))(eta.hidden_states[h]));
         if (eta.hidden_states[h + 1] == INFINITY)
             h2 *= 0.0;
@@ -205,7 +202,6 @@ std::vector<Matrix<T> > ConditionedSFS<T>::compute_above(
 {
     mpfr::mpreal::set_default_prec(53);
     PROGRESS("compute above");
-    MoranEigensystem mei = compute_moran_eigensystem(n);
     int H = eta.hidden_states.size() - 1;
     std::vector<Matrix<T> > C(H, Matrix<T>::Zero(n + 1, n));
     ThreadPool tp(8);
@@ -217,7 +213,7 @@ std::vector<Matrix<T> > ConditionedSFS<T>::compute_above(
     {
         PiecewiseExponentialRateFunction<T> e2(eta.params, eta.derivatives, {hidden_states[h], hidden_states[h + 1]});
         results.emplace_back(tp.enqueue([e2, this, &Uinv_mp0, &Uinv_mp2]
-                    { return e2.template tjj_all_above(this->n, this->X0, Uinv_mp0, this->X2, Uinv_mp2); }));
+                    { return e2.template tjj_all_above(this->n, this->mcache.X0, Uinv_mp0, this->mcache.X2, Uinv_mp2); }));
     }
     std::vector<Matrix<T> > ret(H, Matrix<T>::Zero(3, n + 1));
     T h1(0.0), h2(0.0);
@@ -250,41 +246,50 @@ std::vector<Matrix<T> > ConditionedSFS<T>::compute(const PiecewiseExponentialRat
     return ret;
 }
 
-std::map<int, std::array<MatrixXq, 7> > ConditionedSFSBase::matrix_cache;
-std::array<MatrixXq, 7>& ConditionedSFSBase::cached_matrices(int n)
+std::map<int, MatrixCache> ConditionedSFSBase::matrix_cache;
+MatrixCache& ConditionedSFSBase::cached_matrices(int n)
 {
     const MoranEigensystem mei = compute_moran_eigensystem(n);
     if (matrix_cache.count(n) == 0)
     {
+        MatrixCache ret;
         std::cout << "computing cached matrices..." << std::endl;
-        VectorXq _D_subtend_above = VectorXq::LinSpaced(n, 1, n);
-        _D_subtend_above /= n + 1;
+        VectorXq D_subtend_above = VectorXq::LinSpaced(n, 1, n);
+        D_subtend_above /= n + 1;
 
-        VectorXq _D_subtend_below = Eigen::Array<mpq_class, Eigen::Dynamic, 1>::Ones(n + 1) / 
+        VectorXq D_subtend_below = Eigen::Array<mpq_class, Eigen::Dynamic, 1>::Ones(n + 1) / 
             Eigen::Array<mpq_class, Eigen::Dynamic, 1>::LinSpaced(n + 1, 2, n + 2);
-        _D_subtend_below *= 2;
+        D_subtend_below *= 2;
 
-        MatrixXq _Wnbj(n, n), _P_dist(n + 1, n + 1), _P_undist(n + 1, n), _X0, _X2;
-        _Wnbj.setZero();
+        MatrixXq Wnbj(n, n), P_dist(n + 1, n + 1), P_undist(n + 1, n);
+        Wnbj.setZero();
         for (int b = 1; b < n + 1; ++b)
             for (int j = 2; j < n + 2; ++j)
-                _Wnbj(b - 1, j - 2) = calculate_Wnbj(n + 1, b, j);
+                Wnbj(b - 1, j - 2) = calculate_Wnbj(n + 1, b, j);
 
         // P_dist(k, b) = probability of state (1, b) when there are k undistinguished lineages remaining
-        _P_dist.setZero();
+        P_dist.setZero();
         for (int k = 0; k < n + 1; ++k)
             for (int b = 1; b < n - k + 2; ++b)
-                _P_dist(k, b - 1) = pnkb_dist(n, k, b);
+                P_dist(k, b - 1) = pnkb_dist(n, k, b);
 
         // P_undist(k, b) = probability of state (0, b + 1) when there are k undistinguished lineages remaining
-        _P_undist.setZero();
+        P_undist.setZero();
         for (int k = 1; k < n + 1; ++k)
             for (int b = 1; b < n - k + 2; ++b)
-                _P_undist(k, b - 1) = pnkb_undist(n, k, b);
+                P_undist(k, b - 1) = pnkb_undist(n, k, b);
 
-        _X0 = _Wnbj.transpose() * (VectorXq::Ones(n) - _D_subtend_above).asDiagonal() * mei.U.bottomRows(n);
-        _X2 =  _Wnbj.transpose() * _D_subtend_above.asDiagonal() * mei.U.reverse().topRows(n);
-        matrix_cache[n] = {_Wnbj, _P_dist, _P_undist, _X0, _X2, _D_subtend_above, _D_subtend_below};
+        ret.X0 = Wnbj.transpose() * (VectorXq::Ones(n) - D_subtend_above).asDiagonal() * mei.U.bottomRows(n);
+        ret.X2 = Wnbj.transpose() * D_subtend_above.asDiagonal() * mei.U.reverse().topRows(n);
+
+        below_coeff bc = compute_below_coeffs(n);
+        VectorXq lsp = VectorXq::LinSpaced(n + 1, 2, n + 2);
+        ret.M0 = bc.coeffs * lsp.asDiagonal() * (VectorXq::Ones(n) - D_subtend_below).asDiagonal() * P_undist;
+        ret.M1 = bc.coeffs * lsp.asDiagonal() * D_subtend_below.asDiagonal() * P_dist;
+        ret.prec = int(log2(std::max(
+                        ret.M0.array().abs().maxCoeff().get_d(),
+                        ret.M1.array().abs().maxCoeff().get_d()))) + 100;
+        matrix_cache[n] = ret;
         std::cout << "done" << std::endl;
     }
     return matrix_cache[n];

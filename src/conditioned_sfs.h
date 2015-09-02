@@ -22,12 +22,14 @@ typedef struct
     mp_prec_t prec;
 } below_coeff;
 
+typedef struct { MatrixXq X0, X2, M0, M1; mp_prec_t prec; } MatrixCache;
+
 class ConditionedSFSBase
 {
     protected:
     static std::map<int, below_coeff> below_coeffs_memo;
-    static std::array<MatrixXq, 7>& cached_matrices(int n);
-    static std::map<int, std::array<MatrixXq, 7> > matrix_cache;
+    static MatrixCache& cached_matrices(int n);
+    static std::map<int, MatrixCache> matrix_cache;
 };
 
 template <typename T>
@@ -36,6 +38,11 @@ class ConditionedSFS : public ConditionedSFSBase
     public:
     ConditionedSFS(int, int);
     std::vector<Matrix<T> > compute(const PiecewiseExponentialRateFunction<T> &, double);
+    static std::vector<Matrix<T> > calculate(int n, int num_threads, const PiecewiseExponentialRateFunction<T> &eta, double theta)
+    {
+        ConditionedSFS<T> csfs(n, num_threads);
+        return csfs.compute(eta, theta);
+    }
 
     private:
     // Methods
@@ -50,23 +57,20 @@ class ConditionedSFS : public ConditionedSFSBase
     const int n;
     const int num_threads;
     const MoranEigensystem mei;
-    const below_coeff bc;
-    VectorXq D_subtend_above, D_subtend_below;
-    MatrixXq &Wnbj, &P_dist, &P_undist, &X0, &X2;
+    const MatrixCache mcache;
     Matrix<T> csfs, csfs_above, csfs_below, ETnk_below;
 };
+/*
 
-template <typename T>
 class CSFSManager
 {
     public:
-    CSFSManager(int n, int numthreads, double theta) : csfs(n), theta_(theta)
-    {
-        Eigen::setNbThreads(numthreads);
-    }
+    CSFSManager(int n, int num_threads) : csfs_d(n, num_threads), csfs_ad(n, num_threads) {}
 
-    std::vector<Matrix<T> > compute(const PiecewiseExponentialRateFunction<T> &eta)
+    template <typename T>
+    std::vector<Matrix<T> > compute(const PiecewiseExponentialRateFunction<T> &eta, double theta)
     {
+        return csfs
         std::vector<Matrix<T> > ret2;
         return ret2;
         // ConditionedSFS<T> c(n);
@@ -105,12 +109,13 @@ class CSFSManager
             // ret(0, 0) = 1. - ret.sum();
         }
         return ret2;
-        */
     }
     ConditionedSFS<T> csfs;
     double theta_;
     std::mt19937 gen;
 };
+
+*/
 
 void store_sfs_results(const Matrix<double>&, double*);
 void store_sfs_results(const Matrix<adouble>&, double*, double*);

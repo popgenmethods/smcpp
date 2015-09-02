@@ -67,6 +67,7 @@ class HMM
     double loglik(void);
     adouble Q(void);
     // std::vector<int>& viterbi(void);
+    void fill_B(void) { for (int ell = 0; ell < Ltot; ++ell) B.col(ell) = *Bptr[ell]; }
 
     private:
     HMM(HMM const&) = delete;
@@ -93,6 +94,8 @@ class HMM
     std::unordered_map<std::pair<bool, std::map<int, int> >, std::pair<Vector<adouble>, Eigen::Array<adouble, Eigen::Dynamic, 1> > > block_prob_map;
     // std::unordered_map<Eigen::Array<adouble, Eigen::Dynamic, 1>*, decltype(block_prob_map)::key_type> reverse_map;
     std::unordered_map<std::pair<bool, std::map<int, int> >, int > block_prob_counts;
+    std::map<Eigen::Array<adouble, Eigen::Dynamic, 1>*, std::vector<int> > block_map;
+
     friend class InferenceManager;
 };
 

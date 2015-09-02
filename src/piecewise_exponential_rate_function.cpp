@@ -93,6 +93,8 @@ PiecewiseExponentialRateFunction<T>::PiecewiseExponentialRateFunction(
     Rinv.reset(new PExpInverseIntegralEvaluator<T>(ada, adb, ts, Rrng));
 
     // Compute a TV-like regularizer
+    _reg = 0.0;
+    /*
     T x = 0.0;
     T xmax = ts.rbegin()[1] * 1.1;
     T step = (xmax - x) / 1000;
@@ -108,6 +110,7 @@ PiecewiseExponentialRateFunction<T>::PiecewiseExponentialRateFunction(
         for (int i = 1; i < ys.size(); ++i)
             _reg += myabs(ys[i] - ys[i - 1]);
     }
+    */
 }
 
 template <typename T>
