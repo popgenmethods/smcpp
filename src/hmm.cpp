@@ -167,23 +167,17 @@ std::vector<int>& HMM<T>::viterbi(void)
 void HMM::recompute_B(void)
 {
     PROGRESS("recompute B");
-    const Matrix<adouble> *em_ptr;
-    Vector<adouble> tmp(M);
-    bool alt_block;
-    double mult = 1.0;
-    for (auto &bp_pair : block_prob_map)
+    for (auto it = block_prob_map.begin(); it != block_prob_map.end(); ++it)
     {
-        alt_block = bp_pair.first.first;
-        em_ptr = alt_block ? emission : emission_mask;
+        bool alt_block = it->first.first;
+        const Matrix<adouble> *em_ptr = alt_block ? emission : emission_mask;
         // em_ptr = emission_mask;
-        std::map<int, int> power = bp_pair.first.second;
-        tmp.setOnes();
+        std::map<int, int> power = it->first.second;
+        Vector<adouble> tmp = Vector<adouble>::Ones(M);
         // mult = alt_block ? 1000.0 : 1.0;
         for (auto &p : power)
-        {
             tmp = tmp.cwiseProduct(em_ptr->col(p.first).array().pow(p.second).matrix());
-        }
-        block_prob_map[bp_pair.first] = {tmp, mult * tmp.array().log()};
+        block_prob_map[it->first] = {tmp, tmp.array().log()};
     }
     // for (int ell = 0; ell < Ltot; ++ell)
         // B.col(ell) = *Bptr[ell];
@@ -219,11 +213,13 @@ void HMM::Estep(void)
     PROGRESS("E step");
     forward_backward();
 	gamma = alpha_hat.cwiseProduct(beta_hat);
-    xisum = Matrix<double>::Zero(M, M);
+    Matrix<double> xis = Matrix<double>::Zero(M, M);
+    PROGRESS("xisum");
     for (int ell = 1; ell < Ltot; ++ell)
-        xisum += alpha_hat.col(ell - 1) * Bptr[ell]->template cast<double>().cwiseProduct(beta_hat.col(ell)).transpose() / c(ell);
+        xis += alpha_hat.col(ell - 1) * Bptr[ell]->template cast<double>().cwiseProduct(beta_hat.col(ell)).transpose() / c(ell);
+    PROGRESS("xisum done");
     Matrix<double> tr = transition->template cast<double>().pow(block_size);
-    xisum = xisum.cwiseProduct(tr);
+    xisum = xis.cwiseProduct(tr);
     PROGRESS_DONE();
 }
 

@@ -1,6 +1,5 @@
 #include "piecewise_exponential_rate_function.h"
 
-constexpr long nC2(int n) { return n * (n - 1) / 2; }
 
 template <typename T>
 PiecewiseExponentialRateFunction<T>::PiecewiseExponentialRateFunction(const std::vector<std::vector<double>> params,
@@ -235,6 +234,7 @@ inline U _double_integral_above_helper(const int rate, const int lam, const U &_
     return -exp(-l1 * _Rrng) * (expm1(-l1 * adadiff) / l1 + (exp(-rate * adadiff) - exp(-l1 * adadiff)) / (l1 - rate)) / rate / _ada;
 }
 
+/*
 template <typename T>
 Matrix<T> PiecewiseExponentialRateFunction<T>::tjj_all_above(const int n, 
         const MatrixXq &X0, const MatrixXq &Uinv_mp0, const MatrixXq &X2, 
@@ -253,10 +253,12 @@ Matrix<T> PiecewiseExponentialRateFunction<T>::tjj_all_above(const int n,
     ret.block(2, 0, 1, n) += T_subtend.template cast<T>();
     return ret;
 }
+*/
 
 template <typename T>
-Matrix<T> PiecewiseExponentialRateFunction<T>::tjj_double_integral_above(const int n, long lam) const
+void PiecewiseExponentialRateFunction<T>::tjj_double_integral_above(const int n, long jj, std::vector<Matrix<T> > &C) const
 {
+    long lam = nC2(jj) - 1;
     Matrix<T> ts_integrals(K, n);
     for (int m = 0; m < K; ++m)
     {
@@ -277,46 +279,31 @@ Matrix<T> PiecewiseExponentialRateFunction<T>::tjj_double_integral_above(const i
     for (int h = 1; h < hs_indices.size(); ++h)
     {
         next = ts_integrals.topRows(hs_indices[h]).colwise().sum();
-        ret.row(h - 1) = next - last;
+        C[h - 1].row(jj - 2) = next - last;
         last = next;
     }
-    return ret;
 }
 
 template <typename T>
-Matrix<mpreal_wrapper<T> > PiecewiseExponentialRateFunction<T>::tjj_double_integral_below(
-        const int n, const mp_prec_t prec) const
+void PiecewiseExponentialRateFunction<T>::tjj_double_integral_below(
+        const int n, const mp_prec_t prec, const int m, Matrix<mpreal_wrapper<T> > &tgt) const
 {
     mpfr::mpreal::set_default_prec(prec);
-    Matrix<mpreal_wrapper<T> > ts_integrals(K, n + 1);
+    Vector<mpreal_wrapper<T> > ts_integrals(n + 1);
     std::vector<mpreal_wrapper<T> > cs;
-    for (int m = 0; m < K; ++m)
+    for (int j = 2; j < n + 3; ++j)
     {
-        for (int j = 2; j < n + 3; ++j)
-        {
-            long rate = nC2(j) - 1;
-            cs.clear();
-            cs.push_back(_double_integral_below_helper<mpreal_wrapper<T> >(rate, convert(ts[m]), convert(ts[m + 1]), convert(ada[m]), convert(Rrng[m])));
-            for (int k = 0; k < m; ++k)
-                cs.push_back(_single_double_integral_below<mpreal_wrapper<T> >(rate, 
-                            convert(ts[m]), convert(ts[m + 1]), 
-                            convert(ada[m]), convert(Rrng[m]), convert(ts[k]), convert(ts[k + 1]), 
-                            convert(ada[k]), convert(Rrng[k])));
-            ts_integrals(m, j - 2) = mpreal_wrapper_type<T>::fsum(cs);
-        }
+        long rate = nC2(j) - 1;
+        cs.clear();
+        cs.push_back(_double_integral_below_helper<mpreal_wrapper<T> >(rate, convert(ts[m]), convert(ts[m + 1]), convert(ada[m]), convert(Rrng[m])));
+        for (int k = 0; k < m; ++k)
+            cs.push_back(_single_double_integral_below<mpreal_wrapper<T> >(rate, 
+                        convert(ts[m]), convert(ts[m + 1]), 
+                        convert(ada[m]), convert(Rrng[m]), convert(ts[k]), convert(ts[k + 1]), 
+                        convert(ada[k]), convert(Rrng[k])));
+        ts_integrals(j - 2) = mpreal_wrapper_type<T>::fsum(cs);
     }
-    // Now calculate with hidden state integration limits
-    size_t H = hidden_states.size();
-    Matrix<mpreal_wrapper<T> > ret(H - 1, n + 1);
-    Matrix<mpreal_wrapper<T> > last = ts_integrals.topRows(hs_indices[0]).colwise().sum(), next;
-    mpreal_wrapper<T> h1, h2;
-    for (int h = 1; h < hs_indices.size(); ++h)
-    {
-        next = ts_integrals.topRows(hs_indices[h]).colwise().sum();
-        ret.row(h - 1) = next - last;
-        last = next;
-    }
-    return ret;
+    tgt.row(m) = ts_integrals.transpose();
 }
 
 template <typename T>

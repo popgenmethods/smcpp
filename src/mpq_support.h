@@ -9,7 +9,6 @@
 
 inline double log(const mpq_class &x) { return log(mpfr::mpreal(x.get_mpq_t())).toDouble(); }
 
-
 namespace Eigen {
     template<> 
     struct NumTraits<mpq_class> : NumTraits<long long> // permits to get the epsilon, dummy_precision, lowest, highest functions
@@ -29,6 +28,22 @@ namespace Eigen {
         };
     namespace internal
     {
+        template <>
+        struct cast_impl<mpq_class, mpreal_wrapper<adouble> >
+        {
+            static inline mpreal_wrapper<adouble> run(const mpq_class &x)
+            {
+                return mpreal_wrapper<adouble>(mpfr::mpreal(x.get_mpq_t()));
+            }
+        };
+        template <>
+        struct cast_impl<mpq_class, mpfr::mpreal>
+        {
+            static inline mpfr::mpreal run(const mpq_class &x)
+            {
+                return mpfr::mpreal(x.get_mpq_t());
+            }
+        };
         template <>
         struct cast_impl<mpq_class, double>
         {

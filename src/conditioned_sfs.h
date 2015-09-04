@@ -47,6 +47,14 @@ class ConditionedSFS : public ConditionedSFSBase
     private:
     // Methods
     void construct_ad_vars();
+    Matrix<T> above0(const Matrix<T>&);
+    Matrix<T> above2(const Matrix<T>&);
+    Matrix<T> below0(const Matrix<mpreal_wrapper<T> >&);
+    Matrix<T> below1(const Matrix<mpreal_wrapper<T> >&);
+    template <typename Derived>
+    Matrix<T> parallel_cwiseProduct_colSum(const MatrixXq &a, const Eigen::MatrixBase<Derived> &b);
+    template <typename Derived>
+    Matrix<mpreal_wrapper<T> > parallel_matrix_product(const Eigen::MatrixBase<Derived> &, const MatrixXq &);
     // Vector<T> compute_etnk_below(const Vector<T>&);
     // Vector<T> compute_etnk_below(const std::vector<mpreal_wrapper<T> >&);
     Matrix<T> compute_etnk_below_mat(const Matrix<mpreal_wrapper<T> >&);
@@ -59,6 +67,7 @@ class ConditionedSFS : public ConditionedSFSBase
     const MoranEigensystem mei;
     const MatrixCache mcache;
     Matrix<T> csfs, csfs_above, csfs_below, ETnk_below;
+    // ThreadPool tp;
 };
 /*
 

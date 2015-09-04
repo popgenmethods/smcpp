@@ -81,7 +81,7 @@ class InferenceManager
 
     private:
     template <typename T> 
-    ConditionedSFS<T> getCsfs();
+    ConditionedSFS<T>& getCsfs();
 
     typedef std::unique_ptr<HMM> hmmptr;
 

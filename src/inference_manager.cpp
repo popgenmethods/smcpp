@@ -113,9 +113,9 @@ template std::vector<Matrix<double> > InferenceManager::sfs(const PiecewiseExpon
 template std::vector<Matrix<adouble> > InferenceManager::sfs(const PiecewiseExponentialRateFunction<adouble> &);
 
 template <>
-ConditionedSFS<double> InferenceManager::getCsfs() { return csfs_d; }
+ConditionedSFS<double>& InferenceManager::getCsfs() { return csfs_d; }
 template <>
-ConditionedSFS<adouble> InferenceManager::getCsfs() { return csfs_ad; }
+ConditionedSFS<adouble>& InferenceManager::getCsfs() { return csfs_ad; }
 
 void InferenceManager::parallel_do(std::function<void(hmmptr&)> lambda)
 {

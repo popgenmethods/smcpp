@@ -29,12 +29,14 @@
 void doProgress(bool);
 extern std::mutex mtx;
 extern bool do_progress;
-#define PROGRESS(x) if (do_progress) { mtx.lock(); std::cout << __FILE__ << ":" << __func__ << "... " << std::flush; mtx.unlock(); }
+#define PROGRESS(x) if (do_progress) { mtx.lock(); std::cout << __FILE__ << ":" << __func__ << x << "... " << std::flush; mtx.unlock(); }
 #define PROGRESS_DONE() if (do_progress) { mtx.lock(); std::cout << "done." << std::endl << std::flush; mtx.unlock(); }
 #else
 #define PROGRESS(x)
 #define PROGRESS_DONE()
 #endif
+
+constexpr long nC2(int n) { return n * (n - 1) / 2; }
 
 template <typename T> using Matrix = Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic>;
 template <typename T> using Vector = Eigen::Matrix<T, Eigen::Dynamic, 1>;
