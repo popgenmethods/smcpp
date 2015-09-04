@@ -83,7 +83,8 @@ void InferenceManager::setParams(const ParameterVector params, const std::vector
     for (int m = 0; m < M; ++m)
     {
         tmask.clear();
-        emission.row(m) = Matrix<T>::Map(sfss[m].data(), 1, 3 * (n + 1)).template cast<adouble>();
+        em_tmp = sfss[m];
+        emission.row(m) = Matrix<T>::Map(em_tmp.data(), 1, 3 * (n + 1)).template cast<adouble>();
         for (int i = 0; i < 3; ++i)
             for (int j = 0; j < n + 1; ++j)
             {
