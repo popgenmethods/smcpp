@@ -16,8 +16,10 @@ below_coeff compute_below_coeffs(int n)
             for (int k = nn - 1; k > 1; --k)
             {
                 long denom = (nn + 1) * (nn - 2) - (k + 1) * (k - 2);
-                mnew.col(k - 2) = mlast.col(k - 2) * mpq_class((nn + 1) * (nn - 2), denom);
-                mnew.col(k - 2) -= mnew.col(k - 1) * mpq_class((k + 2) * (k - 1), denom);
+                MPQ_CONSTRUCT(c1, (nn + 1) * (nn - 2), denom);
+                MPQ_CONSTRUCT(c2, (k + 2) * (k - 1), denom);
+                mnew.col(k - 2) = mlast.col(k - 2) * c1;
+                mnew.col(k - 2) -= mnew.col(k - 1) * c2;
             }
             mlast = mnew;
         }
@@ -25,7 +27,7 @@ below_coeff compute_below_coeffs(int n)
         if (ret.prec < 53)
             ret.prec = 53;
         ret.coeffs = mlast;
-        below_coeffs_memo[n] = ret;
+        below_coeffs_memo.emplace(n, ret); 
         PROGRESS_DONE();
     }
     return below_coeffs_memo[n];
@@ -39,30 +41,21 @@ mpq_class calculate_Wnbj(int n, int b, int j)
         case 2:
             return mpq_class(6, n + 1);
         case 3:
+            if (n == 2 * b) return 0_mpq;
             return mpq_class(30 * (n - 2 * b), (n + 1) * (n + 2));
         default:
             std::array<int, 3> key = {n, b, j};
             if (_Wnbj_memo.count(key) == 0)
             {
                 int jj = j - 2;
-                mpq_class ret = calculate_Wnbj(n, b, jj) * mpq_class(-(1 + jj) * (3 + 2 * jj) * (n - jj), jj * (2 * jj - 1) * (n + jj + 1));
-                ret += calculate_Wnbj(n, b, jj + 1) * mpq_class((3 + 2 * jj) * (n - 2 * b), jj * (n + jj + 1));
+                MPQ_CONSTRUCT(c1, -(1 + jj) * (3 + 2 * jj) * (n - jj), jj * (2 * jj - 1) * (n + jj + 1));
+                MPQ_CONSTRUCT(c2, (3 + 2 * jj) * (n - 2 * b), jj * (n + jj + 1));
+                mpq_class ret = calculate_Wnbj(n, b, jj) * c1;
+                ret += calculate_Wnbj(n, b, jj + 1) * c2;
                 _Wnbj_memo[key] = ret;
             }
             return _Wnbj_memo[key];
     }
-}
-
-std::map<std::array<int, 2>, long> _binom_memo;
-long binom(int n, int k)
-{
-    assert(k >= 0);
-    if (k == 0 or n == k)
-        return 1;
-    std::array<int, 2> key = {n, k};
-    if (_binom_memo.count(key) == 0) 
-        _binom_memo[key] = binom(n - 1, k - 1) + binom(n - 1, k);
-    return _binom_memo[key];
 }
 
 std::map<std::array<int, 3>, mpq_class> pnkb_dist_memo;
@@ -77,12 +70,12 @@ mpq_class pnkb_dist(int n, int m, int l1)
     {
         mpz_class binom1;
         mpz_bin_uiui(binom1.get_mpz_t(), n + 3, m + 3);
-        mpq_class ret(l1 * (n + 2 - l1), binom1);
+        MPQ_CONSTRUCT(ret, l1 * (n + 2 - l1), binom1);
         if (m > 0)
         {
             mpz_class binom2;
             mpz_bin_uiui(binom2.get_mpz_t(), n - l1, m - 1);
-            mpq_class r2((n + 1 - l1) * binom2, m * (m + 1));
+            MPQ_CONSTRUCT(r2, (n + 1 - l1) * binom2, m * (m + 1));
             ret *= r2;
         }
         pnkb_dist_memo[key] = ret;
@@ -108,17 +101,15 @@ mpq_class pnkb_undist(int n, int m, int l3)
     {
         mpz_class binom1;
         mpz_bin_uiui(binom1.get_mpz_t(), n + 3, m + 3);
-        mpq_class ret((n + 3 - l3) * (n + 2 - l3) * (n + 1 - l3), binom1);
+        MPQ_CONSTRUCT(ret, (n + 3 - l3) * (n + 2 - l3) * (n + 1 - l3), binom1);
+        mpz_class binom2;
+        mpz_bin_uiui(binom2.get_mpz_t(), n - l3 - 1, m - 2);
+        MPQ_CONSTRUCT(r2, (n - l3) * binom2, (m - 1) * m * (m + 1) * (m + 2));
         if (m == 1)
             ret /= 6;
         else
-        {
-            mpz_class binom2;
-            mpz_bin_uiui(binom2.get_mpz_t(), n - l3 - 1, m - 2);
-            mpq_class r2((n - l3) * binom2, (m - 1) * m * (m + 1) * (m + 2));
             ret *= r2;
-        }
-        pnkb_undist_memo[key] = ret;
+        pnkb_undist_memo.emplace(key, ret);
     }
     return pnkb_undist_memo[key];
     /*
@@ -136,7 +127,7 @@ template <typename T>
 ConditionedSFS<T>::ConditionedSFS(int n, int num_threads) : 
     n(n), num_threads(num_threads),
     mei(compute_moran_eigensystem(n)), mcache(cached_matrices(n)),
-    csfs(3, n + 1), csfs_above(3, n + 1), csfs_below(3, n + 1), tp(num_threads) { Eigen::setNbThreads(num_threads); }
+    csfs(3, n + 1), csfs_above(3, n + 1), csfs_below(3, n + 1) {}
 
 /*
 template <typename T>
@@ -412,9 +403,12 @@ MatrixCache& ConditionedSFSBase::cached_matrices(int n)
         VectorXq lsp = VectorXq::LinSpaced(n + 1, 2, n + 2);
         ret.M0 = bc.coeffs * lsp.asDiagonal() * (VectorXq::Ones(n) - D_subtend_below).asDiagonal() * P_undist;
         ret.M1 = bc.coeffs * lsp.asDiagonal() * D_subtend_below.asDiagonal() * P_dist;
-        ret.prec = std::max(53, int(log2(std::max(
-                        ret.M0.array().abs().maxCoeff().get_d(),
-                        ret.M1.array().abs().maxCoeff().get_d()))) + 10);
+        if (n > 0)
+            ret.prec = std::max(53, int(log2(std::max(
+                            ret.M0.array().abs().maxCoeff().get_d(),
+                            ret.M1.array().abs().maxCoeff().get_d()))) + 10);
+        else
+            ret.prec = 53;
         matrix_cache[n] = ret;
         std::cout << "done" << std::endl;
     }
