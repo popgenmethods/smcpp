@@ -7,6 +7,10 @@
 #include "common.h"
 #include "mpreal_support.h"
 
+#define MPQ_CONSTRUCT(v, a, b) \
+    mpq_class v(a, b);\
+    if (a == 0) v = 0_mpq;
+
 inline double log(const mpq_class &x) { return log(mpfr::mpreal(x.get_mpq_t())).toDouble(); }
 
 namespace Eigen {

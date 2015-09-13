@@ -3,7 +3,6 @@ import sys
 cimport numpy as np
 import numpy as np
 import logging
-import moran_model
 import collections
 import scipy.optimize
 
@@ -53,7 +52,7 @@ cdef class PyInferenceManager:
     cdef public long long seed
 
     def __cinit__(self, int n, observations, hidden_states, 
-            double theta, double rho, int block_size, int num_threads, int num_samples,
+            double theta, double rho, int block_size,
             int mask_freq, mask_offset, emission_mask = None):
         self.seed = 1
         self._n = n
@@ -75,29 +74,11 @@ cdef class PyInferenceManager:
         cdef int[:, ::1] emv = self._emission_mask
         cdef vector[double] hs = hidden_states
         self._im = new InferenceManager(
-                n, L, obs, hs, &emv[0, 0], mask_freq, mask_offset, theta, rho, block_size, 
-                num_threads, num_samples)
+                n, L, obs, hs, &emv[0, 0], mask_freq, mask_offset, theta, rho, block_size)
+
 
     def __dealloc__(self):
         del self._im
-
-    def sfs(self, params, double t1, double t2, jacobian=False):
-        self._im.set_seed(self.seed)
-        cdef ParameterVector p = make_params(params)
-        cdef Matrix[double] sfs
-        cdef Matrix[adouble] dsfs
-        ret = aca(np.zeros([3, self._n + 1]))
-        cdef double[:, ::1] vret = ret
-        if not jacobian:
-            sfs = self._im.sfs_cython(p, t1, t2)
-            store_matrix(&sfs, &vret[0, 0])
-            return ret
-        J = len(params) * len(params[0])
-        jac = aca(np.zeros([3, self._n + 1, J]))
-        cdef double[:, :, ::1] vjac = jac
-        dsfs = self._im.dsfs_cython(p, t1, t2)
-        store_sfs_results(dsfs, &vret[0, 0], &vjac[0, 0, 0])
-        return ret, jac
 
     def getObservations(self):
         return self._observations
@@ -106,7 +87,6 @@ cdef class PyInferenceManager:
         # if not np.all(np.array(params) > 0):
             # raise ValueError("All parameters must be strictly positive")
         cdef ParameterVector p = make_params(params)
-        self._im.set_seed(self.seed)
         if derivatives is True:
             derivatives = [(a, b) for a in range(len(params)) for b in range(len(params[0]))]
         if derivatives:
@@ -114,10 +94,8 @@ cdef class PyInferenceManager:
             self._nder = len(derivatives)
             self._im.setParams_ad(p, derivatives)
         else:
+            self._nder = 0
             self._im.setParams_d(p)
-
-    def set_num_samples(self, int nsamples):
-        self._im.set_num_samples(nsamples)
 
     def setDebug(self, val):
         self._im.debug = val
@@ -134,58 +112,42 @@ cdef class PyInferenceManager:
     def gammas(self):
         return _make_em_matrix(self._im.getGammas())
 
+    def set_gammas(self, A):
+        Ac = aca(A)
+        cdef double[:, ::1] Av = Ac
+        self._im.setGammas(&Av[0, 0])
+
     def Bs(self):
         cdef vector[pMatrixAd] mats = self._im.getBs()
         cdef double[:, ::1] v
+        cdef double[:, :, ::1] av
         ret = []
         for i in range(mats.size()):
-            m = mats[i][0].rows()
-            n = mats[i][0].cols()
-            ary = aca(np.zeros([m, n]))
-            v = ary
-            store_matrix(mats[i], &v[0, 0])
-            ret.append(ary)
+            if (self._nder == 0):
+                m = mats[i][0].rows()
+                n = mats[i][0].cols()
+                ary = aca(np.zeros([m, n]))
+                v = ary
+                store_matrix(mats[i], &v[0, 0])
+                ret.append(ary)
+            else:
+                ret.append(_store_admatrix_helper(mats[i][0], self._nder))
         return ret
 
+    def block_keys(self):
+        return self._im.getBlockKeys()
+
     def pi(self):
-        cdef Matrix[double] mat = self._im.getPi()
-        cdef double[:, ::1] v
-        m = mat.rows()
-        n = mat.cols()
-        ary = aca(np.zeros([m, n]))
-        v = ary
-        store_matrix(&mat, &v[0, 0])
-        return ary
+        return _store_admatrix_helper(self._im.getPi(), self._nder)
 
     def transition(self):
-        cdef Matrix[double] mat = self._im.getTransition()
-        cdef double[:, ::1] v
-        m = mat.rows()
-        n = mat.cols()
-        ary = aca(np.zeros([m, n]))
-        v = ary
-        store_matrix(&mat, &v[0, 0])
-        return ary
+        return _store_admatrix_helper(self._im.getTransition(), self._nder)
 
     def emission(self):
-        cdef Matrix[double] mat = self._im.getEmission()
-        cdef double[:, ::1] v
-        m = mat.rows()
-        n = mat.cols()
-        ary = aca(np.zeros([m, n]))
-        v = ary
-        store_matrix(&mat, &v[0, 0])
-        return ary
+        return _store_admatrix_helper(self._im.getEmission(), self._nder)
 
     def masked_emission(self):
-        cdef Matrix[double] mat = self._im.getMaskedEmission()
-        cdef double[:, ::1] v
-        m = mat.rows()
-        n = mat.cols()
-        ary = aca(np.zeros([m, n]))
-        v = ary
-        store_matrix(&mat, &v[0, 0])
-        return ary
+        return _store_admatrix_helper(self._im.getMaskedEmission(), self._nder)
 
     def _call_inference_func(self, func, lam):
         if func == "loglik":
@@ -195,10 +157,13 @@ cdef class PyInferenceManager:
         ret = []
         cdef double[::1] vjac
         for i in range(self._num_hmms):
-            jac = aca(np.zeros([self._nder]))
-            vjac = jac
-            fill_jacobian(ad_rets[i], &vjac[0])
-            ret.append((toDouble(ad_rets[i]), jac))
+            if (self._nder > 0):
+                jac = aca(np.zeros([self._nder]))
+                vjac = jac
+                fill_jacobian(ad_rets[i], &vjac[0])
+                ret.append((toDouble(ad_rets[i]), jac))
+            else:
+                ret.append(toDouble(ad_rets[i]))
         return ret
 
     def Q(self, lam):
@@ -211,7 +176,7 @@ cdef class PyInferenceManager:
         cdef ParameterVector p = make_params(params)
         ret = [0.0]
         t = 0
-        T_MAX = 14
+        T_MAX = 100
         for m in range(1, M):
             def f(t):
                 return np.exp(-self._im.R(params, t)) - 1.0 * (M - m) / M
@@ -230,41 +195,33 @@ def reduced_sfs(sfs):
                 reduced_sfs[i + j] += sfs[i][j]
     return reduced_sfs
 
-def sfs(params, int n, int num_samples, double tau1, double tau2, int numthreads, double theta, seed=None, jacobian=False):
-    K = len(params[0])
-    for p in params:
-        assert len(p) == K
-    cdef vector[vector[double]] cparams = make_params(params)
-    sfs = aca(np.zeros([3, n + 1]))
-    cdef double[:, ::1] msfs = sfs
-    cdef double[:, :, :, ::1] mjac 
-    if jacobian:
-        jac = aca(np.zeros((3, n + 1, len(params), K)))
-        mjac = jac
-        cython_calculate_sfs_jac(cparams, n, tau1, tau2, numthreads, theta, &msfs[0, 0], &mjac[0, 0, 0, 0])
-        return (sfs, reduced_sfs(sfs), jac, reduced_sfs(jac))
-    else:
-        cython_calculate_sfs(cparams, n, tau1, tau2, numthreads, theta, &msfs[0, 0])
-        return (sfs, reduced_sfs(sfs))
+def sfs(int n, params, double t1, double t2, double theta, jacobian=False):
+    cdef ParameterVector p = make_params(params)
+    cdef Matrix[double] sfs
+    cdef Matrix[adouble] dsfs
+    ret = aca(np.zeros([3, n - 1]))
+    cdef double[:, ::1] vret = ret
+    if not jacobian:
+        sfs = sfs_cython[double](n, p, t1, t2, theta)
+        store_matrix(&sfs, &vret[0, 0])
+        return ret
+    J = len(params) * len(params[0])
+    jac = aca(np.zeros([3, n - 1, J]))
+    cdef double[:, :, ::1] vjac = jac
+    dsfs = sfs_cython[adouble](n, p, t1, t2, theta)
+    return _store_admatrix_helper(dsfs, J)
 
-# def transition(params, hidden_states, rho, jacobian=False):
-#     J = len(params)
-#     K = len(params[0])
-#     for p in params:
-#         assert len(p) == K
-#     cdef vector[vector[double]] cparams = make_params(params)
-#     assert hidden_states[0] == 0.0
-#     assert hidden_states[-1] == np.inf
-#     M = len(hidden_states) - 1
-#     trans = aca(np.zeros([M, M]))
-#     cdef double[:, ::1] mtrans = trans
-#     cdef double[:, :, :, ::1] mjac
-#     if jacobian:
-#         jac = aca(np.zeros((M, M, J, K)))
-#         mjac = jac
-#         cython_calculate_transition_jac(cparams, hidden_states, rho, 
-#                 &mtrans[0, 0], &mjac[0, 0, 0, 0])
-#         return (trans, jac)
-#     else:
-#         cython_calculate_transition(cparams, hidden_states, rho, &mtrans[0, 0])
-#         return trans
+cdef _store_admatrix_helper(Matrix[adouble] &mat, int nder):
+    cdef double[:, ::1] v
+    cdef double[:, :, ::1] av
+    m = mat.rows()
+    n = mat.cols()
+    ary = aca(np.zeros([m, n]))
+    v = ary
+    if (nder == 0):
+        store_matrix(&mat, &v[0, 0])
+        return ary
+    jac = aca(np.zeros([m, n, nder]))
+    av = jac
+    store_admatrix(mat, nder, &v[0, 0], &av[0, 0, 0])
+    return ary, jac

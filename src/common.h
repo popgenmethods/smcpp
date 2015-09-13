@@ -73,6 +73,7 @@ struct Functor
 typedef Eigen::AutoDiffScalar<Eigen::VectorXd> adouble;
 inline double toDouble(const adouble &a) { return a.value(); }
 inline double toDouble(const double &d) { return d; }
+
 namespace Eigen {
     // Allow for casting of adouble matrices to double
     namespace internal 
@@ -165,16 +166,10 @@ inline void fill_jacobian(const adouble &ll, double* outjac)
     Eigen::Map<Eigen::Matrix<double, Eigen::Dynamic, 1>, Eigen::RowMajor> _jac(outjac, d.rows());
     _jac = d;
 }
-inline void store_matrix(Matrix<double> *M, double* out)
-{
-    Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>::Map(out, M->rows(), M->cols()) = *M;
-}
-inline void store_matrix(Matrix<adouble> *M, double* out)
-{
-    Matrix<double> MM = M->template cast<double>();
-    Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>::Map(out, MM.rows(), MM.cols()) = MM;
-}
 
+void store_matrix(Matrix<double> *M, double* out);
+void store_matrix(Matrix<adouble> *M, double* out);
+void store_admatrix(const Matrix<adouble> &M, int nd, double* out, double* outjac);
 
 inline double dmin(double a, double b) { return std::min(a, b); }
 inline double dmax(double a, double b) { return std::max(a, b); }

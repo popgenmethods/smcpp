@@ -36,15 +36,10 @@ template <typename T>
 class ConditionedSFS : public ConditionedSFSBase
 {
     public:
-    ConditionedSFS(int, int);
+    ConditionedSFS(int);
     std::vector<Matrix<T> > compute(const PiecewiseExponentialRateFunction<T> &, double);
-    static std::vector<Matrix<T> > calculate(int n, int num_threads, const PiecewiseExponentialRateFunction<T> &eta, double theta)
-    {
-        ConditionedSFS<T> csfs(n, num_threads);
-        return csfs.compute(eta, theta);
-    }
 
-    private:
+    // private:
     // Methods
     void construct_ad_vars();
     Matrix<T> above0(const Matrix<T>&);
@@ -63,10 +58,8 @@ class ConditionedSFS : public ConditionedSFSBase
 
     // Variables
     const int n;
-    const int num_threads;
     const MoranEigensystem mei;
     const MatrixCache mcache;
-    Matrix<T> csfs, csfs_above, csfs_below, ETnk_below;
     // ThreadPool tp;
 };
 /*
@@ -125,18 +118,5 @@ class CSFSManager
 };
 
 */
-
-void store_sfs_results(const Matrix<double>&, double*);
-void store_sfs_results(const Matrix<adouble>&, double*, double*);
-
-// These methods are used for testing purposes only
-void cython_calculate_sfs(const std::vector<std::vector<double>> params,
-        int n, double tau1, double tau2, int numthreads, double theta, 
-        double* outsfs);
-void cython_calculate_sfs_jac(const std::vector<std::vector<double>> params,
-        int n, double tau1, double tau2, int numthreads, double theta, 
-        double* outsfs, double* outjac);
-
-void init_eigen();
 
 #endif

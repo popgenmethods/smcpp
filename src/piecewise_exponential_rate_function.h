@@ -8,6 +8,7 @@
 #include "function_evaluator.h"
 #include "mpreal_support.h"
 #include "mpq_support.h"
+#include "mpi.h"
 
 template <typename T>
 class ConditionedSFS;
@@ -48,7 +49,7 @@ class PiecewiseExponentialRateFunction
         return os;
     }
     
-    private:
+    // private:
     T init_derivative(double x);
     std::vector<std::vector<double>> params;
     int K;

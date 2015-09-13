@@ -124,36 +124,9 @@ mpq_class pnkb_undist(int n, int m, int l3)
 }
 
 template <typename T>
-ConditionedSFS<T>::ConditionedSFS(int n, int num_threads) : 
-    n(n), num_threads(num_threads),
-    mei(compute_moran_eigensystem(n)), mcache(cached_matrices(n)),
-    csfs(3, n + 1), csfs_above(3, n + 1), csfs_below(3, n + 1) {}
-
-/*
-template <typename T>
-Matrix<T> ConditionedSFS<T>::compute_etnk_below_mat(const Matrix<mpreal_wrapper<T> > &etjj)
-{
-    Matrix<T> ret(etjj.rows(), etjj.cols());
-    ret.setZero();
-    // This basically expresses:
-    // ret = T * bc where T(i, j) = E(Tjj | H[i])
-    for (int i = 0; i < ret.rows(); ++i)
-        for (int j = 0; j < ret.cols(); ++j)
-            {
-                mpreal_wrapper<T> tmp(0.0);
-                for (int k = 0; k < ret.cols(); ++k)
-                    tmp += etjj(i, k) * bc.coeffs(k, j).get_mpq_t();
-                ret(i, j) = mpreal_wrapper_convertBack<T>((j + 2) * tmp);
-                if (ret(i, j) < -1e-4)
-                {
-                    std::cout << "(" << i << "," << j << "):\n" << ret.template cast<double>() << std::endl;
-                    throw std::domain_error("highly negative etnk entry");
-                }
-                ret(i, j) = dmax(ret(i, j), 1e-20);
-            }
-    return ret;
-}
-*/
+ConditionedSFS<T>::ConditionedSFS(int n) :
+    n(n), 
+    mei(compute_moran_eigensystem(n)), mcache(cached_matrices(n)) {}
 
 template <typename T>
 template <typename Derived>
@@ -165,22 +138,6 @@ Matrix<T> ConditionedSFS<T>::parallel_cwiseProduct_colSum(const MatrixXq &a, con
     for (int j = 0; j < a.cols(); ++j)
         for (int i = 0; i < a.rows(); ++i)
             ret(0, j) += a(i, j).get_d() * b(i, j);
-    /*std::vector<std::future<void> > res;
-    int bsize = std::ceil((double)a.cols() / num_threads), start, end;
-    for (int t = 0; t < num_threads; ++t)
-    {
-        start = t * bsize;
-        end = std::min((t + 1) * bsize, (int)a.rows());
-        res.emplace_back(tp.enqueue([start, end, &a, &b, &ret]
-            {
-                for (int j = start; j < end; ++j)
-                    for (int i = 0; i < a.rows(); ++i)
-                        ret(0, j) += a(i, j).get_d() * b(i, j);
-            }));
-    }
-    for (int t = 0; t < num_threads; ++t)
-        res[t].wait();
-        */
     return ret;
 }
 
@@ -207,16 +164,12 @@ template <typename T>
 Matrix<T> ConditionedSFS<T>::below0(const Matrix<mpreal_wrapper<T> > &tjj_below)
 {
     // return tjj_below.lazyProduct(mcache.M0).template cast<T>();
-    if (n < 20)
-        return (tjj_below * mcache.M0.template cast<mpreal_wrapper<T> >()).template cast<T>();
     return parallel_matrix_product(tjj_below, mcache.M0).template cast<T>();
 }
 
 template <typename T>
 Matrix<T> ConditionedSFS<T>::below1(const Matrix<mpreal_wrapper<T> > &tjj_below)
 {
-    if (n < 20)
-        return (tjj_below * mcache.M1.template cast<mpreal_wrapper<T> >()).template cast<T>();
     return parallel_matrix_product(tjj_below, mcache.M1).template cast<T>();
     // return tjj_below.lazyProduct(mcache.M1).template cast<T>();
 }
@@ -229,27 +182,14 @@ Matrix<mpreal_wrapper<T> > ConditionedSFS<T>::parallel_matrix_product(const Eige
     ret.setZero();
 #pragma omp parallel for
     for (int i = 0; i < a.rows(); ++i)
+    {
+        std::vector<std::vector<mpreal_wrapper<T> > > vs(b.cols());
         for (int k = 0; k < a.cols(); ++k)
             for (int j = 0; j < b.cols(); ++j)
-                ret(i, j) += a(i, k) * b(k, j);
-    /*
-    std::vector<std::future<void> > res;
-    int bsize = std::ceil((double)a.rows() / num_threads), start, end;
-    for (int t = 0; t < num_threads; ++t)
-    {
-        start = t * bsize;
-        end = std::min((t + 1) * bsize, (int)a.rows());
-        res.emplace_back(tp.enqueue([start, end, &a, &b, &ret]
-            {
-                for (int i = start; i < end; ++i)
-                    for (int k = 0; k < a.cols(); ++k)
-                        for (int j = 0; j < b.cols(); ++j)
-                            ret(i, j) += a(i, k) * b(k, j);
-            }));
+                vs[j].push_back(a(i,k) * b(k,j));
+        for (int j = 0; j < b.cols(); ++j)
+            ret(i, j) = mpreal_wrapper_type<T>::fsum(vs[j]);
     }
-    for (int t = 0; t < num_threads; ++t)
-        res[t].wait();
-        */
     return ret;
 }
 
@@ -263,12 +203,6 @@ std::vector<Matrix<T> > ConditionedSFS<T>::compute_below(const PiecewiseExponent
 #pragma omp parallel for
     for (int m = 0; m < eta.K; ++m)
         eta.tjj_double_integral_below(n, mcache.prec, m, ts_integrals);
-    /*
-    for (int m = 0; m < eta.K; ++m)
-        res.emplace_back(tp.enqueue([this, eta, m, &ts_integrals] { eta.tjj_double_integral_below(n, mcache.prec, m, ts_integrals); }));
-    for (int m = 0; m < eta.K; ++m)
-        res[m].wait();
-        */
     size_t H = eta.hidden_states.size() - 1;
     Matrix<mpreal_wrapper<T> > tjj_below(H, n + 1);
     Matrix<mpreal_wrapper<T> > last = ts_integrals.topRows(eta.hs_indices[0]).colwise().sum(), next;
@@ -279,11 +213,6 @@ std::vector<Matrix<T> > ConditionedSFS<T>::compute_below(const PiecewiseExponent
         last = next;
     }
     PROGRESS("matrix products below");
-    /*
-    std::vector<std::future<Matrix<T> > > res2;
-    res2.emplace_back(tp.enqueue([&tjj_below, this] { return below0(tjj_below); }));
-    res2.emplace_back(tp.enqueue([&tjj_below, this] { return below1(tjj_below); }));
-    */
     Matrix<T> M0_below = below0(tjj_below);
     Matrix<T> M1_below = below1(tjj_below);
     std::vector<Matrix<T> > ret(H, Matrix<T>::Zero(3, n + 1));
@@ -293,12 +222,6 @@ std::vector<Matrix<T> > ConditionedSFS<T>::compute_below(const PiecewiseExponent
     {
         ret[h].block(0, 1, 1, n) = M0_below.row(h);
         ret[h].block(1, 0, 1, n + 1) = M1_below.row(h);
-        h1 = exp(-(*(eta.getR()))(eta.hidden_states[h]));
-        if (eta.hidden_states[h + 1] == INFINITY)
-            h2 *= 0.0;
-        else
-            h2 = exp(-(*(eta.getR()))(eta.hidden_states[h + 1]));
-        ret[h] /= h1 - h2;
     }
     PROGRESS_DONE();
     return ret;
@@ -317,31 +240,12 @@ std::vector<Matrix<T> > ConditionedSFS<T>::compute_above(
 #pragma omp parallel for
     for (int j = 2; j < n + 3; ++j)
         eta.tjj_double_integral_above(n, j, C);
-    /*
-    for (int j = 2; j < n + 3; ++j)
-        res.emplace_back(tp.enqueue([eta, this, j, &C] { eta.tjj_double_integral_above(n, j, C); }));
-    for (int j = 2; j < n + 3; ++j)
-        res[j - 2].wait();
-        */
     Matrix<T> tmp;
     PROGRESS("matrix products");
-    /*
-    res.clear();
-    for (int h = 0; h < H; ++h)
-    {
-        res.emplace_back(tp.enqueue([this, &C, h] { return this->above0(C[h]); }));
-        res2.emplace_back(tp.enqueue([this, &C, h] { return this->above2(C[h]); }));
-    }
-    */
     for (int h = 0; h < H; ++h)
     {
         ret[h].block(0, 1, 1, n) += above0(C[h]);
         ret[h].block(2, 0, 1, n) += above2(C[h]);
-        T h1(0.0), h2(0.0);
-        h1 = exp(-(*(eta.getR()))(eta.hidden_states[h]));
-        if (eta.hidden_states[h + 1] < INFINITY)
-            h2 = exp(-(*(eta.getR()))(eta.hidden_states[h + 1]));
-        ret[h] /= h1 - h2;
     }
     PROGRESS_DONE();
     return ret;
@@ -355,11 +259,20 @@ std::vector<Matrix<T> > ConditionedSFS<T>::compute(const PiecewiseExponentialRat
     for (int i = 0; i < above.size(); ++i)
     {
         ret[i] = above[i] + below[i];
-        ret[i] = ret[i].unaryExpr([](T x) { if (x < 1e-20) return T(1e-20); return x; });
-        T tauh = ret[i].sum();
+        T h1 = (*(eta.getR()))(eta.hidden_states[i]), d;
+        if (eta.hidden_states[i + 1] < INFINITY)
+        {
+            T h2 = (*(eta.getR()))(eta.hidden_states[i + 1]);
+            d = -exp(-h1) * expm1(h1 - h2);
+        }
+        else
+            d = exp(-h1);
+        ret[i] /= d;
+       T tauh = ret[i].sum();
         ret[i] *= -expm1(-theta * tauh) / tauh;
         ret[i](0, 0) = exp(-theta * tauh);
-    }
+        ret[i] = ret[i].unaryExpr([](T x) { if (x < 1e-20) return T(1e-20); if (x < -1e-8) throw std::domain_error("very negative sfs"); return x; });
+     }
     return ret;
 }
 
@@ -401,12 +314,14 @@ MatrixCache& ConditionedSFSBase::cached_matrices(int n)
 
         below_coeff bc = compute_below_coeffs(n);
         VectorXq lsp = VectorXq::LinSpaced(n + 1, 2, n + 2);
-        ret.M0 = bc.coeffs * lsp.asDiagonal() * (VectorXq::Ones(n) - D_subtend_below).asDiagonal() * P_undist;
+        ret.M0 = bc.coeffs * lsp.asDiagonal() * (VectorXq::Ones(n + 1) - D_subtend_below).asDiagonal() * P_undist;
         ret.M1 = bc.coeffs * lsp.asDiagonal() * D_subtend_below.asDiagonal() * P_dist;
         if (n > 0)
-            ret.prec = std::max(53, int(log2(std::max(
-                            ret.M0.array().abs().maxCoeff().get_d(),
-                            ret.M1.array().abs().maxCoeff().get_d()))) + 10);
+        {
+            mpq_class m1 = ret.M0.array().abs().maxCoeff();
+            mpq_class m2 = ret.M1.array().abs().maxCoeff();
+            ret.prec = std::max(53, (int)mpfr::mpreal(std::max(m1, m2).get_mpq_t()).get_exp() + 100);
+        }
         else
             ret.prec = 53;
         matrix_cache[n] = ret;
@@ -435,51 +350,6 @@ void print_sfs(int n, const std::vector<double> &sfs)
     {
         printf("%i:%f\n", i, rsfs[i]);
     }
-}
-
-void store_sfs_results(const Matrix<double> &csfs, double* outsfs)
-{
-    int n = csfs.cols();
-    Eigen::Map<Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> _outsfs(outsfs, 3, n);
-    _outsfs = csfs.cast<double>();
-}
-
-void store_sfs_results(const Matrix<adouble> &csfs, double* outsfs, double* outjac)
-{
-    store_sfs_results(csfs.cast<double>(), outsfs);
-    int n = csfs.cols();
-    int num_derivatives = csfs(0,0).derivatives().rows();
-    Eigen::VectorXd d;
-    int m = 0;
-    for (int i = 0; i < 3; ++i)
-        for (int j = 0; j < n; ++j)
-        {
-            d = csfs(i, j).derivatives();
-            assert(d.rows() == num_derivatives);
-            for (int k = 0; k < num_derivatives; ++k)
-                outjac[m++] = d(k);
-        }
-}
-
-void cython_calculate_sfs(const std::vector<std::vector<double>> params,
-        int n, double tau1, double tau2, int num_threads, double theta, 
-        double* outsfs)
-{
-    std::vector<double> hidden_states = {tau1, tau2};
-    PiecewiseExponentialRateFunction<double> eta(params, hidden_states);
-    ConditionedSFS<double> csfs(n, num_threads);
-    Matrix<double> out = csfs.compute(eta, theta)[0];
-    store_sfs_results(out, outsfs);
-}
-
-void cython_calculate_sfs_jac(const std::vector<std::vector<double>> params,
-        int n, double tau1, double tau2, int num_threads, double theta, 
-        double* outsfs, double* outjac)
-{
-    PiecewiseExponentialRateFunction<adouble> eta(params, {tau1, tau2});
-    ConditionedSFS<adouble> csfs(n, num_threads);
-    Matrix<adouble> out = csfs.compute(eta, theta)[0];
-    store_sfs_results(out, outsfs, outjac);
 }
 
 template class ConditionedSFS<double>;

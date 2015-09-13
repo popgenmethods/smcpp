@@ -41,6 +41,7 @@ struct mpreal_wrapper_type<adouble>
 { 
     typedef Eigen::Matrix<mpfr::mpreal, Eigen::Dynamic, 1> VectorXmp;
     typedef Eigen::AutoDiffScalar<VectorXmp> type;
+
     static type convert(const adouble &x)
     {
         return type(x.value(), x.derivatives().template cast<mpfr::mpreal>());
@@ -142,5 +143,8 @@ inline void print_derivatives(const adouble &x)
 {
     std::cout << "derivatives: " << x.derivatives().transpose() << std::endl;
 }
+
+inline mpfr::mpreal toMpfr(const mpfr::mpreal &m) { return m; }
+inline mpfr::mpreal toMpfr(const mpreal_wrapper<adouble> &m) { return m.value(); }
 
 #endif

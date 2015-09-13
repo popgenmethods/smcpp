@@ -62,6 +62,7 @@ class HMM
     HMM(Eigen::Matrix<int, Eigen::Dynamic, 2> obs, const int block_size,
         const Vector<adouble> *pi, const Matrix<adouble> *transition, 
         const Matrix<adouble> *emission, const Matrix<adouble> *emission_mask, 
+        const Eigen::Matrix<int, 3, Eigen::Dynamic, Eigen::RowMajor>* mask_locations,
         const int mask_freq, const int mask_offset);
     void Estep(void);
     double loglik(void);
@@ -77,6 +78,7 @@ class HMM
     void recompute_B(void);
     void forward_backward(void);
     void domain_error(double);
+    bool is_alt_block(int);
 
     Eigen::Matrix<int, Eigen::Dynamic, 2> obs;
     const int block_size;
@@ -84,18 +86,20 @@ class HMM
     // Instance variables
     const Vector<adouble> *pi;
     const Matrix<adouble> *transition, *emission, *emission_mask;
+    const Eigen::Matrix<int, 3, Eigen::Dynamic, Eigen::RowMajor> *mask_locations;
     const int mask_freq, mask_offset, M, Ltot;
     std::vector<Vector<adouble>*> Bptr;
     std::vector<Eigen::Array<adouble, Eigen::Dynamic, 1>*> logBptr;
     Matrix<adouble> B;
-    Matrix<double> alpha_hat, beta_hat, gamma, xisum;
+    Matrix<double> alpha_hat, beta_hat, gamma, xisum, xisum_alt;
     Vector<double> c;
     std::vector<int> viterbi_path;
     std::unordered_map<std::pair<bool, std::map<int, int> >, std::pair<Vector<adouble>, Eigen::Array<adouble, Eigen::Dynamic, 1> > > block_prob_map;
+    std::vector<decltype(block_prob_map)::key_type> block_prob_map_keys;
+    std::vector<decltype(block_prob_map)::key_type> block_keys;
     // std::unordered_map<Eigen::Array<adouble, Eigen::Dynamic, 1>*, decltype(block_prob_map)::key_type> reverse_map;
     std::unordered_map<std::pair<bool, std::map<int, int> >, int > block_prob_counts;
-    std::map<Eigen::Array<adouble, Eigen::Dynamic, 1>*, std::vector<int> > block_map;
-
+    std::vector<std::pair<Eigen::Array<adouble, Eigen::Dynamic, 1>*, std::vector<int> > > block_pairs;
     friend class InferenceManager;
 };
 

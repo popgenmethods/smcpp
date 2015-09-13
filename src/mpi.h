@@ -16,16 +16,8 @@ class MPInterval
     MPInterval() : MPInterval(MPInterval::ZERO) {}
     MPInterval(const adouble &x) : MPInterval(mpfr::mpreal(x.value())) {}
 
-    mpfr::mpreal delta() 
-    {
-        up();
-        return b - a;
-    }
-
-    mpfr::mpreal mid()
-    {
-        return (a + b) / 2.0;
-    }
+    mpfr::mpreal delta();
+    mpfr::mpreal mid();
 
     friend MPInterval operator+(const int, const MPInterval &);
     friend MPInterval operator+(const MPInterval&, const MPInterval &);
@@ -34,8 +26,8 @@ class MPInterval
     friend MPInterval operator-(const MPInterval &);
     friend MPInterval operator*(const MPInterval &, const MPInterval &);
     friend MPInterval operator/(const MPInterval &, const MPInterval &);
-    friend MPInterval operator/(const int &, const MPInterval &);
-    friend MPInterval operator/(const MPInterval &, const int &);
+    friend MPInterval operator/(const int, const MPInterval &);
+    friend MPInterval operator/(const MPInterval &, const int);
     friend MPInterval operator*(const mpfr::mpreal &, const MPInterval &);
     friend MPInterval operator*(const double, const MPInterval &);
     friend std::ostream& operator<<(std::ostream&, const MPInterval&); 

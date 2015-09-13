@@ -5,6 +5,17 @@ const MPInterval MPInterval::ZERO = MPInterval("0");
 inline void up() { mpfr::mpreal::set_default_rnd(MPFR_RNDU); }
 inline void down() { mpfr::mpreal::set_default_rnd(MPFR_RNDD); }
 
+mpfr::mpreal MPInterval::delta()
+{
+    up();
+    return b - a;
+}
+
+mpfr::mpreal MPInterval::mid()
+{
+    return (a + b) / 2.0;
+}
+
 std::ostream& operator<<(std::ostream& os, const MPInterval &x)
 {
     os << "[" << x.a << "," << x.b << "]";
@@ -143,6 +154,16 @@ MPInterval operator*(const MPInterval &x, const MPInterval &y)
         b = std::max(cases);
     }
     return MPInterval(a, b);
+}
+
+MPInterval operator/(const MPInterval &x, const int y)
+{
+    return x / MPInterval(y);
+}
+
+MPInterval operator/(const int x, const MPInterval &y)
+{
+    return MPInterval(x) / y;
 }
 
 MPInterval operator/(const MPInterval &x, const MPInterval &y)

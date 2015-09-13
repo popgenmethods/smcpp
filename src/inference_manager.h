@@ -4,7 +4,6 @@
 #include <memory>
 
 #include "common.h"
-#include "ThreadPool.h"
 #include "hmm.h"
 #include "piecewise_exponential_rate_function.h"
 #include "conditioned_sfs.h"
@@ -23,8 +22,7 @@ class InferenceManager
             const int mask_freq,
             const std::vector<int> mask_offset,
             const double theta, const double rho, 
-            const int block_size, const int num_threads,
-            const int num_samples);
+            const int block_size);
     
     void set_seed(long long s) { seed = s; }
 
@@ -38,17 +36,6 @@ class InferenceManager
     template <typename T>
     std::vector<Matrix<T> > sfs(const PiecewiseExponentialRateFunction<T>&);
 
-    Matrix<double> sfs_cython(const ParameterVector p, double t1, double t2) 
-    { 
-        PiecewiseExponentialRateFunction<double> eta(p, {t1, t2});
-        return sfs<double>(eta)[0];
-    }
-    Matrix<adouble> dsfs_cython(const ParameterVector p, double t1, double t2) 
-    { 
-        PiecewiseExponentialRateFunction<adouble> eta(p, {t1, t2});
-        return sfs<adouble>(eta)[0];
-    }
-    
     // Unfortunately these are necessary to work around a bug in Cython
     void setParams_d(const ParameterVector params) 
     { 
@@ -67,17 +54,17 @@ class InferenceManager
         return (*eta.getR())(t);
     }
 
-    void set_num_samples(int nsamples) { num_samples = nsamples; }
-
     bool debug;
     std::vector<Matrix<double>*> getAlphas();
     std::vector<Matrix<double>*> getBetas();
     std::vector<Matrix<double>*> getGammas();
+    void setGammas(double*);
     std::vector<Matrix<adouble>*> getBs();
-    Matrix<double> getPi();
-    Matrix<double> getTransition();
-    Matrix<double> getEmission();
-    Matrix<double> getMaskedEmission();
+    std::vector<std::vector<std::pair<bool, std::map<int, int> > > > getBlockKeys();
+    Matrix<adouble>& getPi();
+    Matrix<adouble>& getTransition();
+    Matrix<adouble>& getEmission();
+    Matrix<adouble>& getMaskedEmission();
 
     private:
     template <typename T> 
@@ -90,14 +77,12 @@ class InferenceManager
     const int n, L;
     const std::vector<int*> observations;
     const std::vector<double> hidden_states;
-    const Eigen::Map<const Eigen::Matrix<int, 3, Eigen::Dynamic, Eigen::RowMajor>> emask;
+    const Eigen::Matrix<int, 3, Eigen::Dynamic, Eigen::RowMajor> emask;
     const int mask_freq;
     const std::vector<int> mask_offset;
     double theta, rho;
-    const int block_size, num_threads;
-    int num_samples;
+    const int block_size;
     const int M;
-    ThreadPool tp;
     long long seed;
     adouble regularizer;
 
@@ -113,5 +98,13 @@ class InferenceManager
     template <typename T>
     std::vector<T> parallel_select(std::function<T(hmmptr &)>);
 };
+
+template <typename T>
+Matrix<T> sfs_cython(int n, const ParameterVector &p, double t1, double t2, double theta) 
+{ 
+    PiecewiseExponentialRateFunction<T> eta(p, {t1, t2});
+    ConditionedSFS<T> csfs(n - 2);
+    return csfs.compute(eta, theta)[0];
+}
 
 #endif

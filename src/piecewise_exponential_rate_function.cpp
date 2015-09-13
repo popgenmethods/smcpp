@@ -1,5 +1,20 @@
 #include "piecewise_exponential_rate_function.h"
 
+// Private conversion helpers
+template <typename T, typename U>
+struct convert
+{
+    static T run(const U& x) { return T(x); }
+};
+
+template <>
+struct convert<mpreal_wrapper_type<adouble>::type, adouble>
+{
+    static mpreal_wrapper_type<adouble>::type run(const adouble &x)
+    {
+        return mpreal_wrapper_type<adouble>::type(x.value(), x.derivatives().template cast<mpfr::mpreal>());
+    }
+};
 
 template <typename T>
 PiecewiseExponentialRateFunction<T>::PiecewiseExponentialRateFunction(const std::vector<std::vector<double>> params,
@@ -93,23 +108,27 @@ PiecewiseExponentialRateFunction<T>::PiecewiseExponentialRateFunction(
 
     // Compute a TV-like regularizer
     _reg = 0.0;
-    /*
-    T x = 0.0;
-    T xmax = ts.rbegin()[1] * 1.1;
-    T step = (xmax - x) / 1000;
-    std::vector<T> xs, ys;
-    while (x < xmax)
+    T x;
+    for (int k = 1; k < K; ++k)
     {
-        xs.push_back(x);
-        x += step;
+        x += ada[k] - ada[k - 1];
+        _reg += x * x;
     }
-    if (xs.size())
-    {
-        ys = (*eta)(xs);
-        for (int i = 1; i < ys.size(); ++i)
-            _reg += myabs(ys[i] - ys[i - 1]);
-    }
-    */
+//     T x = 0.0;
+//     T xmax = ts.rbegin()[1] * 1.1;
+//     T step = (xmax - x) / 1000;
+//     std::vector<T> xs, ys;
+//     while (x < xmax)
+//     {
+//         xs.push_back(x);
+//         x += step;
+//     }
+//     if (xs.size())
+//     {
+//         ys = (*eta)(xs);
+//         for (int i = 1; i < ys.size(); ++i)
+//             _reg += myabs(ys[i] - ys[i - 1]);
+//     }
 }
 
 template <typename T>
@@ -137,29 +156,28 @@ void PiecewiseExponentialRateFunction<adouble>::initialize_derivatives(void)
     Rrng[0].derivatives() = z;
 }
 
-template <typename T>
-mpreal_wrapper<T> convert(const T &x) { return mpreal_wrapper<T>(x); }
-
-template <>
-mpreal_wrapper<adouble> convert(const adouble &d) 
-{ 
-    return mpreal_wrapper<adouble>(d.value(), d.derivatives().template cast<mpfr::mpreal>()); 
-}
-
-template <typename T>
+template <typename T, typename U>
 inline T _single_double_integral_below(const int rate,
-        const T &_tsm, const T &_tsm1, const T &_ada_m, const T &_Rrng_m,
-        const T &_tsk, const T &_tsk1, const T &_ada_k, const T &_Rrng_k)
+        const U &tsm, const U &tsm1, const U &ada_m, const U &Rrng_m,
+        const U &tsk, const U &tsk1, const U &ada_k, const U &Rrng_k)
 {
+    T _tsm = convert<T,U>::run(tsm), 
+      _tsm1 = convert<T,U>::run(tsm1),
+      _ada_m = convert<T,U>::run(ada_m),
+      _Rrng_m = convert<T,U>::run(Rrng_m), 
+      _tsk = convert<T,U>::run(tsk), 
+      _tsk1 = convert<T,U>::run(tsk1),
+      _ada_k = convert<T,U>::run(ada_k),
+      _Rrng_k = convert<T,U>::run(Rrng_k);
     if (rate == 0)
     {
-        if (_tsm1 == INFINITY)
+        if (tsm1 == INFINITY)
             return exp(-_Rrng_m) * (_tsk1 - _tsk);
         return -exp(-_Rrng_m) * expm1(-_ada_m * (_tsm1 - _tsm)) * (_tsk1 - _tsk);
     }
     T e1, e2;
-    if (_tsk1 == INFINITY) e1 = T(-1); else e1 = expm1(-rate * _ada_k * (_tsk1 - _tsk));
-    if (_tsm1 == INFINITY) e2 = T(-1); else e2 = expm1(-_ada_m * (_tsm1 - _tsm));
+    if (tsk1 == INFINITY) e1 = (T)-1; else e1 = expm1(-rate * _ada_k * (_tsk1 - _tsk));
+    if (tsm1 == INFINITY) e2 = (T)-1; else e2 = expm1(-_ada_m * (_tsm1 - _tsm));
     return exp(-rate * _Rrng_k - _Rrng_m) * e1 * e2 / rate / _ada_k;
 }
 
@@ -193,24 +211,27 @@ inline T _single_double_integral_above(const int rate, const int l1,
             e - log(rate) - log(_ada_k));
 }
 
-
-template <typename U>
-inline U _double_integral_below_helper(const int rate, const U &_tsm, const U &_tsm1, const U &_ada, const U &_Rrng)
+template <typename T, typename U>
+inline T _double_integral_below_helper(const int rate, const U &tsm, const U &tsm1, const U &ada, const U &Rrng)
 {
+    T _tsm = convert<T,U>::run(tsm), 
+      _tsm1 = convert<T,U>::run(tsm1), 
+      _ada = convert<T,U>::run(ada), 
+      _Rrng = convert<T,U>::run(Rrng);
     const int l1r = 1 + rate;
-    U z = _tsm - _tsm;
-    const U l1rinv = 1 / (z + U(l1r));
-    U diff = _tsm1 - _tsm;
-    U _adadiff = _ada * diff;
+    T z = _tsm - _tsm;
+    const T l1rinv = 1 / (z + (T)l1r);
+    T diff = _tsm1 - _tsm;
+    T _adadiff = _ada * diff;
     if (rate == 0)
     {
-        U e1 = exp(-_adadiff);
-        if (e1 == 0)
+        T e1 = exp(-_adadiff);
+        if (tsm1 == INFINITY)
             return exp(-_Rrng) / _ada;
         else
             return exp(-_Rrng) * (1 - exp(-_adadiff) * (1 + _adadiff)) / _ada;
     }
-    if (_tsm1 == INFINITY)
+    if (tsm1 == INFINITY)
         return exp(-l1r * _Rrng) * (1 - l1rinv) / (rate * _ada);
     return exp(-l1r * _Rrng) * (expm1(-l1r * _adadiff) * l1rinv - expm1(-_adadiff)) / (rate * _ada);
 }
@@ -233,27 +254,6 @@ inline U _double_integral_above_helper(const int rate, const int lam, const U &_
         return exp(-l1 * _Rrng) / l1 / rate / _ada;
     return -exp(-l1 * _Rrng) * (expm1(-l1 * adadiff) / l1 + (exp(-rate * adadiff) - exp(-l1 * adadiff)) / (l1 - rate)) / rate / _ada;
 }
-
-/*
-template <typename T>
-Matrix<T> PiecewiseExponentialRateFunction<T>::tjj_all_above(const int n, 
-        const MatrixXq &X0, const MatrixXq &Uinv_mp0, const MatrixXq &X2, 
-        const MatrixXq &Uinv_mp2) const
-{
-    Matrix<T> Ch(n + 1, n), ret(3, n + 1), T_subtend;
-    for (int j = 2; j < n + 3; ++j)
-    {
-        long lam = nC2(j) - 1;
-        Ch.row(j - 2) = tjj_double_integral_above(n, lam).row(0);
-    }
-    ret.setZero();
-    T_subtend = ((X0.template cast<T>().cwiseProduct(Ch.transpose()).colwise().sum()) * Uinv_mp0.template cast<T>());
-    ret.block(0, 1, 1, n) += T_subtend.template cast<T>();
-    T_subtend = ((X2.template cast<T>().cwiseProduct(Ch.colwise().reverse().transpose()).colwise().sum()) * Uinv_mp2.template cast<T>());
-    ret.block(2, 0, 1, n) += T_subtend.template cast<T>();
-    return ret;
-}
-*/
 
 template <typename T>
 void PiecewiseExponentialRateFunction<T>::tjj_double_integral_above(const int n, long jj, std::vector<Matrix<T> > &C) const
@@ -295,12 +295,31 @@ void PiecewiseExponentialRateFunction<T>::tjj_double_integral_below(
     {
         long rate = nC2(j) - 1;
         cs.clear();
-        cs.push_back(_double_integral_below_helper<mpreal_wrapper<T> >(rate, convert(ts[m]), convert(ts[m + 1]), convert(ada[m]), convert(Rrng[m])));
+        MPInterval mpi;
+        mp_prec_t wprec = prec;
+        do 
+        {
+            mpfr::mpreal::set_default_prec(wprec);
+            mpi = _double_integral_below_helper<MPInterval, T>(rate, ts[m], ts[m + 1], ada[m], Rrng[m]);
+            wprec += 10;
+        } while (-mpi.delta().get_exp() < prec);
+        mpfr::mpreal::set_default_rnd(MPFR_RNDN);
+        cs.push_back(_double_integral_below_helper<mpreal_wrapper<T>, T>(rate, ts[m], ts[m + 1], ada[m], Rrng[m]));
         for (int k = 0; k < m; ++k)
-            cs.push_back(_single_double_integral_below<mpreal_wrapper<T> >(rate, 
-                        convert(ts[m]), convert(ts[m + 1]), 
-                        convert(ada[m]), convert(Rrng[m]), convert(ts[k]), convert(ts[k + 1]), 
-                        convert(ada[k]), convert(Rrng[k])));
+        {
+            wprec = prec;
+            do 
+            {
+                mpfr::mpreal::set_default_prec(wprec);
+                mpi = _single_double_integral_below<MPInterval, T>(rate, 
+                        ts[m], ts[m + 1], ada[m], Rrng[m], ts[k], ts[k + 1], 
+                        ada[k], Rrng[k]);
+                wprec += 10;
+            } while (-mpi.delta().get_exp() < prec);
+            cs.push_back(_single_double_integral_below<mpreal_wrapper<T>, T>(rate, 
+                        ts[m], ts[m + 1], ada[m], Rrng[m], ts[k], ts[k + 1], 
+                        ada[k], Rrng[k]));
+        }
         ts_integrals(j - 2) = mpreal_wrapper_type<T>::fsum(cs);
     }
     tgt.row(m) = ts_integrals.transpose();
