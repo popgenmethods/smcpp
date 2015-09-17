@@ -15,7 +15,7 @@ class InferenceManager
 {
     public:
     InferenceManager(
-            const int n, const int L,
+            const int n, const std::vector<int> L,
             const std::vector<int*> observations,
             const std::vector<double> hidden_states,
             const int* emission_mask,
@@ -74,7 +74,8 @@ class InferenceManager
 
     // Passed-in parameters
     std::mt19937 gen;
-    const int n, L;
+    const int n;
+    const std::vector<int> L;
     const std::vector<int*> observations;
     const std::vector<double> hidden_states;
     const Eigen::Matrix<int, 3, Eigen::Dynamic, Eigen::RowMajor> emask;

@@ -23,7 +23,7 @@ ctypedef Matrix[adouble]* pMatrixAd
 cdef extern from "inference_manager.h":
     ctypedef vector[vector[double]] ParameterVector
     cdef cppclass InferenceManager:
-        InferenceManager(const int, const int,
+        InferenceManager(const int, const vector[int],
                 const vector[int*], const vector[double], const int*, const int, 
                 const vector[int], const double, const double, const int)
         void setParams_d(const ParameterVector)

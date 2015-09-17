@@ -9,17 +9,17 @@
 class MPInterval
 {
     public:
-    static const MPInterval ZERO;
     MPInterval(const mpfr::mpreal &x) : a(x), b(x) {}
-    MPInterval(const double x) : a(x), b(x) {}
+    MPInterval(const double x, const mp_prec_t prec) : a(x, prec), b(x, prec) {}
     MPInterval(const mpfr::mpreal &a, const mpfr::mpreal &b) : a(a), b(b) {}
-    MPInterval() : MPInterval(MPInterval::ZERO) {}
-    MPInterval(const adouble &x) : MPInterval(mpfr::mpreal(x.value())) {}
+    MPInterval() : MPInterval(0.0) {}
+    MPInterval(const adouble &x, const mp_prec_t prec) : MPInterval(mpfr::mpreal(x.value(), prec)) {}
 
     mpfr::mpreal delta();
     mpfr::mpreal mid();
 
     friend MPInterval operator+(const int, const MPInterval &);
+    friend MPInterval operator+(const MPInterval &, const int);
     friend MPInterval operator+(const MPInterval&, const MPInterval &);
     friend MPInterval operator-(const MPInterval &, const MPInterval &);
     friend MPInterval operator-(const int, const MPInterval &);

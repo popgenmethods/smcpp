@@ -60,63 +60,6 @@ class ConditionedSFS : public ConditionedSFSBase
     const int n;
     const MoranEigensystem mei;
     const MatrixCache mcache;
-    // ThreadPool tp;
 };
-/*
-
-class CSFSManager
-{
-    public:
-    CSFSManager(int n, int num_threads) : csfs_d(n, num_threads), csfs_ad(n, num_threads) {}
-
-    template <typename T>
-    std::vector<Matrix<T> > compute(const PiecewiseExponentialRateFunction<T> &eta, double theta)
-    {
-        return csfs
-        std::vector<Matrix<T> > ret2;
-        return ret2;
-        // ConditionedSFS<T> c(n);
-        /*
-        Matrix<T> below = c0.compute_below();
-        Matrix<T> above = c0.compute_above();
-        std::future<std::vector<Matrix<T> > > below_res(tp_.enqueue(
-            [&cc0, eta] { return cc0.compute_below(eta); }));
-        for (int h = 1; h < hidden_states.size(); ++h)
-        {
-            double tau1 = hidden_states[h - 1];
-            double tau2 = hidden_states[h];
-            std::vector<std::thread> t;
-            T t1 = (*eta.getR())(tau1);
-            T t2;
-            if (std::isinf(tau2))
-                t2 = INFINITY;
-            else
-                t2 = (*eta.getR())(tau2);
-            std::vector<std::future<void>> results;
-            for (ConditionedSFS<T> &c : csfss)
-                results.emplace_back(tp_.enqueue([&c, eta, num_samples, t1, t2] { c.compute(eta, num_samples, t1, t2); }));
-            for (auto &res : results) 
-                res.wait();
-            Eigen::Matrix<T, 3, Eigen::Dynamic> ret = average_csfs();
-            ret2.push_back(ret);
-        }
-        std::vector<Matrix<T> > below = below_res.get();
-        for (size_t h = 0; h < hidden_states.size() - 1; ++h)
-        {
-            ret2[h] += below[h];
-            T tauh = ret2[h].sum();
-            ret2[h] *= -expm1(-theta_ * tauh) / tauh;
-            ret2[h](0, 0) = exp(-theta_ * tauh);
-            // ret *= theta;
-            // ret(0, 0) = 1. - ret.sum();
-        }
-        return ret2;
-    }
-    ConditionedSFS<T> csfs;
-    double theta_;
-    std::mt19937 gen;
-};
-
-*/
 
 #endif

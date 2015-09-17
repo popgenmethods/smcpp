@@ -199,10 +199,24 @@ std::vector<Matrix<T> > ConditionedSFS<T>::compute_below(const PiecewiseExponent
     mpfr::mpreal::set_default_prec(mcache.prec);
     PROGRESS("compute below");
     Matrix<mpreal_wrapper<T> > ts_integrals(eta.K, n + 1); 
-    std::vector<std::future<void> > res;
+    long wprec = (long)mcache.prec;
+    double log2d, h1, h2;
+    for (int h = 0; h < eta.hidden_states.size() - 1; ++h)
+    {
+        h1 = toDouble((*(eta.getR()))(eta.hidden_states[h]));
+        log2d = h1 / log(2);
+        if (eta.hidden_states[h + 1] < INFINITY)
+        {
+            h2 = toDouble((*(eta.getR()))(eta.hidden_states[h + 1]));
+            log2d = -h1 / log(2) + log2(-expm1(h1 - h2));
+        }
+        else
+            log2d = -h1 / log(2);
+        wprec = std::max((long)std::ceil(-log2d), wprec);
+    }
 #pragma omp parallel for
     for (int m = 0; m < eta.K; ++m)
-        eta.tjj_double_integral_below(n, mcache.prec, m, ts_integrals);
+        eta.tjj_double_integral_below(n, wprec, m, ts_integrals);
     size_t H = eta.hidden_states.size() - 1;
     Matrix<mpreal_wrapper<T> > tjj_below(H, n + 1);
     Matrix<mpreal_wrapper<T> > last = ts_integrals.topRows(eta.hs_indices[0]).colwise().sum(), next;
@@ -217,7 +231,6 @@ std::vector<Matrix<T> > ConditionedSFS<T>::compute_below(const PiecewiseExponent
     Matrix<T> M1_below = below1(tjj_below);
     std::vector<Matrix<T> > ret(H, Matrix<T>::Zero(3, n + 1));
     PROGRESS("mpfr sfs below");
-    T h1(0.0), h2(0.0);
     for (int h = 0; h < H; ++h) 
     {
         ret[h].block(0, 1, 1, n) = M0_below.row(h);
@@ -234,7 +247,6 @@ std::vector<Matrix<T> > ConditionedSFS<T>::compute_above(
 {
     PROGRESS("compute above");
     int H = eta.hidden_states.size() - 1;
-    std::vector<std::future<void> > res;
     PROGRESS("tjj double integral");
     std::vector<Matrix<T> > C(H, Matrix<T>::Zero(n + 1, n)), ret(H, Matrix<T>::Zero(3, n + 1));
 #pragma omp parallel for
@@ -268,10 +280,12 @@ std::vector<Matrix<T> > ConditionedSFS<T>::compute(const PiecewiseExponentialRat
         else
             d = exp(-h1);
         ret[i] /= d;
-       T tauh = ret[i].sum();
+        T tauh = ret[i].sum();
         ret[i] *= -expm1(-theta * tauh) / tauh;
         ret[i](0, 0) = exp(-theta * tauh);
-        ret[i] = ret[i].unaryExpr([](T x) { if (x < 1e-20) return T(1e-20); if (x < -1e-8) throw std::domain_error("very negative sfs"); return x; });
+        T tiny = (ret[i](0, 0) - ret[i](0, 0)) + 1e-20;
+        ret[i] = ret[i].unaryExpr([=](T x) { if (x < 1e-20) return tiny; if (x < -1e-8) throw std::domain_error("very negative sfs"); return x; });
+        check_nan(ret[i]);
      }
     return ret;
 }
@@ -320,7 +334,7 @@ MatrixCache& ConditionedSFSBase::cached_matrices(int n)
         {
             mpq_class m1 = ret.M0.array().abs().maxCoeff();
             mpq_class m2 = ret.M1.array().abs().maxCoeff();
-            ret.prec = std::max(53, (int)mpfr::mpreal(std::max(m1, m2).get_mpq_t()).get_exp() + 100);
+            ret.prec = std::max(53, (int)mpfr::mpreal(std::max(m1, m2).get_mpq_t()).get_exp() + 10);
         }
         else
             ret.prec = 53;

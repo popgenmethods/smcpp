@@ -1,14 +1,11 @@
 #include "mpi.h"
 
-const MPInterval MPInterval::ZERO = MPInterval("0");
-
-inline void up() { mpfr::mpreal::set_default_rnd(MPFR_RNDU); }
-inline void down() { mpfr::mpreal::set_default_rnd(MPFR_RNDD); }
-
 mpfr::mpreal MPInterval::delta()
 {
-    up();
-    return b - a;
+    mpfr::mpreal ret;
+    ret.setPrecision(b.getPrecision());
+    mpfr_sub(ret.mpfr_ptr(), b.mpfr_srcptr(), a.mpfr_srcptr(), MPFR_RNDU);
+    return ret;
 }
 
 mpfr::mpreal MPInterval::mid()
@@ -27,52 +24,48 @@ MPInterval operator+(const MPInterval &x, const int y) { return y + x; }
 MPInterval operator+(const int x, const MPInterval &y)
 {
     mpfr::mpreal a, b;
-    down();
-    a = x + y.a;
-    up();
-    b = x + y.b;
+    a.setPrecision(y.a.getPrecision());
+    b.setPrecision(y.b.getPrecision());
+    mpfr_add_si(a.mpfr_ptr(), y.a.mpfr_srcptr(), x, MPFR_RNDD);
+    mpfr_add_si(b.mpfr_ptr(), y.b.mpfr_srcptr(), x, MPFR_RNDU);
     return MPInterval(a, b);
 }
 
 MPInterval operator+(const MPInterval &x, const MPInterval &y)
 {
     mpfr::mpreal a, b;
-    down();
-    a = x.a + y.a;
-    up();
-    b = x.b + y.b;
+    a.setPrecision(x.a.getPrecision());
+    b.setPrecision(x.b.getPrecision());
+    mpfr_add(a.mpfr_ptr(), x.a.mpfr_srcptr(), y.a.mpfr_srcptr(), MPFR_RNDD);
+    mpfr_add(b.mpfr_ptr(), x.b.mpfr_srcptr(), y.b.mpfr_srcptr(), MPFR_RNDU);
     return MPInterval(a, b);
 }
 
 MPInterval operator-(const MPInterval &x)
 {
     mpfr::mpreal a, b;
-    down();
-    a = -x.b;
-    up();
-    b = -x.a;
+    a.setPrecision(x.a.getPrecision());
+    b.setPrecision(x.b.getPrecision());
+    mpfr_neg(a.mpfr_ptr(), x.b.mpfr_srcptr(), MPFR_RNDD);
+    mpfr_neg(b.mpfr_ptr(), x.a.mpfr_srcptr(), MPFR_RNDU);
     return MPInterval(a, b);
 }
 
 MPInterval operator-(const int x, const MPInterval &y)
 {
     // x.a - y.b <= x - y <= x.b - y.a
-    mpfr::mpreal a, b;
-    down();
-    a = x - y.b;
-    up();
-    b = x - y.a;
-    return MPInterval(a, b);
+    MPInterval ny = -y;
+    return x + ny;
 }
 
 MPInterval operator-(const MPInterval &x, const MPInterval &y)
 {
     // x.a - y.b <= x - y <= x.b - y.a
     mpfr::mpreal a, b;
-    down();
-    a = x.a - y.b;
-    up();
-    b = x.b - y.a;
+    a.setPrecision(x.a.getPrecision());
+    b.setPrecision(x.b.getPrecision());
+    mpfr_sub(a.mpfr_ptr(), x.a.mpfr_srcptr(), y.b.mpfr_srcptr(), MPFR_RNDD);
+    mpfr_sub(b.mpfr_ptr(), x.b.mpfr_srcptr(), y.a.mpfr_srcptr(), MPFR_RNDD);
     return MPInterval(a, b);
 }
 
@@ -84,20 +77,20 @@ MPInterval operator*(const MPInterval &x, const double &y)
 MPInterval operator*(const double x, const MPInterval &y)
 {
     mpfr::mpreal a, b;
-    down();
-    a = x * y.a;
-    up();
-    b = x * y.b;
+    a.setPrecision(y.a.getPrecision());
+    b.setPrecision(y.b.getPrecision());
+    mpfr_mul_d(a.mpfr_ptr(), y.a.mpfr_srcptr(), x, MPFR_RNDD);
+    mpfr_mul_d(b.mpfr_ptr(), y.b.mpfr_srcptr(), x, MPFR_RNDU);
     return MPInterval(a, b);
 }
 
 MPInterval operator*(const mpfr::mpreal &x, const MPInterval &y)
 {
     mpfr::mpreal a, b;
-    down();
-    a = x * y.a;
-    up();
-    b = x * y.b;
+    a.setPrecision(y.a.getPrecision());
+    b.setPrecision(y.b.getPrecision());
+    mpfr_mul(a.mpfr_ptr(), x.mpfr_srcptr(), y.a.mpfr_srcptr(), MPFR_RNDD);
+    mpfr_mul(b.mpfr_ptr(), x.mpfr_srcptr(), y.b.mpfr_srcptr(), MPFR_RNDU);
     return MPInterval(a, b);
 }
 
@@ -109,42 +102,67 @@ MPInterval operator*(const MPInterval &x, const mpfr::mpreal &y)
 MPInterval operator*(const MPInterval &x, const MPInterval &y)
 {
     mpfr::mpreal a, b;
+    a.setPrecision(x.a.getPrecision());
+    b.setPrecision(x.b.getPrecision());
     int sas = sgn(x.a), sbs = sgn(x.b), tas = sgn(y.a), tbs = sgn(y.b);
-    mpfr::mpreal sa = x.a, sb = x.b, ta = y.a, tb = y.b; 
     if (sas >= 0)
     {
         if (tas >= 0)
         {
+            mpfr_mul(a.mpfr_ptr(), x.a.mpfr_srcptr(), y.a.mpfr_srcptr(), MPFR_RNDD);
+            mpfr_mul(b.mpfr_ptr(), x.b.mpfr_srcptr(), y.b.mpfr_srcptr(), MPFR_RNDU);
+            /*
             down(); a = sa * ta;
             up(); b = sb * tb;
+            */
         } 
         else if (tbs <= 0)
         {
+            mpfr_mul(a.mpfr_ptr(), x.b.mpfr_srcptr(), y.a.mpfr_srcptr(), MPFR_RNDD);
+            mpfr_mul(b.mpfr_ptr(), x.a.mpfr_srcptr(), y.b.mpfr_srcptr(), MPFR_RNDU);
+            /*
             down(); a = sb * ta;
             up(); b = sa * tb;
+            */
         }
         else
         {
+            mpfr_mul(a.mpfr_ptr(), x.b.mpfr_srcptr(), y.a.mpfr_srcptr(), MPFR_RNDD);
+            mpfr_mul(b.mpfr_ptr(), x.b.mpfr_srcptr(), y.b.mpfr_srcptr(), MPFR_RNDU);
+            /*
             down(); a = sb * ta;
             up(); b = sb * tb;
+            */
         }
     } 
     else if (sbs <= 0)
     {
         if (tas >= 0)
         {
+            mpfr_mul(a.mpfr_ptr(), x.a.mpfr_srcptr(), y.b.mpfr_srcptr(), MPFR_RNDD);
+            mpfr_mul(b.mpfr_ptr(), x.b.mpfr_srcptr(), y.a.mpfr_srcptr(), MPFR_RNDU);
+            /*
             down(); a = sa * tb;
             up(); b = sb * ta;
+            */
         } 
         else if (tbs <= 0)
         {
+            mpfr_mul(a.mpfr_ptr(), x.b.mpfr_srcptr(), y.b.mpfr_srcptr(), MPFR_RNDD);
+            mpfr_mul(b.mpfr_ptr(), x.a.mpfr_srcptr(), y.a.mpfr_srcptr(), MPFR_RNDU);
+            /*
             down(); a = sb * tb;
             up(); b = sa * ta;
+            */
         }
         else
         {
+            mpfr_mul(a.mpfr_ptr(), x.a.mpfr_srcptr(), y.b.mpfr_srcptr(), MPFR_RNDD);
+            mpfr_mul(b.mpfr_ptr(), x.a.mpfr_srcptr(), y.a.mpfr_srcptr(), MPFR_RNDU);
+            /*
             down(); a = sa * tb;
             up(); b = sa * ta;
+            */
         }
     }
     else
@@ -158,25 +176,29 @@ MPInterval operator*(const MPInterval &x, const MPInterval &y)
 
 MPInterval operator/(const MPInterval &x, const int y)
 {
-    return x / MPInterval(y);
+    return x / MPInterval(y, x.a.getPrecision());
 }
 
 MPInterval operator/(const int x, const MPInterval &y)
 {
-    return MPInterval(x) / y;
+    return MPInterval(x, y.a.getPrecision()) / y;
 }
 
 MPInterval operator/(const MPInterval &x, const MPInterval &y)
 {
     mpfr::mpreal a, b;
+    a.setPrecision(x.a.getPrecision());
+    b.setPrecision(x.b.getPrecision());
     int sas = sgn(x.a), sbs = sgn(x.b), tas = sgn(y.a), tbs = sgn(y.b);
     mpfr::mpreal sa = x.a, sb = x.b, ta = y.a, tb = y.b; 
-    MPInterval R(-INFINITY, INFINITY);
+    MPInterval R(mpfr::const_infinity(-1, a.getPrecision()), mpfr::const_infinity(1, a.getPrecision()));
+    mpfr::mpreal z("0", a.getPrecision());
+    MPInterval zero(z);
     if (sas == 0 and sbs == 0)
     {
         if ((tas < 0 and tbs > 0) or (tas == 0 or tbs == 0))
             return R;
-        return MPInterval::ZERO;
+        return zero;
     }
     if (tas < 0 and tbs > 0)
         return R;
@@ -190,39 +212,49 @@ MPInterval operator/(const MPInterval &x, const MPInterval &y)
             return R;
         if (sas >= 0)
         {
-            down();
-            a = sa / tb;
-            b = INFINITY;
+            mpfr_div(a.mpfr_ptr(), x.a.mpfr_srcptr(), y.b.mpfr_srcptr(), MPFR_RNDD);
+            b = mpfr::const_infinity(1);
         }
         if (sbs <= 0)
         {
-            a = -INFINITY;
-            up();
-            b = sb / tb;
+            a = mpfr::const_infinity(-1);
+            mpfr_div(b.mpfr_ptr(), x.b.mpfr_srcptr(), y.b.mpfr_srcptr(), MPFR_RNDU);
         }
     }
     else
     {
         if (sas >= 0)
         {
+            mpfr_div(a.mpfr_ptr(), x.a.mpfr_srcptr(), y.b.mpfr_srcptr(), MPFR_RNDD);
+            mpfr_div(b.mpfr_ptr(), x.b.mpfr_srcptr(), y.a.mpfr_srcptr(), MPFR_RNDU);
+            /*
             down();
             a = sa / tb;
             up();
             b = sb / ta;
+            */
         }
         else if (sbs <= 0)
         {
+            mpfr_div(a.mpfr_ptr(), x.a.mpfr_srcptr(), y.a.mpfr_srcptr(), MPFR_RNDD);
+            mpfr_div(b.mpfr_ptr(), x.b.mpfr_srcptr(), y.b.mpfr_srcptr(), MPFR_RNDU);
+            /*
             down();
             a = sa / ta;
             up();
             b = sb / tb;
+            */
         }
         else
         {
+            mpfr_div(a.mpfr_ptr(), x.a.mpfr_srcptr(), y.a.mpfr_srcptr(), MPFR_RNDD);
+            mpfr_div(b.mpfr_ptr(), x.b.mpfr_srcptr(), y.b.mpfr_srcptr(), MPFR_RNDU);
+            /*
             down();
             a = sa / ta;
             up();
             b = sb / tb;
+            */
         }
     }  
     return MPInterval(a, b);
@@ -230,12 +262,22 @@ MPInterval operator/(const MPInterval &x, const MPInterval &y)
 
 MPInterval expm1(const MPInterval &x)
 {
-    return MPInterval(expm1(x.a, MPFR_RNDD), expm1(x.b, MPFR_RNDU));    
+    mpfr::mpreal a, b;
+    a.setPrecision(x.a.getPrecision());
+    b.setPrecision(x.b.getPrecision());
+    mpfr_expm1(a.mpfr_ptr(), x.a.mpfr_srcptr(), MPFR_RNDD);
+    mpfr_expm1(b.mpfr_ptr(), x.b.mpfr_srcptr(), MPFR_RNDU);
+    return MPInterval(a, b);
 }
 
 MPInterval exp(const MPInterval &x)
 {
-    return MPInterval(exp(x.a, MPFR_RNDD), exp(x.b, MPFR_RNDU));    
+    mpfr::mpreal a, b;
+    a.setPrecision(x.a.getPrecision());
+    b.setPrecision(x.b.getPrecision());
+    mpfr_exp(a.mpfr_ptr(), x.a.mpfr_srcptr(), MPFR_RNDD);
+    mpfr_exp(b.mpfr_ptr(), x.b.mpfr_srcptr(), MPFR_RNDU);
+    return MPInterval(a, b);
 }
 
 /*

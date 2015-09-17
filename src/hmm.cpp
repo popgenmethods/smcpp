@@ -1,8 +1,8 @@
 #include "hmm.h"
 
-long num_blocks(int total_loci, int block_size, int mask_freq, int mask_offset)
+long num_blocks(int total_loci, int block_size, int alt_block_size, int mask_freq, int mask_offset)
 {
-    long denom = (mask_freq - 1) * block_size + 1;
+    long denom = (mask_freq - 1) * block_size + alt_block_size;
     long base = total_loci / denom;
     base *= mask_freq;
     long remain = total_loci % denom;
@@ -12,7 +12,7 @@ long num_blocks(int total_loci, int block_size, int mask_freq, int mask_offset)
         if (first)
         {
             first = false;
-            remain--;
+            remain -= alt_block_size;
         }
         else
             remain -= block_size;
@@ -26,11 +26,11 @@ HMM::HMM(Eigen::Matrix<int, Eigen::Dynamic, 2> obs, const int block_size,
         const Matrix<adouble> *emission, const Matrix<adouble> *emission_mask,
         const Eigen::Matrix<int, 3, Eigen::Dynamic, Eigen::RowMajor> *mask_locations,
         const int mask_freq, const int mask_offset) : 
-    obs(obs), block_size(block_size), 
+    obs(obs), block_size(block_size), alt_block_size(10),
     pi(pi), transition(transition), emission(emission), emission_mask(emission_mask),
     mask_locations(mask_locations), mask_freq(mask_freq), mask_offset(mask_offset),
     M(pi->rows()), 
-    Ltot(num_blocks(obs.col(0).sum(), block_size, mask_freq, mask_offset)),
+    Ltot(num_blocks(obs.col(0).sum(), block_size, alt_block_size, mask_freq, mask_offset)),
     Bptr(Ltot), logBptr(Ltot), 
     B(M, Ltot), 
     // B(1, 1), 
@@ -52,10 +52,10 @@ void HMM::prepare_B()
     const Matrix<adouble> *em_ptr;
     bool alt_block;
     unsigned long int R, ob, i = 0, block = 0, tobs = 0;
-    std::pair<bool, std::map<int, int>> key;
+    block_key key;
     unsigned long int L = obs.col(0).sum();
     std::map<Eigen::Array<adouble, Eigen::Dynamic, 1>*, std::vector<int> > block_map;
-    int current_block_size = is_alt_block(0) ? 1 : block_size;
+    int current_block_size = is_alt_block(0) ? alt_block_size : block_size;
     for (unsigned long int ell = 0; ell < obs.rows(); ++ell)
     {
         R = obs(ell, 0);
@@ -71,20 +71,32 @@ void HMM::prepare_B()
             if (++i == current_block_size or (r == R - 1 and ell == obs.rows() - 1))
             {
                 i = 0;
-                key = {alt_block, powers};
+                key.alt_block = alt_block;
+                key.powers = powers;
                 if (block_prob_map.count(key) == 0)
                 {
                     tmp.setOnes();
                     block_prob_map[key] = {tmp, tmp.array().log()};
                     block_prob_map_keys.push_back(key);
+                    unsigned int tpwr = 0;
+                    mpz_class denom = 1, td;
+                    for (auto &p : powers)
+                    {
+                        tpwr += p.second;
+                        mpz_fac_ui(td.get_mpz_t(), p.second);
+                        denom *= td;
+                    }
+                    mpz_class num;
+                    mpz_fac_ui(num.get_mpz_t(), tpwr);
+                    mpz_class coef = num / denom;
+                    comb_coeffs[key] = coef.get_ui();
                 }
-                block_keys.push_back(key);
                 Bptr[block] = &block_prob_map[key].first;
                 logBptr[block] = &block_prob_map[key].second;
                 block_map[logBptr[block]].push_back(block);
-                current_block_size = is_alt_block(block + 1) ? 1 : block_size;
+                current_block_size = is_alt_block(block + 1) ? alt_block_size : block_size;
+                block_keys.push_back({key.alt_block, key.powers});
                 block++;
-                block_prob_counts[key]++;
                 powers.clear();
             }
         }
@@ -183,14 +195,15 @@ void HMM::recompute_B(void)
 #pragma omp parallel for
     for (auto it = block_prob_map_keys.begin(); it < block_prob_map_keys.end(); ++it)
     {
-        bool alt_block = it->first;
-        const Matrix<adouble> *em_ptr = alt_block ? emission : emission_mask;
+        const Matrix<adouble> *em_ptr = it->alt_block ? emission : emission_mask;
         // em_ptr = emission_mask;
-        std::map<int, int> power = it->second;
         Eigen::Array<adouble, Eigen::Dynamic, 1> tmp = Eigen::Array<adouble, Eigen::Dynamic, 1>::Ones(M);
         // mult = alt_block ? 1000.0 : 1.0;
-        for (auto &p : power)
+        for (auto &p : it->powers)
             tmp *= em_ptr->col(p.first).array().pow(p.second);
+        tmp *= comb_coeffs[*it];
+        check_nan(tmp);
+        check_nan(tmp.log());
         block_prob_map[*it] = {tmp.matrix(), tmp.log()};
     }
     // for (int ell = 0; ell < Ltot; ++ell)
@@ -203,13 +216,14 @@ void HMM::forward_backward(void)
     PROGRESS("forward backward");
     Matrix<double> tt = transition->template cast<double>();
     Matrix<double> ttpow = tt.pow(block_size);
+    Matrix<double> ttalt = tt.pow(alt_block_size);
     alpha_hat.col(0) = pi->template cast<double>().cwiseProduct(Bptr[0]->template cast<double>());
 	c(0) = alpha_hat.col(0).sum();
     alpha_hat.col(0) /= c(0);
     for (int ell = 1; ell < Ltot; ++ell)
     {
         // alpha_hat.col(ell) = bt.col(ell).asDiagonal() * (((ell + mask_offset) % mask_freq == 0) ? tt : ttpow) * alpha_hat.col(ell - 1);
-        alpha_hat.col(ell) = Bptr[ell]->template cast<double>().asDiagonal() * (is_alt_block(ell - 1) ? tt : ttpow).transpose() * alpha_hat.col(ell - 1);
+        alpha_hat.col(ell) = Bptr[ell]->template cast<double>().asDiagonal() * (is_alt_block(ell - 1) ? ttalt : ttpow).transpose() * alpha_hat.col(ell - 1);
         c(ell) = alpha_hat.col(ell).sum();
         if (std::isnan(toDouble(c(ell))))
             throw std::domain_error("something went wrong in forward algorithm");
@@ -217,7 +231,7 @@ void HMM::forward_backward(void)
     }
     beta_hat.col(Ltot - 1) = Vector<double>::Ones(M);
     for (int ell = Ltot - 2; ell >= 0; --ell)
-        beta_hat.col(ell) = (is_alt_block(ell) ? tt : ttpow) * Bptr[ell + 1]->template cast<double>().asDiagonal() * beta_hat.col(ell + 1) / c(ell + 1);
+        beta_hat.col(ell) = (is_alt_block(ell) ? ttalt : ttpow) * Bptr[ell + 1]->template cast<double>().asDiagonal() * beta_hat.col(ell + 1) / c(ell + 1);
     PROGRESS_DONE();
 }
 
@@ -251,7 +265,7 @@ void HMM::Estep(void)
     PROGRESS("xisum done");
     Matrix<double> tr = transition->template cast<double>().pow(block_size);
     xisum = xis.cwiseProduct(tr);
-    xisum_alt = xis_alt.cwiseProduct(transition->template cast<double>());
+    xisum_alt = xis_alt.cwiseProduct(transition->template cast<double>().pow(alt_block_size));
     PROGRESS_DONE();
 }
 
@@ -294,9 +308,9 @@ adouble HMM::Q(void)
         }
     }
     Eigen::Array<adouble, Eigen::Dynamic, Eigen::Dynamic> ttpow = mymatpow(*transition, block_size).array().log();
-    Eigen::Array<adouble, Eigen::Dynamic, Eigen::Dynamic> tt = transition->array().log();
+    Eigen::Array<adouble, Eigen::Dynamic, Eigen::Dynamic> ttalt = mymatpow(*transition, alt_block_size).array().log();
     ret += (xis * ttpow).sum();
-    ret += (xis_alt * tt).sum();
+    ret += (xis_alt * ttalt).sum();
     PROGRESS_DONE();
     /*
     std::vector<decltype(counts)::value_type*> a;

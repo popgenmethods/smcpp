@@ -18,7 +18,7 @@ Vector<T> compute_initial_distribution(const PiecewiseExponentialRateFunction<T>
 }
 
 InferenceManager::InferenceManager(
-            const int n, const int L,
+            const int n, const std::vector<int> L,
             const std::vector<int*> observations,
             const std::vector<double> hidden_states,
             const int* _emask,
@@ -43,11 +43,12 @@ InferenceManager::InferenceManager(
     emission = Matrix<adouble>::Zero(M, 3 * (n + 1));
     int mask_len = emask.maxCoeff() + 1;
     emission_mask = Matrix<adouble>::Zero(M, mask_len);
-    Eigen::Matrix<int, Eigen::Dynamic, 2>  ob(L, 2);
-    Eigen::Matrix<int, Eigen::Dynamic, 3>  tmp(L, 3);
-    for (auto &obs : observations)
+    for (int i = 0; i < observations.size(); ++i)
     {
-        tmp = Eigen::Matrix<int, Eigen::Dynamic, 3, Eigen::RowMajor>::Map(obs, L, 3);
+        int ell = L[i];
+        Eigen::Matrix<int, Eigen::Dynamic, 2>  ob(ell, 2);
+        Eigen::Matrix<int, Eigen::Dynamic, 3>  tmp(ell, 3);
+        tmp = Eigen::Matrix<int, Eigen::Dynamic, 3, Eigen::RowMajor>::Map(observations[i], ell, 3);
         ob.col(0) = tmp.col(0);
         ob.col(1) = (n + 1) * tmp.col(1) + tmp.col(2);
         for (int off : mask_offset)

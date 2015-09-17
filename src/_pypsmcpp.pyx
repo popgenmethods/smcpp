@@ -58,15 +58,14 @@ cdef class PyInferenceManager:
         self._n = n
         cdef int[:, ::1] vob
         cdef vector[int*] obs
-        cdef int L = observations[0].shape[0]
         self._observations = observations
+        Ls = []
         for ob in observations:
             if np.isfortran(ob):
                 raise ValueError("Input arrays must be C-ordered")
-            if ob.shape[0] != L:
-                raise ValueError("Input data sets should all have the same shape")
             vob = ob
             obs.push_back(&vob[0, 0])
+            Ls.append(ob.shape[0])
         self._num_hmms = len(observations)
         if emission_mask is None:
             emission_mask = np.arange(3 * (n + 1)).reshape([3, n + 1])
@@ -74,7 +73,7 @@ cdef class PyInferenceManager:
         cdef int[:, ::1] emv = self._emission_mask
         cdef vector[double] hs = hidden_states
         self._im = new InferenceManager(
-                n, L, obs, hs, &emv[0, 0], mask_freq, mask_offset, theta, rho, block_size)
+                n, Ls, obs, hs, &emv[0, 0], mask_freq, mask_offset, theta, rho, block_size)
 
 
     def __dealloc__(self):

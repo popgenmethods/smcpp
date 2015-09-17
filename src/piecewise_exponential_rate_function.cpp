@@ -4,15 +4,18 @@
 template <typename T, typename U>
 struct convert
 {
-    static T run(const U& x) { return T(x); }
+    static T run(const U& x, const mp_prec_t prec) { return T(x, prec); }
 };
 
 template <>
 struct convert<mpreal_wrapper_type<adouble>::type, adouble>
 {
-    static mpreal_wrapper_type<adouble>::type run(const adouble &x)
+    static mpreal_wrapper_type<adouble>::type run(const adouble &x, const mp_prec_t prec)
     {
-        return mpreal_wrapper_type<adouble>::type(x.value(), x.derivatives().template cast<mpfr::mpreal>());
+        Vector<mpfr::mpreal> d(x.derivatives().rows());
+        for (int i = 0; i < d.rows(); ++i)
+            d(i) = mpfr::mpreal(x.derivatives()(i), prec);
+        return mpreal_wrapper_type<adouble>::type(mpfr::mpreal(x.value(), prec), d);
     }
 };
 
@@ -108,27 +111,6 @@ PiecewiseExponentialRateFunction<T>::PiecewiseExponentialRateFunction(
 
     // Compute a TV-like regularizer
     _reg = 0.0;
-    T x;
-    for (int k = 1; k < K; ++k)
-    {
-        x += ada[k] - ada[k - 1];
-        _reg += x * x;
-    }
-//     T x = 0.0;
-//     T xmax = ts.rbegin()[1] * 1.1;
-//     T step = (xmax - x) / 1000;
-//     std::vector<T> xs, ys;
-//     while (x < xmax)
-//     {
-//         xs.push_back(x);
-//         x += step;
-//     }
-//     if (xs.size())
-//     {
-//         ys = (*eta)(xs);
-//         for (int i = 1; i < ys.size(); ++i)
-//             _reg += myabs(ys[i] - ys[i - 1]);
-//     }
 }
 
 template <typename T>
@@ -157,27 +139,28 @@ void PiecewiseExponentialRateFunction<adouble>::initialize_derivatives(void)
 }
 
 template <typename T, typename U>
-inline T _single_double_integral_below(const int rate,
+inline T _single_double_integral_below(mp_prec_t prec, const int rate,
         const U &tsm, const U &tsm1, const U &ada_m, const U &Rrng_m,
         const U &tsk, const U &tsk1, const U &ada_k, const U &Rrng_k)
 {
-    T _tsm = convert<T,U>::run(tsm), 
-      _tsm1 = convert<T,U>::run(tsm1),
-      _ada_m = convert<T,U>::run(ada_m),
-      _Rrng_m = convert<T,U>::run(Rrng_m), 
-      _tsk = convert<T,U>::run(tsk), 
-      _tsk1 = convert<T,U>::run(tsk1),
-      _ada_k = convert<T,U>::run(ada_k),
-      _Rrng_k = convert<T,U>::run(Rrng_k);
+    T _tsm = convert<T,U>::run(tsm, prec), 
+      _tsm1 = convert<T,U>::run(tsm1, prec),
+      _ada_m = convert<T,U>::run(ada_m, prec),
+      _Rrng_m = convert<T,U>::run(Rrng_m, prec), 
+      _tsk = convert<T,U>::run(tsk, prec), 
+      _tsk1 = convert<T,U>::run(tsk1, prec),
+      _ada_k = convert<T,U>::run(ada_k, prec),
+      _Rrng_k = convert<T,U>::run(Rrng_k, prec);
     if (rate == 0)
     {
         if (tsm1 == INFINITY)
             return exp(-_Rrng_m) * (_tsk1 - _tsk);
         return -exp(-_Rrng_m) * expm1(-_ada_m * (_tsm1 - _tsm)) * (_tsk1 - _tsk);
     }
+    T one = convert<T, U>::run(1.0, prec);
     T e1, e2;
-    if (tsk1 == INFINITY) e1 = (T)-1; else e1 = expm1(-rate * _ada_k * (_tsk1 - _tsk));
-    if (tsm1 == INFINITY) e2 = (T)-1; else e2 = expm1(-_ada_m * (_tsm1 - _tsm));
+    if (tsk1 == INFINITY) e1 = -one; else e1 = expm1(-rate * _ada_k * (_tsk1 - _tsk));
+    if (tsm1 == INFINITY) e2 = -one; else e2 = expm1(-_ada_m * (_tsm1 - _tsm));
     return exp(-rate * _Rrng_k - _Rrng_m) * e1 * e2 / rate / _ada_k;
 }
 
@@ -212,15 +195,15 @@ inline T _single_double_integral_above(const int rate, const int l1,
 }
 
 template <typename T, typename U>
-inline T _double_integral_below_helper(const int rate, const U &tsm, const U &tsm1, const U &ada, const U &Rrng)
+inline T _double_integral_below_helper(mp_prec_t prec, const int rate, const U &tsm, const U &tsm1, const U &ada, const U &Rrng)
 {
-    T _tsm = convert<T,U>::run(tsm), 
-      _tsm1 = convert<T,U>::run(tsm1), 
-      _ada = convert<T,U>::run(ada), 
-      _Rrng = convert<T,U>::run(Rrng);
+    T _tsm = convert<T,U>::run(tsm, prec), 
+      _tsm1 = convert<T,U>::run(tsm1, prec), 
+      _ada = convert<T,U>::run(ada, prec), 
+      _Rrng = convert<T,U>::run(Rrng, prec);
     const int l1r = 1 + rate;
     T z = _tsm - _tsm;
-    const T l1rinv = 1 / (z + (T)l1r);
+    const T l1rinv = 1 / (z + l1r);
     T diff = _tsm1 - _tsm;
     T _adadiff = _ada * diff;
     if (rate == 0)
@@ -266,9 +249,13 @@ void PiecewiseExponentialRateFunction<T>::tjj_double_integral_above(const int n,
         {
             long rate = nC2(j);
             ts_integrals(m, j - 2) = _double_integral_above_helper<T>(rate, lam, ts[m], ts[m + 1], ada[m], Rrng[m]);
+            check_nan(ts_integrals(m, j - 2));
             for (int k = m + 1; k < K; ++k)
+            {
                 ts_integrals(m, j - 2) += _single_double_integral_above(rate, lam,
                         ts[m], ts[m + 1], ada[m], Rrng[m], ts[k], ts[k + 1], ada[k], Rrng[k]);
+                check_nan(ts_integrals(m, j - 2));
+            }
 
         }
     }
@@ -288,37 +275,46 @@ template <typename T>
 void PiecewiseExponentialRateFunction<T>::tjj_double_integral_below(
         const int n, const mp_prec_t prec, const int m, Matrix<mpreal_wrapper<T> > &tgt) const
 {
-    mpfr::mpreal::set_default_prec(prec);
     Vector<mpreal_wrapper<T> > ts_integrals(n + 1);
     std::vector<mpreal_wrapper<T> > cs;
     for (int j = 2; j < n + 3; ++j)
     {
         long rate = nC2(j) - 1;
         cs.clear();
-        MPInterval mpi;
-        mp_prec_t wprec = prec;
-        do 
+        mp_prec_t wprec = prec + 10;
+        /*
+        MPInterval mpi(0.0, prec);
+        mpi = _double_integral_below_helper<MPInterval, T>(wprec, rate, ts[m], ts[m + 1], ada[m], Rrng[m]);
+        while (-mpi.delta().get_exp() < prec)
         {
-            mpfr::mpreal::set_default_prec(wprec);
-            mpi = _double_integral_below_helper<MPInterval, T>(rate, ts[m], ts[m + 1], ada[m], Rrng[m]);
             wprec += 10;
-        } while (-mpi.delta().get_exp() < prec);
+            mpi = _double_integral_below_helper<MPInterval, T>(wprec, rate, ts[m], ts[m + 1], ada[m], Rrng[m]);
+            PROGRESS("prec miss:" << j << " " << wprec);
+        }
         mpfr::mpreal::set_default_rnd(MPFR_RNDN);
-        cs.push_back(_double_integral_below_helper<mpreal_wrapper<T>, T>(rate, ts[m], ts[m + 1], ada[m], Rrng[m]));
+        */
+        cs.push_back(_double_integral_below_helper<mpreal_wrapper<T>, T>(wprec, rate, ts[m], ts[m + 1], ada[m], Rrng[m]));
+        check_nan(cs.back());
         for (int k = 0; k < m; ++k)
         {
-            wprec = prec;
-            do 
+            wprec = prec + 10;
+            /*
+            mpi = _single_double_integral_below<MPInterval, T>(wprec, rate, 
+                    ts[m], ts[m + 1], ada[m], Rrng[m], ts[k], ts[k + 1], 
+                    ada[k], Rrng[k]);
+            while (-mpi.delta().get_exp() < prec)
             {
-                mpfr::mpreal::set_default_prec(wprec);
-                mpi = _single_double_integral_below<MPInterval, T>(rate, 
+                wprec += 10;
+                mpi = _single_double_integral_below<MPInterval, T>(wprec, rate, 
                         ts[m], ts[m + 1], ada[m], Rrng[m], ts[k], ts[k + 1], 
                         ada[k], Rrng[k]);
-                wprec += 10;
-            } while (-mpi.delta().get_exp() < prec);
-            cs.push_back(_single_double_integral_below<mpreal_wrapper<T>, T>(rate, 
+                PROGRESS("prec miss:" << j << " " << k << " " << wprec);
+            }
+            */
+            cs.push_back(_single_double_integral_below<mpreal_wrapper<T>, T>(wprec, rate, 
                         ts[m], ts[m + 1], ada[m], Rrng[m], ts[k], ts[k + 1], 
                         ada[k], Rrng[k]));
+            check_nan(cs.back());
         }
         ts_integrals(j - 2) = mpreal_wrapper_type<T>::fsum(cs);
     }

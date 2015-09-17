@@ -5,6 +5,16 @@
 #include <map>
 #include "common.h"
 
+struct block_key
+{
+    bool alt_block;
+    std::map<int, int> powers;
+    bool operator==(const block_key &other) const 
+    { 
+        return alt_block == other.alt_block and powers == other.powers;
+    }
+};
+
 // Allow for hashing of map<T, U>
 // a little helper that should IMHO be standardized
 namespace
@@ -51,6 +61,16 @@ namespace std
     };
     template<typename... T>
     struct hash<map<T...>> : hash_container<map<T...>> {};
+    template <>
+    struct hash<block_key>
+    {
+        size_t operator()(const block_key& bk) const
+        {
+            size_t h=make_hash(bk.alt_block);
+            hash_combine(h, make_hash(bk.powers));
+            return h;
+        }
+    };
 }
 
 
@@ -81,7 +101,7 @@ class HMM
     bool is_alt_block(int);
 
     Eigen::Matrix<int, Eigen::Dynamic, 2> obs;
-    const int block_size;
+    const int block_size, alt_block_size;
 
     // Instance variables
     const Vector<adouble> *pi;
@@ -94,11 +114,11 @@ class HMM
     Matrix<double> alpha_hat, beta_hat, gamma, xisum, xisum_alt;
     Vector<double> c;
     std::vector<int> viterbi_path;
-    std::unordered_map<std::pair<bool, std::map<int, int> >, std::pair<Vector<adouble>, Eigen::Array<adouble, Eigen::Dynamic, 1> > > block_prob_map;
-    std::vector<decltype(block_prob_map)::key_type> block_prob_map_keys;
-    std::vector<decltype(block_prob_map)::key_type> block_keys;
+    std::unordered_map<block_key, std::pair<Vector<adouble>, Eigen::Array<adouble, Eigen::Dynamic, 1> > > block_prob_map;
+    std::vector<block_key> block_prob_map_keys;
+    std::vector<std::pair<bool, std::map<int, int> > > block_keys;
+    std::unordered_map<block_key, unsigned long> comb_coeffs;
     // std::unordered_map<Eigen::Array<adouble, Eigen::Dynamic, 1>*, decltype(block_prob_map)::key_type> reverse_map;
-    std::unordered_map<std::pair<bool, std::map<int, int> >, int > block_prob_counts;
     std::vector<std::pair<Eigen::Array<adouble, Eigen::Dynamic, 1>*, std::vector<int> > > block_pairs;
     friend class InferenceManager;
 };

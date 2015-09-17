@@ -40,9 +40,6 @@ constexpr long nC2(int n) { return n * (n - 1) / 2; }
 
 template <typename T> using Matrix = Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic>;
 template <typename T> using Vector = Eigen::Matrix<T, Eigen::Dynamic, 1>;
-// For cython
-typedef Matrix<double> DoubleMatrix;
-typedef Vector<double> DoubleVector;
 
 template <typename _Scalar, int NX=Eigen::Dynamic, int NY=Eigen::Dynamic>
 struct Functor
@@ -184,19 +181,28 @@ inline adouble dmax(adouble a, adouble b)
     return (a + b + myabs(a - b)) / 2;
 }
 
-inline void check_for_nans(Vector<double> x) 
-{
-    for (int i = 0; i < x.rows(); ++i)
-        if (std::isnan(x(i)))
-            throw std::domain_error("got nans in x");
+inline void check_nan(const double x) { if (isnan(x)) throw std::domain_error("nan detected"); }
+
+template <typename T>
+void check_nan(const Vector<T> &x) 
+{ 
+    for (int i = 0; i < x.rows(); ++i) 
+        check_nan(x(i));
 }
 
-inline void check_for_nans(Vector<adouble> x) 
+template <typename T>
+void check_nan(const Eigen::AutoDiffScalar<T> &x)
 {
-    Vector<double> vd = x.template cast<double>();
-    check_for_nans(vd);
-    for (int i = 0; i < x.rows(); ++i)
-        check_for_nans(x(i).derivatives());
+    check_nan(x.value());
+    check_nan(x.derivatives());
+}
+
+template <typename Derived>
+void check_nan(const Eigen::DenseBase<Derived> &M)
+{
+    for (int i = 0; i < M.rows(); ++i)
+        for (int j = 0; j < M.cols(); ++j)
+            check_nan(M(i, j));
 }
 
 #endif

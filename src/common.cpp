@@ -25,7 +25,6 @@ void store_admatrix(const Matrix<adouble> &M, int nd, double* out, double* outja
         for (int j = 0; j < M.cols(); ++j)
         {
             d = M(i, j).derivatives();
-            assert(d.rows() == nd);
             for (int k = 0; k < nd; ++k)
                 outjac[m++] = d(k);
         }

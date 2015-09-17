@@ -7,8 +7,17 @@ namespace myfsum
 {
     inline mpfr::mpreal fsum(const std::vector<mpfr::mpreal> &v)
     {
-        int status;
-        return mpfr::sum(v.data(), v.size(), status);
+        int n = (int)v.size();
+        mpfr_srcptr p[n];
+        int prec = (int)v[0].getPrecision();
+        for (unsigned long int  i = 0; i < n; i++) 
+        {
+            p[i] = v[i].mpfr_srcptr();
+            prec = std::min(prec, (int)v[i].getPrecision());
+        }
+        mpfr::mpreal ret(0.0, prec);
+        mpfr_sum(ret.mpfr_ptr(), (mpfr_ptr*)p, n, MPFR_RNDN);
+        return ret;
     }
 }
 
@@ -125,26 +134,5 @@ namespace Eigen
             };
     }
 }
-
-
-template <typename T>
-inline void print_derivatives(const T&)
-{
-}
-
-template <>
-inline void print_derivatives(const mpreal_wrapper_type<adouble>::type &x)
-{
-    std::cout << "derivatives: " << x.derivatives().transpose() << std::endl;
-}
-
-template <>
-inline void print_derivatives(const adouble &x)
-{
-    std::cout << "derivatives: " << x.derivatives().transpose() << std::endl;
-}
-
-inline mpfr::mpreal toMpfr(const mpfr::mpreal &m) { return m; }
-inline mpfr::mpreal toMpfr(const mpreal_wrapper<adouble> &m) { return m.value(); }
 
 #endif
