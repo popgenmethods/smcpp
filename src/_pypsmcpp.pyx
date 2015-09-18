@@ -179,6 +179,9 @@ cdef class PyInferenceManager:
         for m in range(1, M):
             def f(t):
                 return np.exp(-self._im.R(params, t)) - 1.0 * (M - m) / M
+            while np.sign(f(T_MAX)) == np.sign(f(0)):
+                T_MAX *= 2
+                print(T_MAX)
             res = scipy.optimize.brentq(f, ret[-1], T_MAX)
             ret.append(res)
         ret.append(np.inf)

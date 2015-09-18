@@ -207,6 +207,8 @@ std::vector<Matrix<adouble>*> InferenceManager::getBs()
     {
         hmm->fill_B();
         ret.push_back(&hmm->B);
+        // This takes up too much memory so only return one.
+        break;
     }
     return ret;
 }

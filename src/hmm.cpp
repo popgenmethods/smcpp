@@ -198,13 +198,18 @@ void HMM::recompute_B(void)
         const Matrix<adouble> *em_ptr = it->alt_block ? emission : emission_mask;
         // em_ptr = emission_mask;
         Eigen::Array<adouble, Eigen::Dynamic, 1> tmp = Eigen::Array<adouble, Eigen::Dynamic, 1>::Ones(M);
+        Eigen::Array<adouble, Eigen::Dynamic, 1> log_tmp = Eigen::Array<adouble, Eigen::Dynamic, 1>::Zero(M);
         // mult = alt_block ? 1000.0 : 1.0;
         for (auto &p : it->powers)
+        {
             tmp *= em_ptr->col(p.first).array().pow(p.second);
+            log_tmp += em_ptr->col(p.first).array().log() * p.second;
+        }
         tmp *= comb_coeffs[*it];
+        log_tmp += log(comb_coeffs[*it]);
         check_nan(tmp);
-        check_nan(tmp.log());
-        block_prob_map[*it] = {tmp.matrix(), tmp.log()};
+        check_nan(log_tmp);
+        block_prob_map[*it] = {tmp.matrix(), log_tmp};
     }
     // for (int ell = 0; ell < Ltot; ++ell)
         // B.col(ell) = *Bptr[ell];
