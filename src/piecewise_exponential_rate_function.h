@@ -10,6 +10,8 @@
 #include "mpq_support.h"
 #include "mpi.h"
 
+const double T_MAX = INFINITY;
+
 template <typename T>
 class ConditionedSFS;
 
@@ -26,9 +28,11 @@ class PiecewiseExponentialRateFunction
     PiecewiseExponentialRateFunction(const PiecewiseExponentialRateFunction &other) : 
         PiecewiseExponentialRateFunction(other.params, other.derivatives, other.hidden_states) {}
     std::vector<T> getTimes() const { return ts; }
-    const FunctionEvaluator<T>* geteta() const { return eta.get(); }
-    const FunctionEvaluator<T>* getR() const { return R.get(); }
-    const FunctionEvaluator<T>* getRinv() const { return Rinv.get(); }
+    const FunctionEvaluator<T>* geteta() const { return _eta.get(); }
+    const FunctionEvaluator<T>* getR() const { return _R.get(); }
+    const FunctionEvaluator<T>* getRinv() const { return _Rinv.get(); }
+    T R(T x) const { return (*_R)(x); }
+    T eta(T x) const { return (*_eta)(x); }
     void print_debug() const;
     const T regularizer(void) const { return _reg; }
     const std::vector<std::pair<int, int>> derivatives;
@@ -56,7 +60,7 @@ class PiecewiseExponentialRateFunction
     std::vector<T> ada, adb, ads, ts, Rrng;
     void initialize_derivatives();
     void compute_antiderivative();
-    feval<T> eta, R, Rinv;
+    feval<T> _eta, _R, _Rinv;
     T _reg;
     std::vector<int> hs_indices;
 

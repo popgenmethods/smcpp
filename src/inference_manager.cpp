@@ -73,7 +73,7 @@ void InferenceManager::setParams(const ParameterVector params, const std::vector
     PiecewiseExponentialRateFunction<T> eta(params, derivatives, hidden_states);
     regularizer = adouble(eta.regularizer());
     pi = compute_initial_distribution<T>(eta).template cast<adouble>();
-    transition = compute_transition<T>(eta, rho).template cast<adouble>();
+    transition = compute_transition<T>(eta, block_size * rho).template cast<adouble>();
     Eigen::Matrix<T, 3, Eigen::Dynamic, Eigen::RowMajor> em_tmp(3, n + 1);
     // transition = matpow(ttmp, block_size);
     // transition = ttmp;
@@ -101,7 +101,7 @@ template <typename T>
 std::vector<Matrix<T> > InferenceManager::sfs(const PiecewiseExponentialRateFunction<T> &eta)
 {
     PROGRESS("sfs");
-    return getCsfs<T>().compute(eta, theta);
+    return getCsfs<T>().compute(eta, block_size * theta);
     PROGRESS("sfs done");
 }
 
@@ -160,6 +160,16 @@ std::vector<adouble> InferenceManager::Q(double lambda)
             adouble ret = q - rr;
             return ret;
             });
+}
+
+std::vector<Matrix<double>*> InferenceManager::getXisums()
+{
+    std::vector<Matrix<double>*> ret;
+    for (auto &hmm : hmms)
+    {
+        ret.push_back(&hmm->xisum);
+    }
+    return ret;
 }
 
 std::vector<Matrix<double>*> InferenceManager::getAlphas()

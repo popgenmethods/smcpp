@@ -85,7 +85,8 @@ PiecewiseExponentialRateFunction<T>::PiecewiseExponentialRateFunction(
         ts[k + 1] = ts[k] + ads[k];
         // adb[k] = 0.0 * (log(adb[k]) - log(ada[k])) / (ts[k + 1] - ts[k]);
     }
-    ts[K] = INFINITY;
+    // ts[K] = INFINITY;
+    ts[K] = T_MAX;
 
     int ip;
     for (double h : hidden_states)
@@ -105,12 +106,11 @@ PiecewiseExponentialRateFunction<T>::PiecewiseExponentialRateFunction(
     Rrng.resize(K + 1);
     compute_antiderivative();
 
-    eta.reset(new PExpEvaluator<T>(ada, adb, ts, Rrng));
-    R.reset(new PExpIntegralEvaluator<T>(ada, adb, ts, Rrng));
-    Rinv.reset(new PExpInverseIntegralEvaluator<T>(ada, adb, ts, Rrng));
-
-    // Compute a TV-like regularizer
-    _reg = 0.0;
+    _eta.reset(new PExpEvaluator<T>(ada, adb, ts, Rrng));
+    _R.reset(new PExpIntegralEvaluator<T>(ada, adb, ts, Rrng));
+    _Rinv.reset(new PExpInverseIntegralEvaluator<T>(ada, adb, ts, Rrng));
+    for (int k = 1; k < K; ++k)
+        _reg += abs(ada[k] - ada[k - 1]);
 }
 
 template <typename T>

@@ -20,7 +20,7 @@ void store_admatrix(const Matrix<adouble> &M, int nd, double* out, double* outja
     Matrix<double> M1 = M.cast<double>();
     store_matrix(&M1, out);
     Eigen::VectorXd d;
-    int m = 0;
+    unsigned long int m = 0;
     for (int i = 0; i < M.rows(); ++i)
         for (int j = 0; j < M.cols(); ++j)
         {

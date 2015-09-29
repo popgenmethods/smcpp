@@ -33,6 +33,7 @@ cdef extern from "inference_manager.h":
         vector[adouble] Q(double)
         double R(const ParameterVector, double t)
         bool debug
+        vector[pMatrixD] getXisums()
         vector[pMatrixD] getAlphas()
         vector[pMatrixD] getBetas()
         vector[pMatrixD] getGammas()

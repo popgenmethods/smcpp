@@ -110,11 +110,12 @@ class HMM
     const int mask_freq, mask_offset, M, Ltot;
     std::vector<Vector<adouble>*> Bptr;
     std::vector<Eigen::Array<adouble, Eigen::Dynamic, 1>*> logBptr;
+    std::vector<Vector<double>*> dBptr;
     Matrix<adouble> B;
     Matrix<double> alpha_hat, beta_hat, gamma, xisum, xisum_alt;
     Vector<double> c;
     std::vector<int> viterbi_path;
-    std::unordered_map<block_key, std::pair<Vector<adouble>, Eigen::Array<adouble, Eigen::Dynamic, 1> > > block_prob_map;
+    std::unordered_map<block_key, std::tuple<Vector<adouble>, Eigen::Array<adouble, Eigen::Dynamic, 1>, Vector<double> > > block_prob_map;
     std::vector<block_key> block_prob_map_keys;
     std::vector<std::pair<bool, std::map<int, int> > > block_keys;
     std::unordered_map<block_key, unsigned long> comb_coeffs;
