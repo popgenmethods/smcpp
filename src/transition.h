@@ -8,17 +8,13 @@
 #include "common.h"
 #include "piecewise_exponential_rate_function.h"
 #include "gauss_legendre.h"
-
-typedef struct {
-    double x, y, w;
-} quad_point;
-typedef std::vector<std::vector<quad_point> > QuadPoints;
+#include "cubature/cubature.h"
 
 template <typename T>
 class Transition
 {
     public:
-        Transition(const PiecewiseExponentialRateFunction<T> &eta, double);
+        Transition(const PiecewiseExponentialRateFunction<T> &eta, const double);
         void compute(void);
         Matrix<T>& matrix(void);
 
@@ -28,13 +24,13 @@ class Transition
 
         // Variables
         const PiecewiseExponentialRateFunction<T> *eta;
-        int M;
-        Matrix<T> I, Phi;
-        double rho;
+        const int M;
+        Matrix<T> Phi;
+        const double rho;
 };
 
 template <typename T>
-Matrix<T> compute_transition(const PiecewiseExponentialRateFunction<T> &eta, double rho)
+Matrix<T> compute_transition(const PiecewiseExponentialRateFunction<T> &eta, const double rho)
 {
     Transition<T> trans(eta, rho);
     return trans.matrix();

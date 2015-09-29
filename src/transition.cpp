@@ -1,33 +1,59 @@
 #include "transition.h"
 
+// Util functions for cubature
+void unfill_array(double &ret, double* val, int nd)
+{
+    ret = val[0];
+}
+
+void unfill_array(adouble &ret, double* val, int nd)
+{
+    ret.value() = val[0];
+    ret.derivatives() = Vector<double>::Zero(nd - 1);
+    for (int i = 1; i < nd; ++i)
+        ret.derivatives()(i - 1) = val[i];
+}
+ 
+void fill_array(double ret, double* fval)
+{
+    fval[0] = ret;
+}
+
+void fill_array(adouble ret, double* fval)
+{
+    fval[0] = ret.value();
+    for (int i = 0; i < ret.derivatives().size(); ++i)
+        fval[i + 1] = ret.derivatives()(i);
+}
+
+
 template <typename T>
-struct integrand_helper
+struct trans_integrand_helper
 {
     const int i, j;
     const PiecewiseExponentialRateFunction<T> *eta;
 };
 
 template <typename T>
-T integrand(T x, T y, void* ih)
+int trans_integrand(unsigned ndim, const double *xx, void *hh, unsigned fdim, double *fval)
 {
     // h=t[i - 1]..t[i]
     // u=0..h
-    integrand_helper<T> *_ih = (integrand_helper<T>*)ih;
-    int i = _ih->i, j = _ih->j; 
-    const PiecewiseExponentialRateFunction<T> *eta = _ih->eta;
+    trans_integrand_helper<T> *_hh = (trans_integrand_helper<T>*)hh;
+    int i = _hh->i, j = _hh->j; 
+    const PiecewiseExponentialRateFunction<T> *eta = _hh->eta;
     const std::vector<double> &t = eta->hidden_states;
-    double h, u, jac, dx = toDouble(x), dy = toDouble(y);
+    double h, u, jac;
     if (t[i] < INFINITY)
     {
-        h = t[i] * dx + t[i - 1] * (1. - dx);
-        u = dy * h;
+        h = t[i] * xx[0] + t[i - 1] * (1. - xx[0]);
+        u = xx[1] * h;
         jac = (t[i] - t[i - 1]) * h;
     }
     else
     {
-        dx = std::min(dx, .9999999);
-        h = t[i - 1] + dx / (1. - dx);
-        u = dy * h;
+        h = t[i - 1] + xx[0] / (1. - xx[0]);
+        u = xx[1] * h;
         jac = h / (1. - u) / (1. - u);
     }
     T ret = 0.0, a, b;
@@ -53,28 +79,35 @@ T integrand(T x, T y, void* ih)
         ret += 0.5 * exp(-eta->R(h)) * -expm1(-2 * (eta->R(h) - eta->R(u)));
     ret *= eta->eta(h) / h;
     ret *= jac;
-    return ret;
+    fill_array(ret, fval);
+    return 0;
 }
 
 template <typename T>
 T Transition<T>::trans(int i, int j)
 {
     const std::vector<double> t = eta->hidden_states;
-    integrand_helper<T> ih = {i, j, eta};
-    T num = gauss_legendre_2D_cube<T>(128, integrand<T>, (void*)&ih, (T)0., (T)1., (T)0., (T)1.);
+    trans_integrand_helper<T> ih = {i, j, eta};
+    // T num = gauss_legendre_2D_cube<T>(64, trans_integrand<T>, (void*)&ih, (T)0., (T)1., (T)0., (T)1.);
+    unsigned nd = 1 + eta->derivatives.size();
+    double *val = new double[nd];
+    double *err = new double[nd];
+    const double xmin[] = {0., 0.};
+    const double xmax[] = {1., 1.};
+    hcubature(nd, trans_integrand<T>, (void*)&ih, 2, xmin, xmax, 0, 1e-8, 1e-4, ERROR_INDIVIDUAL, val, err);
+    T num;
+    unfill_array(num, val, nd);
+    std::cout << std::vector<double>(val, val + nd) << std::endl;
+    std::cout << std::vector<double>(err, err + nd) << std::endl;
+    delete[] val;
+    delete[] err;
     T denom = exp(-eta->R(t[i - 1]));
     if (t[i] != INFINITY)
         denom -= exp(-eta->R(t[i]));
     return num / denom;
 }
 
-template <typename T>
-struct p_intg_helper
-{
-    const PiecewiseExponentialRateFunction<T>* eta;
-    const double rho;
-};
-
+/*
 template <typename T>
 T p_integrand(T t, void *h)
 {
@@ -84,20 +117,65 @@ T p_integrand(T t, void *h)
     T e3 = e1 + e2;
     return hh->eta->eta(t) * exp(-e3);
 }
+*/
+
+template <typename T>
+struct p_intg_helper
+{
+    const PiecewiseExponentialRateFunction<T>* eta;
+    const double rho, left, right;
+};
+
+template <typename T>
+int p_integrand(unsigned ndim, const double *x, void *h, unsigned fdim, double *fval)
+{
+    p_intg_helper<T> *hh = (p_intg_helper<T>*)h;
+    T jac, t;
+    if (hh->right == INFINITY)
+    {
+        t = hh->left + x[0] / (1. - x[0]);
+        jac = 1 / (1. - x[0]) / (1. - x[0]);
+    }
+    else
+    {
+        t = hh->left * x[0] + hh->right * (1. - x[0]);
+        jac = hh->right - hh->left;
+    }
+    T e1 = hh->eta->R(t);
+    T e2 = t * hh->rho;
+    T e3 = e1 + e2;
+    T ret = hh->eta->eta(t) * exp(-e3);
+    ret *= jac;
+    fill_array(ret, fval);
+    return 0;
+}
+
+int nder(double) { return 0; }
+int nder(const adouble &x) { return x.derivatives().size(); }
 
 template <typename T>
 T Transition<T>::P_no_recomb(const int i, const double rho)
 {
-    p_intg_helper<T> h = {eta, rho};
     std::vector<double> t = eta->hidden_states;
-    T left = t[i - 1];
-    T right = std::min(t[i], 100.);
-    T ret = gauss_legendre<T>(128, &p_integrand<T>, (void*)&h, left, right);
-    T denom = exp(-eta->R(t[i - 1]));
-    if (t[i] != INFINITY)
-        denom -= exp(-eta->R(t[i]));
-    ret /= denom;
-    return ret;
+    p_intg_helper<T> h = {eta, 2. * rho, t[i - 1], t[i]};
+    // T ret = gauss_legendre<T>(512, &p_integrand<T>, (void*)&h, left, right);
+    // FIXME
+    unsigned nd = 1 + eta->derivatives.size();
+    double *val = new double[nd];
+    double *err = new double[nd];
+    const double xmin = 0.;
+    const double xmax = 1.;
+    hcubature(nd, p_integrand<T>, (void*)&h, 1, &xmin, &xmax, 0, 1e-8, 1e-4, ERROR_INDIVIDUAL, val, err);
+    T num;
+    unfill_array(num, val, nd);
+    std::cout << std::vector<double>(val, val + nd) << std::endl;
+    std::cout << std::vector<double>(err, err + nd) << std::endl;
+    delete[] val;
+    delete[] err;
+    T denom = exp(-eta->R(h.left));
+    if (h.right != INFINITY)
+        denom -= exp(-eta->R(h.right));
+    return num / denom;
 }
 
 /*
@@ -184,7 +262,7 @@ def P_no_recomb(i, rho):
 */
 
 template <typename T>
-Transition<T>::Transition(const PiecewiseExponentialRateFunction<T> &eta, double rho) :
+Transition<T>::Transition(const PiecewiseExponentialRateFunction<T> &eta, const double rho) :
     eta(&eta), M(eta.hidden_states.size()), Phi(M - 1, M - 1), rho(rho)
 {
     Phi.setZero();
@@ -197,6 +275,8 @@ void Transition<T>::compute(void)
     for (int i = 1; i < M; ++i)
     {
         T pnr = P_no_recomb(i, rho);
+        std::cout << i << " " << toDouble(pnr) << std::endl;
+        // double pnr = 0.0;
         for (int j = 1; j < M; ++j)
         {
             Phi(i - 1, j - 1) = (1. - pnr) * trans(i, j);
@@ -219,10 +299,19 @@ int main(int argc, char** argv)
         {0.5, 1.0},
         {0.1, 0.1}
     };
-    std::vector<double> hs = {0.0, 1.0, 2.0, 15.0};
+    std::vector<double> hs = {0.0, 1.0, 2.0, INFINITY};
     std::vector<std::pair<int, int> > deriv = { {0,0} };
     PiecewiseExponentialRateFunction<adouble> eta(params, deriv, hs);
-    Transition<adouble> T(eta, 4 * 1e4 * 1e-9);
-    std::cout << T.matrix().template cast<double>() << std::endl;
+    double rho = 4 * 1e4 * 1e-9;
+    Transition<adouble> T(eta, rho);
+    Matrix<adouble> M = T.matrix();
+    std::cout << M.template cast<double>() << std::endl << std::endl;
+    std::cout << M.unaryExpr([=](adouble x) { 
+            if (x.derivatives().size() == 0) return 0.; 
+            return x.derivatives()(0); }).template cast<double>() << std::endl << std::endl;
+    params[0][0] += 1e-8;
+    PiecewiseExponentialRateFunction<double> eta2(params, deriv, hs);
+    Transition<double> T2(eta2, rho);
+    Matrix<double> M2 = T2.matrix();
+    std::cout << (M2 - M.template cast<double>()) * 1e8 << std::endl << std::endl;
 }
-

@@ -181,7 +181,7 @@ inline adouble dmax(adouble a, adouble b)
     return (a + b + myabs(a - b)) / 2;
 }
 
-inline void check_nan(const double x) { if (isnan(x)) throw std::domain_error("nan detected"); }
+inline void check_nan(const double x) { if (std::isnan(x)) throw std::domain_error("nan detected"); }
 
 template <typename T>
 void check_nan(const Vector<T> &x) 
