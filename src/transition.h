@@ -8,7 +8,17 @@
 #include "common.h"
 #include "piecewise_exponential_rate_function.h"
 #include "gauss_legendre.h"
-#include "cubature/cubature.h"
+#include "quadpackpp/workspace.hpp"
+#include "quadpackpp/function.h"
+
+template <>
+class Machar<adouble> : public Machar<double> 
+{
+    public:
+    adouble inline abs(adouble x) { return myabs(x); }
+    adouble inline max(adouble a, adouble b) { return dmax(a, b); }
+    adouble inline min(adouble a, adouble b) { return dmin(a, b); }
+};
 
 template <typename T>
 class Transition
@@ -18,8 +28,8 @@ class Transition
         void compute(void);
         Matrix<T>& matrix(void);
 
-    private:
-        T P_no_recomb(const int, const double);
+    // private:
+        T P_no_recomb(const int);
         T trans(int, int);
 
         // Variables
