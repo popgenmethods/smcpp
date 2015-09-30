@@ -362,5 +362,5 @@ adouble HMM::Q(void)
     std::cout << "ret1: " << ret1.value() << " [" << ret1.derivatives().transpose() << "]\n";
     std::cout << "ret2: " << ret2.value() << " [" << ret2.derivatives().transpose() << "]\n";
     std::cout << "ret3: " << ret3.value() << " [" << ret3.derivatives().transpose() << "]\n";
-    return ret1 + ret2; // + ret3;
+    return ret1 + ret2 + ret3;
 }
