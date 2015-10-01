@@ -349,5 +349,23 @@ void PiecewiseExponentialRateFunction<T>::compute_antiderivative()
     }
 }
 
+template <typename T>
+T PiecewiseExponentialRateFunction<T>::R_integral(const T x, const T v) const
+{
+    int ip = insertion_point(x, ts, 0, ts.size());
+    T ret = zero, Ra = R(v), r, tmp;
+    for (int i = 0; i < ip + 1; ++i)
+    {
+        if (ts[i + 1] == INFINITY)
+            tmp = x;
+        else
+            tmp = dmin(x, ts[i + 1]);
+        r = exp(2 * (Rrng[i] + (tmp - ts[i]) * ada[i] - Ra));
+        r -= exp(2 * (Rrng[i] - Ra));
+        ret += r / (2. * ada[i]);
+    }
+    return ret;
+}
+
 template class PiecewiseExponentialRateFunction<double>;
 template class PiecewiseExponentialRateFunction<adouble>;
