@@ -4,13 +4,25 @@
 #include <Eigen/Dense>
 #include <unsupported/Eigen/MPRealSupport>
 #include "common.h"
-#include "specialfunctions.h"
 #include "function_evaluator.h"
 #include "mpreal_support.h"
 #include "mpq_support.h"
 #include "mpi.h"
+#include "quadpackpp/workspace.hpp"
+#include "exponential_integrals.h"
 
 const double T_MAX = INFINITY;
+
+/*
+template <typename T>
+class Machar<MyAutoDiffScalar<T> > : public Machar<typename MyAutoDiffScalar<T>::Scalar> 
+{
+    public:
+    inline MyAutoDiffScalar<T> abs(MyAutoDiffScalar<T> x) { return myabs(x); }
+    inline MyAutoDiffScalar<T> max(MyAutoDiffScalar<T> x, MyAutoDiffScalar<T> y) { return dmax(x, y); }
+    inline MyAutoDiffScalar<T> min(MyAutoDiffScalar<T> x, MyAutoDiffScalar<T> y) { return dmin(x, y); }
+};
+*/
 
 template <typename T>
 class ConditionedSFS;
@@ -33,7 +45,7 @@ class PiecewiseExponentialRateFunction
     const FunctionEvaluator<T>* getRinv() const { return _Rinv.get(); }
     T R(T x) const { return (*_R)(x); }
     T eta(T x) const { return (*_eta)(x); }
-    T R_integral(T, T) const;
+    T R_integral(const T, const T) const;
     void print_debug() const;
     const T regularizer(void) const { return _reg; }
     const std::vector<std::pair<int, int>> derivatives;

@@ -6,13 +6,15 @@
 #include <vector>
 #include <random>
 #include <array>
+#include <cmath>
+
 #include <Eigen/Dense>
 #include <unsupported/Eigen/MatrixFunctions>
 
 #include "mpreal.h"
-#include <cmath>
-
 #include "prettyprint.hpp"
+
+#include "exponential_integrals.h"
 
 #define AUTODIFF 1
 #define EIGEN_NO_AUTOMATIC_RESIZING 1
@@ -67,6 +69,24 @@ struct Functor
 
 #ifdef AUTODIFF
 #include <unsupported/Eigen/AutoDiff>
+
+/*
+template <typename T>
+class MyAutoDiffScalar : public Eigen::AutoDiffScalar<T>
+{
+    public:
+    typedef typename Eigen::AutoDiffScalar<T>::Scalar Scalar;
+    typedef typename Eigen::AutoDiffScalar<T>::DerType DerType;
+    MyAutoDiffScalar() {}
+    MyAutoDiffScalar(const Scalar &x) : Eigen::AutoDiffScalar<T>(x) {}
+    MyAutoDiffScalar(const Scalar &x, const DerType &y) : Eigen::AutoDiffScalar<T>(x, y) {}
+    template <typename OtherDerType>
+    MyAutoDiffScalar(const Eigen::AutoDiffScalar<OtherDerType>& other) : 
+        Eigen::AutoDiffScalar<T>((Scalar)other.value(), 
+        other.derivatives().template cast<typename DerType::Scalar>()) {}
+};
+*/
+
 typedef Eigen::AutoDiffScalar<Eigen::VectorXd> adouble;
 inline double toDouble(const adouble &a) { return a.value(); }
 inline double toDouble(const double &d) { return d; }
@@ -119,12 +139,13 @@ EIGEN_AUTODIFF_DECLARE_GLOBAL_UNARY(log1p,
   return ReturnType(log1px, x.derivatives() * (Scalar(1) / (Scalar(1) + x.value())));
 )
 
-#undef EIGEN_AUTODIFF_DECLARE_GLOBAL_UNARY
+EIGEN_AUTODIFF_DECLARE_GLOBAL_UNARY(expintei,
+  Scalar eintx = eint::expintei(x.value());
+  Scalar expx = exp(x.value()) / x.value();
+  return ReturnType(eintx, x.derivatives() * expx);
+)
 
-inline adouble pow(const adouble &x, const adouble &y)
-{
-    return pow(x, y.value());
-}
+#undef EIGEN_AUTODIFF_DECLARE_GLOBAL_UNARY
 
 };
 
@@ -133,9 +154,6 @@ inline adouble pow(const adouble &x, const adouble &y)
 typedef double adouble;
 
 #endif
-
-typedef Eigen::Matrix<adouble, Eigen::Dynamic, Eigen::Dynamic> AdMatrix;
-typedef Eigen::Matrix<adouble, Eigen::Dynamic, 1> AdVector;
 
 template <typename T, typename U>
 inline int insertion_point(const T x, const std::vector<U>& ary, int first, int last)
@@ -168,9 +186,12 @@ void store_matrix(Matrix<double> *M, double* out);
 void store_matrix(Matrix<adouble> *M, double* out);
 void store_admatrix(const Matrix<adouble> &M, int nd, double* out, double* outjac);
 
-inline double dmin(double a, double b) { return std::min(a, b); }
-inline double dmax(double a, double b) { return std::max(a, b); }
+template <typename T>
+inline T dmin(const T a, const T b) { if (a > b) return b; return a; }
+template <typename T>
+inline T dmax(const T a, const T b) { if (a > b) return a; return b; }
 
+/*
 inline adouble dmin(adouble a, adouble b)
 {
     return (a + b - myabs(a - b)) / 2;
@@ -180,6 +201,7 @@ inline adouble dmax(adouble a, adouble b)
 {
     return (a + b + myabs(a - b)) / 2;
 }
+*/
 
 inline void check_nan(const double x) { if (std::isnan(x)) throw std::domain_error("nan detected"); }
 
