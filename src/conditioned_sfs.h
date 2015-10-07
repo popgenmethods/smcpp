@@ -13,7 +13,6 @@
 #include "common.h"
 #include "piecewise_exponential_rate_function.h"
 #include "moran_eigensystem.h"
-#include "ThreadPool.h"
 #include "mpq_support.h"
 
 typedef struct 

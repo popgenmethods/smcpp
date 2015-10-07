@@ -48,6 +48,13 @@ T Transition<T>::P_no_recomb(const int i)
 }
 
 template <typename T>
+void check_negative(const T x)
+{
+    if (x < 0)
+        throw std::domain_error("negative x");
+}
+
+template <typename T>
 T trans_integrand(const double x, trans_integrand_helper<T> *tih)
 {
     const int i = tih->i, j = tih->j; 
@@ -73,20 +80,33 @@ T trans_integrand(const double x, trans_integrand_helper<T> *tih)
     T htj_min = dmin(h, t[j]);
     T htj_max = dmax(h, t[j]);
     if (h < t[j])
-        ret = eta->R_integral(h, -2 * Rh) * (exp(-eta->R(dmax(h, t[j - 1]))) - exp(-eta->R(t[j])));
+    {
+        tmp = eta->R_integral(h, -2 * Rh) * (exp(-eta->R(dmax(h, t[j - 1]))) - exp(-eta->R(t[j])));
+        check_negative(tmp);
+        ret += tmp;
+        check_nan(ret);
+    }
     // f2
     if (h >= t[j - 1])
     {
         tmp = eta->R_integral(t[j - 1], -2 * eta->R(t[j - 1]) - Rh);
         tmp -= eta->R_integral(htj_min, -2 * eta->R(htj_min) - Rh);
         tmp += eRh * (htj_min - t[j - 1]);
+        check_negative(tmp);
         ret += 0.5 * tmp;
+        check_nan(ret);
     }
     if (i == j)
-        ret += 0.5 * (eRh * h - eta->R_integral(h, -3 * Rh));
+    {
+        tmp = 0.5 * (eRh * h - eta->R_integral(h, -3 * Rh));
+        check_negative(tmp);
+        ret += tmp;
+        check_nan(ret);
+    }
     // ret = f1 + f2 + f3;
     ret *= eta->eta(h) / h;
     ret *= jac;
+    check_nan(ret);
     if (ret < 0)
         throw std::domain_error("negative value of positive integral");
     return ret;
@@ -103,6 +123,9 @@ T Transition<T>::trans(int i, int j)
     if (t[i] != INFINITY)
         denom -= exp(-eta->R(t[i]));
     T ret = num / denom;
+    check_nan(ret);
+    check_nan(num);
+    check_nan(denom);
     if (ret > 1 or ret < 0)
         throw std::domain_error("ret is not a probability");
     return ret;
@@ -129,6 +152,7 @@ void Transition<T>::compute(void)
             Phi(i - 1, j - 1) = (1. - pnr) * tr;
             if (i == j)
                 Phi(i - 1, j - 1) += pnr;
+            check_nan(Phi(i - 1, j - 1));
         }
     }
 }
@@ -139,14 +163,14 @@ Matrix<T>& Transition<T>::matrix(void) { return Phi; }
 template class Transition<double>;
 template class Transition<adouble>;
 
-int main(int argc, char** argv)
+int main_transition(int argc, char** argv)
 {
     std::vector<std::vector<double> > params = {
-        {0.6, 1.0},
         {0.5, 1.0},
-        {0.1, 0.1}
+        {5.0, 1.0},
+        {1.0, 1.0}
     };
-    std::vector<double> hs = {0.0, 1.0, 2.0, 3.0};
+    std::vector<double> hs = {0.0, 0.5, 1.0, 2.0, 20.0};
     std::vector<std::pair<int, int> > deriv = { {0,0} };
     double rho = 4 * 1e4 * 1e-9;
     PiecewiseExponentialRateFunction<adouble> eta(params, deriv, hs);

@@ -6,13 +6,16 @@ Vector<T> compute_initial_distribution(const PiecewiseExponentialRateFunction<T>
     auto R = eta.getR();
     int M = eta.hidden_states.size() - 1;
     Vector<T> pi(M);
+    T minval = eta.zero + 1e-20;
     for (int m = 0; m < M - 1; ++m)
     {
-        pi(m) = dmax(exp(-(*R)(eta.hidden_states[m])) - exp(-(*R)(eta.hidden_states[m + 1])), 1e-16);
+        pi(m) = exp(-(*R)(eta.hidden_states[m])) - exp(-(*R)(eta.hidden_states[m + 1]));
+        if (pi(m) < minval) pi(m) = minval;
         assert(pi(m) > 0.0); 
         assert(pi(m) < 1.0); 
     }
-    pi(M - 1) = dmax(exp(-(*R)(eta.hidden_states[M - 1])), 1e-16);
+    pi(M - 1) = exp(-(*R)(eta.hidden_states[M - 1]));
+    if (pi(M - 1) < minval) pi(M - 1) = minval;
     pi /= pi.sum();
     return pi;
 }
@@ -43,16 +46,18 @@ InferenceManager::InferenceManager(
     emission = Matrix<adouble>::Zero(M, 3 * (n + 1));
     int mask_len = emask.maxCoeff() + 1;
     emission_mask = Matrix<adouble>::Zero(M, mask_len);
+#pragma omp parallel for
     for (int i = 0; i < observations.size(); ++i)
     {
         int ell = L[i];
-        Eigen::Matrix<int, Eigen::Dynamic, 2>  ob(ell, 2);
-        Eigen::Matrix<int, Eigen::Dynamic, 3>  tmp(ell, 3);
-        tmp = Eigen::Matrix<int, Eigen::Dynamic, 3, Eigen::RowMajor>::Map(observations[i], ell, 3);
-        ob.col(0) = tmp.col(0);
-        ob.col(1) = (n + 1) * tmp.col(1) + tmp.col(2);
-        for (int off : mask_offset)
-            hmms.push_back(hmmptr(new HMM(ob, block_size, &pi, &transition, &emission, &emission_mask, &emask, mask_freq, off)));
+        Eigen::Matrix<int, Eigen::Dynamic, 3> obs = 
+            Eigen::Matrix<int, Eigen::Dynamic, 3, Eigen::RowMajor>::Map(observations[i], ell, 3);
+        PROGRESS("creating HMM");
+        hmmptr h(new HMM(obs, n, block_size, &pi, &transition, &emission, &emission_mask, &emask, mask_freq, 0));
+#pragma omp critical
+        {
+            hmms.push_back(std::move(h));
+        }
     }
 }
 
@@ -74,6 +79,7 @@ void InferenceManager::setParams(const ParameterVector params, const std::vector
     regularizer = adouble(eta.regularizer());
     pi = compute_initial_distribution<T>(eta).template cast<adouble>();
     transition = compute_transition<T>(eta, block_size * rho).template cast<adouble>();
+    // std::cout << transition.template cast<double>() << std::endl;
     Eigen::Matrix<T, 3, Eigen::Dynamic, Eigen::RowMajor> em_tmp(3, n + 1);
     // transition = matpow(ttmp, block_size);
     // transition = ttmp;

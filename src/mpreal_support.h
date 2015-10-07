@@ -125,6 +125,14 @@ namespace Eigen
                 }
             };
         template <>
+            struct cast_impl<adouble, mpreal_wrapper<adouble> >
+            {
+                static inline mpreal_wrapper<adouble> run(const adouble &x)
+                {
+                    return mpreal_wrapper<adouble>(x.value(), x.derivatives().template cast<mpfr::mpreal>());
+                }
+            };
+        template <>
             struct cast_impl<mpreal_wrapper<adouble>, mpfr::mpreal>
             {
                 static inline mpfr::mpreal run(const mpreal_wrapper<adouble> &x)
@@ -132,7 +140,20 @@ namespace Eigen
                     return x.value();
                 }
             };
+        template <>
+            struct cast_impl<double, mpfr::mpreal>
+            {
+                static inline mpfr::mpreal run(const double &x)
+                {
+                    return x;
+                }
+            };
     }
+}
+
+inline mpreal_wrapper<adouble> myabs(const mpreal_wrapper<adouble> &a)
+{
+    return Eigen::abs(a);
 }
 
 #endif

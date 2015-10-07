@@ -14,8 +14,6 @@
 #include "mpreal.h"
 #include "prettyprint.hpp"
 
-#include "exponential_integrals.h"
-
 #define AUTODIFF 1
 #define EIGEN_NO_AUTOMATIC_RESIZING 1
 #define RATE_FUNCTION PiecewiseExponentialRateFunction
@@ -137,12 +135,6 @@ EIGEN_AUTODIFF_DECLARE_GLOBAL_UNARY(ceil,
 EIGEN_AUTODIFF_DECLARE_GLOBAL_UNARY(log1p,
   Scalar log1px = std::log1p(x.value());
   return ReturnType(log1px, x.derivatives() * (Scalar(1) / (Scalar(1) + x.value())));
-)
-
-EIGEN_AUTODIFF_DECLARE_GLOBAL_UNARY(expintei,
-  Scalar eintx = eint::expintei(x.value());
-  Scalar expx = exp(x.value()) / x.value();
-  return ReturnType(eintx, x.derivatives() * expx);
 )
 
 #undef EIGEN_AUTODIFF_DECLARE_GLOBAL_UNARY

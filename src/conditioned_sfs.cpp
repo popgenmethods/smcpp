@@ -134,7 +134,7 @@ Matrix<T> ConditionedSFS<T>::parallel_cwiseProduct_colSum(const MatrixXq &a, con
 {
     Matrix<T> ret(1, a.cols());
     ret.setZero();
-#pragma omp parallel for
+#pragma omp parallel for schedule(static)
     for (int j = 0; j < a.cols(); ++j)
         for (int i = 0; i < a.rows(); ++i)
             ret(0, j) += a(i, j).get_d() * b(i, j);
@@ -180,13 +180,13 @@ Matrix<mpreal_wrapper<T> > ConditionedSFS<T>::parallel_matrix_product(const Eige
 {
     Matrix<mpreal_wrapper<T> > ret(a.rows(), b.cols());
     ret.setZero();
-#pragma omp parallel for
+#pragma omp parallel for schedule(static)
     for (int i = 0; i < a.rows(); ++i)
     {
-        std::vector<std::vector<mpreal_wrapper<T> > > vs(b.cols());
+        std::vector<std::vector<mpreal_wrapper<T> > > vs(b.cols(), std::vector<mpreal_wrapper<T> >(a.cols()));
         for (int k = 0; k < a.cols(); ++k)
             for (int j = 0; j < b.cols(); ++j)
-                vs[j].push_back(a(i,k) * b(k,j));
+                vs[j][k] = a(i,k) * b(k,j);
         for (int j = 0; j < b.cols(); ++j)
             ret(i, j) = mpreal_wrapper_type<T>::fsum(vs[j]);
     }
@@ -203,11 +203,11 @@ std::vector<Matrix<T> > ConditionedSFS<T>::compute_below(const PiecewiseExponent
     double log2d, h1, h2;
     for (int h = 0; h < eta.hidden_states.size() - 1; ++h)
     {
-        h1 = toDouble((*(eta.getR()))(eta.hidden_states[h]));
+        h1 = toDouble(eta.R(eta.hidden_states[h]));
         log2d = h1 / log(2);
         if (eta.hidden_states[h + 1] < INFINITY)
         {
-            h2 = toDouble((*(eta.getR()))(eta.hidden_states[h + 1]));
+            h2 = toDouble(eta.R(eta.hidden_states[h + 1]));
             log2d = -h1 / log(2) + log2(-expm1(h1 - h2));
         }
         else
@@ -226,6 +226,9 @@ std::vector<Matrix<T> > ConditionedSFS<T>::compute_below(const PiecewiseExponent
         tjj_below.row(h - 1) = next - last;
         last = next;
     }
+
+    std::cout << "tjj_below:\n" << tjj_below.template cast<T>().template cast<double>() << std::endl << std::endl;
+
     PROGRESS("matrix products below");
     Matrix<T> M0_below = below0(tjj_below);
     Matrix<T> M1_below = below1(tjj_below);
@@ -254,6 +257,10 @@ std::vector<Matrix<T> > ConditionedSFS<T>::compute_above(
         eta.tjj_double_integral_above(n, j, C);
     Matrix<T> tmp;
     PROGRESS("matrix products");
+
+    for (int h = 0; h < H; ++h)
+        std::cout << "tjj_above (" << h << "):\n" << C[h].template cast<T>().template cast<double>() << std::endl << std::endl;
+
     for (int h = 0; h < H; ++h)
     {
         ret[h].block(0, 1, 1, n) += above0(C[h]);
@@ -271,10 +278,10 @@ std::vector<Matrix<T> > ConditionedSFS<T>::compute(const PiecewiseExponentialRat
     for (int i = 0; i < above.size(); ++i)
     {
         ret[i] = above[i] + below[i];
-        T h1 = (*(eta.getR()))(eta.hidden_states[i]), d;
+        T h1 = eta.R(eta.hidden_states[i]), d;
         if (eta.hidden_states[i + 1] < INFINITY)
         {
-            T h2 = (*(eta.getR()))(eta.hidden_states[i + 1]);
+            T h2 = eta.R(eta.hidden_states[i + 1]);
             d = -exp(-h1) * expm1(h1 - h2);
         }
         else

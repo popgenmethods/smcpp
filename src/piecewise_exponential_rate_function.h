@@ -10,6 +10,8 @@
 #include "mpi.h"
 #include "quadpackpp/workspace.hpp"
 #include "exponential_integrals.h"
+#include "simpsons.h"
+#include "gauss_legendre.h"
 
 const double T_MAX = INFINITY;
 
@@ -43,7 +45,7 @@ class PiecewiseExponentialRateFunction
     const FunctionEvaluator<T>* geteta() const { return _eta.get(); }
     const FunctionEvaluator<T>* getR() const { return _R.get(); }
     const FunctionEvaluator<T>* getRinv() const { return _Rinv.get(); }
-    T R(T x) const { return (*_R)(x); }
+    T R(T x) const { T ret = (*_R)(x); check_nan(ret); return ret; }
     T eta(T x) const { return (*_eta)(x); }
     T R_integral(const T, const T) const;
     void print_debug() const;
@@ -149,11 +151,14 @@ class PExpIntegralEvaluator : public BasePExpEvaluator<T>
     virtual const std::vector<T>& insertion_list(void) const { return this->ts; } 
     virtual T pexp_eval(const T &t, int ip) const
     {
+        T ret;
         if (this->adb[ip] == 0.0)
-            return this->Rrng[ip] + this->ada[ip] * (t - this->ts[ip]);
+            ret = this->Rrng[ip] + this->ada[ip] * (t - this->ts[ip]);
         else
-            return this->ada[ip] / this->adb[ip] * 
+            ret = this->ada[ip] / this->adb[ip] * 
                 expm1(this->adb[ip] * (t - this->ts[ip])) + this->Rrng[ip];
+        check_nan(ret);
+        return ret;
     }
 };
 

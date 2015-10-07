@@ -79,7 +79,7 @@ class InferenceManager;
 class HMM
 {
     public:
-    HMM(Eigen::Matrix<int, Eigen::Dynamic, 2> obs, const int block_size,
+    HMM(const Matrix<int> &obs, const int n, const int block_size,
         const Vector<adouble> *pi, const Matrix<adouble> *transition, 
         const Matrix<adouble> *emission, const Matrix<adouble> *emission_mask, 
         const Eigen::Matrix<int, 3, Eigen::Dynamic, Eigen::RowMajor>* mask_locations,
@@ -94,13 +94,12 @@ class HMM
     HMM(HMM const&) = delete;
     HMM& operator=(HMM const&) = delete;
     // Methods
-    void prepare_B(void);
+    void prepare_B(const Matrix<int>&, const int);
     void recompute_B(void);
     void forward_backward(void);
     void domain_error(double);
     bool is_alt_block(int);
 
-    Eigen::Matrix<int, Eigen::Dynamic, 2> obs;
     const int block_size, alt_block_size;
 
     // Instance variables

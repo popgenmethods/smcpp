@@ -1,8 +1,56 @@
-#include <iostream>
-#include <gmpxx.h>
-#include "mpreal.h"
+#include "exponential_integrals.h"
+
+template <>
+mpfr::mpreal expintei(const mpfr::mpreal &x)
+{
+    return mpf_ei(x, x.getPrecision());
+}
+
+template <>
+adouble expintei(const adouble&)
+{
+    throw std::domain_error("what");
+}
+
+template <>
+mpreal_wrapper<adouble> expintei(const mpreal_wrapper<adouble> &)
+{
+    throw std::domain_error("what");
+}
+
+
+template <>
+double expintei(const double &x)
+{
+    mpfr::mpreal xd(x);
+    xd.setPrecision(53);
+    return expintei(xd).toDouble();
+}
+
+#ifndef EINTDIFF_QUAD
+template <>
+double eintdiff(const double &a, const double &b, const double &r)
+{
+    mpfr::mpreal ma(a, 70), mb(b, 70), mr(r, 70);
+    return eintdiff(ma, mb, mr).toDouble();
+}
+#endif
+
+/*
+template <typename T>
+Eigen::AutoDiffScalar<T> eintdiff(const Eigen::AutoDiffScalar<T> a, 
+        const Eigen::AutoDiffScalar<T> b, const Eigen::AutoDiffScalar<T> c)
+{
+    Eigen::AutoDiffScalar<T> ret;
+    ret.value() = eintdiff(a.value(), b.value(), c.value());
+    ret.derivatives() = exp(c.value()) * (exp(b.value()) / b.value() * b.derivatives() - exp(a.value()) / a.value() * a.derivatives());
+    ret.derivatives() += c.derivatives() * ret.value();
+    return ret;
+}
+*/
 
 // This is copied almost verbatim from the Python mpmath.libmp module.
+//
 // The author of that code is Fredrik Johansson (https://github.com/fredrik-johansson)
 // Any mistakes are my fault.
 
@@ -53,6 +101,11 @@ mpz_class ei_asymptotic(mpz_class x, mp_prec_t prec)
 
 mpfr::mpreal mpf_ei(mpfr::mpreal x, const mp_prec_t prec)
 {
+    if (x > 0)
+    {
+        x.setPrecision(prec);
+        return mpfr::eint(x);
+    }
     mp_exp_t expo;
     mpfr::mpreal man = mpfr::frexp(x, &expo);
     mp_prec_t bc = x.getPrecision();
@@ -89,11 +142,17 @@ mpfr::mpreal mpf_ei(mpfr::mpreal x, const mp_prec_t prec)
     return v;
 }
 
+/*
+#include "gsl/gsl_sf_expint.h"
 int main(int argc, char** argv)
 {
-    int prec = atoi(argv[2]);
-    mpfr::mpreal::set_default_prec(prec);
-    mpfr::mpreal x(argv[1]);
-    mpfr::mpreal ei = mpf_ei(x, prec);
-    std::cout << ei.toString() << std::endl;
+    std::vector<double> xx = {-1.7371779276130075, -1.3026996684971506};
+    for (auto x : xx)
+        std::cout << eint::expintei(x) << " " << gsl_sf_expint_Ei(x) << std::endl;
+    for (int i=-10; i < 11; ++i)
+    {
+        double x = pow(2.5, i);
+        std::cout << mpf_ei(x, 53).toDouble() << " " << gsl_sf_expint_Ei(x) << std::endl;
+    }
 }
+*/
