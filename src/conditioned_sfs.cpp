@@ -227,7 +227,7 @@ std::vector<Matrix<T> > ConditionedSFS<T>::compute_below(const PiecewiseExponent
         last = next;
     }
 
-    std::cout << "tjj_below:\n" << tjj_below.template cast<T>().template cast<double>() << std::endl << std::endl;
+    // std::cout << "tjj_below:\n" << tjj_below.template cast<T>().template cast<double>() << std::endl << std::endl;
 
     PROGRESS("matrix products below");
     Matrix<T> M0_below = below0(tjj_below);
@@ -258,8 +258,8 @@ std::vector<Matrix<T> > ConditionedSFS<T>::compute_above(
     Matrix<T> tmp;
     PROGRESS("matrix products");
 
-    for (int h = 0; h < H; ++h)
-        std::cout << "tjj_above (" << h << "):\n" << C[h].template cast<T>().template cast<double>() << std::endl << std::endl;
+    // for (int h = 0; h < H; ++h)
+        // std::cout << "tjj_above (" << h << "):\n" << C[h].template cast<T>().template cast<double>() << std::endl << std::endl;
 
     for (int h = 0; h < H; ++h)
     {

@@ -8,10 +8,11 @@
 #include "mpreal_support.h"
 #include "gauss_legendre.h"
 
-mpfr::mpreal mpf_ei(mpfr::mpreal, const mp_prec_t);
+mpfr::mpreal mpf_ei(const mpfr::mpreal&, const mp_prec_t);
+mpfr::mpreal mpf_ei(const mpfr::mpreal&, const mpfr::mpreal&, const mp_prec_t);
 
 template <typename T>
-T expintei(const T&);
+T expintei(const T&, const T&);
 
 template <typename T>
 T eint_helper(T x, void* r)
@@ -33,7 +34,7 @@ T eintdiff(const T a, const T b, T r)
     // return mpreal_wrapper_type<T>::convertBack(ret);
     // std::function<T(const T, T*)> f(eint_helper<T>);
     // return adaptiveSimpsons<T>(f, &r, a, b, 1e-8, 20);
-    T ret = gauss_legendre(512, eint_helper<T>, (void*)&r, a, b);
+    T ret = gauss_legendre(64, eint_helper<T>, (void*)&r, a, b);
     check_nan(ret);
     return ret;
 }
@@ -41,7 +42,7 @@ T eintdiff(const T a, const T b, T r)
 template <typename T>
 T eintdiff(const T &a, const T &b, const T &r)
 {
-    return exp(r) * (expintei(b) - expintei(a));
+    return expintei(b, r) - expintei(a, r);
 }
 #endif
 

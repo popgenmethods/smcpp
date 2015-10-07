@@ -293,22 +293,22 @@ T PiecewiseExponentialRateFunction<T>::R_integral(const T x, const T y) const
 
 
 template <typename T>
-inline T _single_integral(const int rate, const T &tsm, const T &tsm1, const T &ada, const T &adb, const T &Rrng)
+inline T _single_integral(const int rate, const T &tsm, const T &tsm1, const T &ada, const T &adb, const T &Rrng, const T &log_coef)
 {
     // = int_ts[m]^ts[m+1] exp(-rate * R(t)) dt
     const int c = rate;
     if (rate == 0)
-        return tsm1 - tsm;
+        return exp(log_coef) * (tsm1 - tsm);
     if (adb == 0.)
     {
-        T ret = exp(-c * Rrng);
+        T ret = exp(-c * Rrng + log_coef);
         if (tsm1 < INFINITY)
             ret *= -expm1(-c * ada * (tsm1 - tsm));
         return ret / ada / c;
     }
     T e1 = -c * ada / adb;
     T e2 = -c * exp(adb * (tsm1 - tsm)) * ada / adb;
-    T e3 =  c * (ada / adb - Rrng);
+    T e3 =  c * (ada / adb - Rrng) + log_coef;
     T ret = eintdiff(e1, e2, e3) / adb;
     check_nan(ret);
     return ret;
@@ -397,9 +397,25 @@ void PiecewiseExponentialRateFunction<T>::tjj_double_integral_above(const int n,
             else
                 ts_integrals(m, j - 2) = _double_integral_above_helper_ei<T>(rate, lam, ts[m], ts[m + 1], ada[m], adb[m], Rrng[m]);
             check_nan(ts_integrals(m, j - 2));
-            T tmp = zero;
+            T tmp = zero, log_coef = zero, fac;
+            long rp = lam + 1 - rate;
+            if (rp == 0)
+                fac = Rrng[m + 1] - Rrng[m];
+            else
+            {
+                log_coef = -rp * Rrng[m];
+                if (log_coef > 50)
+                {
+                    fac = -one / rp;
+                    log_coef = -rp * Rrng[m + 1];
+                }
+                else
+                    fac = -expm1(-rp * (Rrng[m + 1] - Rrng[m])) / rp;
+            }
             for (int k = m + 1; k < K; ++k)
-                tmp += _single_integral(rate, ts[k], ts[k + 1], ada[k], adb[k], Rrng[k]);
+                ts_integrals(m, j - 2) += _single_integral(rate, ts[k], ts[k + 1], ada[k], adb[k], Rrng[k], log_coef) * fac;
+            /*
+                tmp += _single_integral(rate, ts[k], ts[k + 1], ada[k], adb[k], Rrng[k], zero);
             if (m + 1 < K)
             {
                 long rp = lam + 1 - rate;
@@ -408,6 +424,7 @@ void PiecewiseExponentialRateFunction<T>::tjj_double_integral_above(const int n,
                 else
                     ts_integrals(m, j - 2) += (exp(-rp * Rrng[m]) - exp(-rp * Rrng[m + 1])) * tmp / rp;
             }
+            */
             check_nan(ts_integrals(m, j - 2));
         }
     }
@@ -441,9 +458,10 @@ void PiecewiseExponentialRateFunction<T>::tjj_double_integral_below(
         _adb = convert<mpreal_wrapper<T>, T >::run(adb[m], wprec), 
         _Rrng = convert<mpreal_wrapper<T>, T >::run(Rrng[m], wprec),
         _Rrng1 = convert<mpreal_wrapper<T>, T >::run(Rrng[m + 1], wprec);
-    mpreal_wrapper<T> si = exp(-_Rrng);
+    mpreal_wrapper<T> log_coef = -_Rrng;
+    mpreal_wrapper<T> fac = convert<mpreal_wrapper<T>, T>::run(one, wprec);
     if (m < K - 1)
-        si -= exp(-_Rrng1);
+        fac = -expm1(-(_Rrng1 - _Rrng));
     for (int j = 2; j < n + 3; ++j)
     {
         long rate = nC2(j) - 1;
@@ -463,14 +481,11 @@ void PiecewiseExponentialRateFunction<T>::tjj_double_integral_below(
                 _ada = convert<mpreal_wrapper<T>, T >::run(ada[k], wprec), 
                 _adb = convert<mpreal_wrapper<T>, T >::run(adb[k], wprec), 
                 _Rrng = convert<mpreal_wrapper<T>, T >::run(Rrng[k], wprec);
-            cs.push_back(_single_integral(rate, _tsk, _tsk1, _ada, _adb, _Rrng));
+            cs.push_back(fac * _single_integral(rate, _tsk, _tsk1, _ada, _adb, _Rrng, log_coef));
             check_nan(cs.back());
         }
         if (m > 0)
-        {
-            mpreal_wrapper<T> tmp = mpreal_wrapper_type<T>::fsum(cs);
-            ts_integrals(j - 2) += si * tmp;
-        }
+            ts_integrals(j - 2) += mpreal_wrapper_type<T>::fsum(cs);
     }
     tgt.row(m) = ts_integrals.transpose();
 }
@@ -478,7 +493,7 @@ void PiecewiseExponentialRateFunction<T>::tjj_double_integral_below(
 template class PiecewiseExponentialRateFunction<double>;
 template class PiecewiseExponentialRateFunction<adouble>;
 
-int main(int argc, char** argv)
+int main1(int argc, char** argv)
 {
     std::vector<std::vector<double> > params = {
         {0.5, 1.0, 2.0},
@@ -495,8 +510,8 @@ int main(int argc, char** argv)
     std::cout << _double_integral_above_helper<double>(5, 10, 1., 2., 0.5, 1.0) << std::endl;
     std::cout << _double_integral_above_helper_ei(5, 10, 1., 2., 0.5, -.2, 1.0) << std::endl;
 
-    std::cout << _single_integral(5, 1., 2., 0.5, 0., 1.0) << std::endl;
-    std::cout << _single_integral(5, 1., 2., 0.5, -.2, 1.0) << std::endl;
+    std::cout << _single_integral(5, 1., 2., 0.5, 0., 1.0, 0.) << std::endl;
+    std::cout << _single_integral(5, 1., 2., 0.5, -.2, 1.0, 0.) << std::endl;
 
     // params[0][0] += 1e-8;
     // PiecewiseExponentialRateFunction<double> eta2(params, deriv, hs);
