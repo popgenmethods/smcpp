@@ -2,9 +2,18 @@
 
 #ifndef EINTDIFF_QUAD
 template <>
+double expintei(const double &x, const double &y);
+template <>
 mpfr::mpreal expintei(const mpfr::mpreal &x, const mpfr::mpreal &y)
 {
-    return mpf_ei(x, true, x.getPrecision()) * exp(x + y);
+    mpfr::mpreal ret = mpf_ei(x, true, x.getPrecision()) * exp(x + y);
+    double dret = expintei(x.toDouble(), y.toDouble());
+    if (myabs(ret.toDouble() - dret) / dret > 1e-3)
+    {
+        std::cout << ret << " " << dret;
+        throw std::runtime_error("mpf_ei appears off");
+    }
+    return ret;
 }
 
 #include "gsl/gsl_sf_expint.h"
@@ -27,6 +36,7 @@ double eintdiff<double>::run(const double &a, const double &b, const double &r)
     // double ret = eintdiff<mpfr::mpreal>::run(ma, mb, mr).toDouble();
     double ret = expintei(b, r) - expintei(a, r);
     // std::cout << "eintdiff: " << ret << " " << exp(r) * (gsl_sf_expint_Ei(b) - gsl_sf_expint_Ei(a)) << std::endl;
+    check_nan(ret);
     return ret;
 }
 

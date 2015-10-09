@@ -340,6 +340,7 @@ adouble HMM::Q(void)
     Eigen::Array<adouble, Eigen::Dynamic, Eigen::Dynamic> ttalt = mymatpow(*transition, alt_block_size).array().log();
     */
     Eigen::Array<adouble, Eigen::Dynamic, Eigen::Dynamic> tt = transition->array().log();
+    check_nan(tt);
     ret3 = (xis * tt).sum();
     ret3 += (xis_alt * tt).sum();
     PROGRESS_DONE();
@@ -359,5 +360,8 @@ adouble HMM::Q(void)
         std::cout << aa->first->template cast<double>().transpose() << std::endl << std::endl;
     }
     */
+    check_nan(ret1);
+    check_nan(ret2);
+    check_nan(ret3);
     return ret1 + ret2 + ret3;
 }

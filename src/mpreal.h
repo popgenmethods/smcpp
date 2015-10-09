@@ -3103,6 +3103,4 @@ namespace std
 
 }
 
-inline void check_nan(const mpfr::mpreal &x) { if (isnan(x)) throw std::domain_error("nan detected"); }
-
 #endif /* __MPREAL_H__ */

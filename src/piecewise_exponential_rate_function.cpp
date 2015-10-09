@@ -128,7 +128,7 @@ PiecewiseExponentialRateFunction<T>::PiecewiseExponentialRateFunction(
             }
             else
             {
-                vec_insert<T>(ada, ip + 1, ada[ip] * exp(adb[ip] * ((T)h - ts[ip])));
+                vec_insert<T>(ada, ip + 1, ada[ip] * exp(adb[ip] * (one * h - ts[ip])));
                 vec_insert<T>(adb, ip + 1, (log(ada[ip] / ada[ip + 1]) + adb[ip] * (ts[ip + 2] - ts[ip])) / (ts[ip + 2] - (T)h));
             }
             check_nan(ada[ip + 1]);
@@ -147,8 +147,16 @@ PiecewiseExponentialRateFunction<T>::PiecewiseExponentialRateFunction(
     _eta.reset(new PExpEvaluator<T>(ada, adb, ts, Rrng));
     _R.reset(new PExpIntegralEvaluator<T>(ada, adb, ts, Rrng));
     _Rinv.reset(new PExpInverseIntegralEvaluator<T>(ada, adb, ts, Rrng));
-    for (int k = 1; k < K; ++k)
-        _reg += abs(ada[k] - ada[k - 1]);
+    T Tmax = ts[K - 1];
+    T elast = eta(zero);
+    for (int i = 1; i < 1001; ++i)
+    {
+        T xx = (i / 1000.) * Tmax;
+        T etax = eta(xx);
+        T tmp = etax - elast;
+        _reg += myabs(tmp);
+        elast = etax;
+    }
 }
 
 template <typename T>
@@ -283,9 +291,14 @@ T PiecewiseExponentialRateFunction<T>::R_integral(const T x, const T y) const
             r = r1 - r2;
             r *= exp(2 * (Rrng[i] - adab) + y) / adb[i];
             */
-            r = eintdiff(c2, c1, c3) / adb[i];
+            r = eintdiff<T>::run(c2, c1, c3) / adb[i];
+            check_negative(r);
+            check_nan(r);
         }
-        check_nan(ret);
+        if (r > 100.)
+            throw std::domain_error("what");
+        check_negative(r);
+        check_nan(r);
         ret += r;
     }
     return ret;
@@ -309,8 +322,9 @@ inline T _single_integral(const int rate, const T &tsm, const T &tsm1, const T &
     T e1 = -c * ada / adb;
     T e2 = -c * exp(adb * (tsm1 - tsm)) * ada / adb;
     T e3 =  c * (ada / adb - Rrng) + log_coef;
-    T ret = eintdiff(e1, e2, e3) / adb;
+    T ret = eintdiff<T>::run(e1, e2, e3) / adb;
     check_nan(ret);
+    check_negative(ret);
     return ret;
 }
 
@@ -327,21 +341,24 @@ inline T _double_integral_below_helper_ei(const int rate, const T &tsm, const T 
         T a1 = -adadb;
         T b1 = -eadb * adadb;
         T cons1 = adadb - Rrng;
-        T int1 = eintdiff(a1, b1, cons1);
+        T int1 = eintdiff<T>::run(a1, b1, cons1);
         int1 /= adb;
         int1 += exp(adadb * (1. - eadb) - Rrng) * (tsm - tsm1);
+        check_negative(int1);
+        check_nan(int1);
         return int1;
     }
     T cons1 = (2 + c) * adadb;
     T cons2 = adadb * (2 + c + eadb);
     T a1 = -c * adadb * eadb;
     T b1 = -c * adadb;
-    T int1 = eintdiff(a1, b1, cons1);
+    T int1 = eintdiff<T>::run(a1, b1, cons1);
     T a2 = -(c + 1) * adadb;
     T b2 = -(c + 1) * adadb * eadb;
-    T int2 = eintdiff(a2, b2, cons2);
+    T int2 = eintdiff<T>::run(a2, b2, cons2);
     T cons3 = exp(-(ada * (1 + eadb) / adb + (1 + c) * Rrng));
     T ret = cons3 * (int1 + int2) / adb;
+    check_negative(ret);
     check_nan(ret);
     return ret;
 }
@@ -357,16 +374,17 @@ inline T _double_integral_above_helper_ei(const int rate, const int lam, const T
     T a1 = -cons1 * eadb;
     T b1 = -cons1;
     T c1 = cons1 - d * Rrng;
-    T ed1 = eintdiff(a1, b1, c1);
+    T ed1 = eintdiff<T>::run(a1, b1, c1);
     if (c != d)
     {
         T cons2 = ada * d / adb;
         T a2 = -cons2;
         T b2 = -cons2 * eadb;
         T c2 = cons2 - d * Rrng;
-        return (ed1 + eintdiff(a2, b2, c2)) / adb / (c - d);
+        return (ed1 + eintdiff<T>::run(a2, b2, c2)) / adb / (c - d);
     }
     T ret = (exp(-d * Rrng) * (-adb * expm1(-ada / adb * d * expm1(adb * (tsm1 - tsm)))) + ada * d * ed1) / (adb * adb * d);
+    check_negative(ret);
     check_nan(ret);
     return ret;
 }
@@ -426,6 +444,7 @@ void PiecewiseExponentialRateFunction<T>::tjj_double_integral_above(const int n,
             }
             */
             check_nan(ts_integrals(m, j - 2));
+            check_negative(ts_integrals(m, j - 2));
         }
     }
     // Now calculate with hidden state integration limits
@@ -483,9 +502,11 @@ void PiecewiseExponentialRateFunction<T>::tjj_double_integral_below(
                 _Rrng = convert<mpreal_wrapper<T>, T >::run(Rrng[k], wprec);
             cs.push_back(fac * _single_integral(rate, _tsk, _tsk1, _ada, _adb, _Rrng, log_coef));
             check_nan(cs.back());
+            check_negative(cs.back());
         }
         if (m > 0)
             ts_integrals(j - 2) += mpreal_wrapper_type<T>::fsum(cs);
+        check_negative(ts_integrals(j - 2));
     }
     tgt.row(m) = ts_integrals.transpose();
 }
@@ -493,16 +514,18 @@ void PiecewiseExponentialRateFunction<T>::tjj_double_integral_below(
 template class PiecewiseExponentialRateFunction<double>;
 template class PiecewiseExponentialRateFunction<adouble>;
 
-int main1(int argc, char** argv)
+int main_pexp(int argc, char** argv)
 {
     std::vector<std::vector<double> > params = {
         {0.5, 1.0, 2.0},
         {1.0, 1.0, 2.0},
         {0.1, 0.1, 0.1}
     };
-    std::vector<double> hs = {};
-    std::vector<std::pair<int, int> > deriv = {};
-    // PiecewiseExponentialRateFunction<double> eta(params, deriv, hs);
+    std::vector<double> hs = {0.0,0.1,1.0,10.0};
+    std::vector<std::pair<int, int> > deriv = {{1,0}};
+    PiecewiseExponentialRateFunction<adouble> eta(params, deriv, hs);
+    params[1][0] += 1e-8;
+    PiecewiseExponentialRateFunction<double> eta2(params, deriv, hs);
     
     std::cout << _double_integral_below_helper<mpfr::mpreal, double>(53, 5, 1., 2., 0.5, 1.0) << std::endl;
     std::cout << _double_integral_below_helper_ei(5, 1., 2., 0.5, -.2, 1.0) << std::endl;
@@ -513,9 +536,6 @@ int main1(int argc, char** argv)
     std::cout << _single_integral(5, 1., 2., 0.5, 0., 1.0, 0.) << std::endl;
     std::cout << _single_integral(5, 1., 2., 0.5, -.2, 1.0, 0.) << std::endl;
 
-    // params[0][0] += 1e-8;
-    // PiecewiseExponentialRateFunction<double> eta2(params, deriv, hs);
-    /*
     int n = 5;
     Matrix<mpreal_wrapper<adouble> > ts_integrals(eta.K, n + 1); 
     Matrix<mpreal_wrapper<double> > ts_integrals2(eta.K, n + 1); 
@@ -530,9 +550,8 @@ int main1(int argc, char** argv)
     Matrix<double> dM = M.unaryExpr([](adouble x) { return x.derivatives()(0); }).template cast<double>();
     Matrix<double> M2 = ts_integrals2.template cast<double>();
 
-    std::cout << (M.template cast<double>() - M2) * 1e8 << std::endl << std::endl;
+    std::cout << (M2 - M.template cast<double>()) * 1e8 << std::endl << std::endl;
     std::cout << dM << std::endl << std::endl;
-    */
 
     /*
     Vector<double> d(1);

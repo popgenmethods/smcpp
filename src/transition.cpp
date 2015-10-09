@@ -6,6 +6,7 @@ struct trans_integrand_helper
     const int i, j;
     const PiecewiseExponentialRateFunction<T> *eta;
     const double left, right;
+    const T denom;
 };
 
 template <typename T>
@@ -13,6 +14,7 @@ struct p_intg_helper
 {
     const PiecewiseExponentialRateFunction<T>* eta;
     const double rho, left, right;
+    const T denom;
 };
 
 template <typename T>
@@ -32,6 +34,7 @@ T p_integrand(const double x, p_intg_helper<T> *pih)
     if (v == INFINITY)
         return 0.;
     T ret = pih->eta->eta(v) * exp(-(pih->eta->R(v) + pih->rho * v)) * jac;
+    ret /= pih->denom;
     return ret;
 }
 
@@ -39,19 +42,15 @@ template <typename T>
 T Transition<T>::P_no_recomb(const int i)
 {
     std::vector<double> t = eta->hidden_states;
-    p_intg_helper<T> h = {eta, 2. * rho, t[i - 1], t[i]};
-    T num = adaptiveSimpsons(std::function<T(const double, p_intg_helper<T>*)>(p_integrand<T>), &h, 0., 1., 1e-10, 32);
     T denom = exp(-eta->R(t[i - 1]));
     if (t[i] < INFINITY)
         denom -= exp(-eta->R(t[i]));
-    return num / denom;
-}
-
-template <typename T>
-void check_negative(const T x)
-{
-    if (x < 0)
-        throw std::domain_error("negative x");
+    p_intg_helper<T> h = {eta, 2. * rho, t[i - 1], t[i], denom};
+    T ret = adaptiveSimpsons(std::function<T(const double, p_intg_helper<T>*)>(p_integrand<T>), &h, 0., 1., 1e-8, 12);
+    check_nan(ret);
+    check_negative(ret);
+    check_negative(1. - ret);
+    return ret;
 }
 
 template <typename T>
@@ -87,11 +86,12 @@ T trans_integrand(const double x, trans_integrand_helper<T> *tih)
         check_nan(ret);
     }
     // f2
-    if (h >= t[j - 1])
+    if (h > t[j - 1])
     {
-        tmp = eta->R_integral(t[j - 1], -2 * eta->R(t[j - 1]) - Rh);
-        tmp -= eta->R_integral(htj_min, -2 * eta->R(htj_min) - Rh);
-        tmp += eRh * (htj_min - t[j - 1]);
+        T r1 = eta->R_integral(t[j - 1], -2 * eta->R(t[j - 1]) - Rh);
+        T r2 = eta->R_integral(htj_min, -2 * eta->R(htj_min) - Rh);
+        T r3 = eRh * (htj_min - t[j - 1]); 
+        tmp = r1 - r2 + r3;
         check_negative(tmp);
         ret += 0.5 * tmp;
         check_nan(ret);
@@ -109,6 +109,7 @@ T trans_integrand(const double x, trans_integrand_helper<T> *tih)
     check_nan(ret);
     if (ret < 0)
         throw std::domain_error("negative value of positive integral");
+    ret /= tih->denom;
     return ret;
 }
 
@@ -116,16 +117,14 @@ template <typename T>
 T Transition<T>::trans(int i, int j)
 {
     const std::vector<double> t = eta->hidden_states;
-    trans_integrand_helper<T> tih = {i, j, eta, t[i - 1], t[i]};
-    T num = adaptiveSimpsons(std::function<T(const double, trans_integrand_helper<T>*)>(trans_integrand<T>),
-            &tih, 0., 1., 1e-10, 20);
     T denom = exp(-eta->R(t[i - 1]));
     if (t[i] != INFINITY)
         denom -= exp(-eta->R(t[i]));
-    T ret = num / denom;
+    trans_integrand_helper<T> tih = {i, j, eta, t[i - 1], t[i], denom};
+    T ret = adaptiveSimpsons(std::function<T(const double, trans_integrand_helper<T>*)>(trans_integrand<T>),
+            &tih, 0., 1., 1e-6, 8);
+    check_negative(ret);
     check_nan(ret);
-    check_nan(num);
-    check_nan(denom);
     if (ret > 1 or ret < 0)
         throw std::domain_error("ret is not a probability");
     return ret;
@@ -143,6 +142,7 @@ Transition<T>::Transition(const PiecewiseExponentialRateFunction<T> &eta, const 
 template <typename T>
 void Transition<T>::compute(void)
 {
+#pragma omp parallel for
     for (int i = 1; i < M; ++i)
     {
         T pnr = P_no_recomb(i);
@@ -153,6 +153,12 @@ void Transition<T>::compute(void)
             if (i == j)
                 Phi(i - 1, j - 1) += pnr;
             check_nan(Phi(i - 1, j - 1));
+            check_negative(Phi(i - 1, j - 1));
+            if (Phi(i - 1, j - 1) < 1e-20)
+            {
+                std::cout << "really small phi: " << i << " " << j << " " << Phi(i - 1, j - 1) << std::endl;
+                Phi(i - 1, j - 1) = 1e-20;
+            }
         }
     }
 }
@@ -163,12 +169,12 @@ Matrix<T>& Transition<T>::matrix(void) { return Phi; }
 template class Transition<double>;
 template class Transition<adouble>;
 
-int main_transition(int argc, char** argv)
+int transition_main(int argc, char** argv)
 {
     std::vector<std::vector<double> > params = {
-        {0.5, 1.0},
-        {5.0, 1.0},
-        {1.0, 1.0}
+        {0.5, 2.0, 1.0},
+        {5.0, 0.2, 1.0},
+        {0.2, 1.0, 1.0}
     };
     std::vector<double> hs = {0.0, 0.5, 1.0, 2.0, 20.0};
     std::vector<std::pair<int, int> > deriv = { {0,0} };

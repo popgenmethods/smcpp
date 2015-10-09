@@ -47,7 +47,9 @@ struct eintdiff
 {
     static T run(const T &a, const T &b, const T &r)
     {
-        return expintei(b, r) - expintei(a, r);
+        T ret = expintei(b, r) - expintei(a, r);
+        check_nan(ret);
+        return ret;
     }
 };
 
@@ -59,7 +61,8 @@ struct eintdiff<Eigen::AutoDiffScalar<T> >
     {
         Eigen::AutoDiffScalar<T> ret;
         ret.value() = eintdiff<typename Eigen::AutoDiffScalar<T>::Scalar>::run(a.value(), b.value(), c.value());
-        ret.derivatives() = exp(c.value()) * (exp(b.value()) / b.value() * b.derivatives() - exp(a.value()) / a.value() * a.derivatives());
+        // ret.derivatives() = exp(c.value()) * (exp(b.value()) / b.value() * b.derivatives() - exp(a.value()) / a.value() * a.derivatives());
+        ret.derivatives() = exp(b.value() + c.value()) / b.value() * b.derivatives() - exp(a.value() + c.value()) / a.value() * a.derivatives();
         ret.derivatives() += c.derivatives() * ret.value();
         return ret;
     }

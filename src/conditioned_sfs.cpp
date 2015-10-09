@@ -227,7 +227,7 @@ std::vector<Matrix<T> > ConditionedSFS<T>::compute_below(const PiecewiseExponent
         last = next;
     }
 
-    // std::cout << "tjj_below:\n" << tjj_below.template cast<T>().template cast<double>() << std::endl << std::endl;
+    // std::cout << "tjj_below:\n" << tjj_below.template cast<T>().template cast<double>().transpose() << std::endl << std::endl;
 
     PROGRESS("matrix products below");
     Matrix<T> M0_below = below0(tjj_below);
@@ -291,7 +291,7 @@ std::vector<Matrix<T> > ConditionedSFS<T>::compute(const PiecewiseExponentialRat
         ret[i] *= -expm1(-theta * tauh) / tauh;
         ret[i](0, 0) = exp(-theta * tauh);
         T tiny = (ret[i](0, 0) - ret[i](0, 0)) + 1e-20;
-        ret[i] = ret[i].unaryExpr([=](T x) { if (x < 1e-20) return tiny; if (x < -1e-8) throw std::domain_error("very negative sfs"); return x; });
+        ret[i] = ret[i].unaryExpr([=](const T x) { if (x < 1e-20) return tiny; if (x < -1e-8) throw std::domain_error("very negative sfs"); return x; });
         check_nan(ret[i]);
      }
     return ret;
@@ -375,3 +375,29 @@ void print_sfs(int n, const std::vector<double> &sfs)
 
 template class ConditionedSFS<double>;
 template class ConditionedSFS<adouble>;
+
+int main_csfs(int argc, char** argv)
+{
+    ConditionedSFS<adouble> csfs(0);
+    ConditionedSFS<double> csfs2(0);
+    std::vector<std::vector<double> > params = {
+        {0.2, 1.0, 2.0},
+        {1.0, 1.0, 2.0},
+        {1.0, 0.1, 0.1}
+    };
+    std::vector<double> hs = {0.0,1.0,2.0,10.0};
+    std::vector<std::pair<int, int> > deriv = {{1,0}};
+    PiecewiseExponentialRateFunction<adouble> eta(params, deriv, hs);
+    params[1][0] += 1e-8;
+    PiecewiseExponentialRateFunction<double> eta2(params, deriv, hs);
+    std::vector<Matrix<adouble> > cs = csfs.compute(eta, 4 * 1e-4 * 50);
+    std::vector<Matrix<double> > cs2 = csfs2.compute(eta2, 4 * 1e-4 * 50);
+    for (int h = 0; h < hs.size() - 1; ++h)
+    {
+        std::cout << h << std::endl ;
+        std::cout << "[" << cs2[h].transpose() << "]" << std::endl;
+        std::cout << (cs2[h] - cs[h].template cast<double>()) * 1e8 << std::endl << std::endl;
+        std::cout << cs[h].unaryExpr([](adouble x) { return x.derivatives()(0); }).template cast<double>()
+            << std::endl << std::endl;
+    }
+}

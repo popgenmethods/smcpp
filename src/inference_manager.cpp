@@ -17,6 +17,7 @@ Vector<T> compute_initial_distribution(const PiecewiseExponentialRateFunction<T>
     pi(M - 1) = exp(-(*R)(eta.hidden_states[M - 1]));
     if (pi(M - 1) < minval) pi(M - 1) = minval;
     pi /= pi.sum();
+    check_nan(pi);
     return pi;
 }
 
@@ -79,6 +80,7 @@ void InferenceManager::setParams(const ParameterVector params, const std::vector
     regularizer = adouble(eta.regularizer());
     pi = compute_initial_distribution<T>(eta).template cast<adouble>();
     transition = compute_transition<T>(eta, block_size * rho).template cast<adouble>();
+    check_nan(transition);
     // std::cout << transition.template cast<double>() << std::endl;
     Eigen::Matrix<T, 3, Eigen::Dynamic, Eigen::RowMajor> em_tmp(3, n + 1);
     // transition = matpow(ttmp, block_size);
@@ -87,6 +89,7 @@ void InferenceManager::setParams(const ParameterVector params, const std::vector
     std::vector<Matrix<T> > sfss = sfs<T>(eta);
     for (int m = 0; m < M; ++m)
     {
+        check_nan(sfss[m]);
         em_tmp = sfss[m];
         emission.row(m) = Matrix<T>::Map(em_tmp.data(), 1, 3 * (n + 1)).template cast<adouble>();
         for (int i = 0; i < 3; ++i)
@@ -264,3 +267,52 @@ std::vector<double> InferenceManager::loglik(double lambda)
     double reg = toDouble(regularizer);
     return parallel_select<double>([lambda, reg] (hmmptr &hmm) { return hmm->loglik() - lambda * reg; });
 }
+
+int main(int argc, char** argv)
+{
+    std::vector<int> L = {3000};
+    std::vector<int> obs;
+    for (int i = 0; i < L[0]; ++i)
+    {
+        if (i % 2)
+        {
+            obs.push_back(1);
+            obs.push_back(1);
+            obs.push_back(0);
+        }
+        else
+        {
+            obs.push_back(100);
+            obs.push_back(0);
+            obs.push_back(0);
+        }
+    }
+    std::vector<int*> vobs = {obs.data()};
+    std::vector<double> hs = {0.0,1.0,2.0,10.0};
+    int emask[] = {0, 1, 0};
+    std::vector<int*> vemask = {emask};
+    InferenceManager im(0, L, vobs, hs, emask, 5, {0}, 4 * 1e4 * 1e-8, 4 * 1e4 * 1e-8, 50);
+    std::vector<std::vector<double> > params = {
+        {0.2, 1.0, 2.0},
+        {1.0, 1.0, 2.0},
+        {1.0, 0.1, 0.1}
+    };
+    std::vector<std::pair<int, int> > deriv = { {1,0} };
+    im.setParams<adouble>(params, deriv);
+    im.Estep();
+    adouble Q0 = im.Q(0.0)[0];
+    Matrix<adouble> T = im.getTransition();
+    Matrix<adouble> E = im.getEmission();
+    params[1][0] += 1e-8;
+    im.setParams<double>(params, deriv);
+    double Q1 = im.Q(0.0)[0].value();
+    Matrix<adouble> T2 = im.getTransition();
+    Matrix<adouble> E2 = im.getEmission();
+    std::cout << (Q1 - Q0.value()) * 1e8 << " " << Q0.derivatives() << std::endl << std::endl;
+    std::cout << "[" << E2.template cast<double>() << "]" << std::endl;
+    std::cout << (E2.template cast<double>() - E.template cast<double>()) * 1e8 << std::endl << std::endl;
+    std::cout << E.unaryExpr([](adouble x) { return x.derivatives()(0); }).template cast<double>() << std::endl << std::endl;
+    std::cout << (T2.template cast<double>() - T.template cast<double>()) * 1e8 << std::endl << std::endl;
+    std::cout << T.unaryExpr([](adouble x) { return x.derivatives()(0); }).template cast<double>() << std::endl << std::endl;
+}
+

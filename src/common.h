@@ -195,13 +195,18 @@ inline adouble dmax(adouble a, adouble b)
 }
 */
 
+inline void check_nan(const mpfr::mpreal x) { if (mpfr::isnan(x)) throw std::domain_error("nan detected"); }
 inline void check_nan(const double x) { if (std::isnan(x)) throw std::domain_error("nan detected"); }
 
 template <typename T>
-void check_nan(const Vector<T> &x) 
-{ 
-    for (int i = 0; i < x.rows(); ++i) 
-        check_nan(x(i));
+void check_nan(const Eigen::AutoDiffScalar<T> &x);
+
+template <typename Derived>
+void check_nan(const Eigen::DenseBase<Derived> &M)
+{
+    for (int i = 0; i < M.rows(); ++i)
+        for (int j = 0; j < M.cols(); ++j)
+            check_nan(M.coeff(i, j));
 }
 
 template <typename T>
@@ -211,12 +216,18 @@ void check_nan(const Eigen::AutoDiffScalar<T> &x)
     check_nan(x.derivatives());
 }
 
-template <typename Derived>
-void check_nan(const Eigen::DenseBase<Derived> &M)
+template <typename T>
+void check_nan(const Vector<T> &x) 
+{ 
+    for (int i = 0; i < x.rows(); ++i) 
+        check_nan(x(i));
+}
+
+template <typename T>
+void check_negative(const T x)
 {
-    for (int i = 0; i < M.rows(); ++i)
-        for (int j = 0; j < M.cols(); ++j)
-            check_nan(M(i, j));
+    if (x < 0)
+        throw std::domain_error("negative x");
 }
 
 #endif
