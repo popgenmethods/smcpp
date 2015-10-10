@@ -9,7 +9,7 @@ import sys
 import itertools
 from collections import Counter
 import sys
-
+import time
 import psmcpp.scrm, psmcpp.bfgs, psmcpp._pypsmcpp, psmcpp.util, _newick
 
 def kl(sfs1, sfs2):
@@ -21,7 +21,12 @@ def kl(sfs1, sfs2):
 block_size = 50
 np.set_printoptions(linewidth=120, precision=6, suppress=True)
 
-psmcpp._pypsmcpp.do_progress(False)
+try:
+    progress = bool(sys.argv[4])
+except:
+    progress = False
+
+psmcpp._pypsmcpp.do_progress(progress)
 diagnostic = False
 
 # 1. Generate some data. 
@@ -30,20 +35,27 @@ N0 = 10000.
 rho = 1e-9
 theta = 2.5e-8
 L = int(float(sys.argv[3]))
+ALPHA_PENALTY = 0.0
+LAMBDA_PENALTY = 0.0
 
-a = np.array([2.7, .2, 1.5, 2.7])
-s = np.array([30000., 70000., 1.25e6 - 1e5, 1.]) / 25.0 / (2 * N0)
-# a = np.array([1., 2., 3., 4., 5., 6., 7., 8., 9.])[::-1]
-# s = np.array([10000.0] * 9) / 25.0 / (2 * N0)
-# a = np.array([1., .2, 5.0])
-# s = np.array([10000., 2000., 10000.]) / 25.0 / (2 * N0)
+# PSMC sample demography
+# a0 = np.array([2.7, .2, 1.5, 2.7])
+# s0 = np.array([30000., 70000., 3.5e6 - 1e5, 10000.]) / 25.0 / (2 * N0)
 
-a0 = a.copy()
-s0 = s.copy()
-true_parameters = (a, a, s)
+# MSMC sample demography
+a0 = np.array([7.1, 7.1, .9, 7.1, .9, 7.1, .9])
+b0 = np.array([7.1, .9, 7.1, .9, 7.1, .9,  .9])
+s0 = np.array([1000.0, 4000.0 - 1000., 10500. - 4000., 65000. - 10500., 115000. - 65000., 1e6 - 115000]) / 25.0 / (2 * N0)
+
+# Humanish
+# a0 = np.array([8.0, 0.5, 2.0, 1.0])
+# b0 = np.array([1.0, 0.5, 2.0, 1.0])
+# s0 = np.array([10000., 20000., 50000., 1.0]) / 25. / (2 * N0)
+
+true_parameters = (a0, b0, s0)
 print("true parameters")
 print(np.array(true_parameters))
-demography = psmcpp.scrm.demography_from_params((a * 2.0, a * 2.0, s))
+demography = psmcpp.scrm.demography_from_params((a0 * 2.0, b0 * 2.0, s0))
 print(demography)
 
 # np.save("test/obs_list.npy", obs_list[0])
@@ -56,17 +68,10 @@ def perform_sim(args):
     return psmcpp.scrm.hmm_data_format(data, (0, 1))
 # obs_list = [perform_sim((n, N0, theta, rho, L, demography, diagnostic, np.random.randint(0, sys.maxint)))]
 
-import multiprocessing
-p = multiprocessing.Pool(16)
-obs_list = list(p.imap_unordered(perform_sim, 
-    [(n, N0, theta, rho, L, demography, False, np.random.randint(0, sys.maxint))
-        for _ in range(int(sys.argv[2]))]))
-p.terminate()
-p.join()
-del p
-
 if diagnostic:
 # Extract true hidden states (1-2 coal time) from data
+    data = psmcpp.scrm.simulate(n, N0, theta, rho, L, demography, True, np.random.randint(0, sys.maxint))
+    obs_list = [psmcpp.scrm.hmm_data_format(data, (0, 1))]
     ct = [(c1, _newick.tmrca(c2, "1", "2")) for c1, c2 in data[3]]
     cts = np.zeros(L)
     fs = frozenset([0,1])
@@ -74,6 +79,16 @@ if diagnostic:
     for span, tmrca in ct:
         cts[i:(i+span)] = tmrca
         i += span
+else:
+    import multiprocessing
+    p = multiprocessing.Pool(16)
+    obs_list = list(p.imap_unordered(perform_sim, 
+        [(n, N0, theta, rho, L, demography, False, np.random.randint(0, sys.maxint))
+            for _ in range(int(sys.argv[2]))]))
+    p.terminate()
+    p.join()
+    del p
+
 
 # obs_list = []
 # for k in range(int(sys.argv[2])):
@@ -94,45 +109,43 @@ for ol0 in obs_list:
 obsfs = np.mean(osfs, axis=0)
 print(" - Observed sfs:")
 print(obsfs)
-# 
-# obsfs_r = obsfs.sum(axis=1)
-# obsfs_r[0] += obsfs_r[2]
-# obsfs_r = obsfs_r[:2]
 
 # 4. Optimize this function
 hidden_states = np.array([0., 14.0]) / 25.0 / (2 * N0)
 im = psmcpp._pypsmcpp.PyInferenceManager(n - 2, [obs_list[0][:10]], [0.0, 1.0],
         4.0 * N0 * theta, 4.0 * N0 * rho,
         block_size, 5, [0])
-# prior = (a0,a0,s)
-hs1 = im.balance_hidden_states(([1.], [1.], [1.]), 32)
-# hs1 = np.concatenate((
-#         np.linspace(0.0, 1.0, 15, False),
-#         np.linspace(1.0, 15., 15, False),
-#         [np.inf]))
-print(hs1)
+
+T_MAX = 0.5
+ni = 10
+s = 0.1 * np.expm1(np.arange(ni + 1) * np.log1p(10 * T_MAX) / ni)
+s = s[1:] - s[:-1]
+print(s)
+print(np.cumsum(s))
+
+K = len(s)
+a = np.ones(K)
+b = np.ones(K) + 0.1
+grads = [(aa, k) for aa in (0, 1) for k in range(K)]
+
+# Emission mask
+T_MAX = 30.0
+ni = 50
+hs1 = 0.1 * np.expm1(np.arange(ni + 1) * np.log1p(10 * T_MAX) / ni)
+print("hidden states", hs1)
 em = np.arange(3 *  (n - 1), dtype=int).reshape([3, n - 1])
 em[0] = em[2] = 0
 em[1] = 1
+
+t_start = time.time()
 im = psmcpp._pypsmcpp.PyInferenceManager(n - 2, obs_list, hs1,
         4.0 * N0 * theta, 4.0 * N0 * rho,
-        block_size, n, [0], em)
+        block_size, 10, [0], em)
 
-lam = 0.0
-# s = hs1[1:-1] - hs1[:-2]
-# a = np.array([35.34245,30.809847,24.796922,0.278533,18.540922,23.767104,24.88357,26.016034,29.116137,27.182875,
-#             33.551099,35.028234,1.483683,50.104027,79.879866,3.321154,58.609216,93.80928,6.213876,100.,
-#             30.892616,34.157583,18.468655,27.589934,25.300169,23.66569,25.767877,22.149063,27.295382,20.634101])
+
 im.setParams((a0,a0,s0),False)
 im.Estep()
-ll_true = np.mean(im.loglik(lam))
-
-s = np.array([2.5e4] * 4 + [1e5] * 15 + [1e6] * 2) / 25.0 / (2 * N0)
-print(s)
-K = len(s)
-a = np.ones(K)
-# a = np.array([2.273396,0.34565,0.21467,0.736181,3.716896,3.065967,2.64661,2.442381,2.498929,1.871542
-#     ,1.777736,1.76801,1.778753,1.793984,2.132503,2.093779,1.824248,0.764588,10.])
+ll_true = np.mean(im.loglik(LAMBDA_PENALTY))
 
 if diagnostic:
     bk=im.block_keys()[0]
@@ -142,39 +155,26 @@ if diagnostic:
     g0 = np.zeros(g.shape)
     I = np.eye(g.shape[0])
     tcts = np.searchsorted(hs1, cts) - 1
-    for i in range(g.shape[1] - 1):
-        g0[:,i] = I[tcts[xx[i]]]
-
+    for i in range(g.shape[1]):
+        g0[:,i] = I[tcts[i * block_size]]
     import collections
     d = collections.defaultdict(lambda: collections.Counter())
     for i in range(g.shape[1]):
-        d[tcts[xx[i] - 1]][frozenset(bk[i][1].items())] += 1
+        d[tcts[i * block_size]][frozenset(bk[i][1].items())] += 1
     im.setParams((a0,a0,s0),False)
     E = im.emission()
     F = np.zeros(E.shape)
     for k in d:
         for cc in d[k]:
-            if sum(y for x,y in cc) == 10:
-                for cc1, cc2 in cc:
-                    F[k][cc1] += cc2 * d[k][cc]
+            for cc1, cc2 in cc:
+                F[k][cc1] += cc2 * d[k][cc]
     F /= F.sum(axis=1)[:,None]
-    aoeu
-
-# s = np.array([10000.] * 10) / 25.0 / N0
-# K = len(s)
-# x0 = np.ones([2, K]) * 20
-# a = x0[0]
-# b = x0[1]
 
 im.seed = np.random.randint(0, sys.maxint)
 llold = -np.inf
 Qold = -np.inf
 
-# print(im.Bs()[0][:,:6])
-# print(im.alphas()[0][:,:6])
-# print(im.gammas()[0][:,:6])
-
-bounds = np.array([[0.1, 10.0]] * len(a))
+bounds = np.array([[0.1, 10.0]] * 2 * len(a))
 
 class MyBounds(object):
     def __call__(self, **kwargs):
@@ -186,31 +186,44 @@ class MyBounds(object):
 def optimize_pg():
     def f(x):
         global s
-        im.setParams((x, x, s), False)
-        res = im.Q(lam)
+        im.setParams((x[:K], x[K:], s), False)
+        res = im.Q(LAMBDA_PENALTY)
         ret = -np.mean(res, axis=0)
+        # penalty
+        # esfs = psmcpp._pypsmcpp.sfs(n, (x, x, s), 0.0, np.inf, 4 * N0 * theta, False)
+        # diff = esfs[0, 0] - obsfs[0, 0]
+        # penalty = ALPHA_PENALTY * diff**2
+        # print('penalty', penalty, ret)
+        # ret += penalty
         return ret
+
     def fprime(x):
         global s
-        im.setParams((x, x, s), [(0, k) for k in range(K)])
-        res = im.Q(lam)
+        im.setParams((x[:K], x[K:], s), grads)
+        res = im.Q(LAMBDA_PENALTY)
         lls = np.array([ll for ll, jac in res])
         jacs = np.array([jac for ll, jac in res])
         #ret = -np.mean(jacs, axis=0)
-        ret = (-np.mean(lls, axis=0), -np.mean(jacs, axis=0))
-        print(ret[0])
-        print(x)
-        print(ret[1])
-        print("------")
+        ret = [-np.mean(lls, axis=0), -np.mean(jacs, axis=0)]
+        # penaly
+        # esfs, jac = psmcpp._pypsmcpp.sfs(n, (x, x, s), 0.0, np.inf, 4 * N0 * theta, True)
+        # diff = esfs[0, 0] - obsfs[0, 0]
+        # penalty = ALPHA_PENALTY * diff**2
+        # print('penalty', penalty, ret[0])
+        # ret[0] += penalty
+        # ret[1] += 2 * ALPHA_PENALTY * diff * jac[0, 0, :K]
         return ret
+
     def project(x):
         return np.minimum(np.maximum(x, bounds[:,0]), bounds[:,1])
-    x = a
+    x = np.concatenate([a, b])
     c = tau = 0.5
     f0, grad = fprime(x)
+    print("grad")
+    print(grad.reshape([2,K]))
     p = -grad
     m = p.dot(grad)
-    alpha = min([(bounds[i][int(p[i] > 0)] - x[i]) / p[i] for i in range(len(x))])
+    alpha = min([(bounds[i][int(p[i] > 0)] - x[i]) / p[i] for i in range(len(x)) if p[i] != 0])
     f1 = f(project(x + alpha * p))
     while f1 > f0 + alpha * c * m:
         f1 = f(project(x + alpha * p))
@@ -237,7 +250,7 @@ def optimize_coord_ascent(c):
         aa = a.copy()
         aa[c] = x
         im.setParams((aa, aa, s), [(0, c)])
-        res = im.Q(lam)
+        res = im.Q(LAMBDA_PENALTY)
         lls = np.array([ll for ll, jac in res])
         jacs = np.array([jac for ll, jac in res])
         #ret = -np.mean(jacs, axis=0)
@@ -253,68 +266,108 @@ def optimize_coord_ascent(c):
         aa = a.copy()
         aa[c] = x
         im.setParams((aa, aa, s), False)
-        res = -np.mean(im.Q(lam))
+        res = -np.mean(im.Q(LAMBDA_PENALTY))
         print(x, res)
         return res
     # res = scipy.optimize.fmin_l_bfgs_b(fprime, a[c], None, bounds=[tuple(bounds[c])], disp=False)
     res = scipy.optimize.minimize_scalar(f, bounds=bounds[c], method="bounded")
     return res.x
 
+def optimize_nograd(iter):
+    print("Optimizing all coordinates...")
+    def f(x):
+        global s
+        im.setParams((x, x, s), False)
+        res = im.Q(LAMBDA_PENALTY)
+        ret = -np.mean(res)
+        esfs = psmcpp._pypsmcpp.sfs(n, (x, x, s), 0.0, np.inf, 4 * N0 * theta, False)
+        diff = esfs[0, 0] - obsfs[0, 0]
+        penalty = ALPHA_PENALTY * diff**2
+        return ret + penalty
+    res = scipy.optimize.fmin_cg(f, a, None, bounds=[tuple(x) for x in bounds], approx_grad=True)
+
 def optimize_fullgrad(iter):
     print("Optimizing all coordinates...")
     def fprime(x):
         global s
-        im.setParams((x, x, s), [(0, k) for k in range(K)])
-        res = im.Q(lam)
+        print(x.reshape([2,K]))
+        im.setParams((x[:K], x[K:], s), grads)
+        res = im.Q(LAMBDA_PENALTY)
         lls = np.array([ll for ll, jac in res])
         jacs = np.array([jac for ll, jac in res])
-        #ret = -np.mean(jacs, axis=0)
         ret = [-np.mean(lls, axis=0), -np.mean(jacs, axis=0)]
-
-        # add penalty
-        esfs, jac = psmcpp._pypsmcpp.sfs(n, (x, x, s), 0.0, np.inf, 4 * N0 * theta, True)
-        diff = esfs[0, 0] - obsfs[0, 0]
-        penalty = ALPHA_PENALTY * diff**2
-        print('penalty', penalty, ret[0])
-        ret[0] += penalty
-        ret[1] += 2 * ALPHA_PENALTY * diff * jac[0, 0, :K]
-
-        print(x)
+        print(ret[1].reshape([2,K]))
         print(ret[0])
-        print(ret[1])
-        print("------")
+        print("")
+        # add penalty
+        # esfs, jac = psmcpp._pypsmcpp.sfs(n, (x, x, s), 0.0, np.inf, 4 * N0 * theta, True)
+        # diff = esfs[0, 0] - obsfs[0, 0]
+        # penalty = ALPHA_PENALTY * diff**2
+        # # print('penalty', penalty, ret[0])
+        # ret[0] += penalty
+        # ret[1] += 2 * ALPHA_PENALTY * diff * jac[0, 0, :K]
+        # print(x)
+        # print(ret[0])
+        # print(ret[1])
+        # print("------")
         return ret
-    # print('gradient check', scipy.optimize.check_grad(lambda x: fprime(x)[0], lambda x: fprime(x)[1], a))
     if iter <= 5:
         factr = 1e11
     elif 5 < iter <= 10:
         factr = 1e10
     else:
         factr = 1e9
-    res = scipy.optimize.fmin_l_bfgs_b(fprime, a, None, bounds=[tuple(x) for x in bounds], disp=False, factr=factr)
+    x0 = np.concatenate([a, b])
+    f0, fp = fprime(x0)
+    # print("gradient check")
+    # for i in range(2 * len(a)):
+    #     x0[i] += 1e-8
+    #     f1, _ = fprime(x0)
+    #     print(i, f1, f0, (f1 - f0) / 1e-8, fp[i])
+    #     x0[i] -= 1e-8
+    # print("gradient check", scipy.optimize.check_grad(lambda x: fprime(x)[0], lambda x: fprime(x)[1], x0))
+    res = scipy.optimize.fmin_l_bfgs_b(fprime, x0, None, bounds=[tuple(x) for x in bounds], disp=False, factr=factr)
     # print(res)
     return res[0]
 
+break_loop = False
+import signal, sys
+def print_state():
+    global a, b, s, a0, b0, s0
+    print(repr({'a': a, 'b': b, 's': s, 'a0': a0, 'b0': b0, 's0': s0, 'argv': sys.argv, 't_start': t_start, 't_now': time.time()}))
+def signal_handler(signal, frame):
+    print("Terminating optimization...")
+    print_state()
+    sys.exit(1)
+signal.signal(signal.SIGINT, signal_handler)
+
 i = 1
-psmcpp._pypsmcpp.do_progress(False)
 while i <= 20:
-    if True or i % 5 == 0:
-        a[:] = optimize_fullgrad(i)
+    if i <= 5:
+        ret = optimize_pg()
     else:
-        a[:] = optimize_pg()
+        ret = optimize_fullgrad(i)
+    a[:] = ret[:K]
+    b[:] = ret[K:]
     print("************** ITERATION %d ***************" % i)
     print(a)
-    im.setParams((a, a, s), False)
+    print(b)
+    im.setParams((a, b, s), False)
     im.Estep()
-    ll = np.mean(im.loglik(lam))
+    ll = np.mean(im.loglik(LAMBDA_PENALTY))
     print(" - Tru loglik:" + str(ll_true))
     print(" - New loglik:" + str(ll))
     print(" - Old loglik:" + str(llold))
     if ll < llold:
         print("*** Log-likelihood decreased")
     llold = ll
-    esfs = psmcpp._pypsmcpp.sfs(n, (a,a,s), 0.0, 14.0, 4 * N0 * theta, False)
-    print("D(Ob. sfs || Est. sfs):", kl(obsfs, esfs))
-    print("D(Ob. sfs || True sfs):", kl(obsfs, esfs0))
+    esfs = psmcpp._pypsmcpp.sfs(n, (a,b,s), 0.0, np.inf, 4 * N0 * theta, False)
+    print("calculated sfs")
     print(esfs)
+    print("observed sfs")
+    print(obsfs)
+    # print("D(Ob. sfs || Est. sfs):", kl(obsfs, esfs))
+    # print("D(Ob. sfs || True sfs):", kl(obsfs, esfs0))
     i += 1
+
+print_state()

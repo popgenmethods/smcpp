@@ -6,33 +6,40 @@ import _pypsmcpp
 from fixtures import *
 
 NTHREAD = 1
-num_samples = 200
+
+theta = 2.5e-8
+N0 = 10000.0
 
 def test_d():
-    a = np.array([0.1, 0.1, 0.2, 0.3])
-    b = np.array([0.2, 0.3, .8, 1.0])
+    a = np.array([8.0, 0.5, 2.0, 1.0])
+    b = np.array([1.0, 0.5, 2.0, 1.0])
+    s = np.array([10000., 20000., 50000., 1.0]) / 25. / (2 * N0)
     K = a.shape[0]
-    s = np.array([0.3] * K)
-    n = 10
-    t0 = 0.0
+    # a = np.ones(10) * 1.0
+    # b = 2 * a
+    # s = np.array([0.1] * K)
+    n = 50
+    t0 = 5.0
     t1 = np.inf
-    sfs, _, jac, rjac = _pypsmcpp.sfs((a, b, s), n, num_samples, t0, t1, NTHREAD, 1.0, jacobian=True, seed=1)
-    eps = 2e-8
+    sfs, jac = _pypsmcpp.sfs(n, (a, b, s), t0, t1, 4 * N0 * theta, jacobian=True)
+    jac.shape = (3, n - 1, 3, K)
+    eps = 1e-8
     I = np.eye(K)
-    for ind in (0, 1):
+    for ind in (0, 1, 2):
         for k in range(K):
-            args = [a, b]
+            args = [a, b, s]
             args[ind] = args[ind] + eps * I[k]
             print(args)
-            la, lb = args
-            sfs2, rsfs2 = _pypsmcpp.sfs((la, lb, s), n, num_samples, t0, t1, NTHREAD, 1.0, jacobian=False, seed=1)
-            for i in (0, 1):
-                for j in range(n + 1):
+            la, lb, ls = args
+            sfs2 = _pypsmcpp.sfs(n, (la, lb, ls), t0, t1, 4 * N0 * theta, jacobian=False)
+            for i in (0, 1, 2):
+                for j in range(n - 1):
                     jaca = jac[i, j, ind, k]
                     j1 = sfs2[i, j]
                     j2 = sfs[i, j] + eps * jaca
-                    print(ind, k, i, j, jaca, (sfs2[i,j] - sfs[i,j]) / eps)
+                    print(ind, k, i, j, sfs[i,j], sfs2[i,j], jaca, (sfs2[i,j] - sfs[i,j]) / eps)
                     # assert abs(j1 - j2) < eps
+    assert False
 
 def test_matching_diff_nodiff(demo):
     from timeit import default_timer as timer
@@ -66,4 +73,24 @@ def test_correct_const(constant_demo_1, constant_demo_1000):
             for k in range(1, n):
                 expected = (1. / k) / sum([1. / j for j in range(1, n)])
                 assert (rsfs[k] - expected) / expected < 1e-2
+
+def test_fail():
+    t0 = 0.0
+    t1 = np.inf
+    n = 100
+    a, b = [[10., 10., 10., 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 6.044083],
+            [10., 10., 10., 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 1.1]]
+    s = [0.058647, 0.093042, 0.147608, 0.234176, 0.371514, 0.589396, 0.93506, 1.483445, 2.353443, 3.733669]
+    sfs, jac = _pypsmcpp.sfs(n, (a, b, s), t0, t1, 4 * N0 * theta, jacobian=True)
+
+
+def test_fail2():
+    t0 = 0.0
+    t1 = np.inf
+    n = 100
+    a = [10., 10., 10., 10., 0.1, 0.1, 0.1, 4.141793, 10., 10.]
+    b = [10., 10., 10., 4.513333, 0.1, 0.1, 0.1, 2.601576, 4.991452, 1.1]
+    s = [0.058647, 0.093042, 0.147608, 0.234176, 0.371514, 0.589396, 0.93506, 1.483445, 2.353443, 3.733669]
+    sfs, jac = _pypsmcpp.sfs(n, (a, b, s), t0, t1, 4 * N0 * theta, jacobian=True)
+
 

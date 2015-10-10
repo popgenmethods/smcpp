@@ -14,11 +14,10 @@ def _scrm_sfs(args):
 
 def test_two_period0():
     N0 = 10000
-    a = np.array([2.7, 1., 1.5, 2.7])
-    b = np.array([2.7, 1., .5, 2.7])
-    # b = np.array([1., 1.5, 2.7, 2.7])
-    s = np.array([30000., 70000., 1.25e6 - 1e5, 1.]) / 25.0 / (2 * N0)
-    n = 4
+    a = np.array([8.0, 0.5, 2.0, 1.0])
+    b = np.array([1.0, 0.5, 2.0, 1.0])
+    s = np.array([10000., 20000., 50000., 1.0]) / 25. / (2 * N0)
+    n = 50
     L = 100000
     t0, t1 = 0.0, np.inf
     sfs = _pypsmcpp.sfs(n, [a, b, s], t0, t1, 4 * N0 * theta, jacobian=False)

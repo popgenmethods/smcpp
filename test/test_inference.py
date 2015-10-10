@@ -7,11 +7,10 @@ import sys
 
 logging.getLogger().setLevel("INFO")
 
-import inference
 from fixtures import *
 
-n = 10
-L = 10
+n = 50
+L = 1000
 
 @pytest.fixture
 def fake_obs():
@@ -20,30 +19,39 @@ def fake_obs():
         ary.append([np.random.randint(1, 1000), 0, 0])
         d = np.random.randint(0, 3)
         ary.append([1, d, np.random.randint(not d, n + 1 - (d == 2))])
-    return np.array(ary)
+    return np.array(ary, dtype=np.int32)
 
-hidden_states = np.array([0.0, 0.5, 1.0, np.inf])
+hidden_states = np.array([  0.      ,   0.110721,   0.474051,   1.564003,   2.951359,   4.592253,   6.600545,   9.189684,  12.83887 ,
+            19.077194,        np.inf])
 num_threads = 1
 num_samples = 10
-block_size = 20
+block_size = 50
 
 def test_derivatives(demo, fake_obs):
     N0 = 10000.
-    rho = theta = 1e-8
+    rho = 1e-9
+    theta = 2.5e-8
+    fake_obs = np.load("test/obs_list.npy")
     obs_list = [fake_obs]
-    im = _pypsmcpp.PyInferenceManager(n, obs_list, hidden_states, 
-            4.0 * N0 * theta / 2.0, 4.0 * N0 * rho, block_size, num_threads, num_samples)
+    em = np.arange(3 *  (n - 1), dtype=int).reshape([3, n - 1])
+    em[0] = em[2] = 0
+    em[1] = 1
+    im = _pypsmcpp.PyInferenceManager(n - 2, obs_list, hidden_states, 
+            4.0 * N0 * theta, 4.0 * N0 * rho, block_size, num_threads, num_samples, 50, [0], em)
     def f(x):
         # print("f", x, recompute)
-        _pypsmcpp.set_csfs_seed(1)
         im.setParams(x, False)
         return -im.Q(0.)[0][0]
-    _pypsmcpp.set_csfs_seed(1)
+    a = np.array([   2.640374,    5.552209,   44.405643,   37.321315,    5.466158,    2.024763,  100.      ,  100.      ,
+                100.      ,    6.634416])
+    s = np.array([0.1] * 10)
+    demo = (a, a, s)
     im.setParams(demo, True)
     im.Estep()
     ret = im.Q(0.0)[0]
     q = -ret[0]
-    jac = -ret[1]
+    K = demo[0].shape[0]
+    jac = -ret[1].reshape(3, K)
     print(jac)
     eps = 1e-8
     K = len(demo[0])

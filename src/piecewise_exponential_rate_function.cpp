@@ -421,17 +421,45 @@ void PiecewiseExponentialRateFunction<T>::tjj_double_integral_above(const int n,
                 fac = Rrng[m + 1] - Rrng[m];
             else
             {
-                log_coef = -rp * Rrng[m];
-                if (log_coef > 50)
+                // * exp(-rp * Rrng[m]) - exp(-rp * Rrng[m+1]) / rp
+                // if rp >> 1 * Rrng[m] then this is approx exp(-rp * Rrng[m])
+                // if rp << -1 then approx = -exp(-rp * Rrng[m+1])
+                if (rp < 0)
                 {
-                    fac = -one / rp;
-                    log_coef = -rp * Rrng[m + 1];
+                    // exp(-rp * Rrng[m]) - exp(-rp * Rrng[m+1]) / rp
+                    // = exp(-rp * Rrng[m]) * (1 - exp(-rp * (Rrng[m + 1] - Rrng[m]))) / rp
+                    if (-rp * (Rrng[m + 1] - Rrng[m]) > 20)
+                    {
+                        log_coef = -rp * Rrng[m + 1];
+                        fac = -one / rp;
+                    }
+                    else
+                    {
+                        log_coef = -rp * Rrng[m];
+                        fac = -expm1(-rp * (Rrng[m + 1] - Rrng[m])) / rp;
+                    }
                 }
                 else
-                    fac = -expm1(-rp * (Rrng[m + 1] - Rrng[m])) / rp;
+                {
+                    // exp(-rp * Rrng[m]) - exp(-rp * Rrng[m+1]) / rp
+                    // = exp(-rp * Rrng[m + 1]) * (exp(-rp * (Rrng[m] - Rrng[m + 1]) - 1)) / rp
+                    if (-rp * (Rrng[m] - Rrng[m + 1]) > 20)
+                    {
+                        log_coef = -rp * Rrng[m];
+                        fac = one / rp;
+                    }
+                    else
+                    {
+                        log_coef = -rp * Rrng[m + 1];
+                        fac = expm1(-rp * (Rrng[m] - Rrng[m + 1])) / rp;
+                    }
+                }
             }
             for (int k = m + 1; k < K; ++k)
+            {
                 ts_integrals(m, j - 2) += _single_integral(rate, ts[k], ts[k + 1], ada[k], adb[k], Rrng[k], log_coef) * fac;
+                check_nan(ts_integrals(m, j - 2));
+            }
             /*
                 tmp += _single_integral(rate, ts[k], ts[k + 1], ada[k], adb[k], Rrng[k], zero);
             if (m + 1 < K)

@@ -341,6 +341,8 @@ adouble HMM::Q(void)
     */
     Eigen::Array<adouble, Eigen::Dynamic, Eigen::Dynamic> tt = transition->array().log();
     check_nan(tt);
+    check_nan(xis);
+    check_nan(xis_alt);
     ret3 = (xis * tt).sum();
     ret3 += (xis_alt * tt).sum();
     PROGRESS_DONE();
@@ -363,5 +365,8 @@ adouble HMM::Q(void)
     check_nan(ret1);
     check_nan(ret2);
     check_nan(ret3);
+    PROGRESS("ret1:" << ret1 << " [" << ret1.derivatives().transpose() << "]\nret2:" 
+            << ret2 << " [" << ret2.derivatives().transpose() << "]\nret3:" << ret3 
+            << " [" << ret3.derivatives().transpose() << "]\n");
     return ret1 + ret2 + ret3;
 }

@@ -6,28 +6,36 @@ from subprocess import call
 import os.path
 import glob
 
-ignore = ["piecewise_polynomial", "spline_rate_function", "test_gradient", "loglik"]
-cpps = [f for f in glob.glob("src/*.cpp") if not os.path.basename(f).startswith("_") 
+ignore = ["piecewise_polynomial", "spline_rate_function", "test_gradient", "loglik", "test_sad", "test_pe"]
+cpps = [f for f in glob.glob("src/*.cpp") if 
+        not os.path.basename(f).startswith("_") 
+        and not os.path.basename(f).startswith("test") 
         and not any(f.endswith(x + ".cpp") for x in ignore)]
-# cpps.append("src/gauss_legendre.c")
 
 extensions = [
         Extension(
             "_pypsmcpp",
             sources=["src/_pypsmcpp.pyx"] + cpps,
             language="c++",
-            include_dirs=["/usr/include/eigen3", "/usr/local/include/eigen3", np.get_include()],
-            extra_compile_args=["-O3", "-std=c++11", "-Wfatal-errors", "-Wno-unused-variable", "-Wno-unused-function"],
-            libraries=['stdc++'],
-            # extra_link_args=['-fopenmp'],
-            # extra_compile_args=["-O0", "-g", "-std=c++11", "-Wfatal-errors", "-Wno-unused-variable", "-Wno-unused-function", "-D_GLIBCXX_DEBUG"], 
+            include_dirs=["src", "/usr/include/eigen3", "/usr/local/include/eigen3", np.get_include(), "/opt/intel/mkl/include"],
+            extra_compile_args=["-O3", "-std=c++11", "-Wfatal-errors", "-Wno-unused-variable", "-Wno-unused-function", "-fopenmp"],
+            # extra_compile_args=["-O0", "-g", "-std=c++11", "-Wfatal-errors", "-Wno-unused-variable", "-Wno-unused-function"],
+            libraries=['stdc++', 'mpfr', 'gmp', 'gmpxx', 'gsl', 'gslcblas'],
+            extra_link_args=['-fopenmp']
+            # extra_compile_args=["-mkl", "-O0", "-g", "-std=c++11", "-Wfatal-errors", "-Wno-unused-variable", "-Wno-unused-function", "-D_GLIBCXX_DEBUG"], 
+#            sources=["src/_pypsmcpp.pyx"] + cpps,
+#            language="c++",
+#            include_dirs=["src", "/usr/include/eigen3", "/usr/local/include/eigen3", np.get_include(), "/opt/intel/mkl/include"],
+#            extra_compile_args=["-mkl", "-O0", "-g", "-std=c++11", "-Wfatal-errors", "-Wno-unused-variable", "-Wno-unused-function", "-fopenmp"],
+#            libraries=['stdc++', 'mpfr', 'gmp', 'gmpxx', 'gsl', 'mkl_intel_lp64', 'mkl_sequential', 'mkl_core'],
+#            extra_link_args=['-fopenmp', '-mkl'],
+#            # extra_compile_args=["-mkl", "-O0", "-g", "-std=c++11", "-Wfatal-errors", "-Wno-unused-variable", "-Wno-unused-function", "-D_GLIBCXX_DEBUG"], 
             ),
         Extension(
-            "_expm",
+            "_newick",
             # sources=["src/_pypsmcpp.pyx", "src/conditioned_sfs.cpp", "src/hmm.cpp"],
-            sources=["src/_expm.pyx"],
+            sources=["src/_newick.pyx"],
             language="c++",
-            include_dirs=["/usr/include/eigen3", "/usr/local/include/eigen3", np.get_include()],
             extra_compile_args=["-O3", "-DNDEBUG", "-std=c++11", "-Wfatal-errors", "-Wno-unused-variable", "-Wno-unused-function"],
             libraries=['stdc++'],
             ),

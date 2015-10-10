@@ -9,10 +9,7 @@ mpfr::mpreal expintei(const mpfr::mpreal &x, const mpfr::mpreal &y)
     mpfr::mpreal ret = mpf_ei(x, true, x.getPrecision()) * exp(x + y);
     double dret = expintei(x.toDouble(), y.toDouble());
     if (myabs(ret.toDouble() - dret) / dret > 1e-3)
-    {
-        std::cout << ret << " " << dret;
-        throw std::runtime_error("mpf_ei appears off");
-    }
+        std::cout << "mpf_ei appears off:" << ret << " " << dret;
     return ret;
 }
 

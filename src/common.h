@@ -8,6 +8,7 @@
 #include <array>
 #include <cmath>
 
+// #define EIGEN_USE_MKL_ALL
 #include <Eigen/Dense>
 #include <unsupported/Eigen/MatrixFunctions>
 
@@ -195,38 +196,40 @@ inline adouble dmax(adouble a, adouble b)
 }
 */
 
-inline void check_nan(const mpfr::mpreal x) { if (mpfr::isnan(x)) throw std::domain_error("nan detected"); }
-inline void check_nan(const double x) { if (std::isnan(x)) throw std::domain_error("nan detected"); }
+#define check_nan(X) { try { _check_nan(X); } catch (std::runtime_error e) { std::cout << __FILE__ << ":" << __LINE__ << std::endl; throw; } }
+
+inline void _check_nan(const mpfr::mpreal x) { if (mpfr::isnan(x) or mpfr::isinf(x)) throw std::runtime_error("nan/inf detected"); }
+inline void _check_nan(const double x) { if (std::isnan(x) or std::isinf(x)) throw std::runtime_error("nan/inf detected"); }
 
 template <typename T>
-void check_nan(const Eigen::AutoDiffScalar<T> &x);
+void _check_nan(const Eigen::AutoDiffScalar<T> &x);
 
 template <typename Derived>
-void check_nan(const Eigen::DenseBase<Derived> &M)
+void _check_nan(const Eigen::DenseBase<Derived> &M)
 {
     for (int i = 0; i < M.rows(); ++i)
         for (int j = 0; j < M.cols(); ++j)
-            check_nan(M.coeff(i, j));
+            _check_nan(M.coeff(i, j));
 }
 
 template <typename T>
-void check_nan(const Eigen::AutoDiffScalar<T> &x)
+void _check_nan(const Eigen::AutoDiffScalar<T> &x)
 {
-    check_nan(x.value());
-    check_nan(x.derivatives());
+    _check_nan(x.value());
+    _check_nan(x.derivatives());
 }
 
 template <typename T>
-void check_nan(const Vector<T> &x) 
+void _check_nan(const Vector<T> &x) 
 { 
     for (int i = 0; i < x.rows(); ++i) 
-        check_nan(x(i));
+        _check_nan(x(i));
 }
 
 template <typename T>
 void check_negative(const T x)
 {
-    if (x < 0)
+    if (x < -1e-16)
         throw std::domain_error("negative x");
 }
 

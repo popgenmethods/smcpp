@@ -110,7 +110,7 @@ for nn in nns:
     em[0] = em[2] = 0
     em[1] = 1
     im = psmcpp._pypsmcpp.PyInferenceManager(nn - 2, [obs], hidden_states,
-            4.0 * N0 * theta, 4.0 * N0 * rho, block_size, 1, [0], em)
+            4.0 * N0 * theta, 4.0 * N0 * rho, block_size, nn, [0], em)
     im.setParams((a, b, s), False)
     im.Estep()
     ims[nn] = im

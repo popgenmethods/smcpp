@@ -6,7 +6,7 @@ struct trans_integrand_helper
     const int i, j;
     const PiecewiseExponentialRateFunction<T> *eta;
     const double left, right;
-    const T denom;
+    const T log_denom;
 };
 
 template <typename T>
@@ -14,7 +14,7 @@ struct p_intg_helper
 {
     const PiecewiseExponentialRateFunction<T>* eta;
     const double rho, left, right;
-    const T denom;
+    const T log_denom;
 };
 
 template <typename T>
@@ -33,8 +33,7 @@ T p_integrand(const double x, p_intg_helper<T> *pih)
     }
     if (v == INFINITY)
         return 0.;
-    T ret = pih->eta->eta(v) * exp(-(pih->eta->R(v) + pih->rho * v)) * jac;
-    ret /= pih->denom;
+    T ret = pih->eta->eta(v) * exp(-(pih->eta->R(v) - pih->log_denom + pih->rho * v)) * jac;
     return ret;
 }
 
@@ -42,11 +41,11 @@ template <typename T>
 T Transition<T>::P_no_recomb(const int i)
 {
     std::vector<double> t = eta->hidden_states;
-    T denom = exp(-eta->R(t[i - 1]));
+    T log_denom = eta->R(t[i - 1]);
+    p_intg_helper<T> h = {eta, 2. * rho, t[i - 1], t[i], log_denom};
+    T ret = adaptiveSimpsons(std::function<T(const double, p_intg_helper<T>*)>(p_integrand<T>), &h, 0., 1., 1e-8, 20);
     if (t[i] < INFINITY)
-        denom -= exp(-eta->R(t[i]));
-    p_intg_helper<T> h = {eta, 2. * rho, t[i - 1], t[i], denom};
-    T ret = adaptiveSimpsons(std::function<T(const double, p_intg_helper<T>*)>(p_integrand<T>), &h, 0., 1., 1e-8, 12);
+        ret /= -expm1(-(eta->R(t[i]) - eta->R(t[i - 1])));
     check_nan(ret);
     check_negative(ret);
     check_negative(1. - ret);
@@ -73,14 +72,15 @@ T trans_integrand(const double x, trans_integrand_helper<T> *tih)
     if (h == 0)
         return eta->eta(0) * (exp(-eta->R(t[j - 1])) - exp(-eta->R(t[j])));
     T Rh = eta->R(h);
-    T eRh = exp(-Rh);
+    T eRh = exp(-(Rh + tih->log_denom));
     T ret = eta->zero, tmp;
     // f1
     T htj_min = dmin(h, t[j]);
     T htj_max = dmax(h, t[j]);
     if (h < t[j])
     {
-        tmp = eta->R_integral(h, -2 * Rh) * (exp(-eta->R(dmax(h, t[j - 1]))) - exp(-eta->R(t[j])));
+        tmp = eta->R_integral(h, -2 * Rh) * (exp(-(eta->R(dmax(h, t[j - 1])) + tih->log_denom)) - 
+                exp(-(eta->R(t[j]) + tih->log_denom)));
         check_negative(tmp);
         ret += tmp;
         check_nan(ret);
@@ -88,8 +88,8 @@ T trans_integrand(const double x, trans_integrand_helper<T> *tih)
     // f2
     if (h > t[j - 1])
     {
-        T r1 = eta->R_integral(t[j - 1], -2 * eta->R(t[j - 1]) - Rh);
-        T r2 = eta->R_integral(htj_min, -2 * eta->R(htj_min) - Rh);
+        T r1 = eta->R_integral(t[j - 1], -2 * eta->R(t[j - 1]) - Rh - tih->log_denom);
+        T r2 = eta->R_integral(htj_min, -2 * eta->R(htj_min) - Rh - tih->log_denom);
         T r3 = eRh * (htj_min - t[j - 1]); 
         tmp = r1 - r2 + r3;
         check_negative(tmp);
@@ -98,7 +98,7 @@ T trans_integrand(const double x, trans_integrand_helper<T> *tih)
     }
     if (i == j)
     {
-        tmp = 0.5 * (eRh * h - eta->R_integral(h, -3 * Rh));
+        tmp = 0.5 * (eRh * h - eta->R_integral(h, -3 * Rh - tih->log_denom));
         check_negative(tmp);
         ret += tmp;
         check_nan(ret);
@@ -109,7 +109,6 @@ T trans_integrand(const double x, trans_integrand_helper<T> *tih)
     check_nan(ret);
     if (ret < 0)
         throw std::domain_error("negative value of positive integral");
-    ret /= tih->denom;
     return ret;
 }
 
@@ -117,12 +116,12 @@ template <typename T>
 T Transition<T>::trans(int i, int j)
 {
     const std::vector<double> t = eta->hidden_states;
-    T denom = exp(-eta->R(t[i - 1]));
-    if (t[i] != INFINITY)
-        denom -= exp(-eta->R(t[i]));
-    trans_integrand_helper<T> tih = {i, j, eta, t[i - 1], t[i], denom};
+    T log_denom = eta->R(t[i - 1]);
+    trans_integrand_helper<T> tih = {i, j, eta, t[i - 1], t[i], log_denom};
     T ret = adaptiveSimpsons(std::function<T(const double, trans_integrand_helper<T>*)>(trans_integrand<T>),
             &tih, 0., 1., 1e-6, 8);
+    if (t[i] < INFINITY)
+        ret /= -expm1(-(eta->R(t[i]) - eta->R(t[i - 1])));
     check_negative(ret);
     check_nan(ret);
     if (ret > 1 or ret < 0)
@@ -154,11 +153,11 @@ void Transition<T>::compute(void)
                 Phi(i - 1, j - 1) += pnr;
             check_nan(Phi(i - 1, j - 1));
             check_negative(Phi(i - 1, j - 1));
-            if (Phi(i - 1, j - 1) < 1e-20)
-            {
-                std::cout << "really small phi: " << i << " " << j << " " << Phi(i - 1, j - 1) << std::endl;
-                Phi(i - 1, j - 1) = 1e-20;
-            }
+            // if (Phi(i - 1, j - 1) < 1e-20)
+            // {
+            //     std::cout << "really small phi: " << i << " " << j << " " << Phi(i - 1, j - 1) << std::endl;
+            //     Phi(i - 1, j - 1) = 1e-20;
+            // }
         }
     }
 }
