@@ -35,8 +35,8 @@ template <typename T>
 class ConditionedSFS : public ConditionedSFSBase
 {
     public:
-    ConditionedSFS(int);
-    std::vector<Matrix<T> > compute(const PiecewiseExponentialRateFunction<T> &, double);
+    ConditionedSFS(int, int);
+    std::vector<Matrix<T> >& compute(const PiecewiseExponentialRateFunction<T> &, double);
 
     // private:
     // Methods
@@ -48,17 +48,21 @@ class ConditionedSFS : public ConditionedSFSBase
     template <typename Derived>
     Matrix<T> parallel_cwiseProduct_colSum(const MatrixXq &a, const Eigen::MatrixBase<Derived> &b);
     template <typename Derived>
-    Matrix<mpreal_wrapper<T> > parallel_matrix_product(const Eigen::MatrixBase<Derived> &, const MatrixXq &);
+    void parallel_matrix_product(const Eigen::MatrixBase<Derived> &, const MatrixXq &, Matrix<T> &ret);
     // Vector<T> compute_etnk_below(const Vector<T>&);
     // Vector<T> compute_etnk_below(const std::vector<mpreal_wrapper<T> >&);
     Matrix<T> compute_etnk_below_mat(const Matrix<mpreal_wrapper<T> >&);
-    std::vector<Matrix<T> > compute_below(const PiecewiseExponentialRateFunction<T> &);
-    std::vector<Matrix<T> > compute_above(const PiecewiseExponentialRateFunction<T> &);
+    void compute_below(const PiecewiseExponentialRateFunction<T> &);
+    void compute_above(const PiecewiseExponentialRateFunction<T> &);
 
     // Variables
-    const int n;
+    const int n, H;
     const MoranEigensystem mei;
     const MatrixCache mcache;
+    std::vector<std::vector<std::vector<mpreal_wrapper<T> > > > vs;
+    Matrix<mpreal_wrapper<T> > tjj_below;
+    Matrix<T> M0_below, M1_below;
+    std::vector<Matrix<T> > csfs_below, csfs_above, csfs, C_above;
 };
 
 #endif

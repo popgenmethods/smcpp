@@ -5,12 +5,11 @@
 
 namespace myfsum
 {
-    inline mpfr::mpreal fsum(const std::vector<mpfr::mpreal> &v)
+    inline mpfr::mpreal fsum(const std::vector<mpfr::mpreal> &v, const int n)
     {
-        int n = (int)v.size();
         mpfr_srcptr p[n];
         int prec = (int)v[0].getPrecision();
-        for (unsigned long int  i = 0; i < n; i++) 
+        for (unsigned long int i = 0; i < n; i++) 
         {
             p[i] = v[i].mpfr_srcptr();
             prec = std::min(prec, (int)v[i].getPrecision());
@@ -18,6 +17,10 @@ namespace myfsum
         mpfr::mpreal ret(0.0, prec);
         mpfr_sum(ret.mpfr_ptr(), (mpfr_ptr*)p, n, MPFR_RNDN);
         return ret;
+    }
+    inline mpfr::mpreal fsum(const std::vector<mpfr::mpreal> &v)
+    {
+        return fsum(v, v.size());
     }
 }
 
@@ -39,6 +42,10 @@ struct mpreal_wrapper_type<double>
     {
         return x.toDouble();
     }
+    static type fsum(const std::vector<type> &v, const int n)
+    {
+        return myfsum::fsum(v, n);
+    }
     static type fsum(const std::vector<type> &v)
     {
         return myfsum::fsum(v);
@@ -59,16 +66,16 @@ struct mpreal_wrapper_type<adouble>
     {
         return adouble(x.value().toDouble(), x.derivatives().template cast<double>());
     }
-    static type fsum(const std::vector<type> &v)
+    static type fsum(const std::vector<type> &v, const int n)
     {
         int nd = v[0].derivatives().rows();
         std::vector<mpfr::mpreal> x; 
         std::vector<std::vector<mpfr::mpreal> > d(nd);
-        for (auto &vv : v)
+        for (int i = 0; i < n; ++i)
         {
-            x.push_back(vv.value());
-            for (int i = 0; i < nd; ++i)
-                d[i].push_back(vv.derivatives()(i));
+            x.push_back(v[i].value());
+            for (int j = 0; j < nd; ++j)
+                d[j].push_back(v[i].derivatives()(j));
         }
         int status;
         type ret = myfsum::fsum(x);
@@ -76,6 +83,10 @@ struct mpreal_wrapper_type<adouble>
         for (int i = 0; i < nd; ++i)
             ret.derivatives()(i) = myfsum::fsum(d[i]);
         return ret;
+    }
+    static type fsum(const std::vector<type> &v)
+    {
+        return fsum(v, v.size());
     }
 };
 

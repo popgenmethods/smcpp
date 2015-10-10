@@ -477,7 +477,6 @@ void PiecewiseExponentialRateFunction<T>::tjj_double_integral_above(const int n,
     }
     // Now calculate with hidden state integration limits
     size_t H = hidden_states.size();
-    Matrix<T> ret(H - 1, n);
     Matrix<T> last = ts_integrals.topRows(hs_indices[0]).colwise().sum(), next;
     last *= one;
     for (int h = 1; h < hs_indices.size(); ++h)

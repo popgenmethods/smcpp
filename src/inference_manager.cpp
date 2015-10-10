@@ -34,13 +34,14 @@ InferenceManager::InferenceManager(
     n(n), L(L),
     observations(observations), 
     hidden_states(hidden_states),
+    H(hidden_states.size() - 1),
     emask(Eigen::Map<const Eigen::Matrix<int, 3, Eigen::Dynamic, Eigen::RowMajor>>(_emask, 3, n + 1)),
     mask_freq(mask_freq),
     mask_offset(mask_offset),
     theta(theta), rho(rho),
     block_size(block_size), 
     M(hidden_states.size() - 1), 
-    seed(1), csfs_d(n), csfs_ad(n)
+    seed(1), csfs_d(n, H), csfs_ad(n, H)
 {
     pi = Vector<adouble>::Zero(M);
     transition = Matrix<adouble>::Zero(M, M);

@@ -124,21 +124,27 @@ mpq_class pnkb_undist(int n, int m, int l3)
 }
 
 template <typename T>
-ConditionedSFS<T>::ConditionedSFS(int n) :
-    n(n), 
-    mei(compute_moran_eigensystem(n)), mcache(cached_matrices(n)) {}
+ConditionedSFS<T>::ConditionedSFS(int n, int H) :
+    n(n), H(H),
+    mei(compute_moran_eigensystem(n)), mcache(cached_matrices(n)),
+    tjj_below(H, n + 1),
+    vs(H, std::vector<std::vector<mpreal_wrapper<T> > >(n + 1, std::vector<mpreal_wrapper<T> >(n + 1))),
+    M0_below(H, n), M1_below(H, n + 1),
+    csfs(H, Matrix<T>(3, n + 1)), csfs_below(H, Matrix<T>(3, n + 1)), csfs_above(H, Matrix<T>(3, n + 1)),
+    C_above(H, Matrix<T>(n + 1, n))
+{}
 
 template <typename T>
 template <typename Derived>
 Matrix<T> ConditionedSFS<T>::parallel_cwiseProduct_colSum(const MatrixXq &a, const Eigen::MatrixBase<Derived> &b)
 {
-    Matrix<T> ret(1, a.cols());
-    ret.setZero();
+    Matrix<T> r(1, a.cols());
+    r.setZero();
 #pragma omp parallel for schedule(static)
     for (int j = 0; j < a.cols(); ++j)
         for (int i = 0; i < a.rows(); ++i)
-            ret(0, j) += a(i, j).get_d() * b(i, j);
-    return ret;
+            r(0, j) += a(i, j).get_d() * b(i, j);
+    return r;
 }
 
 template <typename T>
@@ -160,6 +166,7 @@ Matrix<T> ConditionedSFS<T>::above2(const Matrix<T> &Ch)
     return parallel_cwiseProduct_colSum(mcache.X2, Ch.colwise().reverse().transpose()) * Uinv_mp2.template cast<T>();
 }
 
+/*
 template <typename T>
 Matrix<T> ConditionedSFS<T>::below0(const Matrix<mpreal_wrapper<T> > &tjj_below)
 {
@@ -173,35 +180,32 @@ Matrix<T> ConditionedSFS<T>::below1(const Matrix<mpreal_wrapper<T> > &tjj_below)
     return parallel_matrix_product(tjj_below, mcache.M1).template cast<T>();
     // return tjj_below.lazyProduct(mcache.M1).template cast<T>();
 }
+*/
 
 template <typename T>
 template <typename Derived>
-Matrix<mpreal_wrapper<T> > ConditionedSFS<T>::parallel_matrix_product(const Eigen::MatrixBase<Derived> &a, const MatrixXq &b)
+void ConditionedSFS<T>::parallel_matrix_product(const Eigen::MatrixBase<Derived> &a, const MatrixXq &b, Matrix<T> &ret)
 {
-    Matrix<mpreal_wrapper<T> > ret(a.rows(), b.cols());
-    ret.setZero();
 #pragma omp parallel for schedule(static)
     for (int i = 0; i < a.rows(); ++i)
     {
-        std::vector<std::vector<mpreal_wrapper<T> > > vs(b.cols(), std::vector<mpreal_wrapper<T> >(a.cols()));
         for (int k = 0; k < a.cols(); ++k)
             for (int j = 0; j < b.cols(); ++j)
-                vs[j][k] = a(i,k) * b(k,j);
+                vs[i][j][k] = a(i,k) * b(k,j);
         for (int j = 0; j < b.cols(); ++j)
-            ret(i, j) = mpreal_wrapper_type<T>::fsum(vs[j]);
+            ret(i, j) = mpreal_wrapper_type<T>::convertBack(mpreal_wrapper_type<T>::fsum(vs[i][j], a.cols()));
     }
-    return ret;
 }
 
 template <typename T>
-std::vector<Matrix<T> > ConditionedSFS<T>::compute_below(const PiecewiseExponentialRateFunction<T> &eta)
+void ConditionedSFS<T>::compute_below(const PiecewiseExponentialRateFunction<T> &eta)
 {
     mpfr::mpreal::set_default_prec(mcache.prec);
     PROGRESS("compute below");
     Matrix<mpreal_wrapper<T> > ts_integrals(eta.K, n + 1); 
     long wprec = (long)mcache.prec;
     double log2d, h1, h2;
-    for (int h = 0; h < eta.hidden_states.size() - 1; ++h)
+    for (int h = 0; h < H; ++h)
     {
         h1 = toDouble(eta.R(eta.hidden_states[h]));
         log2d = h1 / log(2);
@@ -217,8 +221,6 @@ std::vector<Matrix<T> > ConditionedSFS<T>::compute_below(const PiecewiseExponent
 #pragma omp parallel for
     for (int m = 0; m < eta.K; ++m)
         eta.tjj_double_integral_below(n, wprec, m, ts_integrals);
-    size_t H = eta.hidden_states.size() - 1;
-    Matrix<mpreal_wrapper<T> > tjj_below(H, n + 1);
     Matrix<mpreal_wrapper<T> > last = ts_integrals.topRows(eta.hs_indices[0]).colwise().sum(), next;
     for (int h = 1; h < H + 1; ++h)
     {
@@ -230,54 +232,45 @@ std::vector<Matrix<T> > ConditionedSFS<T>::compute_below(const PiecewiseExponent
     // std::cout << "tjj_below:\n" << tjj_below.template cast<T>().template cast<double>().transpose() << std::endl << std::endl;
 
     PROGRESS("matrix products below");
-    Matrix<T> M0_below = below0(tjj_below);
-    Matrix<T> M1_below = below1(tjj_below);
-    std::vector<Matrix<T> > ret(H, Matrix<T>::Zero(3, n + 1));
+    // Matrix<T> M0_below = below0(tjj_below);
+    // Matrix<T> M1_below = below1(tjj_below);
+    parallel_matrix_product(tjj_below, mcache.M0, M0_below);
+    parallel_matrix_product(tjj_below, mcache.M0, M1_below);
     PROGRESS("mpfr sfs below");
     for (int h = 0; h < H; ++h) 
     {
-        ret[h].block(0, 1, 1, n) = M0_below.row(h);
-        ret[h].block(1, 0, 1, n + 1) = M1_below.row(h);
+        csfs_below[h].block(0, 1, 1, n) = M0_below.row(h);
+        csfs_below[h].block(1, 0, 1, n + 1) = M1_below.row(h);
     }
     PROGRESS_DONE();
-    return ret;
 }
 
 template <typename T>
-std::vector<Matrix<T> > ConditionedSFS<T>::compute_above(
-    const PiecewiseExponentialRateFunction<T> &eta
-    )
+void ConditionedSFS<T>::compute_above(const PiecewiseExponentialRateFunction<T> &eta)
 {
     PROGRESS("compute above");
-    int H = eta.hidden_states.size() - 1;
     PROGRESS("tjj double integral");
-    std::vector<Matrix<T> > C(H, Matrix<T>::Zero(n + 1, n)), ret(H, Matrix<T>::Zero(3, n + 1));
 #pragma omp parallel for
     for (int j = 2; j < n + 3; ++j)
-        eta.tjj_double_integral_above(n, j, C);
+        eta.tjj_double_integral_above(n, j, C_above);
     Matrix<T> tmp;
     PROGRESS("matrix products");
-
-    // for (int h = 0; h < H; ++h)
-        // std::cout << "tjj_above (" << h << "):\n" << C[h].template cast<T>().template cast<double>() << std::endl << std::endl;
-
     for (int h = 0; h < H; ++h)
     {
-        ret[h].block(0, 1, 1, n) += above0(C[h]);
-        ret[h].block(2, 0, 1, n) += above2(C[h]);
+        csfs_above[h].block(0, 1, 1, n) += above0(C_above[h]);
+        csfs_above[h].block(2, 0, 1, n) += above2(C_above[h]);
     }
     PROGRESS_DONE();
-    return ret;
 }
 
 template <typename T>
-std::vector<Matrix<T> > ConditionedSFS<T>::compute(const PiecewiseExponentialRateFunction<T> &eta, double theta)
+std::vector<Matrix<T> >& ConditionedSFS<T>::compute(const PiecewiseExponentialRateFunction<T> &eta, double theta)
 {
-    std::vector<Matrix<T> > above = compute_above(eta), below = compute_below(eta);
-    std::vector<Matrix<T> > ret(above.size());
-    for (int i = 0; i < above.size(); ++i)
+    compute_above(eta);
+    compute_below(eta);
+    for (int i = 0; i < H; ++i)
     {
-        ret[i] = above[i] + below[i];
+        csfs[i] = csfs_above[i] + csfs_below[i];
         T h1 = eta.R(eta.hidden_states[i]), d;
         if (eta.hidden_states[i + 1] < INFINITY)
         {
@@ -286,15 +279,15 @@ std::vector<Matrix<T> > ConditionedSFS<T>::compute(const PiecewiseExponentialRat
         }
         else
             d = exp(-h1);
-        ret[i] /= d;
-        T tauh = ret[i].sum();
-        ret[i] *= -expm1(-theta * tauh) / tauh;
-        ret[i](0, 0) = exp(-theta * tauh);
+        csfs[i] /= d;
+        T tauh = csfs[i].sum();
+        csfs[i] *= -expm1(-theta * tauh) / tauh;
+        csfs[i](0, 0) = exp(-theta * tauh);
         T tiny = eta.one * 1e-20;
-        ret[i] = ret[i].unaryExpr([=](const T x) { if (x < 1e-20) return tiny; if (x < -1e-8) throw std::domain_error("very negative sfs"); return x; });
-        check_nan(ret[i]);
+        csfs[i] = csfs[i].unaryExpr([=](const T x) { if (x < 1e-20) return tiny; if (x < -1e-8) throw std::domain_error("very negative sfs"); return x; });
+        check_nan(csfs[i]);
      }
-    return ret;
+    return csfs;
 }
 
 std::map<int, MatrixCache> ConditionedSFSBase::matrix_cache;
@@ -376,9 +369,10 @@ void print_sfs(int n, const std::vector<double> &sfs)
 template class ConditionedSFS<double>;
 template class ConditionedSFS<adouble>;
 
-int main(int argc, char** argv)
+int csfs_main(int argc, char** argv)
 {
-    ConditionedSFS<adouble> csfs(100);
+    int n = atoi(argv[1]);
+    ConditionedSFS<adouble> csfs(n, 50);
     doProgress(true);
     // ConditionedSFS<double> csfs2(0);
     std::vector<std::vector<double> > params = {

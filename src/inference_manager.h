@@ -79,6 +79,7 @@ class InferenceManager
     const std::vector<int> L;
     const std::vector<int*> observations;
     const std::vector<double> hidden_states;
+    const int H;
     const Eigen::Matrix<int, 3, Eigen::Dynamic, Eigen::RowMajor> emask;
     const int mask_freq;
     const std::vector<int> mask_offset;
@@ -105,7 +106,7 @@ template <typename T>
 Matrix<T> sfs_cython(int n, const ParameterVector &p, double t1, double t2, double theta) 
 { 
     PiecewiseExponentialRateFunction<T> eta(p, {t1, t2});
-    ConditionedSFS<T> csfs(n - 2);
+    ConditionedSFS<T> csfs(n - 2, 1);
     return csfs.compute(eta, theta)[0];
 }
 
