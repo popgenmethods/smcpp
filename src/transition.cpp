@@ -1,5 +1,7 @@
 #include "transition.h"
 
+int depth0 = 8;
+
 template <typename T>
 struct trans_integrand_helper
 {
@@ -44,15 +46,15 @@ T Transition<T>::P_no_recomb(const int i)
     T log_denom = eta->R(t[i - 1]);
     p_intg_helper<T> h = {eta, 2. * rho, t[i - 1], t[i], log_denom};
     T ret;
-    int depth = 12;
-    double tol = 1e-6;
+    int depth = depth0;
+    double tol = 1e-16;
     do {
         ret = adaptiveSimpsons(std::function<T(const double, p_intg_helper<T>*)>(p_integrand<T>), &h, 0., 1., tol, depth);
         if (t[i] < INFINITY)
             ret /= -expm1(-(eta->R(t[i]) - eta->R(t[i - 1])));
         depth += 2;
         tol /= 2;
-        if (depth > 14)
+        if (depth > depth0 + 2)
             PROGRESS("P_no_recomb " << depth << tol);
     } while (ret < 0 or ret > 1);
     check_nan(ret);
@@ -125,18 +127,24 @@ template <typename T>
 T Transition<T>::trans(int i, int j)
 {
     const std::vector<double> t = eta->hidden_states;
-    T log_denom = eta->R(t[i - 1]);
+    // T log_denom = eta->R(t[i - 1]);
+    T log_denom = eta->zero;
     trans_integrand_helper<T> tih = {i, j, eta, t[i - 1], t[i], log_denom};
-    int depth = 8;
+    int depth = depth0;
+    double tol = 1e-16;
     T ret;
+    T denom = exp(-eta->R(t[i - 1]));
+    if (t[i] < INFINITY)
+        denom -= exp(-eta->R(t[i]));
     do 
     {
         ret = adaptiveSimpsons(std::function<T(const double, trans_integrand_helper<T>*)>(trans_integrand<T>),
-                &tih, 0., 1., 1e-6, depth);
-        if (t[i] < INFINITY)
-            ret /= -expm1(-(eta->R(t[i]) - eta->R(t[i - 1])));
+                &tih, 0., 1., tol, depth);
+        ret /= denom;
         depth += 2;
-        if (depth > 10)
+        if (depth > depth0 + 2)
+        // if (t[i] < INFINITY)
+            // ret /= -expm1(-(eta->R(t[i]) - eta->R(t[i - 1])));
             PROGRESS("trans " << depth)
     } while (ret > 1 or ret < 0);
     check_negative(ret);
@@ -158,6 +166,8 @@ Transition<T>::Transition(const PiecewiseExponentialRateFunction<T> &eta, const 
 template <typename T>
 void Transition<T>::compute(void)
 {
+    Matrix<double> rt(M - 1, M - 1);
+    PROGRESS("transition");
 #pragma omp parallel for
     for (int i = 1; i < M; ++i)
     {
@@ -165,6 +175,7 @@ void Transition<T>::compute(void)
         for (int j = 1; j < M; ++j)
         {
             T tr = trans(i, j);
+            rt(i - 1, j - 1) = toDouble(tr);
             Phi(i - 1, j - 1) = (1. - pnr) * tr;
             if (i == j)
                 Phi(i - 1, j - 1) += pnr;
@@ -177,6 +188,7 @@ void Transition<T>::compute(void)
             // }
         }
     }
+    // std::cout << "rt\n" << rt << std::endl;
 }
 
 template <typename T>
