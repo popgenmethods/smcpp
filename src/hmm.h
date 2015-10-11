@@ -88,7 +88,7 @@ class HMM
     double loglik(void);
     adouble Q(void);
     // std::vector<int>& viterbi(void);
-    void fill_B(void) { for (int ell = 0; ell < Ltot; ++ell) B.col(ell) = *Bptr[ell]; }
+    void fill_B(void) { B = Matrix<adouble>::Zero(M, Ltot); for (int ell = 0; ell < Ltot; ++ell) B.col(ell) = *Bptr[ell]; }
 
     private:
     HMM(HMM const&) = delete;

@@ -71,21 +71,7 @@ void HMM::prepare_B(const Matrix<int> &obs, const int n)
             {
                 i = 0;
                 key.alt_block = alt_block;
-                std::map<int, int> p2;
-                if (powers.size() > 1)
-                {
-                    for (auto pp : powers)
-                        if (pp.first != 0)
-                        {
-                            p2[pp.first] = 1;
-                            break;
-                        }
-                }
-                else
-                {
-                    p2[0] = 1;
-                }
-                key.powers = p2;
+                key.powers = powers;
                 if (block_prob_map.count(key) == 0)
                 {
                     tmp.setOnes();
@@ -210,18 +196,16 @@ void HMM::recompute_B(void)
     for (auto it = block_prob_map_keys.begin(); it < block_prob_map_keys.end(); ++it)
     {
         const Matrix<adouble> *em_ptr = it->alt_block ? emission : emission_mask;
-        Eigen::Array<adouble, Eigen::Dynamic, 1> tmp = Eigen::Array<adouble, Eigen::Dynamic, 1>::Ones(M);
+        Eigen::Array<adouble, Eigen::Dynamic, 1> tmp = Eigen::Array<adouble, Eigen::Dynamic, 1>::Ones(M), tmp2;
         Eigen::Array<adouble, Eigen::Dynamic, 1> log_tmp = Eigen::Array<adouble, Eigen::Dynamic, 1>::Zero(M);
         for (auto &p : it->powers)
         {
-            assert(p.second == 1);
-            // tmp *= em_ptr->col(p.first).array().pow(p.second);
-            // log_tmp += em_ptr->col(p.first).array().log() * p.second;
-            tmp *= em_ptr->col(p.first).array();
-            log_tmp += em_ptr->col(p.first).array().log();
+            for (int i = 0; i < tmp.rows(); ++i)
+                tmp(i) *= Eigen::pow(em_ptr->col(p.first)(i), p.second);
+            log_tmp += em_ptr->col(p.first).array().log() * p.second;
         }
-        // tmp *= comb_coeffs[*it];
-        // log_tmp += log(comb_coeffs[*it]);
+        tmp *= comb_coeffs[*it];
+        log_tmp += log(comb_coeffs[*it]);
         check_nan(tmp);
         check_nan(log_tmp);
         std::get<0>(block_prob_map[*it]) = tmp.matrix();

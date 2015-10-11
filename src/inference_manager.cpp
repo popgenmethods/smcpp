@@ -111,7 +111,7 @@ template <typename T>
 std::vector<Matrix<T> > InferenceManager::sfs(const PiecewiseExponentialRateFunction<T> &eta)
 {
     PROGRESS("sfs");
-    return getCsfs<T>().compute(eta, block_size * theta);
+    return getCsfs<T>().compute(eta, theta);
     PROGRESS("sfs done");
 }
 
