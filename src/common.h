@@ -226,11 +226,13 @@ void _check_nan(const Vector<T> &x)
         _check_nan(x(i));
 }
 
+#define check_negative(X) { try { _check_negative(X); } catch (std::runtime_error e) { std::cout << __FILE__ << ":" << __LINE__ << std::endl; throw; } }
+
 template <typename T>
-void check_negative(const T x)
+void _check_negative(const T x)
 {
     if (x < -1e-16)
-        throw std::domain_error("negative x");
+        throw std::runtime_error("negative x");
 }
 
 #endif

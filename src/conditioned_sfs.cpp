@@ -130,8 +130,8 @@ ConditionedSFS<T>::ConditionedSFS(int n, int H) :
     tjj_below(H, n + 1),
     vs(H, std::vector<std::vector<mpreal_wrapper<T> > >(n + 1, std::vector<mpreal_wrapper<T> >(n + 1))),
     M0_below(H, n), M1_below(H, n + 1),
-    csfs(H, Matrix<T>(3, n + 1)), csfs_below(H, Matrix<T>(3, n + 1)), csfs_above(H, Matrix<T>(3, n + 1)),
-    C_above(H, Matrix<T>(n + 1, n))
+    csfs(H, Matrix<T>::Zero(3, n + 1)), csfs_below(H, Matrix<T>::Zero(3, n + 1)), csfs_above(H, Matrix<T>::Zero(3, n + 1)),
+    C_above(H, Matrix<T>::Zero(n + 1, n))
 {}
 
 template <typename T>
@@ -151,19 +151,20 @@ template <typename T>
 Matrix<T> ConditionedSFS<T>::above0(const Matrix<T> &Ch)
 {
     MatrixXq Uinv_mp0 = mei.Uinv.rightCols(n);
-    if (n < 20)
-        return mcache.X0.template cast<T>().cwiseProduct(Ch.transpose()).colwise().sum() * Uinv_mp0.template cast<T>();
-    return parallel_cwiseProduct_colSum(mcache.X0, Ch.transpose()) * Uinv_mp0.template cast<T>();
+    // return mcache.X0.template cast<T>().cwiseProduct(Ch.transpose()).colwise().sum() * Uinv_mp0.template cast<T>();
+    Matrix<T> ret = parallel_cwiseProduct_colSum(mcache.X0, Ch.transpose()) * Uinv_mp0.template cast<T>();
+    return ret;
 }
 
 template <typename T>
 Matrix<T> ConditionedSFS<T>::above2(const Matrix<T> &Ch)
 {
     MatrixXq Uinv_mp2 = mei.Uinv.reverse().leftCols(n);
-    if (n < 20)
-        return mcache.X2.template cast<T>().cwiseProduct(Ch.colwise().reverse().transpose()).colwise().sum() * 
-            Uinv_mp2.template cast<T>();
-    return parallel_cwiseProduct_colSum(mcache.X2, Ch.colwise().reverse().transpose()) * Uinv_mp2.template cast<T>();
+    // if (n < 20)
+    //     return mcache.X2.template cast<T>().cwiseProduct(Ch.colwise().reverse().transpose()).colwise().sum() * 
+    //         Uinv_mp2.template cast<T>();
+    Matrix<T> ret = parallel_cwiseProduct_colSum(mcache.X2, Ch.colwise().reverse().transpose()) * Uinv_mp2.template cast<T>();
+    return ret;
 }
 
 /*
@@ -229,13 +230,12 @@ void ConditionedSFS<T>::compute_below(const PiecewiseExponentialRateFunction<T> 
         last = next;
     }
 
-    // std::cout << "tjj_below:\n" << tjj_below.template cast<T>().template cast<double>().transpose() << std::endl << std::endl;
 
     PROGRESS("matrix products below");
     // Matrix<T> M0_below = below0(tjj_below);
     // Matrix<T> M1_below = below1(tjj_below);
     parallel_matrix_product(tjj_below, mcache.M0, M0_below);
-    parallel_matrix_product(tjj_below, mcache.M0, M1_below);
+    parallel_matrix_product(tjj_below, mcache.M1, M1_below);
     PROGRESS("mpfr sfs below");
     for (int h = 0; h < H; ++h) 
     {
@@ -257,8 +257,8 @@ void ConditionedSFS<T>::compute_above(const PiecewiseExponentialRateFunction<T> 
     PROGRESS("matrix products");
     for (int h = 0; h < H; ++h)
     {
-        csfs_above[h].block(0, 1, 1, n) += above0(C_above[h]);
-        csfs_above[h].block(2, 0, 1, n) += above2(C_above[h]);
+        csfs_above[h].block(0, 1, 1, n) = above0(C_above[h]);
+        csfs_above[h].block(2, 0, 1, n) = above2(C_above[h]);
     }
     PROGRESS_DONE();
 }

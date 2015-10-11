@@ -102,7 +102,7 @@ cdef class PyInferenceManager:
     def Estep(self):
         self._im.Estep()
 
-    def alphas(self):
+    def xisums(self):
         return _make_em_matrix(self._im.getXisums())
 
     def alphas(self):

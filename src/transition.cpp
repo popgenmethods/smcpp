@@ -43,9 +43,18 @@ T Transition<T>::P_no_recomb(const int i)
     std::vector<double> t = eta->hidden_states;
     T log_denom = eta->R(t[i - 1]);
     p_intg_helper<T> h = {eta, 2. * rho, t[i - 1], t[i], log_denom};
-    T ret = adaptiveSimpsons(std::function<T(const double, p_intg_helper<T>*)>(p_integrand<T>), &h, 0., 1., 1e-8, 20);
-    if (t[i] < INFINITY)
-        ret /= -expm1(-(eta->R(t[i]) - eta->R(t[i - 1])));
+    T ret;
+    int depth = 12;
+    double tol = 1e-6;
+    do {
+        ret = adaptiveSimpsons(std::function<T(const double, p_intg_helper<T>*)>(p_integrand<T>), &h, 0., 1., tol, depth);
+        if (t[i] < INFINITY)
+            ret /= -expm1(-(eta->R(t[i]) - eta->R(t[i - 1])));
+        depth += 2;
+        tol /= 2;
+        if (depth > 14)
+            PROGRESS("P_no_recomb " << depth << tol);
+    } while (ret < 0 or ret > 1);
     check_nan(ret);
     check_negative(ret);
     check_negative(1. - ret);
@@ -118,10 +127,18 @@ T Transition<T>::trans(int i, int j)
     const std::vector<double> t = eta->hidden_states;
     T log_denom = eta->R(t[i - 1]);
     trans_integrand_helper<T> tih = {i, j, eta, t[i - 1], t[i], log_denom};
-    T ret = adaptiveSimpsons(std::function<T(const double, trans_integrand_helper<T>*)>(trans_integrand<T>),
-            &tih, 0., 1., 1e-6, 8);
-    if (t[i] < INFINITY)
-        ret /= -expm1(-(eta->R(t[i]) - eta->R(t[i - 1])));
+    int depth = 8;
+    T ret;
+    do 
+    {
+        ret = adaptiveSimpsons(std::function<T(const double, trans_integrand_helper<T>*)>(trans_integrand<T>),
+                &tih, 0., 1., 1e-6, depth);
+        if (t[i] < INFINITY)
+            ret /= -expm1(-(eta->R(t[i]) - eta->R(t[i - 1])));
+        depth += 2;
+        if (depth > 10)
+            PROGRESS("trans " << depth)
+    } while (ret > 1 or ret < 0);
     check_negative(ret);
     check_nan(ret);
     if (ret > 1 or ret < 0)
