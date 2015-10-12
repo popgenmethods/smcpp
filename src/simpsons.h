@@ -1,6 +1,8 @@
 #ifndef SIMPSONS_H
 #define SIMPSONS_H
 
+#include "gauss_legendre.h"
+
 template <typename T, typename U, typename V>
 T adaptiveSimpsonsAux(const std::function<T(const V, U*)> &f, U* helper,
         V a, V b, double eps, T S, T fa, T fb, T fc, int bottom)
@@ -18,7 +20,7 @@ T adaptiveSimpsonsAux(const std::function<T(const V, U*)> &f, U* helper,
         adaptiveSimpsonsAux(f, helper, c, b, eps/2, Sright, fc, fb, fe, bottom-1);
 }
 
-template <typename T, typename U, typename V> 
+/*template <typename T, typename U, typename V> 
 T adaptiveSimpsons(const std::function<T(const V, U*)> &f, U* helper,
         V a, V b, double eps, int maxDepth)
 {
@@ -26,6 +28,29 @@ T adaptiveSimpsons(const std::function<T(const V, U*)> &f, U* helper,
     T fa = f(a, helper), fb = f(b, helper), fc = f(c, helper);
     T S = (h/6)*(fa + 4*fc + fb);
     return adaptiveSimpsonsAux<T>(f, helper, a, b, eps, S, fa, fb, fc, maxDepth);
+}
+*/
+
+template <typename T, typename U, typename V>
+struct gl_helper
+{
+    const std::function<T(const V, U*)> &f;
+    U* helper;
+};
+
+template <typename T, typename U, typename V>
+T f_help(T x, void* y)
+{
+    gl_helper<T,U,V>* h = (gl_helper<T,U,V>*)y;
+    return h->f(toDouble(x), h->helper);
+}
+
+template <typename T, typename U, typename V>
+T adaptiveSimpsons(const std::function<T(const V, U*)> &f, U* helper,
+        V a, V b, double eps, int maxDepth)
+{
+    gl_helper<T,U,V> hlp{f, helper};
+    return gauss_legendre(maxDepth, f_help<T, U, V>, (void*)&hlp, (T)a, (T)b);
 }
 
 #endif

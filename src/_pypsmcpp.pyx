@@ -83,8 +83,10 @@ cdef class PyInferenceManager:
         return self._observations
 
     def setParams(self, params, derivatives):
-        # if not np.all(np.array(params) > 0):
-            # raise ValueError("All parameters must be strictly positive")
+        if not np.all(np.array(params) > 0):
+            raise ValueError("All parameters must be strictly positive")
+        if not all(len(pp) == len(params[0]) for pp in params):
+            raise ValueError("All parameters must have same sizes")
         cdef ParameterVector p = make_params(params)
         if derivatives is True:
             derivatives = [(a, b) for a in range(len(params)) for b in range(len(params[0]))]
@@ -98,6 +100,9 @@ cdef class PyInferenceManager:
 
     def setDebug(self, val):
         self._im.debug = val
+
+    def regularizer(self):
+        return self._im.getRegularizer()
 
     def Estep(self):
         self._im.Estep()

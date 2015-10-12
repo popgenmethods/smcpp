@@ -54,6 +54,8 @@ class InferenceManager
         return (*eta.getR())(t);
     }
 
+    double getRegularizer() { return toDouble(regularizer); }
+
     bool debug;
     std::vector<Matrix<double>*> getXisums();
     std::vector<Matrix<double>*> getAlphas();

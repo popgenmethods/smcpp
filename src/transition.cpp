@@ -36,6 +36,7 @@ T p_integrand(const double x, p_intg_helper<T> *pih)
     if (v == INFINITY)
         return 0.;
     T ret = pih->eta->eta(v) * exp(-(pih->eta->R(v) - pih->log_denom + pih->rho * v)) * jac;
+    check_nan(ret);
     return ret;
 }
 
@@ -45,18 +46,23 @@ T Transition<T>::P_no_recomb(const int i)
     std::vector<double> t = eta->hidden_states;
     T log_denom = eta->R(t[i - 1]);
     p_intg_helper<T> h = {eta, 2. * rho, t[i - 1], t[i], log_denom};
-    T ret;
-    int depth = depth0;
-    double tol = 1e-16;
+    T ret, more_denom;
+    if (t[i] < INFINITY)
+        more_denom = -expm1(-(eta->R(t[i]) - eta->R(t[i - 1])));
+    else
+        more_denom = eta->one;
+    check_nan(more_denom);
+    int depth = 128;
+    double tol = 1e-10;
     do {
         ret = adaptiveSimpsons(std::function<T(const double, p_intg_helper<T>*)>(p_integrand<T>), &h, 0., 1., tol, depth);
-        if (t[i] < INFINITY)
-            ret /= -expm1(-(eta->R(t[i]) - eta->R(t[i - 1])));
-        depth += 2;
-        tol /= 2;
-        if (depth > depth0 + 2)
-            PROGRESS("P_no_recomb " << depth << tol);
-    } while (ret < 0 or ret > 1);
+        check_nan(ret);
+        ret /= more_denom;
+        check_nan(ret);
+        depth *= 2;
+        if (depth > 256)
+            PROGRESS("P_nr_recomb at " << depth << " nodes");
+    } while (ret >= 1);
     check_nan(ret);
     check_negative(ret);
     check_negative(1. - ret);
@@ -130,23 +136,15 @@ T Transition<T>::trans(int i, int j)
     // T log_denom = eta->R(t[i - 1]);
     T log_denom = eta->zero;
     trans_integrand_helper<T> tih = {i, j, eta, t[i - 1], t[i], log_denom};
-    int depth = depth0;
-    double tol = 1e-16;
+    int depth = 256;
+    double tol = 1e-10;
     T ret;
     T denom = exp(-eta->R(t[i - 1]));
     if (t[i] < INFINITY)
         denom -= exp(-eta->R(t[i]));
-    do 
-    {
-        ret = adaptiveSimpsons(std::function<T(const double, trans_integrand_helper<T>*)>(trans_integrand<T>),
-                &tih, 0., 1., tol, depth);
-        ret /= denom;
-        depth += 2;
-        if (depth > depth0 + 2)
-        // if (t[i] < INFINITY)
-            // ret /= -expm1(-(eta->R(t[i]) - eta->R(t[i - 1])));
-            PROGRESS("trans " << depth)
-    } while (ret > 1 or ret < 0);
+    ret = adaptiveSimpsons(std::function<T(const double, trans_integrand_helper<T>*)>(trans_integrand<T>),
+            &tih, 0., 1., tol, depth);
+    ret /= denom;
     check_negative(ret);
     check_nan(ret);
     if (ret > 1 or ret < 0)

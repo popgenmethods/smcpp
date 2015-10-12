@@ -77,6 +77,10 @@ Matrix<T> matpow(Matrix<T> M, int p)
 template <typename T>
 void InferenceManager::setParams(const ParameterVector params, const std::vector<std::pair<int, int>> derivatives)
 {
+    int ps = params[0].size();
+    for (auto &pp : params)
+        if (pp.size() != params[0].size())
+            throw std::runtime_error("params must have matching sizes");
     PiecewiseExponentialRateFunction<T> eta(params, derivatives, hidden_states);
     regularizer = adouble(eta.regularizer());
     pi = compute_initial_distribution<T>(eta).template cast<adouble>();

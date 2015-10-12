@@ -47,7 +47,9 @@ T eintdiff(const T a, const T b, T r)
 template <typename T>
 PiecewiseExponentialRateFunction<T>::PiecewiseExponentialRateFunction(const std::vector<std::vector<double>> params,
         const std::vector<double> hidden_states) : 
-    PiecewiseExponentialRateFunction(params, std::vector<std::pair<int, int>>(), hidden_states) {}
+    PiecewiseExponentialRateFunction(params, std::vector<std::pair<int, int>>(), hidden_states) 
+{
+}
 
 std::vector<std::pair<int, int>> derivatives_from_params(const std::vector<std::vector<double>> params)
 {
@@ -94,6 +96,9 @@ PiecewiseExponentialRateFunction<T>::PiecewiseExponentialRateFunction(
     zero(init_derivative(0.0)), one(init_derivative(1.0)),
     hidden_states(hidden_states)
 {
+    for (auto &pp : params)
+        if (pp.size() != params[0].size())
+            throw std::runtime_error("all params must have same size");
     // Final piece is required to be flat.
     T adatmp;
     ts[0] = zero;
@@ -147,15 +152,19 @@ PiecewiseExponentialRateFunction<T>::PiecewiseExponentialRateFunction(
     _eta.reset(new PExpEvaluator<T>(ada, adb, ts, Rrng));
     _R.reset(new PExpIntegralEvaluator<T>(ada, adb, ts, Rrng));
     _Rinv.reset(new PExpInverseIntegralEvaluator<T>(ada, adb, ts, Rrng));
-    T Tmax = ts[K - 1];
-    T elast = eta(zero);
-    for (int i = 1; i < 1001; ++i)
+    T elast, xx, etax, tmp;
+    elast = 1. / eta(ts[0]);
+    const int delta = 50;
+    for (int k = 0; k < K - 1; ++k)
     {
-        T xx = (i / 1000.) * Tmax;
-        T etax = eta(xx);
-        T tmp = etax - elast;
-        _reg += myabs(tmp);
-        elast = etax;
+        for (int i = 1; i < delta + 1; ++i)
+        {
+            xx = (i / delta) * (ts[k + 1] - ts[k]) + ts[k];
+            etax = 1. / eta(xx);
+            tmp = etax - elast;
+            _reg += myabs(tmp);
+            elast = etax;
+        }
     }
 }
 
