@@ -40,8 +40,9 @@ def save_pdf(plt, filename):
     plt.savefig(pp, format='pdf')
     pp.close()
 
-def plot_psfs(psfs, N0=1e4):
+def plot_psfs(psfs, N0=1e4, xlim=None, ylim=None):
     fig, ax = pretty_plot()
+    xmax = ymax = 0.
     for a, b, s in psfs:
         sp = s * 25.0 * 2 * N0
         # cs = np.concatenate(([100.], np.cumsum(s) * 25.0 * 2 * N0))
@@ -58,15 +59,20 @@ def plot_psfs(psfs, N0=1e4):
             x = np.concatenate([x, tt])
             y = np.concatenate([y, yy])
             cum += ss
-        x = np.concatenate([x, [cum, 1e6]])
+        x = np.concatenate([x, [cum, 2 * cum]])
         y = np.concatenate([y, [a[-1], a[-1]]])
         ax.plot(x, y)
         # ax.step(cs, a, where='post')
+        ymax = max(ymax, np.max(y))
+        xmax = max(xmax, np.max(x))
     ax.set_xscale('log')
-    ax.set_xlim(100., 1e6)
-    ax.set_ylim(0.0, 10.0)
+    if not xlim:
+        xlim = (3000., 1.1 * xmax)
+    if not ylim:
+        ylim=(0.0, 1.1 * ymax)
+    ax.set_xlim(*xlim)
+    ax.set_ylim(*ylim)
     return fig
 
-def plot_output(out, fname):
-    save_pdf(plot_psfs([(out['a0'],out['b0'],out['s0']),(out['a'],out['b'],out['s'])]), fname)
-    
+def plot_output(out, fname, **kwargs):
+    save_pdf(plot_psfs([(out['a0'],out['b0'],out['s0']),(out['a'],out['b'],out['s'])], **kwargs), fname)
