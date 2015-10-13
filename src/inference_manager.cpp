@@ -102,6 +102,17 @@ void InferenceManager::setParams(const ParameterVector params, const std::vector
         for (int i = 0; i < 3; ++i)
             for (int j = 0; j < n + 1; ++j)
                 emission_mask(m, emask(i, j)) += sfss[m](i, j);
+        if (n > 2)
+        {
+            adouble t0 = emission(m,0);
+            adouble t1 = emission(m,1);
+            adouble t2 = emission(m,2);
+            adouble ttot = emission.row(m).sum() - (t0 + t1 + t2);
+            emission.row(m).fill(ttot);
+            emission(m,0) = t0;
+            emission(m,1) = t1;
+            emission(m,2) = t2;
+        }
     }
     parallel_do([] (hmmptr &hmm) { hmm->recompute_B(); });
 }
