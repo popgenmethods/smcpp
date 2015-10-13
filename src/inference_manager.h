@@ -27,7 +27,7 @@ class InferenceManager
     void set_seed(long long s) { seed = s; }
 
     template <typename T>
-    void setParams(const ParameterVector, const std::vector<std::pair<int, int>>);
+    void setParams(const ParameterVector, const std::vector<std::pair<int, int> >);
 
     void Estep(void);
     std::vector<adouble> Q(double);
@@ -108,6 +108,14 @@ template <typename T>
 Matrix<T> sfs_cython(int n, const ParameterVector &p, double t1, double t2, double theta) 
 { 
     PiecewiseExponentialRateFunction<T> eta(p, {t1, t2});
+    ConditionedSFS<T> csfs(n - 2, 1);
+    return csfs.compute(eta, theta)[0];
+}
+
+template <typename T>
+Matrix<T> sfs_cython(int n, const ParameterVector &p, double t1, double t2, double theta, std::vector<std::pair<int, int> > deriv) 
+{ 
+    PiecewiseExponentialRateFunction<T> eta(p, deriv, {t1, t2});
     ConditionedSFS<T> csfs(n - 2, 1);
     return csfs.compute(eta, theta)[0];
 }

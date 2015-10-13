@@ -46,3 +46,4 @@ cdef extern from "inference_manager.h":
         Matrix[adouble]& getMaskedEmission()
         vector[vector[pair[bool, map[int, int]]]] getBlockKeys()
     Matrix[T] sfs_cython[T](int, const ParameterVector&, double, double, double)
+    Matrix[T] sfs_cython[T](int, const ParameterVector&, double, double, double, vector[pair[int, int]])

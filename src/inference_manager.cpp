@@ -85,6 +85,8 @@ void InferenceManager::setParams(const ParameterVector params, const std::vector
     regularizer = adouble(eta.regularizer());
     pi = compute_initial_distribution<T>(eta).template cast<adouble>();
     transition = compute_transition<T>(eta, block_size * rho).template cast<adouble>();
+    if (transition.diagonal().maxCoeff() > .9999990)
+        throw std::runtime_error("too big transition diagonal?");
     check_nan(transition);
     // std::cout << transition.template cast<double>() << std::endl;
     Eigen::Matrix<T, 3, Eigen::Dynamic, Eigen::RowMajor> em_tmp(3, n + 1);

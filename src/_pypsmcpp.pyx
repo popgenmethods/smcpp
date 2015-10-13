@@ -215,10 +215,10 @@ def sfs(int n, params, double t1, double t2, double theta, jacobian=False):
         sfs = sfs_cython[double](n, p, t1, t2, theta)
         store_matrix(&sfs, &vret[0, 0])
         return ret
-    J = len(params) * len(params[0])
+    J = len(jacobian)
     jac = aca(np.zeros([3, n - 1, J]))
     cdef double[:, :, ::1] vjac = jac
-    dsfs = sfs_cython[adouble](n, p, t1, t2, theta)
+    dsfs = sfs_cython[adouble](n, p, t1, t2, theta, jacobian)
     return _store_admatrix_helper(dsfs, J)
 
 cdef _store_admatrix_helper(Matrix[adouble] &mat, int nder):

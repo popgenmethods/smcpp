@@ -12,6 +12,7 @@ import sys
 
 import matplotlib
 matplotlib.use('Agg')
+matplotlib.rcParams.update({'font.size': 42})
 import psmcpp.scrm, psmcpp.bfgs, psmcpp._pypsmcpp, psmcpp.util, psmcpp.plotting, psmcpp._newick
 
 def norm_counter(c, nn): 
@@ -56,12 +57,12 @@ N0 = 10000
 rho = 1e-9
 theta = 2.5e-8
 L = int(float(sys.argv[1]))
-a = np.array([10., 1., .1, 2.])
-b = np.array([10., 1., .1, 2.])
+a = np.array([10., .5, 1., 2.])
+b = np.array([1., .5, 1., 2.])
 s = np.array([5000.0, 50000.0, 10000., 10000.]) / 25.0 / (2 * N0)
 true_parameters = (a, b, s)
 width = 2000
-M = 50
+M = 20
 G = np.zeros([M, L])
 
 nns = [2, 5, 10, 25, 50]
@@ -72,8 +73,8 @@ data = psmcpp.scrm.simulate(n, N0, theta, rho, L, demography, include_trees=True
 
 # Inflate singletons 
 # alpha fraction of called bases are false positive
-if True:
-    alpha = .0001
+if False:
+    alpha = .001
     err_bases = int(L * n * alpha)
     npos = np.random.random_integers(0, L - 1, size=err_bases)
     ind = np.random.random_integers(0, n - 1, size=err_bases)
@@ -106,6 +107,7 @@ for nn in nns:
     im = psmcpp._pypsmcpp.PyInferenceManager(nn - 2, [obs[:10]], hidden_states,
             4.0 * N0 * theta, 4.0 * N0 * rho, block_size, 10, [0])
     hidden_states = im.balance_hidden_states((a, b, s), M)
+    hidden_states[-1] = 30.
     em = np.arange(3 *  (nn - 1), dtype=int).reshape([3, nn - 1])
     em[0] = em[2] = 0
     em[1] = 1
@@ -125,14 +127,15 @@ for nn in nns:
 
 import matplotlib.pyplot as plt
 
-fig, axes = plt.subplots(nrows=1 * len(nns) + 1, sharex=True, sharey=True, figsize=(30,15))
+fig, axes = plt.subplots(nrows=len(nns), sharex=True, sharey=True, figsize=(25, 15))
 # for i, ll in enumerate(((0, 1), (1, 2))[:2]):
 coal_times = np.searchsorted(hidden_states, list(unpack(ct))) - 1
 true_pos = scipy.ndimage.zoom(coal_times, 1. * width / L)
-axes[-1].step(range(width), true_pos)
+# axes[-1].step(range(width), true_pos)
 #end i loop
 #plt.set_cmap("cubehelix")
 ai = 0
+label_text   = [r"%i kb" % int(L / 40. * 100. * loc/width) for loc in plt.xticks()[0]]
 mx = max([np.max(gm[g]) for g in gm])
 for nn in sorted(gm):
     ax = axes[ai]
@@ -141,12 +144,13 @@ for nn in sorted(gm):
     ax.step(range(width), true_pos, color=(0, 1., 1.))
     ax.set_ylabel("n=%d" % nn)
     ax.set_ylim([-0.5, M - 0.5])
-axes[-1].set_ylabel("True hid. st.")
-axes[-1].set_ylim([-0.5, M - 0.5])
-axes[-1].xaxis.set_ticks(np.arange(0, width + 1, 100))
-fig.subplots_adjust(right=0.9)
-cbar_ax = fig.add_axes([0.92, 0.29, 0.02, 0.55])
-fig.colorbar(im, cax=cbar_ax)
+    ax.set_xticklabels(label_text)
+# axes[-1].set_ylabel("True hid. st.")
+# axes[-1].set_ylim([-0.5, M - 0.5])
+# axes[-1].xaxis.set_ticks(np.arange(0, width + 1, 100))
+# fig.subplots_adjust(right=0.9)
+# cbar_ax = fig.add_axes([0.92, 0.29, 0.02, 0.55])
+# fig.colorbar(im, cax=cbar_ax)
 psmcpp.plotting.save_pdf(fig, "posterior_decoding_heatmap.pdf")
 plt.close(fig)
 

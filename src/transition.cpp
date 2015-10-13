@@ -52,7 +52,7 @@ T Transition<T>::P_no_recomb(const int i)
     else
         more_denom = eta->one;
     check_nan(more_denom);
-    int depth = 128;
+    int depth = 1024;
     double tol = 1e-10;
     do {
         ret = adaptiveSimpsons(std::function<T(const double, p_intg_helper<T>*)>(p_integrand<T>), &h, 0., 1., tol, depth);
@@ -60,7 +60,7 @@ T Transition<T>::P_no_recomb(const int i)
         ret /= more_denom;
         check_nan(ret);
         depth *= 2;
-        if (depth > 256)
+        if (depth > 2048)
             PROGRESS("P_nr_recomb at " << depth << " nodes");
     } while (ret >= 1);
     check_nan(ret);
@@ -170,6 +170,11 @@ void Transition<T>::compute(void)
     for (int i = 1; i < M; ++i)
     {
         T pnr = P_no_recomb(i);
+        if (pnr > 0.9999990)
+        {
+            std::cout << i << " pnr is tiny: " << pnr;
+            pnr = eta->one * 0.9998;
+        }
         for (int j = 1; j < M; ++j)
         {
             T tr = trans(i, j);
@@ -186,6 +191,8 @@ void Transition<T>::compute(void)
             // }
         }
     }
+    if (Phi.diagonal().maxCoeff() > .9999990)
+        throw std::runtime_error("too big transition diagonal?");
     // std::cout << "rt\n" << rt << std::endl;
 }
 
