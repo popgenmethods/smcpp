@@ -1,17 +1,10 @@
 #ifndef PIECEWISE_EXPONENTIAL_RATE_FUNCTION_H
 #define PIECEWISE_EXPONENTIAL_RATE_FUNCTION_H
 
-#include <Eigen/Dense>
-#include <unsupported/Eigen/MPRealSupport>
 #include "common.h"
 #include "function_evaluator.h"
-#include "mpreal_support.h"
 #include "mpq_support.h"
-#include "mpi.h"
-#include "quadpackpp/workspace.hpp"
 #include "exponential_integrals.h"
-#include "simpsons.h"
-#include "gauss_legendre.h"
 
 const double T_MAX = INFINITY;
 

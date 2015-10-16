@@ -3,6 +3,7 @@
 
 #include <unordered_map>
 #include <map>
+#include <gmpxx.h>
 #include "common.h"
 
 struct block_key

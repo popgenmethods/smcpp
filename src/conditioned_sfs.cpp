@@ -23,9 +23,6 @@ below_coeff compute_below_coeffs(int n)
             }
             mlast = mnew;
         }
-        ret.prec = int(log2(mlast.array().abs().maxCoeff().get_d())) + 10;
-        if (ret.prec < 53)
-            ret.prec = 53;
         ret.coeffs = mlast;
         below_coeffs_memo.emplace(n, ret); 
         PROGRESS_DONE();
@@ -81,12 +78,6 @@ mpq_class pnkb_dist(int n, int m, int l1)
         pnkb_dist_memo[key] = ret;
     }
     return pnkb_dist_memo[key];
-    /*
-     * Numerically unstable for large n
-    double ret = l1 * (n + 2 - l1) / (double) binom(n + 3, m + 3);
-    if (m > 0)
-        ret *= (n + 1 - l1) * (double)binom(n - l1, m - 1) / m / (m + 1);
-    */
 }
 
 std::map<std::array<int, 3>, mpq_class> pnkb_undist_memo;
@@ -112,15 +103,6 @@ mpq_class pnkb_undist(int n, int m, int l3)
         pnkb_undist_memo.emplace(key, ret);
     }
     return pnkb_undist_memo[key];
-    /*
-     * Numerically unstable for large n
-    double ret = (n + 3 - l3) * (n + 2 - l3) * (n + 1 - l3) / (double) binom(n + 3, m + 3);
-    if (m == 1)
-        ret /= 6.0;
-    else
-        ret *= (n - l3) * (double)binom(n - l3 - 1, m - 2) / (m - 1) / m / (m + 1) / (m + 2);
-    return ret;
-    */
 }
 
 template <typename T>
@@ -128,24 +110,10 @@ ConditionedSFS<T>::ConditionedSFS(int n, int H) :
     n(n), H(H),
     mei(compute_moran_eigensystem(n)), mcache(cached_matrices(n)),
     tjj_below(H, n + 1),
-    vs(H, std::vector<std::vector<mpreal_wrapper<T> > >(n + 1, std::vector<mpreal_wrapper<T> >(n + 1))),
     M0_below(H, n), M1_below(H, n + 1),
     csfs(H, Matrix<T>::Zero(3, n + 1)), csfs_below(H, Matrix<T>::Zero(3, n + 1)), csfs_above(H, Matrix<T>::Zero(3, n + 1)),
     C_above(H, Matrix<T>::Zero(n + 1, n))
 {}
-
-template <typename T>
-template <typename Derived>
-Matrix<T> ConditionedSFS<T>::parallel_cwiseProduct_colSum(const MatrixXq &a, const Eigen::MatrixBase<Derived> &b)
-{
-    Matrix<T> r(1, a.cols());
-    r.setZero();
-#pragma omp parallel for schedule(static)
-    for (int j = 0; j < a.cols(); ++j)
-        for (int i = 0; i < a.rows(); ++i)
-            r(0, j) += a(i, j).get_d() * b(i, j);
-    return r;
-}
 
 template <typename T>
 void ConditionedSFS<T>::compute_below(const PiecewiseExponentialRateFunction<T> &eta)
@@ -162,11 +130,9 @@ void ConditionedSFS<T>::compute_below(const PiecewiseExponentialRateFunction<T> 
         tjj_below.row(h - 1) = next - last;
         last = next;
     }
-
-
     PROGRESS("matrix products below");
-    M0_below = mcache.M0.template cast<T>() * tjj_below;
-    M1_below = mcache.M1.template cast<T>() * tjj_below;
+    M0_below = tjj_below * mcache.M0.template cast<T>();
+    M1_below = tjj_below * mcache.M1.template cast<T>();
     PROGRESS("mpfr sfs below");
     for (int h = 0; h < H; ++h) 
     {

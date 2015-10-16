@@ -250,7 +250,7 @@ T PiecewiseExponentialRateFunction<T>::R_integral(const T x, const T y) const
             r = r1 - r2;
             r *= exp(2 * (Rrng[i] - adab) + y) / adb[i];
             */
-            r = eintdiff<T>::run(c2, c1, c3) / adb[i];
+            r = eintdiff(c2, c1, c3) / adb[i];
             check_negative(r);
             check_nan(r);
         }
@@ -281,7 +281,7 @@ inline T _single_integral(const int rate, const T &tsm, const T &tsm1, const T &
     T e1 = -c * ada / adb;
     T e2 = -c * exp(adb * (tsm1 - tsm)) * ada / adb;
     T e3 =  c * (ada / adb - Rrng) + log_coef;
-    T ret = eintdiff<T>::run(e1, e2, e3) / adb;
+    T ret = eintdiff(e1, e2, e3) / adb;
     check_nan(ret);
     check_negative(ret);
     return ret;
@@ -300,7 +300,7 @@ inline T _double_integral_below_helper_ei(const int rate, const T &tsm, const T 
         T a1 = -adadb;
         T b1 = -eadb * adadb;
         T cons1 = adadb - Rrng;
-        T int1 = eintdiff<T>::run(a1, b1, cons1);
+        T int1 = eintdiff(a1, b1, cons1);
         int1 /= adb;
         int1 += exp(adadb * (1. - eadb) - Rrng) * (tsm - tsm1);
         check_negative(int1);
@@ -311,10 +311,10 @@ inline T _double_integral_below_helper_ei(const int rate, const T &tsm, const T 
     T cons2 = adadb * (2 + c + eadb);
     T a1 = -c * adadb * eadb;
     T b1 = -c * adadb;
-    T int1 = eintdiff<T>::run(a1, b1, cons1);
+    T int1 = eintdiff(a1, b1, cons1);
     T a2 = -(c + 1) * adadb;
     T b2 = -(c + 1) * adadb * eadb;
-    T int2 = eintdiff<T>::run(a2, b2, cons2);
+    T int2 = eintdiff(a2, b2, cons2);
     T cons3 = exp(-(ada * (1 + eadb) / adb + (1 + c) * Rrng));
     T ret = cons3 * (int1 + int2) / adb;
     check_negative(ret);
@@ -333,14 +333,14 @@ inline T _double_integral_above_helper_ei(const int rate, const int lam, const T
     T a1 = -cons1 * eadb;
     T b1 = -cons1;
     T c1 = cons1 - d * Rrng;
-    T ed1 = eintdiff<T>::run(a1, b1, c1);
+    T ed1 = eintdiff(a1, b1, c1);
     if (c != d)
     {
         T cons2 = ada * d / adb;
         T a2 = -cons2;
         T b2 = -cons2 * eadb;
         T c2 = cons2 - d * Rrng;
-        return (ed1 + eintdiff<T>::run(a2, b2, c2)) / adb / (c - d);
+        return (ed1 + eintdiff(a2, b2, c2)) / adb / (c - d);
     }
     T ret = (exp(-d * Rrng) * (-adb * expm1(-ada / adb * d * expm1(adb * (tsm1 - tsm)))) + ada * d * ed1) / (adb * adb * d);
     check_negative(ret);
@@ -452,9 +452,6 @@ void PiecewiseExponentialRateFunction<T>::tjj_double_integral_below(
         const int n, const int m, Matrix<T> &tgt) const
 {
     Vector<T> ts_integrals(n + 1);
-    std::vector<T> cs;
-    std::vector<T> single_integrals;
-    T e1, e2;
     T log_coef = Rrng[m];
     T fac = one;
     if (m < K - 1)
@@ -462,7 +459,6 @@ void PiecewiseExponentialRateFunction<T>::tjj_double_integral_below(
     for (int j = 2; j < n + 3; ++j)
     {
         long rate = nC2(j) - 1;
-        cs.clear();
         if (adb[m] == 0.)
             ts_integrals(j - 2) = _double_integral_below_helper<T>(rate, ts[m], ts[m + 1], ada[m], Rrng[m]);
         else

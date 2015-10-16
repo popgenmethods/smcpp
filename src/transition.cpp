@@ -148,7 +148,10 @@ T Transition<T>::trans(int i, int j)
     check_negative(ret);
     check_nan(ret);
     if (ret > 1 or ret < 0)
+    {
+        std::cout << ret << " " << denom << std::endl;
         throw std::domain_error("ret is not a probability");
+    }
     return ret;
 }
 

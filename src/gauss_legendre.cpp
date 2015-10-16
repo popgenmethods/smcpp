@@ -1,5 +1,4 @@
 #include "common.h"
-#include "mpreal_support.h"
 
 /*
 	Numerical Integration by Gauss-Legendre Quadrature Formulas of high orders.
@@ -546,5 +545,3 @@ void gauss_legendre_tbl(int n, double* x, double* w, double eps)
 
 template double gauss_legendre<double>(int n, double (*f)(double, void*), void* data, double a, double b);
 template adouble gauss_legendre<adouble>(int n, adouble (*f)(adouble, void*), void* data, adouble a, adouble b);
-template mpreal_wrapper<double> gauss_legendre<mpreal_wrapper<double>>(int n, mpreal_wrapper<double> (*f)(mpreal_wrapper<double>, void*), void* data, mpreal_wrapper<double> a, mpreal_wrapper<double> b);
-template mpreal_wrapper<adouble> gauss_legendre<mpreal_wrapper<adouble>>(int n, mpreal_wrapper<adouble> (*f)(mpreal_wrapper<adouble>, void*), void* data, mpreal_wrapper<adouble> a, mpreal_wrapper<adouble> b);

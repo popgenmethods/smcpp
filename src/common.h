@@ -12,7 +12,6 @@
 #include <Eigen/Dense>
 #include <unsupported/Eigen/MatrixFunctions>
 
-#include "mpreal.h"
 #include "prettyprint.hpp"
 
 #define AUTODIFF 1
@@ -115,11 +114,8 @@ namespace Eigen {
     CODE; \
   }
 
-using mpfr::exp;
-using mpfr::expm1;
 using std::exp;
 using std::expm1;
-using mpfr::log1p;
 using std::log1p;
 
 EIGEN_AUTODIFF_DECLARE_GLOBAL_UNARY(expm1,
@@ -165,7 +161,6 @@ inline int insertion_point(const T x, const std::vector<U>& ary, int first, int 
 
 inline double myabs(double a) { return std::abs(a); }
 inline adouble myabs(adouble a) { return Eigen::abs(a); }
-inline mpfr::mpreal myabs(mpfr::mpreal a) { return mpfr::abs(a); }
 
 inline void init_eigen() { Eigen::initParallel(); }
 inline void fill_jacobian(const adouble &ll, double* outjac)
@@ -198,7 +193,6 @@ inline adouble dmax(adouble a, adouble b)
 
 #define check_nan(X) { try { _check_nan(X); } catch (std::runtime_error e) { std::cout << __FILE__ << ":" << __LINE__ << std::endl; throw; } }
 
-inline void _check_nan(const mpfr::mpreal x) { if (mpfr::isnan(x) or mpfr::isinf(x)) throw std::runtime_error("nan/inf detected"); }
 inline void _check_nan(const double x) { if (std::isnan(x) or std::isinf(x)) throw std::runtime_error("nan/inf detected"); }
 
 template <typename T>
