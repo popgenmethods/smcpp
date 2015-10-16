@@ -56,7 +56,7 @@ class PiecewiseExponentialRateFunction
     
     Matrix<T> tjj_all_above(const int, const MatrixXq&, const MatrixXq&, const MatrixXq&, const MatrixXq&) const;
     void tjj_double_integral_above(const int, long, std::vector<Matrix<T> > &) const;
-    void tjj_double_integral_below(const int, const mp_prec_t, const int, Matrix<mpreal_wrapper<T> >&) const;
+    void tjj_double_integral_below(const int, const int, Matrix<T>&) const;
 
     friend class ConditionedSFS<T>;
 

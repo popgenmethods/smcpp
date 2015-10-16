@@ -148,81 +148,14 @@ Matrix<T> ConditionedSFS<T>::parallel_cwiseProduct_colSum(const MatrixXq &a, con
 }
 
 template <typename T>
-Matrix<T> ConditionedSFS<T>::above0(const Matrix<T> &Ch)
-{
-    MatrixXq Uinv_mp0 = mei.Uinv.rightCols(n);
-    // return mcache.X0.template cast<T>().cwiseProduct(Ch.transpose()).colwise().sum() * Uinv_mp0.template cast<T>();
-    Matrix<T> ret = parallel_cwiseProduct_colSum(mcache.X0, Ch.transpose()) * Uinv_mp0.template cast<T>();
-    return ret;
-}
-
-template <typename T>
-Matrix<T> ConditionedSFS<T>::above2(const Matrix<T> &Ch)
-{
-    MatrixXq Uinv_mp2 = mei.Uinv.reverse().leftCols(n);
-    // if (n < 20)
-    //     return mcache.X2.template cast<T>().cwiseProduct(Ch.colwise().reverse().transpose()).colwise().sum() * 
-    //         Uinv_mp2.template cast<T>();
-    Matrix<T> ret = parallel_cwiseProduct_colSum(mcache.X2, Ch.colwise().reverse().transpose()) * Uinv_mp2.template cast<T>();
-    return ret;
-}
-
-/*
-template <typename T>
-Matrix<T> ConditionedSFS<T>::below0(const Matrix<mpreal_wrapper<T> > &tjj_below)
-{
-    // return tjj_below.lazyProduct(mcache.M0).template cast<T>();
-    return parallel_matrix_product(tjj_below, mcache.M0).template cast<T>();
-}
-
-template <typename T>
-Matrix<T> ConditionedSFS<T>::below1(const Matrix<mpreal_wrapper<T> > &tjj_below)
-{
-    return parallel_matrix_product(tjj_below, mcache.M1).template cast<T>();
-    // return tjj_below.lazyProduct(mcache.M1).template cast<T>();
-}
-*/
-
-template <typename T>
-template <typename Derived>
-void ConditionedSFS<T>::parallel_matrix_product(const Eigen::MatrixBase<Derived> &a, const MatrixXq &b, Matrix<T> &ret)
-{
-#pragma omp parallel for schedule(static)
-    for (int i = 0; i < a.rows(); ++i)
-    {
-        for (int k = 0; k < a.cols(); ++k)
-            for (int j = 0; j < b.cols(); ++j)
-                vs[i][j][k] = a(i,k) * b(k,j);
-        for (int j = 0; j < b.cols(); ++j)
-            ret(i, j) = mpreal_wrapper_type<T>::convertBack(mpreal_wrapper_type<T>::fsum(vs[i][j], a.cols()));
-    }
-}
-
-template <typename T>
 void ConditionedSFS<T>::compute_below(const PiecewiseExponentialRateFunction<T> &eta)
 {
-    mpfr::mpreal::set_default_prec(mcache.prec);
     PROGRESS("compute below");
-    Matrix<mpreal_wrapper<T> > ts_integrals(eta.K, n + 1); 
-    long wprec = (long)mcache.prec;
-    double log2d, h1, h2;
-    for (int h = 0; h < H; ++h)
-    {
-        h1 = toDouble(eta.R(eta.hidden_states[h]));
-        log2d = h1 / log(2);
-        if (eta.hidden_states[h + 1] < INFINITY)
-        {
-            h2 = toDouble(eta.R(eta.hidden_states[h + 1]));
-            log2d = -h1 / log(2) + log2(-expm1(h1 - h2));
-        }
-        else
-            log2d = -h1 / log(2);
-        wprec = std::max((long)std::ceil(-log2d), wprec);
-    }
+    Matrix<T> ts_integrals(eta.K, n + 1); 
 #pragma omp parallel for
     for (int m = 0; m < eta.K; ++m)
-        eta.tjj_double_integral_below(n, wprec, m, ts_integrals);
-    Matrix<mpreal_wrapper<T> > last = ts_integrals.topRows(eta.hs_indices[0]).colwise().sum(), next;
+        eta.tjj_double_integral_below(n, m, ts_integrals);
+    Matrix<T> last = ts_integrals.topRows(eta.hs_indices[0]).colwise().sum(), next;
     for (int h = 1; h < H + 1; ++h)
     {
         next = ts_integrals.topRows(eta.hs_indices[h]).colwise().sum();
@@ -232,10 +165,8 @@ void ConditionedSFS<T>::compute_below(const PiecewiseExponentialRateFunction<T> 
 
 
     PROGRESS("matrix products below");
-    // Matrix<T> M0_below = below0(tjj_below);
-    // Matrix<T> M1_below = below1(tjj_below);
-    parallel_matrix_product(tjj_below, mcache.M0, M0_below);
-    parallel_matrix_product(tjj_below, mcache.M1, M1_below);
+    M0_below = mcache.M0.template cast<T>() * tjj_below;
+    M1_below = mcache.M1.template cast<T>() * tjj_below;
     PROGRESS("mpfr sfs below");
     for (int h = 0; h < H; ++h) 
     {
@@ -255,10 +186,11 @@ void ConditionedSFS<T>::compute_above(const PiecewiseExponentialRateFunction<T> 
         eta.tjj_double_integral_above(n, j, C_above);
     Matrix<T> tmp;
     PROGRESS("matrix products");
+    MatrixXq Uinv_mp0 = mei.Uinv.rightCols(n), Uinv_mp2 = mei.Uinv.reverse().leftCols(n);
     for (int h = 0; h < H; ++h)
     {
-        csfs_above[h].block(0, 1, 1, n) = above0(C_above[h]);
-        csfs_above[h].block(2, 0, 1, n) = above2(C_above[h]);
+        csfs_above[h].block(0, 1, 1, n) = mcache.X0.template cast<T>().cwiseProduct(C_above[h].transpose()).colwise().sum() * Uinv_mp0.template cast<T>();
+        csfs_above[h].block(2, 0, 1, n) = mcache.X2.template cast<T>().cwiseProduct(C_above[h].colwise().reverse().transpose()).colwise().sum() * Uinv_mp2.template cast<T>();
     }
     PROGRESS_DONE();
 }
@@ -323,21 +255,12 @@ MatrixCache& ConditionedSFSBase::cached_matrices(int n)
             for (int b = 1; b < n - k + 2; ++b)
                 P_undist(k, b - 1) = pnkb_undist(n, k, b);
 
-        ret.X0 = Wnbj.transpose() * (VectorXq::Ones(n) - D_subtend_above).asDiagonal() * mei.U.bottomRows(n);
-        ret.X2 = Wnbj.transpose() * D_subtend_above.asDiagonal() * mei.U.reverse().topRows(n);
-
+        ret.X0 = (Wnbj.transpose() * (VectorXq::Ones(n) - D_subtend_above).asDiagonal() * mei.U.bottomRows(n)).template cast<double>();
+        ret.X2 = (Wnbj.transpose() * D_subtend_above.asDiagonal() * mei.U.reverse().topRows(n)).template cast<double>();
         below_coeff bc = compute_below_coeffs(n);
         VectorXq lsp = VectorXq::LinSpaced(n + 1, 2, n + 2);
-        ret.M0 = bc.coeffs * lsp.asDiagonal() * (VectorXq::Ones(n + 1) - D_subtend_below).asDiagonal() * P_undist;
-        ret.M1 = bc.coeffs * lsp.asDiagonal() * D_subtend_below.asDiagonal() * P_dist;
-        if (n > 0)
-        {
-            mpq_class m1 = ret.M0.array().abs().maxCoeff();
-            mpq_class m2 = ret.M1.array().abs().maxCoeff();
-            ret.prec = std::max(53, (int)mpfr::mpreal(std::max(m1, m2).get_mpq_t()).get_exp() + 10);
-        }
-        else
-            ret.prec = 53;
+        ret.M0 = (bc.coeffs * lsp.asDiagonal() * (VectorXq::Ones(n + 1) - D_subtend_below).asDiagonal() * P_undist).template cast<double>();
+        ret.M1 = (bc.coeffs * lsp.asDiagonal() * D_subtend_below.asDiagonal() * P_dist).template cast<double>();
         matrix_cache[n] = ret;
         std::cout << "done" << std::endl;
     }

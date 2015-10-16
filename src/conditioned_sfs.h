@@ -21,7 +21,7 @@ typedef struct
     mp_prec_t prec;
 } below_coeff;
 
-typedef struct { MatrixXq X0, X2, M0, M1; mp_prec_t prec; } MatrixCache;
+typedef struct { Matrix<double> X0, X2, M0, M1; } MatrixCache;
 
 class ConditionedSFSBase
 {
@@ -41,17 +41,8 @@ class ConditionedSFS : public ConditionedSFSBase
     // private:
     // Methods
     void construct_ad_vars();
-    Matrix<T> above0(const Matrix<T>&);
-    Matrix<T> above2(const Matrix<T>&);
-    Matrix<T> below0(const Matrix<mpreal_wrapper<T> >&);
-    Matrix<T> below1(const Matrix<mpreal_wrapper<T> >&);
     template <typename Derived>
     Matrix<T> parallel_cwiseProduct_colSum(const MatrixXq &a, const Eigen::MatrixBase<Derived> &b);
-    template <typename Derived>
-    void parallel_matrix_product(const Eigen::MatrixBase<Derived> &, const MatrixXq &, Matrix<T> &ret);
-    // Vector<T> compute_etnk_below(const Vector<T>&);
-    // Vector<T> compute_etnk_below(const std::vector<mpreal_wrapper<T> >&);
-    Matrix<T> compute_etnk_below_mat(const Matrix<mpreal_wrapper<T> >&);
     void compute_below(const PiecewiseExponentialRateFunction<T> &);
     void compute_above(const PiecewiseExponentialRateFunction<T> &);
 
@@ -60,8 +51,7 @@ class ConditionedSFS : public ConditionedSFSBase
     const MoranEigensystem mei;
     const MatrixCache mcache;
     std::vector<std::vector<std::vector<mpreal_wrapper<T> > > > vs;
-    Matrix<mpreal_wrapper<T> > tjj_below;
-    Matrix<T> M0_below, M1_below;
+    Matrix<T> tjj_below, M0_below, M1_below;
     std::vector<Matrix<T> > csfs_below, csfs_above, csfs, C_above;
 };
 
