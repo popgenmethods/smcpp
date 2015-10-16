@@ -26,7 +26,7 @@ HMM::HMM(const Matrix<int> &obs, int n, const int block_size,
         const Matrix<adouble> *emission, const Matrix<adouble> *emission_mask,
         const Eigen::Matrix<int, 3, Eigen::Dynamic, Eigen::RowMajor> *mask_locations,
         const int mask_freq, const int mask_offset) : 
-    block_size(block_size), alt_block_size(block_size),
+    block_size(block_size), alt_block_size(1),
     pi(pi), transition(transition), emission(emission), emission_mask(emission_mask),
     mask_locations(mask_locations), mask_freq(mask_freq), mask_offset(mask_offset),
     M(pi->rows()), 
@@ -63,7 +63,9 @@ void HMM::prepare_B(const Matrix<int> &obs, const int n)
         {
             alt_block = is_alt_block(block);
             ob = alt_block ? ob : (*mask_locations)(ob);
-            powers[ob]++;
+            if (obs(ell,1) != -1 and obs(ell,2) != -1)
+                // Handle missing data
+                powers[ob]++;
             if (tobs > L)
                 throw std::domain_error("what?");
             tobs++;
@@ -88,6 +90,8 @@ void HMM::prepare_B(const Matrix<int> &obs, const int n)
                     mpz_class num;
                     mpz_fac_ui(num.get_mpz_t(), tpwr);
                     mpz_class coef = num / denom;
+                    if (tpwr == 0)
+                        coef = 1_mpq;
                     comb_coeffs[key] = coef.get_ui();
                 }
                 Bptr[block] = &std::get<0>(block_prob_map[key]);
@@ -221,17 +225,14 @@ void HMM::forward_backward(void)
 {
     PROGRESS("forward backward");
     Matrix<double> tt = transition->template cast<double>();
-    /*Matrix<double> ttpow = tt.pow(block_size);
+    Matrix<double> ttpow = tt.pow(block_size);
     Matrix<double> ttalt = tt.pow(alt_block_size);
-    */
     alpha_hat.col(0) = pi->template cast<double>().cwiseProduct(Bptr[0]->template cast<double>());
 	c(0) = alpha_hat.col(0).sum();
     alpha_hat.col(0) /= c(0);
     for (int ell = 1; ell < Ltot; ++ell)
     {
-        // alpha_hat.col(ell) = bt.col(ell).asDiagonal() * (((ell + mask_offset) % mask_freq == 0) ? tt : ttpow) * alpha_hat.col(ell - 1);
-        // alpha_hat.col(ell) = Bptr[ell]->template cast<double>().asDiagonal() * (is_alt_block(ell - 1) ? ttalt : ttpow).transpose() * alpha_hat.col(ell - 1);
-        alpha_hat.col(ell) = Bptr[ell]->template cast<double>().asDiagonal() * tt.transpose() * alpha_hat.col(ell - 1);
+        alpha_hat.col(ell) = Bptr[ell]->template cast<double>().asDiagonal() * (is_alt_block(ell - 1) ? ttalt : ttpow).transpose() * alpha_hat.col(ell - 1);
         c(ell) = alpha_hat.col(ell).sum();
         if (std::isnan(toDouble(c(ell))))
             throw std::domain_error("something went wrong in forward algorithm");
@@ -239,8 +240,7 @@ void HMM::forward_backward(void)
     }
     beta_hat.col(Ltot - 1) = Vector<double>::Ones(M);
     for (int ell = Ltot - 2; ell >= 0; --ell)
-        // beta_hat.col(ell) = (is_alt_block(ell) ? ttalt : ttpow) * Bptr[ell + 1]->template cast<double>().asDiagonal() * beta_hat.col(ell + 1) / c(ell + 1);
-        beta_hat.col(ell) = tt * Bptr[ell + 1]->template cast<double>().asDiagonal() * beta_hat.col(ell + 1) / c(ell + 1);
+        beta_hat.col(ell) = (is_alt_block(ell) ? ttalt : ttpow) * Bptr[ell + 1]->template cast<double>().asDiagonal() * beta_hat.col(ell + 1) / c(ell + 1);
     PROGRESS_DONE();
 }
 
@@ -272,11 +272,10 @@ void HMM::Estep(void)
         }
     }
     PROGRESS("xisum done");
-    // Matrix<double> tr = transition->template cast<double>().pow(block_size);
-    Matrix<double> tr = transition->template cast<double>();
+    Matrix<double> tr = transition->template cast<double>().pow(block_size);
+    Matrix<double> tralt = transition->template cast<double>().pow(alt_block_size);
     xisum = xis.cwiseProduct(tr);
-    // xisum_alt = xis_alt.cwiseProduct(transition->template cast<double>().pow(alt_block_size));
-    xisum_alt = xis_alt.cwiseProduct(tr);
+    xisum_alt = xis_alt.cwiseProduct(tralt);
     PROGRESS_DONE();
 }
 
@@ -319,16 +318,13 @@ adouble HMM::Q(void)
             ret2 += sum_private;
         }
     }
-    /*
     Eigen::Array<adouble, Eigen::Dynamic, Eigen::Dynamic> ttpow = mymatpow(*transition, block_size).array().log();
     Eigen::Array<adouble, Eigen::Dynamic, Eigen::Dynamic> ttalt = mymatpow(*transition, alt_block_size).array().log();
-    */
-    Eigen::Array<adouble, Eigen::Dynamic, Eigen::Dynamic> tt = transition->array().log();
-    check_nan(tt);
+    // check_nan(tt);
     check_nan(xis);
     check_nan(xis_alt);
-    ret3 = (xis * tt).sum();
-    ret3 += (xis_alt * tt).sum();
+    ret3 = (xis * ttpow).sum();
+    ret3 += (xis_alt * ttalt).sum();
     PROGRESS_DONE();
     /*
     std::vector<decltype(counts)::value_type*> a;

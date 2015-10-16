@@ -84,7 +84,7 @@ void InferenceManager::setParams(const ParameterVector params, const std::vector
     PiecewiseExponentialRateFunction<T> eta(params, derivatives, hidden_states);
     regularizer = adouble(eta.regularizer());
     pi = compute_initial_distribution<T>(eta).template cast<adouble>();
-    transition = compute_transition<T>(eta, block_size * rho).template cast<adouble>();
+    transition = compute_transition<T>(eta, rho).template cast<adouble>();
     if (transition.diagonal().maxCoeff() > .9999990)
         throw std::runtime_error("too big transition diagonal?");
     check_nan(transition);
@@ -102,8 +102,10 @@ void InferenceManager::setParams(const ParameterVector params, const std::vector
         for (int i = 0; i < 3; ++i)
             for (int j = 0; j < n + 1; ++j)
                 emission_mask(m, emask(i, j)) += sfss[m](i, j);
+        // if (false and n > 2)
         if (n > 2)
         {
+            // binning
             adouble t0 = emission(m,0);
             adouble t1 = emission(m,1);
             adouble t2 = emission(m,2);
