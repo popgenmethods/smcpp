@@ -54,15 +54,28 @@ T Transition<T>::P_no_recomb(const int i)
     check_nan(more_denom);
     int depth = 1024;
     double tol = 1e-10;
-    do {
-        ret = adaptiveSimpsons(std::function<T(const double, p_intg_helper<T>*)>(p_integrand<T>), &h, 0., 1., tol, depth);
-        check_nan(ret);
-        ret /= more_denom;
-        check_nan(ret);
-        depth *= 2;
-        if (depth > 2048)
-            PROGRESS("P_nr_recomb at " << depth << " nodes");
-    } while (ret >= 1);
+    if (rho < 1e-3)
+    {
+        ret = eta->R_integral(t[i]) - eta->R_integral(t[i - 1]);
+        ret -= t[i] * exp(-eta->R(t[i])) - t[i - 1] * exp(-eta->R(t[i - 1]));
+        ret *= rho;
+        ret /= exp(-eta->R(t[i - 1])) - exp(-eta->R(t[i]));
+        ret = 1. - ret;
+    } 
+    else
+    {
+        // slow.
+        do {
+            ret = adaptiveSimpsons(std::function<T(const double, p_intg_helper<T>*)>(p_integrand<T>), &h, 0., 1., tol, depth);
+            check_nan(ret);
+            ret /= more_denom;
+            check_nan(ret);
+            depth *= 2;
+            if (depth > 2048)
+                PROGRESS("P_nr_recomb at " << depth << " nodes");
+        } while (ret >= 1);
+    }
+    // Alternative approach for rho << 1
     check_nan(ret);
     check_negative(ret);
     check_negative(1. - ret);
@@ -96,7 +109,7 @@ T trans_integrand(const double x, trans_integrand_helper<T> *tih)
     T htj_max = dmax(h, t[j]);
     if (h < t[j])
     {
-        tmp = eta->R_integral(h, -2 * Rh) * (exp(-(eta->R(dmax(h, t[j - 1])) + tih->log_denom)) - 
+        tmp = eta->R_integral(h, -2 * Rh, 2) * (exp(-(eta->R(dmax(h, t[j - 1])) + tih->log_denom)) - 
                 exp(-(eta->R(t[j]) + tih->log_denom)));
         check_negative(tmp);
         ret += tmp;
@@ -105,8 +118,8 @@ T trans_integrand(const double x, trans_integrand_helper<T> *tih)
     // f2
     if (h > t[j - 1])
     {
-        T r1 = eta->R_integral(t[j - 1], -2 * eta->R(t[j - 1]) - Rh - tih->log_denom);
-        T r2 = eta->R_integral(htj_min, -2 * eta->R(htj_min) - Rh - tih->log_denom);
+        T r1 = eta->R_integral(t[j - 1], -2 * eta->R(t[j - 1]) - Rh - tih->log_denom, 2);
+        T r2 = eta->R_integral(htj_min, -2 * eta->R(htj_min) - Rh - tih->log_denom, 2);
         T r3 = eRh * (htj_min - t[j - 1]); 
         tmp = r1 - r2 + r3;
         check_negative(tmp);
@@ -115,7 +128,7 @@ T trans_integrand(const double x, trans_integrand_helper<T> *tih)
     }
     if (i == j)
     {
-        tmp = 0.5 * (eRh * h - eta->R_integral(h, -3 * Rh - tih->log_denom));
+        tmp = 0.5 * (eRh * h - eta->R_integral(h, -3 * Rh - tih->log_denom, 2));
         check_negative(tmp);
         ret += tmp;
         check_nan(ret);
@@ -173,11 +186,6 @@ void Transition<T>::compute(void)
     for (int i = 1; i < M; ++i)
     {
         T pnr = P_no_recomb(i);
-        if (pnr > 0.9999990)
-        {
-            std::cout << i << " pnr is tiny: " << pnr;
-            pnr = eta->one * 0.9998;
-        }
         for (int j = 1; j < M; ++j)
         {
             T tr = trans(i, j);
@@ -194,9 +202,6 @@ void Transition<T>::compute(void)
             // }
         }
     }
-    if (Phi.diagonal().maxCoeff() > .9999990)
-        throw std::runtime_error("too big transition diagonal?");
-    // std::cout << "rt\n" << rt << std::endl;
 }
 
 template <typename T>
