@@ -153,19 +153,22 @@ template <typename T>
 inline T _double_integral_below_helper(const int rate, const T &tsm, const T &tsm1, const T &ada, const T &Rrng)
 {
     const int l1r = 1 + rate;
-    const double l1rinv = 1 / l1r;
-    T _adadiff = ada * (tsm1 - tsm), tmp;
+    T _tsm = tsm, _tsm1 = tsm1, _ada = ada, _Rrng = Rrng; // don't ask
+    T z = _tsm - _tsm;
+    const T l1rinv = 1 / (z + l1r);
+    T diff = _tsm1 - _tsm;
+    T _adadiff = _ada * diff;
     if (rate == 0)
     {
         T e1 = exp(-_adadiff);
         if (tsm1 == INFINITY)
-            return exp(-Rrng) / ada;
+            return exp(-_Rrng) / _ada;
         else
-            return exp(-Rrng) * (1 - exp(-_adadiff) * (1 + _adadiff)) / ada;
+            return exp(-_Rrng) * (1 - exp(-_adadiff) * (1 + _adadiff)) / _ada;
     }
     if (tsm1 == INFINITY)
-        return exp(-l1r * Rrng) * (1 - l1rinv) / (rate * ada);
-    return exp(-l1r * Rrng) * (expm1(-l1r * _adadiff) * l1rinv - expm1(-_adadiff)) / (rate * ada);
+        return exp(-l1r * _Rrng) * (1 - l1rinv) / (rate * _ada);
+    return exp(-l1r * _Rrng) * (expm1(-l1r * _adadiff) * l1rinv - expm1(-_adadiff)) / (rate * _ada);
 }
 
 template <typename U>
@@ -444,7 +447,6 @@ void PiecewiseExponentialRateFunction<T>::tjj_double_integral_above(const int n,
         C[h - 1].row(jj - 2) = next - last;
         last = next;
     }
-    // std::cout << "ts_integrals (" << jj << "):\n" << ts_integrals.template cast<double>() << std::endl;
 }
 
 template <typename T>
@@ -452,7 +454,7 @@ void PiecewiseExponentialRateFunction<T>::tjj_double_integral_below(
         const int n, const int m, Matrix<T> &tgt) const
 {
     Vector<T> ts_integrals(n + 1);
-    T log_coef = Rrng[m];
+    T log_coef = -Rrng[m];
     T fac = one;
     if (m < K - 1)
         fac = -expm1(-(Rrng[m + 1] - Rrng[m]));
@@ -464,7 +466,7 @@ void PiecewiseExponentialRateFunction<T>::tjj_double_integral_below(
         else
             ts_integrals(j - 2) = _double_integral_below_helper_ei(rate, ts[m], ts[m + 1], ada[m], adb[m], Rrng[m]);
         for (int k = 0; k < m; ++k)
-            ts_integrals(j - 2) += fac * _single_integral(rate, ts[k], ts[k + 1], ada[m], adb[m], Rrng[m], log_coef);
+            ts_integrals(j - 2) += fac * _single_integral(rate, ts[k], ts[k + 1], ada[k], adb[k], Rrng[k], log_coef);
         check_negative(ts_integrals(j - 2));
     }
     tgt.row(m) = ts_integrals.transpose();
