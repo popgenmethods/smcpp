@@ -65,16 +65,11 @@ mpq_class pnkb_dist(int n, int m, int l1)
     std::array<int, 3> key{n, m, l1};
     if (pnkb_dist_memo.count(key) == 0)
     {
-        mpz_class binom1;
-        mpz_bin_uiui(binom1.get_mpz_t(), n + 3, m + 3);
-        MPQ_CONSTRUCT(ret, l1 * (n + 2 - l1), binom1);
-        if (m > 0)
-        {
-            mpz_class binom2;
-            mpz_bin_uiui(binom2.get_mpz_t(), n - l1, m - 1);
-            MPQ_CONSTRUCT(r2, (n + 1 - l1) * binom2, m * (m + 1));
-            ret *= r2;
-        }
+        mpz_class binom1, binom2;
+        mpz_bin_uiui(binom1.get_mpz_t(), n + 2 - l1, m + 1);
+        mpz_bin_uiui(binom2.get_mpz_t(), n + 3, m + 3);
+        MPQ_CONSTRUCT(ret, binom1, binom2);
+        ret *= l1;
         pnkb_dist_memo[key] = ret;
     }
     return pnkb_dist_memo[key];
@@ -90,16 +85,10 @@ mpq_class pnkb_undist(int n, int m, int l3)
     std::array<int, 3> key{n, m, l3};
     if (pnkb_undist_memo.count(key) == 0)
     {
-        mpz_class binom1;
-        mpz_bin_uiui(binom1.get_mpz_t(), n + 3, m + 3);
-        MPQ_CONSTRUCT(ret, (n + 3 - l3) * (n + 2 - l3) * (n + 1 - l3), binom1);
-        mpz_class binom2;
-        mpz_bin_uiui(binom2.get_mpz_t(), n - l3 - 1, m - 2);
-        MPQ_CONSTRUCT(r2, (n - l3) * binom2, (m - 1) * m * (m + 1) * (m + 2));
-        if (m == 1)
-            ret /= 6;
-        else
-            ret *= r2;
+        mpz_class binom1, binom2;
+        mpz_bin_uiui(binom1.get_mpz_t(), n + 3 - l3, m + 2);
+        mpz_bin_uiui(binom2.get_mpz_t(), n + 3, m + 3);
+        MPQ_CONSTRUCT(ret, binom1, binom2);
         pnkb_undist_memo.emplace(key, ret);
     }
     return pnkb_undist_memo[key];
@@ -136,8 +125,10 @@ void ConditionedSFS<T>::compute_below(const PiecewiseExponentialRateFunction<T> 
     PROGRESS("mpfr sfs below");
     for (int h = 0; h < H; ++h) 
     {
+        csfs_below[h].fill(eta.zero);
         csfs_below[h].block(0, 1, 1, n) = M0_below.row(h);
         csfs_below[h].block(1, 0, 1, n + 1) = M1_below.row(h);
+        check_nan(csfs_below[h]);
     }
     PROGRESS_DONE();
 }
@@ -153,10 +144,15 @@ void ConditionedSFS<T>::compute_above(const PiecewiseExponentialRateFunction<T> 
     Matrix<T> tmp;
     PROGRESS("matrix products");
     MatrixXq Uinv_mp0 = mei.Uinv.rightCols(n), Uinv_mp2 = mei.Uinv.reverse().leftCols(n);
+#pragma omp parallel for
     for (int h = 0; h < H; ++h)
     {
-        csfs_above[h].block(0, 1, 1, n) = mcache.X0.template cast<T>().cwiseProduct(C_above[h].transpose()).colwise().sum() * Uinv_mp0.template cast<T>();
-        csfs_above[h].block(2, 0, 1, n) = mcache.X2.template cast<T>().cwiseProduct(C_above[h].colwise().reverse().transpose()).colwise().sum() * Uinv_mp2.template cast<T>();
+        csfs_above[h].fill(eta.zero);
+        csfs_above[h].block(0, 1, 1, n) = 
+            mcache.X0.template cast<T>().cwiseProduct(C_above[h].transpose()).colwise().sum() * Uinv_mp0.template cast<T>();
+        csfs_above[h].block(2, 0, 1, n) = 
+            mcache.X2.template cast<T>().cwiseProduct(C_above[h].colwise().reverse().transpose()).colwise().sum() * Uinv_mp2.template cast<T>();
+        check_nan(csfs_above[h]);
     }
     PROGRESS_DONE();
 }
@@ -178,7 +174,9 @@ std::vector<Matrix<T> >& ConditionedSFS<T>::compute(const PiecewiseExponentialRa
         else
             d = exp(-h1);
         csfs[i] /= d;
+        check_nan(d);
         T tauh = csfs[i].sum();
+        check_nan(tauh);
         csfs[i] *= -expm1(-theta * tauh) / tauh;
         csfs[i](0, 0) = exp(-theta * tauh);
         T tiny = eta.one * 1e-20;
@@ -227,6 +225,9 @@ MatrixCache& ConditionedSFSBase::cached_matrices(int n)
         VectorXq lsp = VectorXq::LinSpaced(n + 1, 2, n + 2);
         ret.M0 = (bc.coeffs * lsp.asDiagonal() * (VectorXq::Ones(n + 1) - D_subtend_below).asDiagonal() * P_undist).template cast<double>();
         ret.M1 = (bc.coeffs * lsp.asDiagonal() * D_subtend_below.asDiagonal() * P_dist).template cast<double>();
+        // std::ofstream file("matrices.txt", std::ios::out | std::ios::trunc);
+        // file << "X0\n" << ret.X0 << "\n\nX2\n" << ret.X2 << "\n\nM0\n" << ret.M0 << "\n\nM1\n" << ret.M1 << std::endl;
+        // file.close();
         matrix_cache[n] = ret;
         std::cout << "done" << std::endl;
     }
