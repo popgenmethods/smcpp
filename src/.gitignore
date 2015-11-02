@@ -1,2 +1,4 @@
 bin
 build
+_newick.cpp
+_pypsmcpp.cpp
