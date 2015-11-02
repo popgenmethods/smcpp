@@ -101,7 +101,7 @@ void InferenceManager::setParams(const ParameterVector params, const std::vector
             for (int j = 0; j < n + 1; ++j)
                 emission_mask(m, emask(i, j)) += sfss[m](i, j);
         // if (false and n > 2)
-        if (n > 2)
+        if (false)
         {
             // binning
             adouble t0 = emission(m,0);
