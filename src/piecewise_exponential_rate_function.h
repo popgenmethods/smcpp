@@ -6,8 +6,6 @@
 #include "mpq_support.h"
 #include "exponential_integrals.h"
 
-const double T_MAX = INFINITY;
-
 /*
 template <typename T>
 class Machar<MyAutoDiffScalar<T> > : public Machar<typename MyAutoDiffScalar<T>::Scalar> 
