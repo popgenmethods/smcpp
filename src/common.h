@@ -203,7 +203,17 @@ void _check_nan(const Eigen::DenseBase<Derived> &M)
 {
     for (int i = 0; i < M.rows(); ++i)
         for (int j = 0; j < M.cols(); ++j)
-            _check_nan(M.coeff(i, j));
+        {
+            try 
+            {
+                _check_nan(M.coeff(i, j));
+            }
+            catch (std::runtime_error)
+            {
+                std::cout << i << " " << j << " " << M.coeff(i, j) << std::endl;
+                throw;
+            }
+        }
 }
 
 template <typename T>

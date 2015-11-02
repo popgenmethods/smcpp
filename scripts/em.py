@@ -18,7 +18,7 @@ def kl(sfs1, sfs2):
     nz = s1 != 0.0
     return (s1[nz] * (np.log(s1[nz]) - np.log(s2[nz]))).sum()
 
-block_size = 100
+block_size = 50
 np.set_printoptions(linewidth=120, precision=6, suppress=True)
 
 try:
@@ -38,30 +38,34 @@ psmcpp._pypsmcpp.do_progress(progress)
 # 1. Generate some data. 
 n = int(sys.argv[1])
 N0 = 10000.
-rho = 1e-9
-theta = 2.5e-8
+theta = 1.25e-8
+rho = theta
 L = int(float(sys.argv[3]))
-ALPHA_PENALTY = 1e5
-LAMBDA_PENALTY = 1.0
+ALPHA_PENALTY = 0.
+LAMBDA_PENALTY = 0.
 
 # PSMC sample demography
-a0 = np.array([2.7, .2, 1.5, 2.7])
-b0 = a0
-s0 = np.array([30000., 70000., 3.5e6 - 1e5, 10000.]) / 25.0 / (2 * N0)
+# a0 = np.array([2.7, .2, 1.5, 2.7])
+# b0 = a0
+# s0 = np.array([30000., 70000., 3.5e6 - 1e5, 10000.]) / 25.0 / (2 * N0)
+# T_MIN = 10000. / 25.0 / (2 * N0)
 
 # MSMC sample demography
-# a0 = np.array([7.1, 7.1, 0.9, 7.1, 0.9, 7.1, 0.9])
-# b0 = np.array([7.1, 0.9, 7.1, 0.9, 7.1, 0.9, 0.9])
-# s0 = np.array([1000.0, 4000.0 - 1000., 10500. - 4000., 65000. - 10500., 115000. - 65000., 1e6 - 115000, 1.0]) / 25.0 / (2 * N0)
-# # 
+a0 = np.array([7.1, 7.1, 0.9, 7.1, 0.9, 7.1, 0.9])
+b0 = np.array([7.1, 0.9, 7.1, 0.9, 7.1, 0.9, 0.9])
+s0 = np.array([1000.0, 4000.0 - 1000., 10500. - 4000., 65000. - 10500., 115000. - 65000., 1e6 - 115000, 1.0]) / 25.0 / (2 * N0)
+T_MIN = 5000. / 25.0 / (2 * N0)
+
 # Humanish
-# a0 = np.array([8.0, 0.5, 2.0, 1.0])
-# b0 = np.array([1.0, 0.5, 2.0, 1.0])
-# s0 = np.array([10000., 20000., 50000., 1.0]) / 25. / (2 * N0)
+# a0 = np.array([15.0, 1.0, 0.5, 0.5, 1.0])
+# b0 = np.array([1.0, 1.0, 0.5, 1.0, 2.0])
+# s0 = np.array([10000., 50000., 10000., 100000., 100.]) / 25. / (2 * N0)
+# T_MIN = 10000. / 25 / (2. * N0)
 
 true_parameters = (a0, b0, s0)
 print("true parameters")
 print(np.array(true_parameters))
+print(np.cumsum(s0))
 demography = psmcpp.scrm.demography_from_params((a0 * 2.0, b0 * 2.0, s0))
 print(demography)
 
@@ -118,49 +122,35 @@ print(" - Observed sfs:")
 print(obsfs)
 
 # 4. Optimize this function
-hidden_states = np.array([0., 14.0]) / 25.0 / (2 * N0)
 im = psmcpp._pypsmcpp.PyInferenceManager(n - 2, [obs_list[0][:10]], [0.0, 1.0],
         4.0 * N0 * theta, 4.0 * N0 * rho,
         block_size, 5, [0])
 
 
 # Emission mask
-T_MIN = 1000. / 25 / (2 * N0)
-T_MAX = 30.0
+T_MIN_hs = 5000. / 25 / (2 * N0)
+T_MAX_hs = 2e6 / 25 / (2 * N0)
 ni = 40
 hs1 = np.zeros(ni)
-hs1 = np.concatenate(([0], np.logspace(np.log10(T_MIN), np.log10(T_MAX), ni)))
-# hs1 = im.balance_hidden_states((a0,b0,s0),32)
-# hs1[:8] = hs2[:8]
-# hs2 = im.balance_hidden_states((a0,b0,s0), 64)
-# hs1[8:16] = hs2[
+hs1 = np.concatenate(([0], np.logspace(np.log10(T_MIN_hs), np.log10(T_MAX_hs), ni)))
+hs1 = im.balance_hidden_states((a0,b0,s0),ni)
+hs1[-1] = 14.0
 print("hidden states", hs1)
 em = np.arange(3 *  (n - 1), dtype=int).reshape([3, n - 1])
 em[0] = em[2] = 0
 em[1] = 1
 
-T_MIN = 10000. / 25 / (2 * N0)
-T_MAX = np.cumsum(s0)[-1] * 1.2
+T_MAX = np.cumsum(s0)[-1] * 1.1
+# s0 = np.array([1000.0, 4000.0 - 1000., 10500. - 4000., 65000. - 10500., 115000. - 65000., 1e6 - 115000, 1.0]) / 25.0 / (2 * N0)
+# s = np.array([6000., 12000 - 6000., 90000. - 12000., 122000 - 90000, 1e6 - 122000, 1.]) / 25. / (2 * N0)
 ni = 30
 s = np.logspace(np.log10(T_MIN), np.log10(T_MAX), ni)
 s = np.concatenate(([T_MIN], s[1:] - s[:-1]))
-# merge the last three
+# s = s0
 print(s)
 print(np.cumsum(s))
 
-# a=np.array([2.722923,2.722457,2.56506,2.174305,1.613691,1.781124,1.360913,0.851928,0.109846,0.1,0.102629,0.195247
-#     ,1.307067,2.128009,2.33168,2.361934,2.421301,2.082566,1.946674,2.08935,2.068704,2.221743,2.100478,1.862589
-#     ,1.983183,1.930055,1.930772,1.936481,1.953274,2.755091])
-# b=a
-# s=np.array([ 0.02    ,  0.004634,  0.005707,  0.00703 ,  0.008658,  0.010664,  0.013135,  0.016178,  0.019926,  0.024543,
-#     0.030229,  0.037233,  0.045859,  0.056484,  0.06957 ,  0.085688,  0.105541,  0.129993,  0.160111,  0.197206,
-#     0.242896,  0.299171,  0.368484,  0.453857,  0.559008,  0.688522,  0.848042,  1.044521,  1.286521,  1.584588])
-# hs1 = np.array([
-#     0.      ,   0.002   ,   0.002559,   0.003275,   0.004191,   0.005362,   0.006862,   0.00878 ,   0.011235,
-#     0.014377,   0.018397,   0.023541,   0.030123,   0.038546,   0.049324,   0.063116,   0.080764,   0.103347,
-#     0.132244,   0.169222,   0.216539,   0.277086,   0.354564,   0.453705,   0.580568,   0.742903,   0.95063 ,
-#     1.21644 ,   1.556575,   1.991817,   2.548758,   3.261429,   4.173373,   5.340309,   6.833539,   8.744298,
-#     11.189333,  14.318037,  18.321572,  23.444555,  30.      ])
+hs1 = np.unique(np.sort(np.concatenate([np.cumsum(s), hs1])))
 
 t_start = time.time()
 im = psmcpp._pypsmcpp.PyInferenceManager(n - 2, obs_list, hs1,
@@ -171,8 +161,6 @@ im.Estep()
 ll_true = np.sum(im.loglik(0.0))
 
 K = len(s)
-# x0 = np.array([a, b])
-# # a = np.random.uniform(1.0, 9.0, K)
 x0 = np.ones([2, K])
 a, b = x0
 if flat:
@@ -181,22 +169,9 @@ else:
     # b = np.random.uniform(1.0, 9.0, K)
     b += 0.1
 
-# array = np.array
-# d = {'a': array([ 3.966221,  1.916171,  1.856902,  1.07719 ,  0.742571,  0.105161,  0.1     ,  0.1     ,  0.1     ,  0.387956,
-#     1.588006,  2.452575,  2.901815,  2.980086,  2.834179,  2.493315,  1.992148,  1.943969,  2.026899,  2.118136,
-#     1.798644,  1.762841,  1.820448,  1.824596,  1.81485 ,  1.721289,  1.742825,  1.875612,  1.684476,  1.504643,
-#     5.153206]), 'a0': array([ 2.7,  0.2,  1.5,  2.7]), 's': array([ 0.04    ,  0.00767 ,  0.009141,  0.010894,  0.012983,  0.015473,  0.01844 ,  0.021976,  0.02619 ,  0.031213,
-#         0.037198,  0.044331,  0.052832,  0.062963,  0.075037,  0.089426,  0.106575,  0.127012,  0.151367,  0.180394,
-#         0.214986,  0.256212,  0.305343,  0.363896,  0.433677,  0.516839,  0.615948,  0.734062,  0.874827,  1.042584,
-#         1.24251 ]), 'b': array([ 3.966221,  1.916171,  1.856902,  1.07719 ,  0.742571,  0.105161,  0.1     ,  0.1     ,  0.1     ,  0.387956,
-#             1.588006,  2.452575,  2.901815,  2.980086,  2.834179,  2.493315,  1.992148,  1.943969,  2.026899,  2.118136,
-#             1.798644,  1.762841,  1.820448,  1.824596,  1.81485 ,  1.721289,  1.742825,  1.875612,  1.684476,  1.504643,
-#             5.153206]), 'b0': array([ 2.7,  0.2,  1.5,  2.7]), 't_start': 1444673262.255592, 's0': array([ 0.06,  0.14,  6.8 ,  0.02]), 't_now': 1444674247.469531, 'argv': ['scripts/em.py', '10', '20', '5e7']}
-# a[:] = d['a']
-# b[:] = d['b']
-
 im.setParams((a,b,s),False)
 im.Estep()
+print(ll_true, im.loglik(0.0))
 
 if diagnostic:
     bk=im.block_keys()[0]
@@ -240,7 +215,7 @@ im.seed = np.random.randint(0, sys.maxint)
 llold = -np.inf
 Qold = -np.inf
 
-bounds = np.array([[0.1, 20.0]] * 2 * K).reshape([2, K, 2])
+bounds = np.array([[0.1, 20.0]] * K + [[0.15, 19.9]] * K).reshape([2, K, 2])
 
 def optimize_pg():
     def f(x):
@@ -301,12 +276,16 @@ def optimize_pg():
         alpha *= tau
     return project(x + alpha * p)
 
-def optimize_fullgrad(iter, coords, x0):
-    print("Optimizing all coordinates...")
+precond = 1. / s
+precond[-1] = 1. / (15.0 - np.sum(s))
+
+def optimize_fullgrad(iter, coords, x0, factr=1e7):
+    print("Optimizing %s" % str(coords))
     def fprime(x):
         x0c = x0.copy()
+        # Preconditioner (sort of)
         for xx, cc in zip(x, coords):
-            x0c[cc] = xx
+            x0c[cc] = xx * precond[cc[1]]
         global s
         aa, bb = x0c
         if flat:
@@ -319,44 +298,40 @@ def optimize_fullgrad(iter, coords, x0):
         res = im.Q(LAMBDA_PENALTY)
         lls = np.array([ll for ll, jac in res])
         jacs = np.array([jac for ll, jac in res])
-        ret = [-np.sum(lls, axis=0), -np.sum(jacs, axis=0)]
+        ret = [-np.mean(lls, axis=0), -np.mean(jacs, axis=0)]
+        for i, cc in enumerate(coords):
+            ret[1][i] *= precond[cc[1]]
         if flat:
             print(ret[1])
         else:
-            print(ret[1].reshape([2,K]))
+            print(ret[1].reshape([2,ret[1].shape[0] // 2]))
         print(ret[0])
-        reg = im.regularizer()
-        print("regularizer: ", LAMBDA_PENALTY * reg)
+        # reg = im.regularizer()
+        # print("regularizer: ", LAMBDA_PENALTY * reg)
         # add penalty
-        esfs, jac = psmcpp._pypsmcpp.sfs(n, (aa, bb, s), 0.0, np.inf, 4 * N0 * theta, coords)
-        diff = esfs[0, 0] - obsfs[0, 0]
-        penalty = ALPHA_PENALTY * diff**2
-        print("penalty", penalty)
-        ret[0] += penalty
-        ret[1] += 2 * ALPHA_PENALTY * diff * jac[0, 0]
+        # esfs, jac = psmcpp._pypsmcpp.sfs(n, (aa, bb, s), 0.0, hs1[-1], 4 * N0 * theta, coords)
+        # diff = esfs[0, 0] - obsfs[0, 0]
+        # penalty = ALPHA_PENALTY * diff**2
+        # print("penalty", penalty)
+        # ret[0] += penalty
+        # ret[1] += 2 * ALPHA_PENALTY * diff * jac[0, 0]
         # print(x)
         # print(ret[0])
         # print(ret[1])
         # print("------")
         return ret
-    if iter <= 5:
-        factr = 1e11
-    elif 5 < iter <= 10:
-        factr = 1e10
-    else:
-        factr = 1e9
-    # f0, fp = fprime([x0[cc] for cc in coords])
     # print("gradient check")
+    # f0, fp = fprime([x0[cc] for cc in coords])
     # for i, cc in enumerate(coords):
     #     x0c = x0.copy()
     #     x0c[cc] += 1e-8
     #     f1, _ = fprime([x0c[cc] for cc in coords])
     #     print(i, f1, f0, (f1 - f0) / 1e-8, fp[i])
     # print("gradient check", scipy.optimize.check_grad(lambda x: fprime(x)[0], lambda x: fprime(x)[1], x0))
-    res = scipy.optimize.fmin_l_bfgs_b(fprime, [x0[cc] for cc in coords], 
-            None, bounds=[tuple(bounds[cc]) for cc in coords], disp=False, factr=factr)
+    res = scipy.optimize.fmin_l_bfgs_b(fprime, [x0[cc] / precond[cc[1]] for cc in coords], 
+            None, bounds=[tuple(bounds[cc] / precond[cc[1]]) for cc in coords], disp=False, factr=factr)
     # print(res)
-    return res[0]
+    return np.array([x * precond[cc[1]] for x, cc in zip(res[0], coords)])
 
 break_loop = False
 import signal, sys
@@ -369,17 +344,13 @@ def signal_handler(signal, frame):
     sys.exit(1)
 signal.signal(signal.SIGINT, signal_handler)
 
-i = 0
-ca = [0]
-if not flat:
-    ca.append(1)
-while i < 20:
-    if True or i % 10 == 0:
-        coords = [(aa, j) for aa in ca for j in range(K)]
-    else:
-        iM = (i - 1) % ((K // 4) + 1)
-        coords = [(aa, j) for aa in ca for j in range(4 * iM, min(K, 4 * (iM + 1)))]
-    ret = optimize_fullgrad(i, coords, x0)
+def run_iteration(i, coords, factr):
+    global x0
+    global llold
+    global ll_true
+    global im
+    # for j in range(K * di // 3, K * (di + 1) // 3)]
+    ret = optimize_fullgrad(i, coords, x0, factr)
     for xx, cc in zip(ret, coords):
         x0[cc] = xx
     print("************** ITERATION %d ***************" % i)
@@ -391,16 +362,40 @@ while i < 20:
     print(" - Tru loglik:" + str(ll_true))
     print(" - New loglik:" + str(ll))
     print(" - Old loglik:" + str(llold))
+    if ll / ll_true < 0.5:
+        aoeu
     if ll < llold:
         print("*** Log-likelihood decreased")
+    if llold == -np.inf:
+        ret = 1.
+    else:
+        ret = (llold - ll) / llold
     llold = ll
-    esfs = psmcpp._pypsmcpp.sfs(n, (a,b,s), 0.0, np.inf, 4 * N0 * theta, False)
+    esfs = psmcpp._pypsmcpp.sfs(n, (a,b,s), 0.0, hs1[-1], 4 * N0 * theta, False)
     print("calculated sfs")
     print(esfs)
     print("observed sfs")
     print(obsfs)
+    return ret
     # print("D(Ob. sfs || Est. sfs):", kl(obsfs, esfs))
     # print("D(Ob. sfs || True sfs):", kl(obsfs, esfs0))
+
+i = 0
+ca = [0]
+if not flat:
+    ca.append(1)
+improvement = 1.
+while improvement > .001 or i < 30:
+    di = i % (K + 1)
+    if di == K:
+        coords = [(aa, di) for aa in ca for di in range(K)]
+        factr = 1e10
+    else:
+        coords = [(aa, di) for aa in ca]
+        factr = 1e9
+        coords = [(aa, di) for aa in ca]
+    coords = [(aa, di) for aa in ca for di in range(K)]
+    improvement = run_iteration(i, coords, 1e9)
     i += 1
 
 print_state()

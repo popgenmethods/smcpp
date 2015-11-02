@@ -63,9 +63,7 @@ void HMM::prepare_B(const Matrix<int> &obs, const int n)
         {
             alt_block = is_alt_block(block);
             ob = alt_block ? ob : (*mask_locations)(ob);
-            if (obs(ell,1) != -1 and obs(ell,2) != -1)
-                // Handle missing data
-                powers[ob]++;
+            powers[ob]++;
             if (tobs > L)
                 throw std::domain_error("what?");
             tobs++;
@@ -130,11 +128,8 @@ void HMM::domain_error(double ret)
 
 /*
 template <typename T>
-std::vector<int>& HMM<T>::viterbi(void)
+void HMM<T>::viterbi(void)
 {
-    // Compute logs of transition and emission matrices 
-    // Do not bother to record derivatives since we don't use them for Viterbi algorithm
-    feenableexcept(FE_ALL_EXCEPT & ~FE_INEXACT);
     Eigen::MatrixXd log_transition = transition.template cast<double>().array().log();
     Eigen::MatrixXd log_emission = emission.template cast<double>().array().log();
     std::vector<double> V(M), V1(M);
@@ -193,20 +188,70 @@ std::vector<int>& HMM<T>::viterbi(void)
 }
 */
 
+#include "gsl/gsl_sf_gamma.h"
+#include "gsl/gsl_sf_psi.h"
+
+template <typename T>
+T gamma_function(const T&);
+
+template <>
+double gamma_function(const double &x) { return gsl_sf_gamma(x); }
+
+template <>
+adouble gamma_function(const adouble &x)
+{
+    adouble ret(0., x.derivatives());
+    ret.value() = gamma_function(x.value());
+    ret.derivatives() = ret.value() * gsl_sf_psi_n(0, x.value()) * x.derivatives();
+    return ret;
+}
+
+template <typename Der>
+typename Eigen::DenseBase<Der>::Scalar dirichlet_multinomial_C(const Eigen::DenseBase<Der> &alpha, const std::map<int, int> &counts)
+{
+    typename Eigen::DenseBase<Der>::Scalar ret(1.0), sm(0.0), sm_alpha(0.0), alpha_i;
+    const double alpha0 = 0.05;
+    for (int i = 0; i < alpha.cols(); ++i)
+    {
+        alpha_i = alpha(0, i);
+        alpha_i *= alpha0;
+        sm_alpha += alpha_i;
+        if (counts.count(i))
+        {
+            ret /= gamma_function(alpha_i);
+            alpha_i += counts.at(i);
+            ret *= gamma_function(alpha_i);
+        }
+        sm += alpha_i;
+    }
+    ret *= gamma_function(sm_alpha) / gamma_function(sm);
+    return ret;
+}
+
 void HMM::recompute_B(void)
 {
     PROGRESS("recompute B");
 #pragma omp parallel for
     for (auto it = block_prob_map_keys.begin(); it < block_prob_map_keys.end(); ++it)
     {
-        const Matrix<adouble> *em_ptr = it->alt_block ? emission : emission_mask;
         Eigen::Array<adouble, Eigen::Dynamic, 1> tmp = Eigen::Array<adouble, Eigen::Dynamic, 1>::Ones(M), tmp2;
         Eigen::Array<adouble, Eigen::Dynamic, 1> log_tmp = Eigen::Array<adouble, Eigen::Dynamic, 1>::Zero(M);
-        for (auto &p : it->powers)
+        const Matrix<adouble> *em_ptr = it->alt_block ? emission : emission_mask;
+        // if (it->alt_block)
+        if (false)
         {
-            for (int i = 0; i < tmp.rows(); ++i)
-                tmp(i) *= Eigen::pow(em_ptr->col(p.first)(i), p.second);
-            log_tmp += em_ptr->col(p.first).array().log() * p.second;
+            for (int m = 0; m < M; ++m)
+                tmp(m) = dirichlet_multinomial_C(em_ptr->row(m), it->powers);
+            log_tmp = log(tmp);
+        }
+        else
+        {
+            for (auto &p : it->powers)
+            {
+                for (int i = 0; i < tmp.rows(); ++i)
+                    tmp(i) *= Eigen::pow(em_ptr->col(p.first)(i), p.second);
+                log_tmp += em_ptr->col(p.first).array().log() * p.second;
+            }
         }
         tmp *= comb_coeffs[*it];
         log_tmp += log(comb_coeffs[*it]);
@@ -259,7 +304,7 @@ void HMM::Estep(void)
 #pragma omp for nowait schedule(static)
         for (int ell = 1; ell < Ltot; ++ell)
         {
-            tmp = alpha_hat.col(ell - 1) * beta_hat.col(ell).transpose() * dBptr[ell]->asDiagonal() / c(ell);
+            tmp.noalias() = alpha_hat.col(ell - 1) * beta_hat.col(ell).transpose() * dBptr[ell]->asDiagonal() / c(ell);
             if (is_alt_block(ell - 1))
                 xis_alt_p += tmp;
             else

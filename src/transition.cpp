@@ -54,7 +54,7 @@ T Transition<T>::P_no_recomb(const int i)
     check_nan(more_denom);
     int depth = 1024;
     double tol = 1e-10;
-    if (rho < 1e-3)
+    if (false) //(rho < 1e-3)
     {
         ret = eta->R_integral(t[i]) - eta->R_integral(t[i - 1]);
         ret -= t[i] * exp(-eta->R(t[i])) - t[i - 1] * exp(-eta->R(t[i - 1]));
