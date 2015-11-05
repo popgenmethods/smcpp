@@ -31,7 +31,7 @@ try:
 except:
     diagnostic = False
 
-flat = True
+flat = False
 
 psmcpp._pypsmcpp.do_progress(progress)
 
@@ -146,7 +146,9 @@ T_MAX = np.cumsum(s0)[-1] * 1.1
 ni = 30
 s = np.logspace(np.log10(T_MIN), np.log10(T_MAX), ni)
 s = np.concatenate(([T_MIN], s[1:] - s[:-1]))
-# s = s0
+s = s0.copy()
+s[1] += s[0]
+s = s[1:]
 print(s)
 print(np.cumsum(s))
 
@@ -337,7 +339,10 @@ break_loop = False
 import signal, sys
 def print_state():
     global a, b, s, a0, b0, s0
-    print(repr({'a': a, 'b': b, 's': s, 'a0': a0, 'b0': b0, 's0': s0, 'argv': sys.argv, 't_start': t_start, 't_now': time.time()}))
+    d = {'a': a, 'b': b, 's': s, 'a0': a0, 'b0': b0, 's0': s0, 'argv': sys.argv, 't_start': t_start, 't_now': time.time()}
+    print(repr(d))
+    return d
+
 def signal_handler(signal, frame):
     print("Terminating optimization...")
     print_state()
@@ -398,4 +403,5 @@ while improvement > .001 or i < 30:
     improvement = run_iteration(i, coords, 1e9)
     i += 1
 
-print_state()
+d = print_state()
+
