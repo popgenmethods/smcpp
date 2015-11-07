@@ -1,7 +1,5 @@
 #include "piecewise_exponential_rate_function.h"
 
-const double T_MAX = 15.0;
-
 template <typename T>
 PiecewiseExponentialRateFunction<T>::PiecewiseExponentialRateFunction(const std::vector<std::vector<double>> params,
         const std::vector<double> hidden_states) : 
