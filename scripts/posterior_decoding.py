@@ -12,7 +12,7 @@ import sys
 
 import matplotlib
 matplotlib.use('Agg')
-matplotlib.rcParams.update({'font.size': 42})
+matplotlib.rcParams.update({'font.size': 32})
 import psmcpp.scrm, psmcpp.bfgs, psmcpp._pypsmcpp, psmcpp.util, psmcpp.plotting, psmcpp._newick
 
 def norm_counter(c, nn): 
@@ -51,21 +51,21 @@ def subset_data(d, start, end):
             [np.array([h[i] for i in inew]) for h in d[2]],
             list(pack(itertools.islice(unpack(d[3]), start, end))))
 
-block_size = 50
+block_size = 25
 np.set_printoptions(linewidth=120, precision=6, suppress=True)
 N0 = 10000
-rho = 1e-9
-theta = 2.5e-8
+theta = 1.25e-8
+rho = theta / 4.0
 L = int(float(sys.argv[1]))
-a = np.array([10., .5, 1., 2.])
-b = np.array([1., .5, 1., 2.])
-s = np.array([5000.0, 50000.0, 10000., 10000.]) / 25.0 / (2 * N0)
+a = np.array([ 7.1,  7.1,  0.9,  7.1,  0.9,  7.1,  0.9])
+b = np.array([ 7.1,  0.9,  7.1,  0.9,  7.1,  0.9,  0.9])
+s = np.array([ 0.002   ,  0.006   ,  0.013   ,  0.109   ,  0.1     ,  1.77    ,  0.000002])
 true_parameters = (a, b, s)
 width = 2000
-M = 20
+M = 32
 G = np.zeros([M, L])
 
-nns = [2, 5, 10, 25, 50]
+nns = [2, 5, 10, 25, 50, 100, 200]
 n = max(nns)
 demography = psmcpp.scrm.demography_from_params((a * 2.0, b * 2.0, s))
 print(" ".join(map(str, demography)))
@@ -96,6 +96,7 @@ ct = [(c1, psmcpp._newick.tmrca(c2, "1", "2")) for c1, c2 in data[3]]
 gm = {}
 ims = {}
 oo = {}
+bks = {}
 for nn in nns:
     # subset data. some sites might be non-segregating in the subsample.
     seg = [i for i, pos in enumerate(data[1]) if any(not h[i] for h in data[2][:nn])]
@@ -103,23 +104,23 @@ for nn in nns:
     dsub = (data[0], data[1][seg], segdata, data[3])
     obs = psmcpp.scrm.hmm_data_format(dsub, (0, 1))
     oo[nn] = np.array([c1[1:] for c1 in obs for _ in range(c1[0])])
-    hidden_states = np.array([0., np.inf])
+    hidden_states = np.array([0., 14.0])
     im = psmcpp._pypsmcpp.PyInferenceManager(nn - 2, [obs[:10]], hidden_states,
             4.0 * N0 * theta, 4.0 * N0 * rho, block_size, 10, [0])
     hidden_states = im.balance_hidden_states((a, b, s), M)
-    hidden_states[-1] = 30.
+    hidden_states[-1] = 14.9
     em = np.arange(3 *  (nn - 1), dtype=int).reshape([3, nn - 1])
     em[0] = em[2] = 0
     em[1] = 1
     im = psmcpp._pypsmcpp.PyInferenceManager(nn - 2, [obs], hidden_states,
-            4.0 * N0 * theta, 4.0 * N0 * rho, block_size, nn, [0], em)
+            4.0 * N0 * theta, 4.0 * N0 * rho, block_size, 1, [0], em)
     im.setParams((a, b, s), False)
     im.Estep()
     ims[nn] = im
     gamma = im.gammas()[0]
-    bks = im.block_keys()[0]
+    bks[nn] = im.block_keys()[0]
     bb = 0
-    for i, (_, d) in enumerate(bks):
+    for i, (_, d) in enumerate(bks[nn]):
         w = sum(d.values())
         G[:,bb:(bb+w)] = gamma[:,i:(i+1)]
         bb += w

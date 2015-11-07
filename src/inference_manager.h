@@ -1,7 +1,7 @@
 #ifndef INFERENCE_MANAGER_H
 #define INFERENCE_MANAGER_H
 
-#include <memory>
+#include <algorithm>
 
 #include "common.h"
 #include "hmm.h"

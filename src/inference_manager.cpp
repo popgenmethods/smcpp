@@ -43,6 +43,10 @@ InferenceManager::InferenceManager(
     M(hidden_states.size() - 1), 
     seed(1), csfs_d(n, H), csfs_ad(n, H)
 {
+    if (*std::min_element(hidden_states.begin(), hidden_states.end()) != 0.)
+        throw std::runtime_error("first hidden interval should be [0, <something>)");
+    if (*std::max_element(hidden_states.begin(), hidden_states.end()) > T_MAX)
+        throw std::runtime_error("largest hidden state cannot exceed T_MAX=" + std::to_string(T_MAX));
     pi = Vector<adouble>::Zero(M);
     transition = Matrix<adouble>::Zero(M, M);
     emission = Matrix<adouble>::Zero(M, 3 * (n + 1));
