@@ -59,10 +59,10 @@ def demography_from_params(params):
     for ai, bi, si in z[:-1]:
         beta = (np.log(ai) - np.log(bi)) / si
         demography += ['-eN', ct, ai]
-        if beta != 0.0:
-            demography += ['-eG', ct, beta]
+        demography += ['-eG', ct, beta]
         ct += si
     demography += ['-eN', ct, z[-1][0]]
+    demography += ['-eG', ct, 0.0]
     return demography
 
 def print_data_stats(positions, haps):
