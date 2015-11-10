@@ -12,7 +12,7 @@ import sys
 
 import matplotlib
 matplotlib.use('Agg')
-matplotlib.rcParams.update({'font.size': 32})
+matplotlib.rcParams.update({'font.size': 24})
 import psmcpp.scrm, psmcpp.bfgs, psmcpp._pypsmcpp, psmcpp.util, psmcpp.plotting, psmcpp._newick
 
 def norm_counter(c, nn): 
@@ -62,10 +62,11 @@ b = np.array([ 7.1,  0.9,  7.1,  0.9,  7.1,  0.9,  0.9])
 s = np.array([ 0.002   ,  0.006   ,  0.013   ,  0.109   ,  0.1     ,  1.77    ,  0.000002])
 true_parameters = (a, b, s)
 width = 2000
-M = 32
+M = 20
 G = np.zeros([M, L])
 
-nns = [2, 5, 10, 25, 50, 100, 200]
+nns = [2, 10, 25, 50, 100, 200]
+# nns = [2, 10]
 n = max(nns)
 demography = psmcpp.scrm.demography_from_params((a * 2.0, b * 2.0, s))
 print(" ".join(map(str, demography)))
@@ -131,6 +132,7 @@ import matplotlib.pyplot as plt
 fig, axes = plt.subplots(nrows=len(nns), sharex=True, sharey=True, figsize=(25, 15))
 # for i, ll in enumerate(((0, 1), (1, 2))[:2]):
 coal_times = np.searchsorted(hidden_states, list(unpack(ct))) - 1
+zct = scipy.ndimage.zoom(list(unpack(ct)), 1. * width / L)
 true_pos = scipy.ndimage.zoom(coal_times, 1. * width / L)
 # axes[-1].step(range(width), true_pos)
 #end i loop
@@ -138,14 +140,18 @@ true_pos = scipy.ndimage.zoom(coal_times, 1. * width / L)
 ai = 0
 label_text   = [r"%i kb" % int(L / 40. * 100. * loc/width) for loc in plt.xticks()[0]]
 mx = max([np.max(gm[g]) for g in gm])
+hs_mid = 0.5 * (hidden_states[1:] + hidden_states[:-1])
 for nn in sorted(gm):
     ax = axes[ai]
     ai += 1
     im = ax.imshow(gm[nn][::-1], extent=[0,width,-0.5,M-0.5],aspect='auto', vmin=0.0, vmax=mx)
     ax.step(range(width), true_pos, color=(0, 1., 1.))
+    diff = np.abs(np.subtract.outer(hs_mid, zct))
+    escore = (diff * gm[nn]).sum() / diff.shape[1]
     ax.set_ylabel("n=%d" % nn)
     ax.set_ylim([-0.5, M - 0.5])
     ax.set_xticklabels(label_text)
+    txt = ax.text(width + 35, 0, "%.4f" % escore, rotation=-90, va='bottom', ha='right')
 # axes[-1].set_ylabel("True hid. st.")
 # axes[-1].set_ylim([-0.5, M - 0.5])
 # axes[-1].xaxis.set_ticks(np.arange(0, width + 1, 100))
