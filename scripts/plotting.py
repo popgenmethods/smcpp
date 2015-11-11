@@ -40,10 +40,16 @@ def save_pdf(plt, filename):
     plt.savefig(pp, format='pdf')
     pp.close()
 
-def plot_psfs(psfs, N0=1e4, xlim=None, ylim=None):
+def plot_psfs(psfs, N0=1e4, xlim=None, ylim=None, order=None):
     fig, ax = pretty_plot()
     xmax = ymax = 0.
-    for a, b, s in psfs:
+    labels = []
+    if order is None:
+        order = sorted(psfs)
+    for label in order:
+        a = psfs[label]['a']
+        b = psfs[label]['b']
+        s = psfs[label]['s']
         sp = s * 25.0 * 2 * N0
         # cs = np.concatenate(([100.], np.cumsum(s) * 25.0 * 2 * N0))
         # cs[-1] = 1e7
@@ -61,10 +67,14 @@ def plot_psfs(psfs, N0=1e4, xlim=None, ylim=None):
             cum += ss
         x = np.concatenate([x, [cum, 2 * cum]])
         y = np.concatenate([y, [a[-1], a[-1]]])
-        ax.plot(x, y)
+        if label is None:
+            ax.plot(x, y, linewidth=2, color="black")
+        else:
+            labels += ax.plot(x, y, label=label)
         # ax.step(cs, a, where='post')
         ymax = max(ymax, np.max(y))
         xmax = max(xmax, np.max(x))
+    first_legend = ax.legend(handles=labels, loc=1)
     ax.set_xscale('log')
     if not xlim:
         xlim = (3000., 1.1 * xmax)
@@ -74,5 +84,37 @@ def plot_psfs(psfs, N0=1e4, xlim=None, ylim=None):
     ax.set_ylim(*ylim)
     return fig
 
-def plot_output(out, fname, **kwargs):
-    save_pdf(plot_psfs([(out['a0'],out['b0'],out['s0']),(out['a'],out['b'],out['s'])], **kwargs), fname)
+def make_psfs(d):
+    ret = {'fit': {'a': d['a'], 'b': d['b'], 's': d['s']},
+            None: {'a': d['a0'], 'b': d['b0'], 's': d['s0']}}
+    return ret
+
+def plot_output(psfs, fname, **kwargs):
+    save_pdf(plot_psfs(psfs, **kwargs), fname)
+
+def plot_matrices():
+    from cStringIO import StringIO
+    mats = {}
+    with open("matrices.txt", "rt") as mfile:
+        try:
+            while True:
+                name = next(mfile).strip()
+                lines = []
+                while True:
+                    l = next(mfile).strip()
+                    if l:
+                        lines.append(l)
+                    else:
+                        break
+                mats[name] = np.loadtxt(StringIO("\n".join(lines)))
+        except StopIteration:
+            mats[name] = np.loadtxt(StringIO("\n".join(lines)))
+    from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
+    from matplotlib.figure import Figure
+    for name in mats:
+        fig = Figure()
+        FigureCanvas(fig)
+        ax = fig.add_subplot(111)
+        ax.pcolor(np.log(1 + np.abs(mats[name])))
+        save_pdf(fig, "%s.pdf" % name)
+    return mats
