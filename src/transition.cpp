@@ -1,51 +1,115 @@
 #include "transition.h"
 
-int depth0 = 8;
-
-template <typename T>
-struct trans_integrand_helper
+namespace smc_prime_transition
 {
-    const int i, j;
-    const PiecewiseExponentialRateFunction<T> *eta;
-    const double left, right;
-    const T log_denom;
+    int depth0 = 8;
+    template <typename T>
+    struct trans_integrand_helper
+    {
+        const int i, j;
+        const PiecewiseExponentialRateFunction<T> *eta;
+        const double left, right;
+        const T log_denom;
+    };
+
+    template <typename T>
+    struct p_intg_helper
+    {
+        const PiecewiseExponentialRateFunction<T>* eta;
+        const double rho, left, right;
+        const T log_denom;
+    };
+
+    template <typename T>
+    T p_integrand(const double x, p_intg_helper<T> *pih)
+    {
+        double v, jac;
+        if (pih->right < INFINITY)
+        {
+            v = x * pih->right + (1. - x) * pih->left;
+            jac = pih->right - pih->left;
+        }
+        else
+        {
+            v = pih->left + x / (1. - x);
+            jac = 1. / (1. - x) / (1. - x);
+        }
+        if (v == INFINITY)
+            return 0.;
+        T ret = pih->eta->eta(v) * exp(-(pih->eta->R(v) - pih->log_denom + pih->rho * v)) * jac;
+        check_nan(ret);
+        return ret;
+    }
+
+    template <typename T>
+    T trans_integrand(const double x, trans_integrand_helper<T> *tih)
+    {
+        const int i = tih->i, j = tih->j; 
+        double h, jac;
+        if (tih->right < INFINITY)
+        {
+            h = x * tih->right + (1. - x) * tih->left;
+            jac = tih->right - tih->left;
+        }
+        else
+        {
+            h = tih->left + x / (1. - x);
+            jac = 1. / (1. - x) / (1. - x);
+        }
+        const PiecewiseExponentialRateFunction<T> *eta = tih->eta;
+        const std::vector<double> &t = eta->hidden_states;
+        if (h == 0)
+            return eta->eta(0) * (exp(-eta->R(t[j - 1])) - exp(-eta->R(t[j])));
+        T Rh = eta->R(h);
+        T eRh = exp(-(Rh + tih->log_denom));
+        T ret = eta->zero, tmp;
+        // f1
+        T htj_min = dmin(h, t[j]);
+        T htj_max = dmax(h, t[j]);
+        if (h < t[j])
+        {
+            tmp = eta->R_integral(h, -2 * Rh, 2) * (exp(-(eta->R(dmax(h, t[j - 1])) + tih->log_denom)) - 
+                    exp(-(eta->R(t[j]) + tih->log_denom)));
+            check_negative(tmp);
+            ret += tmp;
+            check_nan(ret);
+        }
+        // f2
+        if (h > t[j - 1])
+        {
+            T r1 = eta->R_integral(t[j - 1], -2 * eta->R(t[j - 1]) - Rh - tih->log_denom, 2);
+            T r2 = eta->R_integral(htj_min, -2 * eta->R(htj_min) - Rh - tih->log_denom, 2);
+            T r3 = eRh * (htj_min - t[j - 1]); 
+            tmp = r1 - r2 + r3;
+            check_negative(tmp);
+            ret += 0.5 * tmp;
+            check_nan(ret);
+        }
+        if (i == j)
+        {
+            tmp = 0.5 * (eRh * h - eta->R_integral(h, -3 * Rh - tih->log_denom, 2));
+            check_negative(tmp);
+            ret += tmp;
+            check_nan(ret);
+        }
+        // ret = f1 + f2 + f3;
+        ret *= eta->eta(h) / h;
+        ret *= jac;
+        check_nan(ret);
+        if (ret < 0)
+            throw std::domain_error("negative value of positive integral");
+        return ret;
+    }
 };
 
 template <typename T>
-struct p_intg_helper
+T SMCPrimeTransition<T>::P_no_recomb(const int i)
 {
-    const PiecewiseExponentialRateFunction<T>* eta;
-    const double rho, left, right;
-    const T log_denom;
-};
-
-template <typename T>
-T p_integrand(const double x, p_intg_helper<T> *pih)
-{
-    double v, jac;
-    if (pih->right < INFINITY)
-    {
-        v = x * pih->right + (1. - x) * pih->left;
-        jac = pih->right - pih->left;
-    }
-    else
-    {
-        v = pih->left + x / (1. - x);
-        jac = 1. / (1. - x) / (1. - x);
-    }
-    if (v == INFINITY)
-        return 0.;
-    T ret = pih->eta->eta(v) * exp(-(pih->eta->R(v) - pih->log_denom + pih->rho * v)) * jac;
-    check_nan(ret);
-    return ret;
-}
-
-template <typename T>
-T Transition<T>::P_no_recomb(const int i)
-{
+    using namespace smc_prime_transition;
+    const PiecewiseExponentialRateFunction<T> *eta = this->eta;
     std::vector<double> t = eta->hidden_states;
     T log_denom = eta->R(t[i - 1]);
-    p_intg_helper<T> h = {eta, 2. * rho, t[i - 1], t[i], log_denom};
+    p_intg_helper<T> h = {eta, 2. * this->rho, t[i - 1], t[i], log_denom};
     T ret, more_denom;
     if (t[i] < INFINITY)
         more_denom = -expm1(-(eta->R(t[i]) - eta->R(t[i - 1])));
@@ -58,7 +122,7 @@ T Transition<T>::P_no_recomb(const int i)
     {
         ret = eta->R_integral(t[i]) - eta->R_integral(t[i - 1]);
         ret -= t[i] * exp(-eta->R(t[i])) - t[i - 1] * exp(-eta->R(t[i - 1]));
-        ret *= rho;
+        ret *= this->rho;
         ret /= exp(-eta->R(t[i - 1])) - exp(-eta->R(t[i]));
         ret = 1. - ret;
     } 
@@ -82,69 +146,12 @@ T Transition<T>::P_no_recomb(const int i)
     return ret;
 }
 
-template <typename T>
-T trans_integrand(const double x, trans_integrand_helper<T> *tih)
-{
-    const int i = tih->i, j = tih->j; 
-    double h, jac;
-    if (tih->right < INFINITY)
-    {
-        h = x * tih->right + (1. - x) * tih->left;
-        jac = tih->right - tih->left;
-    }
-    else
-    {
-        h = tih->left + x / (1. - x);
-        jac = 1. / (1. - x) / (1. - x);
-    }
-    const PiecewiseExponentialRateFunction<T> *eta = tih->eta;
-    const std::vector<double> &t = eta->hidden_states;
-    if (h == 0)
-        return eta->eta(0) * (exp(-eta->R(t[j - 1])) - exp(-eta->R(t[j])));
-    T Rh = eta->R(h);
-    T eRh = exp(-(Rh + tih->log_denom));
-    T ret = eta->zero, tmp;
-    // f1
-    T htj_min = dmin(h, t[j]);
-    T htj_max = dmax(h, t[j]);
-    if (h < t[j])
-    {
-        tmp = eta->R_integral(h, -2 * Rh, 2) * (exp(-(eta->R(dmax(h, t[j - 1])) + tih->log_denom)) - 
-                exp(-(eta->R(t[j]) + tih->log_denom)));
-        check_negative(tmp);
-        ret += tmp;
-        check_nan(ret);
-    }
-    // f2
-    if (h > t[j - 1])
-    {
-        T r1 = eta->R_integral(t[j - 1], -2 * eta->R(t[j - 1]) - Rh - tih->log_denom, 2);
-        T r2 = eta->R_integral(htj_min, -2 * eta->R(htj_min) - Rh - tih->log_denom, 2);
-        T r3 = eRh * (htj_min - t[j - 1]); 
-        tmp = r1 - r2 + r3;
-        check_negative(tmp);
-        ret += 0.5 * tmp;
-        check_nan(ret);
-    }
-    if (i == j)
-    {
-        tmp = 0.5 * (eRh * h - eta->R_integral(h, -3 * Rh - tih->log_denom, 2));
-        check_negative(tmp);
-        ret += tmp;
-        check_nan(ret);
-    }
-    // ret = f1 + f2 + f3;
-    ret *= eta->eta(h) / h;
-    ret *= jac;
-    check_nan(ret);
-    if (ret < 0)
-        throw std::domain_error("negative value of positive integral");
-    return ret;
-}
 
 template <typename T>
-T Transition<T>::trans(int i, int j)
+T SMCPrimeTransition<T>::trans(int i, int j)
 {
+    using namespace smc_prime_transition;
+    const PiecewiseExponentialRateFunction<T> *eta = this->eta;
     const std::vector<double> t = eta->hidden_states;
     // T log_denom = eta->R(t[i - 1]);
     T log_denom = eta->zero;
@@ -168,33 +175,24 @@ T Transition<T>::trans(int i, int j)
     return ret;
 }
 
-
 template <typename T>
-Transition<T>::Transition(const PiecewiseExponentialRateFunction<T> &eta, const double rho) :
-    eta(&eta), M(eta.hidden_states.size()), Phi(M - 1, M - 1), rho(rho)
+void SMCPrimeTransition<T>::compute(void)
 {
-    Phi.setZero();
-    compute();
-}
-
-template <typename T>
-void Transition<T>::compute(void)
-{
-    Matrix<double> rt(M - 1, M - 1);
+    Matrix<double> rt(this->M - 1, this->M - 1);
     PROGRESS("transition");
 #pragma omp parallel for
-    for (int i = 1; i < M; ++i)
+    for (int i = 1; i < this->M; ++i)
     {
         T pnr = P_no_recomb(i);
-        for (int j = 1; j < M; ++j)
+        for (int j = 1; j < this->M; ++j)
         {
             T tr = trans(i, j);
             rt(i - 1, j - 1) = toDouble(tr);
-            Phi(i - 1, j - 1) = (1. - pnr) * tr;
+            this->Phi(i - 1, j - 1) = (1. - pnr) * tr;
             if (i == j)
-                Phi(i - 1, j - 1) += pnr;
-            check_nan(Phi(i - 1, j - 1));
-            check_negative(Phi(i - 1, j - 1));
+                this->Phi(i - 1, j - 1) += pnr;
+            check_nan(this->Phi(i - 1, j - 1));
+            check_negative(this->Phi(i - 1, j - 1));
             // if (Phi(i - 1, j - 1) < 1e-20)
             // {
             //     std::cout << "really small phi: " << i << " " << j << " " << Phi(i - 1, j - 1) << std::endl;
@@ -204,32 +202,167 @@ void Transition<T>::compute(void)
     }
 }
 
-template <typename T>
-Matrix<T>& Transition<T>::matrix(void) { return Phi; }
-
-template class Transition<double>;
-template class Transition<adouble>;
-
-int transition_main(int argc, char** argv)
+namespace hj_transition
 {
-    std::vector<std::vector<double> > params = {
-        {0.5, 2.0, 1.0},
-        {5.0, 0.2, 1.0},
-        {0.2, 1.0, 1.0}
+    const double A_rho_data[] = {
+        -2, 2, 0, 0,
+         0, -1, 1, 0,
+         0, 0, 0, 0,
+         0, 0, 0, 0};
+    static Eigen::Matrix<double, 4, 4, Eigen::RowMajor> A_rho(A_rho_data);
+
+    const double A_eta_data[] = {
+        0, 0, 0, 0,
+        1, -2, 0, 1,
+        0, 4, -5, 1,
+        0, 0, 0, 0};
+    static Eigen::Matrix<double, 4, 4, Eigen::RowMajor> A_eta(A_eta_data);
+
+    Matrix<double> transition_exp(double c_rho, double c_eta)
+    {
+        Matrix<double> M = c_rho * A_rho + c_eta * A_eta;
+        return M.exp();
+    }
+
+    struct expm_functor
+    {
+        typedef double Scalar;
+        typedef Eigen::Matrix<Scalar, 1, 1> InputType;
+        typedef Eigen::Matrix<Scalar, 16, 1> ValueType;
+        typedef Eigen::Matrix<Scalar, 16, 1> JacobianType;
+
+        static const int InputsAtCompileTime = 1;
+        static const int ValuesAtCompileTime = 16;
+
+        static int values() { return 16; }
+
+        expm_functor(double c_rho) : c_rho(c_rho) {}
+        int operator()(const InputType &x, ValueType &f) const
+        {
+            Eigen::Matrix<double, 4, 4, Eigen::ColMajor> M = transition_exp(c_rho, x(0,0));
+            f = Eigen::Matrix<double, 16, 1, Eigen::ColMajor>::Map(M.data(), 16, 1);
+            return 0;
+        }
+        double c_rho; 
     };
-    std::vector<double> hs = {0.0, 0.5, 1.0, 2.0, 20.0};
-    std::vector<std::pair<int, int> > deriv = { {0,0} };
-    double rho = 4 * 1e4 * 1e-9;
-    PiecewiseExponentialRateFunction<adouble> eta(params, deriv, hs);
-    params[0][0] += 1e-8;
-    PiecewiseExponentialRateFunction<double> eta2(params, deriv, hs);
-    Transition<adouble> T(eta, rho);
-    Transition<double> T2(eta2, rho);
-    Matrix<adouble> M = T.matrix();
-    std::cout << M.template cast<double>() << std::endl << std::endl;
-    std::cout << M.unaryExpr([=](adouble x) { 
-            if (x.derivatives().size() == 0) return 0.; 
-            return x.derivatives()(0); }).template cast<double>() << std::endl << std::endl;
-    Matrix<double> M2 = T2.matrix();
-    std::cout << (M2 - M.template cast<double>()) * 1e8 << std::endl << std::endl;
+
+    Matrix<adouble> transition_exp(double c_rho, adouble c_eta)
+    {
+        // Compute derivative dependence on c_eta by numerical differentiation
+        expm_functor f(c_rho);
+        Eigen::NumericalDiff<expm_functor> numDiff(f);
+        Eigen::Matrix<double, 16, 1> df;
+        Eigen::Matrix<double, 1, 1> meta;
+        meta(0, 0) = c_eta.value();
+        numDiff.df(meta, df);
+        Matrix<adouble> ret = transition_exp(c_rho, c_eta.value()).cast<adouble>();
+        Eigen::Matrix<double, 4, 4, Eigen::ColMajor> ddf = Eigen::Matrix<double, 4, 4, Eigen::ColMajor>::Map(df.data(), 4, 4);
+        for (int i = 0; i < 4; ++i)
+            for (int j = 0; j < 4; ++j)
+                ret(i, j).derivatives() = c_eta.derivatives() * ddf(i, j);
+        return ret;
+    }
+};
+
+template <typename T>
+void HJTransition<T>::compute(void)
+{
+    using namespace hj_transition;
+    const PiecewiseExponentialRateFunction<T>* eta = this->eta;
+    auto R = eta->getR();
+    T r, p_coal;
+    for (int j = 1; j < this->M; ++j)
+        for (int k = 1; k < this->M; ++k)
+        {
+            if (k < j)
+            {
+                r = expm(0, k)(0, 3) - expm(0, k - 1)(0, 3);
+            }
+            else if (k == j && eta->hidden_states[j] == INFINITY)
+            {
+                r = 1. - expm(0, k - 1)(0, 3);
+            }
+            else if (k == j)
+            {
+                r = expm(0, k)(0, 0);
+                for (int i = 0; i < 3; ++i)
+                    r += expm(0, k - 1)(0, i) * expm(k - 1, k)(i, 3);
+            }
+            else
+            {
+                p_coal = exp(-((*R)(eta->hidden_states[k - 1]) - (*R)(eta->hidden_states[j])));
+                if (eta->hidden_states[k] < INFINITY)
+                {
+                    // Else d[k] = +inf, coalescence in [d[k-1], +oo) is assured.
+                    p_coal *= -expm1(-((*R)(eta->hidden_states[k]) - (*R)(eta->hidden_states[k - 1])));
+                }
+                double c_rho = this->rho * eta->hidden_states[j];
+                T c_eta = (*R)(eta->hidden_states[j]);
+                Matrix<T> em = transition_exp(c_rho, c_eta);
+                r = (em(0, 1) + em(0, 2)) * p_coal;
+            }
+            this->Phi(j - 1, k - 1) = r;
+            if (this->Phi(j - 1, k - 1) < 1e-16)
+                std::cout << "phi is tiny" << j << " " << k << " " << this->Phi(j - 1, k - 1) << std::endl;
+            // Phi(j - 1, k - 1) = dmax(r, 1e-16);
+        }
 }
+
+template <typename T>
+void HJTransition<T>::compute_hs_midpoints()
+{
+    const PiecewiseExponentialRateFunction<T> *eta = this->eta;
+    hs_midpoints.clear();
+    for (int m = 1; m < this->M; ++m)
+    {
+        // int_t[m - 1]^t[m] t * eta(t) exp(-R(t)) dt = 
+        // int_t[m - 1]^t[m] exp(-R(t)) dt - t * exp(-R(t)) |_t[m-1]^t[m]
+        T tm1 = eta->hidden_states[m - 1];
+        T tm = eta->hidden_states[m];
+        T R0 = eta->R_integral(tm1);
+        T R1 = eta->R_integral(tm);
+        hs_midpoints.push_back((R1 - R0) - (tm * exp(-eta->R(tm)) - tm1 * exp(-eta->R(tm1))));
+        hs_midpoints.back() /= exp(-eta->R(tm1)) - exp(-eta->R(tm));
+    }
+}
+
+template <typename T>
+Matrix<T> HJTransition<T>::expm(int i, int j)
+{
+    using namespace hj_transition;
+    const PiecewiseExponentialRateFunction<T> *eta = this->eta;
+    auto R = eta->getR();
+    const int M = this->M;
+    std::pair<int, int> key = {i, j};
+    if (_expm_memo.count(key) == 0)
+    {
+        double c_rho;
+        T c_eta;
+        Matrix<T> ret(M, M);
+        if (i == j)
+            ret = Matrix<T>::Identity(M, M);
+        else
+        {
+            c_rho = this->rho * (eta->hidden_states[j] - eta->hidden_states[i]);
+            c_eta = (*R)(eta->hidden_states[j]) - (*R)(eta->hidden_states[i]);
+            ret = transition_exp(c_rho, c_eta);
+        }
+        _expm_memo[key] = ret;
+    }
+    return _expm_memo[key];
+}
+
+bool useHJ = true;
+void setHJ(bool b) { useHJ = b; }
+
+template <typename T>
+Matrix<T> compute_transition(const PiecewiseExponentialRateFunction<T> &eta, const double rho)
+{
+    if (useHJ)
+        return HJTransition<T>(eta, rho).matrix();
+    else
+        return SMCPrimeTransition<T>(eta, rho).matrix();
+}
+
+template Matrix<double> compute_transition(const PiecewiseExponentialRateFunction<double> &eta, const double rho);
+template Matrix<adouble> compute_transition(const PiecewiseExponentialRateFunction<adouble> &eta, const double rho);
