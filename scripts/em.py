@@ -22,21 +22,21 @@ def exp_quantiles(M, h_M):
     return hs
 
 parser = argparse.ArgumentParser("smc++")
-parser.add_argument("--debug", type=bool, default=False, help="display a lot of debugging info")
-parser.add_argument('data', type=argparse.FileType('rb'), help="data file in smcpp format")
+parser.add_argument("--debug", action="store_true", default=False, help="display a lot of debugging info")
 parser.add_argument('config', type=argparse.FileType('r'), help="config file")
-#FIXME
-parser.add_argument('n', type=int)
+parser.add_argument('data', type=argparse.FileType('rb'), help="data file in smcpp format")
 args = parser.parse_args()
 
 psmcpp._pypsmcpp.do_progress(args.debug)
-obs_list = pickle.load(args.data)
+smcpp_data = pickle.load(args.data)
+obs_list = smcpp_data['obs']
+n = smcpp_data['n']
 config = configparser.SafeConfigParser()
 config.readfp(args.config)
 
 # Hidden states
 try:
-    hs = eval(config.get('hidden states', 'hidden states'))
+    hs = np.array(eval(config.get('hidden states', 'hidden states')))
 except configparser.NoOptionError:
     M = config.getint('hidden states', 'M')
     h_M = config.getfloat('hidden states', 'h_M')
@@ -46,7 +46,7 @@ if hs[0] != 0:
 print("hidden states", hs)
 
 # Emission mask
-em = np.arange(3 * (args.n - 1), dtype=int).reshape([3, args.n - 1])
+em = np.arange(3 * (n - 1), dtype=int).reshape([3, n - 1])
 # em[3:] = 3
 # em[1] = 4
 # em[2] = 5
@@ -69,21 +69,26 @@ N0 = config.getfloat('parameters', 'N0')
 mu = config.getfloat('parameters', 'mu')
 rho = config.getfloat('parameters', 'rho')
 block_size = config.getint('advanced', 'block size')
+try:
+    psmcpp._pypsmcpp.set_hj(config.getboolean('advanced', 'use hj'))
+except configparser.NoOptionError:
+    psmcpp._pypsmcpp.set_hj(True)
 
 t_start = time.time()
 try:
     thinning = config.getint('advanced', 'thinning')
 except configparser.NoOptionError:
-    thinning = args.n
+    thinning = n
 
-im = psmcpp._pypsmcpp.PyInferenceManager(args.n - 2, obs_list, hs,
+im = psmcpp._pypsmcpp.PyInferenceManager(n - 2, obs_list, hs,
         4.0 * N0 * mu, 4.0 * N0 * rho,
         block_size, thinning, [0], em)
 
 K = len(s)
 x0 = np.ones([2, K])
 a, b = x0
-flat = config.getboolean('model parameters', 'piecewise exponential')
+flat = not config.getboolean('model parameters', 'piecewise exponential')
+print("Using piecewise exponential: {notflat}".format(notflat=not flat))
 if flat:
     b = a
 else:

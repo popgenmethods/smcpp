@@ -46,10 +46,11 @@ def mk_outdir(prog):
 np.random.seed = args.seed
 
 if args.sawtooth:
+    st = psmcpp.util.sawtooth
+    a0 = st['a']
+    b0 = st['b']
+    s0 = st['s_gen'] / (2. * args.N0)
 # MSMC sample demography
-    a0 = np.array([7.1, 7.1, 0.9, 7.1, 0.9, 7.1, 0.9])
-    b0 = np.array([7.1, 0.9, 7.1, 0.9, 7.1, 0.9, 0.9])
-    s0 = np.array([1000.0, 4000.0 - 1000., 10500. - 4000., 65000. - 10500., 115000. - 65000., 1e6 - 115000, 1.0]) / 25.0 / (2 * args.N0)
 else:
     a0 = np.array(args.a)
     b0 = np.array(args.b)
@@ -70,10 +71,15 @@ p = multiprocessing.Pool(16)
 data_sets = list(p.imap_unordered(perform_sim, 
     [(args.panel_size, args.N0, args.theta, args.rho, args.L, demography, np.random.randint(0, sys.maxint), args.l)
         for _ in range(args.C)]))
+assert data_sets
 p.terminate()
 p.join()
 del p
 
+try:
+    os.makedirs(args.outdir)
+except OSError:
+    pass
 open(os.path.join(args.outdir, "meta.txt"), "wt").write(
         "{argv0} created this dataset. The command line was:\n\t{cmd_line}\nThe args object looks like:\n{args}".format(
         argv0=sys.argv[0], args=args, cmd_line=" ".join(sys.argv)))
@@ -82,8 +88,9 @@ open(os.path.join(args.outdir, "meta.txt"), "wt").write(
 if args.smcpp:
     smcpp_outdir = mk_outdir("smc++")
     obs = [psmcpp.util.hmm_data_format(data, args.n, (0, 1)) for data in data_sets]
+    smcpp_data = {"obs": obs, "n": args.n, "L": args.L, "theta": args.theta, "rho": args.rho, "N0": args.N0}
     with open(os.path.join(smcpp_outdir, "smc++.dat"), "wb") as f:
-        pickle.dump(obs, f)
+        pickle.dump(smcpp_data, f)
 
 if not(any([args.psmc, args.dical, args.msmc])): sys.exit(0)
 
