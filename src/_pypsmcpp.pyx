@@ -107,54 +107,69 @@ cdef class PyInferenceManager:
     def Estep(self):
         self._im.Estep()
 
-    def xisums(self):
-        return _make_em_matrix(self._im.getXisums())
+    property hj:
+        def __get__(self):
+            return self._im.hj
+        def __set__(self, bint h):
+            self._im.hj = h
 
-    def alphas(self):
-        return _make_em_matrix(self._im.getAlphas())
+    property xisums:
+        def __get__(self):
+            return _make_em_matrix(self._im.getXisums())
 
-    def betas(self):
-        return _make_em_matrix(self._im.getBetas())
+    property alphas:
+        def __get__(self):
+            return _make_em_matrix(self._im.getAlphas())
 
-    def gammas(self):
-        return _make_em_matrix(self._im.getGammas())
+    property betas:
+        def __get__(self):
+            return _make_em_matrix(self._im.getBetas())
 
-    def set_gammas(self, A):
-        Ac = aca(A)
-        cdef double[:, ::1] Av = Ac
-        self._im.setGammas(&Av[0, 0])
+    property gammas:
+        def __get__(self):
+            return _make_em_matrix(self._im.getGammas())
+        def __set__(self, A):
+            Ac = aca(A)
+            cdef double[:, ::1] Av = Ac
+            self._im.setGammas(&Av[0, 0])
 
-    def Bs(self):
-        cdef vector[pMatrixAd] mats = self._im.getBs()
-        cdef double[:, ::1] v
-        cdef double[:, :, ::1] av
-        ret = []
-        for i in range(mats.size()):
-            if (self._nder == 0):
-                m = mats[i][0].rows()
-                n = mats[i][0].cols()
-                ary = aca(np.zeros([m, n]))
-                v = ary
-                store_matrix(mats[i], &v[0, 0])
-                ret.append(ary)
-            else:
-                ret.append(_store_admatrix_helper(mats[i][0], self._nder))
-        return ret
+    property Bs:
+        def __get__(self):
+            cdef vector[pMatrixAd] mats = self._im.getBs()
+            cdef double[:, ::1] v
+            cdef double[:, :, ::1] av
+            ret = []
+            for i in range(mats.size()):
+                if (self._nder == 0):
+                    m = mats[i][0].rows()
+                    n = mats[i][0].cols()
+                    ary = aca(np.zeros([m, n]))
+                    v = ary
+                    store_matrix(mats[i], &v[0, 0])
+                    ret.append(ary)
+                else:
+                    ret.append(_store_admatrix_helper(mats[i][0], self._nder))
+            return ret
 
-    def block_keys(self):
-        return self._im.getBlockKeys()
+    property block_keys:
+        def __get__(self):
+            return self._im.getBlockKeys()
 
-    def pi(self):
-        return _store_admatrix_helper(self._im.getPi(), self._nder)
+    property pi:
+        def __get__(self):
+            return _store_admatrix_helper(self._im.getPi(), self._nder)
 
-    def transition(self):
-        return _store_admatrix_helper(self._im.getTransition(), self._nder)
+    property transition:
+        def __get__(self):
+            return _store_admatrix_helper(self._im.getTransition(), self._nder)
 
-    def emission(self):
-        return _store_admatrix_helper(self._im.getEmission(), self._nder)
+    property emission:
+        def __get__(self):
+            return _store_admatrix_helper(self._im.getEmission(), self._nder)
 
-    def masked_emission(self):
-        return _store_admatrix_helper(self._im.getMaskedEmission(), self._nder)
+    property masked_emission:
+        def __get__(self):
+            return _store_admatrix_helper(self._im.getMaskedEmission(), self._nder)
 
     def _call_inference_func(self, func, lam):
         if func == "loglik":

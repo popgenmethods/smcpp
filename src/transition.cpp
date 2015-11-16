@@ -352,11 +352,8 @@ Matrix<T> HJTransition<T>::expm(int i, int j)
     return _expm_memo[key];
 }
 
-bool useHJ = true;
-void setHJ(bool b) { useHJ = b; }
-
 template <typename T>
-Matrix<T> compute_transition(const PiecewiseExponentialRateFunction<T> &eta, const double rho)
+Matrix<T> compute_transition(const PiecewiseExponentialRateFunction<T> &eta, const double rho, bool useHJ)
 {
     if (useHJ)
         return HJTransition<T>(eta, rho).matrix();
@@ -364,5 +361,5 @@ Matrix<T> compute_transition(const PiecewiseExponentialRateFunction<T> &eta, con
         return SMCPrimeTransition<T>(eta, rho).matrix();
 }
 
-template Matrix<double> compute_transition(const PiecewiseExponentialRateFunction<double> &eta, const double rho);
-template Matrix<adouble> compute_transition(const PiecewiseExponentialRateFunction<adouble> &eta, const double rho);
+template Matrix<double> compute_transition(const PiecewiseExponentialRateFunction<double> &eta, const double rho, bool);
+template Matrix<adouble> compute_transition(const PiecewiseExponentialRateFunction<adouble> &eta, const double rho, bool);

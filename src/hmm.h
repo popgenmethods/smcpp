@@ -9,7 +9,7 @@
 struct block_key
 {
     bool alt_block;
-    std::map<int, int> powers;
+    std::map<std::pair<int, int>, int> powers;
     bool operator==(const block_key &other) const 
     { 
         return alt_block == other.alt_block and powers == other.powers;
@@ -82,8 +82,7 @@ class HMM
     public:
     HMM(const Matrix<int> &obs, const int n, const int block_size,
         const Vector<adouble> *pi, const Matrix<adouble> *transition, 
-        const Matrix<adouble> *emission, const Matrix<adouble> *emission_mask, 
-        const Eigen::Matrix<int, 3, Eigen::Dynamic, Eigen::RowMajor>* mask_locations,
+        const Matrix<adouble> *emission, const Matrix<int> emission_mask, 
         const int mask_freq, const int mask_offset);
     void Estep(void);
     double loglik(void);
@@ -95,7 +94,7 @@ class HMM
     HMM(HMM const&) = delete;
     HMM& operator=(HMM const&) = delete;
     // Methods
-    void prepare_B(const Matrix<int>&, const int);
+    void prepare_B(const Matrix<int>&);
     void recompute_B(void);
     void forward_backward(void);
     void domain_error(double);
@@ -104,9 +103,10 @@ class HMM
     const int block_size, alt_block_size;
 
     // Instance variables
+    const int n;
     const Vector<adouble> *pi;
-    const Matrix<adouble> *transition, *emission, *emission_mask;
-    const Eigen::Matrix<int, 3, Eigen::Dynamic, Eigen::RowMajor> *mask_locations;
+    const Matrix<adouble> *transition, *emission;
+    const Matrix<int> emission_mask, two_mask;
     const int mask_freq, mask_offset, M, Ltot;
     std::vector<Vector<adouble>*> Bptr;
     std::vector<Eigen::Array<adouble, Eigen::Dynamic, 1>*> logBptr;
@@ -117,7 +117,7 @@ class HMM
     std::vector<int> viterbi_path;
     std::unordered_map<block_key, std::tuple<Vector<adouble>, Eigen::Array<adouble, Eigen::Dynamic, 1>, Vector<double> > > block_prob_map;
     std::vector<block_key> block_prob_map_keys;
-    std::vector<std::pair<bool, std::map<int, int> > > block_keys;
+    std::vector<std::pair<bool, decltype(block_key::powers)> > block_keys;
     std::unordered_map<block_key, unsigned long> comb_coeffs;
     // std::unordered_map<Eigen::Array<adouble, Eigen::Dynamic, 1>*, decltype(block_prob_map)::key_type> reverse_map;
     std::vector<std::pair<Eigen::Array<adouble, Eigen::Dynamic, 1>*, std::vector<int> > > block_pairs;

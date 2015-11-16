@@ -55,9 +55,7 @@ class HJTransition : public Transition<T>
     const std::map<std::pair<int, int>, Matrix<T>> & expm_memo(void) { return _expm_memo; }
 };
 
-void setHJ(bool);
-
 template <typename T>
-Matrix<T> compute_transition(const PiecewiseExponentialRateFunction<T> &eta, const double rho);
+Matrix<T> compute_transition(const PiecewiseExponentialRateFunction<T> &, const double, bool);
 
 #endif

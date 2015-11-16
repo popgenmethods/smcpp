@@ -30,7 +30,7 @@ InferenceManager::InferenceManager(
             std::vector<int> mask_offset,
             const double theta, const double rho, 
             const int block_size) :
-    debug(false),
+    debug(false), hj(true),
     n(n), L(L),
     observations(observations), 
     hidden_states(hidden_states),
@@ -50,16 +50,17 @@ InferenceManager::InferenceManager(
     pi = Vector<adouble>::Zero(M);
     transition = Matrix<adouble>::Zero(M, M);
     emission = Matrix<adouble>::Zero(M, 3 * (n + 1));
-    int mask_len = emask.maxCoeff() + 1;
-    emission_mask = Matrix<adouble>::Zero(M, mask_len);
 #pragma omp parallel for
     for (int i = 0; i < observations.size(); ++i)
     {
         int ell = L[i];
         Eigen::Matrix<int, Eigen::Dynamic, 3> obs = 
             Eigen::Matrix<int, Eigen::Dynamic, 3, Eigen::RowMajor>::Map(observations[i], ell, 3);
+        int max_n = obs.rightCols(2).rowwise().sum().maxCoeff();
+        if (max_n > n + 2 - 1)
+            throw std::runtime_error("An observation has derived allele count greater than n + 1");
         PROGRESS("creating HMM");
-        hmmptr h(new HMM(obs, n, block_size, &pi, &transition, &emission, &emission_mask, &emask, mask_freq, 0));
+        hmmptr h(new HMM(obs, n, block_size, &pi, &transition, &emission, emask, mask_freq, 0));
 #pragma omp critical
         {
             hmms.push_back(std::move(h));
@@ -88,36 +89,21 @@ void InferenceManager::setParams(const ParameterVector params, const std::vector
     PiecewiseExponentialRateFunction<T> eta(params, derivatives, hidden_states);
     regularizer = adouble(eta.regularizer());
     pi = compute_initial_distribution<T>(eta).template cast<adouble>();
-    transition = compute_transition<T>(eta, rho).template cast<adouble>();
+    transition = compute_transition<T>(eta, rho, hj).template cast<adouble>();
     check_nan(transition);
-    // std::cout << transition.template cast<double>() << std::endl;
-    Eigen::Matrix<T, 3, Eigen::Dynamic, Eigen::RowMajor> em_tmp(3, n + 1);
-    // transition = matpow(ttmp, block_size);
-    // transition = ttmp;
-    emission_mask.setZero();
     std::vector<Matrix<T> > sfss = sfs<T>(eta);
+    Eigen::Matrix<T, 3, Eigen::Dynamic, Eigen::RowMajor> em_tmp(3, n + 1);
     for (int m = 0; m < M; ++m)
     {
         check_nan(sfss[m]);
         em_tmp = sfss[m];
         emission.row(m) = Matrix<T>::Map(em_tmp.data(), 1, 3 * (n + 1)).template cast<adouble>();
-        for (int i = 0; i < 3; ++i)
-            for (int j = 0; j < n + 1; ++j)
-                emission_mask(m, emask(i, j)) += sfss[m](i, j);
-        // if (false and n > 2)
-        if (false)
-        {
-            // binning
-            adouble t0 = emission(m,0);
-            adouble t1 = emission(m,1);
-            adouble t2 = emission(m,2);
-            adouble ttot = emission.row(m).sum() - (t0 + t1 + t2);
-            emission.row(m).fill(ttot);
-            emission(m,0) = t0;
-            emission(m,1) = t1;
-            emission(m,2) = t2;
-        }
     }
+    /*
+    std::cout << emission.template cast<double>() << std::endl << std::endl;
+    std::cout << emission_mask.template cast<double>() << std::endl << std::endl;
+    std::cout << emission2.template cast<double>() << std::endl;
+    */
     parallel_do([] (hmmptr &hmm) { hmm->recompute_B(); });
 }
 template void InferenceManager::setParams<double>(const ParameterVector, const std::vector<std::pair<int, int>>);
@@ -254,9 +240,9 @@ std::vector<Matrix<adouble>*> InferenceManager::getBs()
     return ret;
 }
 
-std::vector<std::vector<std::pair<bool, std::map<int, int> > > > InferenceManager::getBlockKeys()
+std::vector<std::vector<std::pair<bool, decltype(block_key::powers)> > > InferenceManager::getBlockKeys()
 {
-    std::vector<std::vector<std::pair<bool, std::map<int, int> > > > ret;
+    std::vector<std::vector<std::pair<bool, decltype(block_key::powers)> > > ret;
     for (auto &hmm : hmms)
         ret.push_back(hmm->block_keys);
     return ret;
@@ -290,6 +276,7 @@ std::vector<double> InferenceManager::loglik(double lambda)
     return parallel_select<double>([lambda, reg] (hmmptr &hmm) { return hmm->loglik() - lambda * reg; });
 }
 
+/*
 int main(int argc, char** argv)
 {
     std::vector<int> L = {3000};
@@ -337,4 +324,4 @@ int main(int argc, char** argv)
     std::cout << (T2.template cast<double>() - T.template cast<double>()) * 1e8 << std::endl << std::endl;
     std::cout << T.unaryExpr([](adouble x) { return x.derivatives()(0); }).template cast<double>() << std::endl << std::endl;
 }
-
+*/

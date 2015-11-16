@@ -56,14 +56,14 @@ class InferenceManager
 
     double getRegularizer() { return toDouble(regularizer); }
 
-    bool debug;
+    bool debug, hj;
     std::vector<Matrix<double>*> getXisums();
     std::vector<Matrix<double>*> getAlphas();
     std::vector<Matrix<double>*> getBetas();
     std::vector<Matrix<double>*> getGammas();
     void setGammas(double*);
     std::vector<Matrix<adouble>*> getBs();
-    std::vector<std::vector<std::pair<bool, std::map<int, int> > > > getBlockKeys();
+    std::vector<std::vector<std::pair<bool, decltype(block_key::powers)> > > getBlockKeys();
     Matrix<adouble>& getPi();
     Matrix<adouble>& getTransition();
     Matrix<adouble>& getEmission();
@@ -93,7 +93,7 @@ class InferenceManager
 
     std::vector<hmmptr> hmms;
     Vector<adouble> pi;
-    Matrix<adouble> transition, emission, emission_mask;
+    Matrix<adouble> transition, emission, emission2, emission_mask;
     ConditionedSFS<double> csfs_d;
     ConditionedSFS<adouble> csfs_ad;
 

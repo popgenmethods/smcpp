@@ -21,21 +21,29 @@ long num_blocks(int total_loci, int block_size, int alt_block_size, int mask_fre
     return base;
 }
 
+Matrix<int> make_two_mask(int n, int m)
+{
+    Matrix<int> two_mask(n, m);
+    two_mask.fill(0);
+    two_mask.row(1).fill(1);
+    return two_mask;
+}
+
 HMM::HMM(const Matrix<int> &obs, int n, const int block_size,
         const Vector<adouble> *pi, const Matrix<adouble> *transition, 
-        const Matrix<adouble> *emission, const Matrix<adouble> *emission_mask,
-        const Eigen::Matrix<int, 3, Eigen::Dynamic, Eigen::RowMajor> *mask_locations,
+        const Matrix<adouble> *emission, const Matrix<int> emission_mask,
         const int mask_freq, const int mask_offset) : 
-    block_size(block_size), alt_block_size(1),
+    n(n), block_size(block_size), alt_block_size(1),
     pi(pi), transition(transition), emission(emission), emission_mask(emission_mask),
-    mask_locations(mask_locations), mask_freq(mask_freq), mask_offset(mask_offset),
+    two_mask(make_two_mask(3, emission_mask.cols())),
+    mask_freq(mask_freq), mask_offset(mask_offset),
     M(pi->rows()), 
     Ltot(num_blocks(obs.col(0).sum(), block_size, alt_block_size, mask_freq, mask_offset)),
     Bptr(Ltot), logBptr(Ltot), dBptr(Ltot),
     B(1, 1), 
     alpha_hat(M, Ltot), beta_hat(M, Ltot), gamma(M, Ltot), xisum(M, M), c(Ltot) 
 { 
-    prepare_B(obs, n);
+    prepare_B(obs);
 }
 
 bool HMM::is_alt_block(int block) 
@@ -43,26 +51,42 @@ bool HMM::is_alt_block(int block)
     return (block + mask_offset) % mask_freq == 0;
 }
 
-void HMM::prepare_B(const Matrix<int> &obs, const int n)
+inline mpz_class multinomial(const std::vector<int> &ks)
+{
+    mpz_class num, den, tmp;
+    int sum = 0;
+    den = 1_mpz;
+    for (auto k : ks) 
+    {
+        sum += k;
+        mpz_fac_ui(tmp.get_mpz_t(), k);
+        den *= tmp;
+    }
+    mpz_fac_ui(num.get_mpz_t(), sum);
+    return num / den;
+}
+
+void HMM::prepare_B(const Matrix<int> &obs)
 {
     PROGRESS("preparing B");
-    std::map<int, int> powers;
+    std::map<std::pair<int, int>, int> powers;
     Vector<adouble> tmp(M);
     const Matrix<adouble> *em_ptr;
     bool alt_block;
-    unsigned long int R, ob, i = 0, block = 0, tobs = 0;
+    unsigned long int R, i = 0, block = 0, tobs = 0;
     block_key key;
     unsigned long int L = obs.col(0).sum();
     std::map<Eigen::Array<adouble, Eigen::Dynamic, 1>*, std::vector<int> > block_map;
     int current_block_size = is_alt_block(0) ? alt_block_size : block_size;
+    std::pair<int, int> ob;
+    mpz_class coef;
     for (unsigned long int ell = 0; ell < obs.rows(); ++ell)
     {
         R = obs(ell, 0);
-        ob = (n + 1) * obs(ell, 1) + obs(ell, 2);
+        ob = {obs(ell, 1), obs(ell, 2)};
         for (int r = 0; r < R; ++r)
         {
             alt_block = is_alt_block(block);
-            ob = alt_block ? ob : (*mask_locations)(ob);
             powers[ob]++;
             if (tobs > L)
                 throw std::domain_error("what?");
@@ -77,19 +101,46 @@ void HMM::prepare_B(const Matrix<int> &obs, const int n)
                     tmp.setOnes();
                     block_prob_map[key] = std::make_tuple(tmp, tmp.array().log(), tmp.template cast<double>());
                     block_prob_map_keys.push_back(key);
-                    unsigned int tpwr = 0;
-                    mpz_class denom = 1, td;
+                    std::array<std::map<std::set<int>, int>, 4> classes;
+                    const Matrix<int> &emask = alt_block ? emission_mask : two_mask;
+                    int ai;
                     for (auto &p : powers)
                     {
-                        tpwr += p.second;
-                        mpz_fac_ui(td.get_mpz_t(), p.second);
-                        denom *= td;
+                        std::set<int> s;
+                        int a = p.first.first, b = p.first.second;
+                        if (a >= 0 and b >= 0)
+                        {
+                            ai = 0;
+                            s = {emask(a, b)};
+                        }
+                        else if (a >= 0)
+                        {
+                            for (int bb = 0; bb < n + 1; ++b)
+                                s.insert(emask(a, bb));
+                            ai = 1;
+                        }
+                        else if (b >= 0)
+                        {
+                            // a is missing => sum along cols
+                            s = {emask(0, b), emask(1, b), emask(2, b)};
+                            ai = 2;
+                        }
+                        else
+                        {
+                           ai = 3;
+                        }
+                        if (classes[ai].count(s) == 0)
+                            classes[ai].emplace(s, 0);
+                        classes[ai][s] += p.second;
                     }
-                    mpz_class num;
-                    mpz_fac_ui(num.get_mpz_t(), tpwr);
-                    mpz_class coef = num / denom;
-                    if (tpwr == 0)
-                        coef = 1_mpq;
+                    coef = multinomial({classes[0].size(), classes[1].size(), classes[2].size(), classes[3].size()});
+                    for (int j = 0; j < 4; ++j)
+                    {
+                        std::vector<int> values;
+                        for (auto &kv : classes[j])
+                            values.push_back(kv.second);
+                        coef *= multinomial(values);
+                    }
                     comb_coeffs[key] = coef.get_ui();
                 }
                 Bptr[block] = &std::get<0>(block_prob_map[key]);
@@ -231,38 +282,66 @@ typename Eigen::DenseBase<Der>::Scalar dirichlet_multinomial_C(const Eigen::Dens
 void HMM::recompute_B(void)
 {
     PROGRESS("recompute B");
+    std::map<int, Vector<adouble> > mask_probs, two_probs;
+    int em;
+    for (int i = 0; i < 3; ++i)
+        for (int j = 0; j < n + 1; ++j)
+        {
+            em = emission_mask(i, j);
+            if (mask_probs.count(em) == 0)
+                mask_probs[em] = Vector<adouble>::Zero(M);
+            mask_probs[em] += emission->col((n + 1) * i + j);
+            if (two_probs.count(i % 2) == 0)
+                two_probs[i % 2] = Vector<adouble>::Zero(M);
+            two_probs[i % 2] += emission->col((n + 1) * i + j);
+        }
 #pragma omp parallel for
     for (auto it = block_prob_map_keys.begin(); it < block_prob_map_keys.end(); ++it)
     {
         Eigen::Array<adouble, Eigen::Dynamic, 1> tmp = Eigen::Array<adouble, Eigen::Dynamic, 1>::Ones(M), tmp2;
         Eigen::Array<adouble, Eigen::Dynamic, 1> log_tmp = Eigen::Array<adouble, Eigen::Dynamic, 1>::Zero(M);
-        const Matrix<adouble> *em_ptr = it->alt_block ? emission : emission_mask;
-        // if (it->alt_block)
-        if (false)
+        const Matrix<int> &emask = it->alt_block ? emission_mask : two_mask;
+        std::map<int, Vector<adouble> > &prbs = it->alt_block ? mask_probs : two_probs;
+        Vector<adouble> ob;
+        for (auto &p : it->powers)
         {
-            for (int m = 0; m < M; ++m)
-                tmp(m) = dirichlet_multinomial_C(em_ptr->row(m), it->powers);
-            log_tmp = log(tmp);
-        }
-        else
-        {
-            for (auto &p : it->powers)
+            int a = p.first.first, b = p.first.second;
+            if (a == -1)
             {
-                for (int i = 0; i < tmp.rows(); ++i)
-                    tmp(i) *= Eigen::pow(em_ptr->col(p.first)(i), p.second);
-                log_tmp += em_ptr->col(p.first).array().log() * p.second;
+                if (b == -1)
+                    // Double missing!
+                    continue;
+                else
+                {
+                    ob = prbs[emask(0, b)];
+                    for (int x : std::set<int>{emask(1, b), emask(2, b)})
+                        ob += prbs[x];
+                }
             }
+            else
+            {
+                if (b == -1)
+                {
+                    ob = prbs[emask(a, 0)];
+                    std::set<int> bbs;
+                    for (int bb = 1; bb < emask.cols(); ++bb)
+                        bbs.insert(bb);
+                    for (int x : bbs)
+                        ob += prbs[x];
+                }
+                else
+                    ob = prbs[emask(a, b)];
+            }
+            log_tmp += ob.array().log() * p.second;
         }
-        tmp *= comb_coeffs[*it];
         log_tmp += log(comb_coeffs[*it]);
+        tmp = exp(log_tmp);
         check_nan(tmp);
         check_nan(log_tmp);
         std::get<0>(block_prob_map[*it]) = tmp.matrix();
         std::get<1>(block_prob_map[*it]) = log_tmp;
         std::get<2>(block_prob_map[*it]) = tmp.matrix().template cast<double>();
     }
-    // for (int ell = 0; ell < Ltot; ++ell)
-        // B.col(ell) = *Bptr[ell];
     PROGRESS_DONE();
 }
 

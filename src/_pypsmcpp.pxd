@@ -33,6 +33,7 @@ cdef extern from "inference_manager.h":
         vector[adouble] Q(double)
         double R(const ParameterVector, double t)
         bool debug
+        bool hj
         double getRegularizer()
         vector[pMatrixD] getXisums()
         vector[pMatrixD] getAlphas()
@@ -44,6 +45,6 @@ cdef extern from "inference_manager.h":
         Matrix[adouble]& getTransition()
         Matrix[adouble]& getEmission()
         Matrix[adouble]& getMaskedEmission()
-        vector[vector[pair[bool, map[int, int]]]] getBlockKeys()
+        vector[vector[pair[bool, map[pair[int, int], int]]]] getBlockKeys()
     Matrix[T] sfs_cython[T](int, const ParameterVector&, double, double, double)
     Matrix[T] sfs_cython[T](int, const ParameterVector&, double, double, double, vector[pair[int, int]])
