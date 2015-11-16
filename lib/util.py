@@ -2,6 +2,12 @@ import numpy as np
 import functools
 import itertools
 
+sawtooth = {
+        'a': np.array([7.1, 7.1, 0.9, 7.1, 0.9, 7.1, 0.9]),
+        'b': np.array([7.1, 0.9, 7.1, 0.9, 7.1, 0.9, 0.9]),
+        's_gen': np.array([1000.0, 4000.0 - 1000., 10500. - 4000., 65000. - 10500., 115000. - 65000., 1e6 - 115000, 1.0]) / 25.0
+        }
+
 def grouper(iterable, n, fillvalue=None):
     "Collect data into fixed-length chunks or blocks"
     # grouper('ABCDEFG', 3, 'x') --> ABC DEF Gxx
@@ -93,4 +99,5 @@ def hmm_data_format(dataset, n, distinguished_rows):
     assert np.all(ret[:, 2] >= 0)
     assert np.all(ret[:, 0] >= 1)
     return ret
+
 
