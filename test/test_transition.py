@@ -10,27 +10,67 @@ rho = 1e-4
 def hs():
     return np.array([0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 8.0, 10.0, 13.0, np.inf])
 
-def test_d(constant_demo_1, hs):
-    a, b, s = constant_demo_1
+def test_d(fake_obs, constant_demo_1):
+    N0 = 10000.
+    theta = 1.25e-8
+    rho = theta / 4.
+    obs_list = [fake_obs[:10]]
+    n = 26
+    hidden_states = np.array([  0.        ,   0.0557381 ,   0.10195686,   0.12346455,
+         0.13234427,   0.14137324,   0.28881064,   0.45318096,
+         0.54786669,   0.62940343,   0.70119707,   0.77310611,
+         0.82501483,   0.87793155,   0.93189619,   1.06666826,
+         1.24549378,   1.4292705 ,   1.60683828,   1.78367717,
+         1.79302099,   1.80257963,   1.8123632 ,   1.82238254,
+         1.83264929,   1.84317599,   1.85397615,   1.86506434,
+         1.87645635,   1.88816931,   1.90022182,   1.91263416,
+         1.92542847,   1.93862903,   1.95226246,   1.96635813,
+         1.98094849,   1.99606952,   2.01176128,   2.02806857,
+         2.04504164,   2.06273718,   2.08121945,   2.10056165,
+         2.12084775,   2.1421746 ,   2.16465481,   2.18842027,
+         2.21264423,   2.23754309,   2.26416043,   2.29275117,
+         2.32363152,   2.35720038,   2.39397089,   2.43461882,
+         2.48005933,   2.53157553,   2.59104662,   2.661386  ,
+         2.74747443,   2.85846172,   3.01488953,   3.28230463,  14.9       ])
+    hidden_states = hidden_states[::5]
+    M = hidden_states.shape[0] - 1
+    em = np.arange(3 *  (n - 1), dtype=int).reshape([3, n - 1])
+    em[0] = em[2] = 0
+    em[1] = 1
+    print(obs_list)
+    im = _pypsmcpp.PyInferenceManager(n - 2, obs_list, hidden_states, 
+            4.0 * N0 * theta, 4.0 * N0 * rho, 50, n, [0], em)
+    a = np.ones(10)
+    b = a
+    s = np.logspace(np.log10(.01), np.log10(3.), 10)
+    print('hs', hidden_states)
+    print('cumsum(s)', np.cumsum(s))
     K = len(a)
-    eps = 2e-8
-    trans1, jac = _pypsmcpp.transition(constant_demo_1, hs, rho, True)
-    I = np.eye(K)
-    M = trans1.shape[0]
-    for ind in (0, 1, 2):
-        for k in range(K):
-            args = [a, b, s]
-            if ind == 2 and k == 0:
-                pass
-            args[ind] = args[ind] + eps * I[k]
-            trans2 = _pypsmcpp.transition(args, hs, rho, False)
-            for i in range(M):
-                for j in range(M):
-                    jaca = jac[i, j, ind, k]
-                    j1 = trans2[i, j]
-                    j2 = trans1[i, j] + eps * jaca
-                    print(ind, k, i, j, jaca, (trans2[i,j] - trans1[i,j]) / eps)
-                    # assert abs(j1 - j2) < eps
+    eps = 1e-8
+    for hj in [True, False]:
+        im.hj = hj
+        print((a,b,s))
+        coords = [(x, y) for x in [0] for y in range(K)]
+        im.setParams((a,b,s), coords)
+        trans1, jac = im.transition
+        print(hj, trans1)
+        jac.shape = (M, M, 1, K)
+        I = np.eye(K)
+        M = trans1.shape[0]
+        for ind in (0,):
+            for k in range(K):
+                args = [a, b, s]
+                args[ind] = args[ind] + eps * I[k]
+                im.setParams(args, False)
+                trans2 = im.transition
+                for i in range(M):
+                    for j in range(M):
+                        jaca = jac[i, j, ind, k]
+                        j1 = trans2[i, j]
+                        j2 = trans1[i, j] + eps * jaca
+                        print(ind, k, i, j, jaca, (trans2[i,j] - trans1[i,j]) / eps)
+                        # assert abs(j1 - j2) < eps
+    assert False
 
 def test_equal_jac_nojac(constant_demo_1, hs):
     from timeit import default_timer as timer
