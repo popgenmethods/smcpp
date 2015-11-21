@@ -472,5 +472,28 @@ void PiecewiseExponentialRateFunction<T>::tjj_double_integral_below(
     tgt.row(m) = ts_integrals.transpose();
 }
 
+template <typename T>
+T exp1_conditional(T a, T b, std::mt19937 &gen)
+{
+    // If X ~ Exp(1),
+    // P(X < x | a <= X <= b) = (e^-a - e^-x) / (e^-a - e^-b)
+    // so P^-1(y) = -log(e^-a - (e^-a - e^-b) * y)
+    //            = -log(e^-a(1 - (1 - e^-(b-a)) * y)
+    //            = a - log(1 - (1 - e^-(b-a)) * y)
+    //            = a - log(1 + expm1(-(b-a)) * y)
+    double unif = std::uniform_real_distribution<double>{0.0, 1.0}(gen);
+    if (std::isinf(toDouble(b)))
+        return a - log1p(-unif);
+    else
+        return a - log1p(expm1(-(b - a)) * unif);
+}
+
+template <typename T>
+T PiecewiseExponentialRateFunction<T>::random_time(const T &a, const T &b, std::mt19937 &gen) const
+{
+    return (*getRinv())(exp1_conditional(R(a), R(b), gen));
+}
+
+
 template class PiecewiseExponentialRateFunction<double>;
 template class PiecewiseExponentialRateFunction<adouble>;

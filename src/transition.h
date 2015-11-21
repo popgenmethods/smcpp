@@ -1,6 +1,7 @@
 #ifndef TRANSITION_H
 #define TRANSITION_H
 
+#include <random>
 #include <map>
 #include <unsupported/Eigen/NumericalDiff>
 
@@ -42,14 +43,11 @@ class HJTransition : public Transition<T>
     public:
     HJTransition(const PiecewiseExponentialRateFunction<T> &eta, const double rho) : Transition<T>(eta, rho) 
     { 
-        compute_hs_midpoints();
         compute(); 
     }
 
     protected:
-    void compute_hs_midpoints();
     void compute();
-    std::vector<T> hs_midpoints;
     Matrix<T> expm(int, int);
     std::map<std::pair<int, int>, Matrix<T>> _expm_memo;
     const std::map<std::pair<int, int>, Matrix<T>> & expm_memo(void) { return _expm_memo; }

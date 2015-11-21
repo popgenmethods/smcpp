@@ -25,6 +25,20 @@ below_coeff compute_below_coeffs(int n)
         }
         ret.coeffs = mlast;
         below_coeffs_memo.emplace(n, ret); 
+        /*
+        for (int i = 0; i < ret.coeffs.rows(); ++i)
+        {
+            std::cout << "{";
+            for (int j = 0; j < ret.coeffs.cols(); ++j)
+            {
+                std::cout << ret.coeffs(i, j);
+                if (j < ret.coeffs.cols() - 1)
+                    std::cout << ",";
+            }
+            std::cout << "},\n";
+        }
+        std::cout << std::endl;
+        */
         PROGRESS_DONE();
     }
     return below_coeffs_memo[n];
@@ -178,10 +192,13 @@ std::vector<Matrix<T> >& ConditionedSFS<T>::compute(const PiecewiseExponentialRa
         T tauh = csfs[i].sum();
         check_nan(tauh);
         csfs[i] *= -expm1(-theta * tauh) / tauh;
-        csfs[i](0, 0) = exp(-theta * tauh);
         T tiny = eta.one * 1e-20;
         csfs[i] = csfs[i].unaryExpr([=](const T x) { if (x < 1e-20) return tiny; if (x < -1e-8) throw std::domain_error("very negative sfs"); return x; });
+        tauh = csfs[i].sum();
+        csfs[i](0, 0) = 1. - tauh;
         check_nan(csfs[i]);
+        if (csfs[i].minCoeff() < 0 or csfs[i].maxCoeff() > 1)
+            throw std::runtime_error("csfs is not a probability distribution");
      }
     return csfs;
 }

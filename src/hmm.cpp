@@ -102,6 +102,7 @@ void HMM::prepare_B(const Matrix<int> &obs)
                     block_prob_map[key] = std::make_tuple(tmp, tmp.array().log(), tmp.template cast<double>());
                     block_prob_map_keys.push_back(key);
                     std::array<std::map<std::set<int>, int>, 4> classes;
+                    std::vector<int> ctot(4, 0);
                     const Matrix<int> &emask = alt_block ? emission_mask : two_mask;
                     int ai;
                     for (auto &p : powers)
@@ -115,7 +116,7 @@ void HMM::prepare_B(const Matrix<int> &obs)
                         }
                         else if (a >= 0)
                         {
-                            for (int bb = 0; bb < n + 1; ++b)
+                            for (int bb = 0; bb < n + 1; ++bb)
                                 s.insert(emask(a, bb));
                             ai = 1;
                         }
@@ -132,8 +133,9 @@ void HMM::prepare_B(const Matrix<int> &obs)
                         if (classes[ai].count(s) == 0)
                             classes[ai].emplace(s, 0);
                         classes[ai][s] += p.second;
+                        ctot[ai] += p.second;
                     }
-                    coef = multinomial({classes[0].size(), classes[1].size(), classes[2].size(), classes[3].size()});
+                    coef = multinomial(ctot);
                     for (int j = 0; j < 4; ++j)
                     {
                         std::vector<int> values;
@@ -305,6 +307,7 @@ void HMM::recompute_B(void)
         Vector<adouble> ob;
         for (auto &p : it->powers)
         {
+            ob = Vector<adouble>::Zero(M);
             int a = p.first.first, b = p.first.second;
             if (a == -1)
             {
@@ -313,8 +316,7 @@ void HMM::recompute_B(void)
                     continue;
                 else
                 {
-                    ob = prbs[emask(0, b)];
-                    for (int x : std::set<int>{emask(1, b), emask(2, b)})
+                    for (int x : std::set<int>{emask(0, b), emask(1, b), emask(2, b)})
                         ob += prbs[x];
                 }
             }
@@ -322,10 +324,9 @@ void HMM::recompute_B(void)
             {
                 if (b == -1)
                 {
-                    ob = prbs[emask(a, 0)];
                     std::set<int> bbs;
-                    for (int bb = 1; bb < emask.cols(); ++bb)
-                        bbs.insert(bb);
+                    for (int bb = 0; bb < emask.cols(); ++bb)
+                        bbs.insert(emask(a, bb));
                     for (int x : bbs)
                         ob += prbs[x];
                 }
@@ -336,6 +337,8 @@ void HMM::recompute_B(void)
         }
         log_tmp += log(comb_coeffs[*it]);
         tmp = exp(log_tmp);
+        if (tmp.maxCoeff() > 1.0 or tmp.minCoeff() < 0.0)
+            throw std::runtime_error("probability vector not in [0, 1]");
         check_nan(tmp);
         check_nan(log_tmp);
         std::get<0>(block_prob_map[*it]) = tmp.matrix();
@@ -356,7 +359,8 @@ void HMM::forward_backward(void)
     alpha_hat.col(0) /= c(0);
     for (int ell = 1; ell < Ltot; ++ell)
     {
-        alpha_hat.col(ell) = Bptr[ell]->template cast<double>().asDiagonal() * (is_alt_block(ell - 1) ? ttalt : ttpow).transpose() * alpha_hat.col(ell - 1);
+        alpha_hat.col(ell) = Bptr[ell]->template cast<double>().asDiagonal() * 
+            (is_alt_block(ell - 1) ? ttalt : ttpow).transpose() * alpha_hat.col(ell - 1);
         c(ell) = alpha_hat.col(ell).sum();
         if (std::isnan(toDouble(c(ell))))
             throw std::domain_error("something went wrong in forward algorithm");
@@ -364,7 +368,8 @@ void HMM::forward_backward(void)
     }
     beta_hat.col(Ltot - 1) = Vector<double>::Ones(M);
     for (int ell = Ltot - 2; ell >= 0; --ell)
-        beta_hat.col(ell) = (is_alt_block(ell) ? ttalt : ttpow) * Bptr[ell + 1]->template cast<double>().asDiagonal() * beta_hat.col(ell + 1) / c(ell + 1);
+        beta_hat.col(ell) = (is_alt_block(ell) ? ttalt : ttpow) * 
+            Bptr[ell + 1]->template cast<double>().asDiagonal() * beta_hat.col(ell + 1) / c(ell + 1);
     PROGRESS_DONE();
 }
 

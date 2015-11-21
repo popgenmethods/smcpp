@@ -1,6 +1,7 @@
 #ifndef PIECEWISE_EXPONENTIAL_RATE_FUNCTION_H
 #define PIECEWISE_EXPONENTIAL_RATE_FUNCTION_H
 
+#include <random>
 #include "common.h"
 #include "function_evaluator.h"
 #include "mpq_support.h"
@@ -49,6 +50,7 @@ class PiecewiseExponentialRateFunction
     Matrix<T> tjj_all_above(const int, const MatrixXq&, const MatrixXq&, const MatrixXq&, const MatrixXq&) const;
     void tjj_double_integral_above(const int, long, std::vector<Matrix<T> > &) const;
     void tjj_double_integral_below(const int, const int, Matrix<T>&) const;
+    T random_time(const T&, const T&, std::mt19937&) const;
 
     friend class ConditionedSFS<T>;
 
@@ -60,7 +62,7 @@ class PiecewiseExponentialRateFunction
         return os;
     }
     
-    // private:
+    private:
     T init_derivative(double x);
     std::vector<std::vector<double>> params;
     int K;

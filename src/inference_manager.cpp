@@ -49,7 +49,9 @@ InferenceManager::InferenceManager(
         throw std::runtime_error("largest hidden state cannot exceed T_MAX=" + std::to_string(T_MAX));
     pi = Vector<adouble>::Zero(M);
     transition = Matrix<adouble>::Zero(M, M);
+    transition.setZero();
     emission = Matrix<adouble>::Zero(M, 3 * (n + 1));
+    emission.setZero();
 #pragma omp parallel for
     for (int i = 0; i < observations.size(); ++i)
     {
