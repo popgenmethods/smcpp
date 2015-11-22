@@ -196,7 +196,12 @@ std::vector<Matrix<T> >& ConditionedSFS<T>::compute(const PiecewiseExponentialRa
         csfs[i] = csfs[i].unaryExpr([=](const T x) { if (x < 1e-20) return tiny; if (x < -1e-8) throw std::domain_error("very negative sfs"); return x; });
         tauh = csfs[i].sum();
         csfs[i](0, 0) = 1. - tauh;
-        check_nan(csfs[i]);
+        try { check_nan(csfs[i]); }
+        catch (std::runtime_error)
+        {
+            std::cout << i << "\n" << csfs[i].template cast<double>() << std::endl;
+            throw;
+        }
         if (csfs[i].minCoeff() < 0 or csfs[i].maxCoeff() > 1)
             throw std::runtime_error("csfs is not a probability distribution");
      }
