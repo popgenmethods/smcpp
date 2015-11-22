@@ -313,10 +313,10 @@ void HJTransition<T>::compute(void)
     auto R = eta->getR();
     T r, p_coal;
     this->Phi.setZero();
-    std::vector<std::pair<T, T> > rtimes;
     const int Q = 10;
     for (int j = 1; j < this->M; ++j)
     {
+        std::vector<std::pair<T, T> > rtimes;
         for (int q = 0; q < Q; ++q)
         {
             T rand_time = eta->random_time(eta->hidden_states[j - 1], eta->hidden_states[j], gen);
@@ -352,7 +352,6 @@ void HJTransition<T>::compute(void)
         this->Phi(j - 1, j - 1) = 0;
         T rowsum = this->Phi.row(j - 1).sum();
         this->Phi(j - 1, j - 1) = eta->one - rowsum;
-        // this->Phi.row(j - 1) /= this->Phi.row(j - 1).sum();
     }
 }
 
