@@ -126,13 +126,9 @@ void ConditionedSFS<T>::compute_below(const PiecewiseExponentialRateFunction<T> 
 #pragma omp parallel for
     for (int m = 0; m < eta.K; ++m)
         eta.tjj_double_integral_below(n, m, ts_integrals);
-    Matrix<T> last = ts_integrals.topRows(eta.hs_indices[0]).colwise().sum(), next;
     for (int h = 1; h < H + 1; ++h)
-    {
-        next = ts_integrals.topRows(eta.hs_indices[h]).colwise().sum();
-        tjj_below.row(h - 1) = next - last;
-        last = next;
-    }
+        tjj_below.row(h - 1) = ts_integrals.block(eta.hs_indices[h - 1], 0, 
+                eta.hs_indices[h] - eta.hs_indices[h - 1], n + 1).colwise().sum();
     PROGRESS("matrix products below");
     M0_below = tjj_below * mcache.M0.template cast<T>();
     M1_below = tjj_below * mcache.M1.template cast<T>();
@@ -192,8 +188,10 @@ std::vector<Matrix<T> >& ConditionedSFS<T>::compute(const PiecewiseExponentialRa
         T tauh = csfs[i].sum();
         check_nan(tauh);
         csfs[i] *= -expm1(-theta * tauh) / tauh;
+        check_nan(csfs[i]);
         T tiny = eta.one * 1e-20;
         csfs[i] = csfs[i].unaryExpr([=](const T x) { if (x < 1e-20) return tiny; if (x < -1e-8) throw std::domain_error("very negative sfs"); return x; });
+        check_nan(csfs[i]);
         tauh = csfs[i].sum();
         csfs[i](0, 0) = 1. - tauh;
         try { check_nan(csfs[i]); }
