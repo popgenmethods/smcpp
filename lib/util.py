@@ -48,7 +48,7 @@ def kl(sfs1, sfs2):
     nz = s1 != 0.0
     return (s1[nz] * (np.log(s1[nz]) - np.log(s2[nz]))).sum()
 
-def dataset_from_panel(dataset, n, distinguished_rows):
+def dataset_from_panel(dataset, n, distinguished_rows, random=True):
     L, positions, haps = dataset[:3]
     if n < haps.shape[0]:
         panel = haps[[i for i in range(haps.shape[0]) if i not in distinguished_rows]]
@@ -56,15 +56,14 @@ def dataset_from_panel(dataset, n, distinguished_rows):
         h2 = np.zeros([n, K], dtype=np.int8)
         h2[:2] = haps[list(distinguished_rows)]
         for i in range(K):
-            inds = np.random.permutation([j for j in range(N) 
-                if j not in distinguished_rows
-                and panel[j, i] != -1])
+            inds = [j for j in range(N) if j not in distinguished_rows and panel[j, i] != -1]
+            if random:
+                inds = np.random.permutation(inds)
             assert len(inds) >= n - 2
             h2[2:, i] = panel[:, i][inds[:(n - 2)]]
         distinguished_rows = (0, 1)
         haps = h2
-    assert (haps[2:] == -1).sum() == 0
-    seg = (haps != 0).sum(axis=0) > 0
+    seg = np.logical_and(*[(haps != a).sum(axis=0) > 0 for a in [0, 1]])
     return (L, positions[seg], haps[:, seg]) + dataset[3:]
 
 def hmm_data_format(dataset, n, distinguished_rows):
@@ -77,6 +76,8 @@ def hmm_data_format(dataset, n, distinguished_rows):
     d = haps[list(distinguished_rows)].sum(axis=0)
     d[haps[list(distinguished_rows)].min(axis=0) == -1] = -1
     t = haps[2:].sum(axis=0)
+    if n > 2:
+        t[haps[2:].min(axis=0) == -1] = -1
     nd = d.shape[0]
     nrow = 2 * nd - 1
     ret = np.zeros([nrow, 3], dtype=int)
@@ -96,7 +97,6 @@ def hmm_data_format(dataset, n, distinguished_rows):
     assert ret.sum(axis=0)[0] == L
     ret = np.array(ret, dtype=np.int32)
     assert ret.sum(axis=0)[0] == L
-    assert np.all(ret[:, 2] >= 0)
     assert np.all(ret[:, 0] >= 1)
     return ret
 
