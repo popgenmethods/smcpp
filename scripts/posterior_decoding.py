@@ -14,7 +14,7 @@ import argparse
 import matplotlib
 matplotlib.use('Agg')
 matplotlib.rcParams.update({'font.size': 32})
-import psmcpp.scrm, psmcpp._pypsmcpp, psmcpp.util, psmcpp.plotting, psmcpp._newick
+import psmcpp.lib.scrm, psmcpp._pypsmcpp, psmcpp.lib.util, psmcpp.lib.plotting, psmcpp._newick
 np.set_printoptions(linewidth=120, precision=6, suppress=True)
 
 # Begin program
@@ -47,9 +47,9 @@ G = np.zeros([args.M, args.L])
 n_max = max(args.ns)
 if args.panel_size is None:
     args.panel_size = n_max
-demography = psmcpp.scrm.demography_from_params((a * 2.0, b * 2.0, s))
+demography = psmcpp.lib.scrm.demography_from_params((a * 2.0, b * 2.0, s))
 print(" ".join(map(str, demography)))
-data0 = psmcpp.scrm.simulate(args.panel_size, args.N0, args.theta, args.rho, 
+data0 = psmcpp.lib.scrm.simulate(args.panel_size, args.N0, args.theta, args.rho, 
         args.L, demography, include_trees=True, seed=args.seed)
 
 # Create missingness in data
@@ -59,7 +59,7 @@ if args.missing is not None:
     data0[2][inds] = -1
 
 # Draw from panel
-data = psmcpp.util.dataset_from_panel(data0, n_max, (0, 1))
+data = psmcpp.lib.util.dataset_from_panel(data0, n_max, (0, 1), True)
 
 # True coalescence times
 ct = [(c1, psmcpp._newick.tmrca(c2, "1", "2")) for c1, c2 in data[3]]
@@ -79,7 +79,7 @@ if False:
     for i, j in zip(ind, npos):
         nhap[i, j] = 1 - nhap[i, j]
     npos = nhap.sum(axis=0) > 0
-    data = (data[0], np.where(npos)[0], nhap[:, npos], data[3])
+    data = (data[1], np.where(npos)[0], nhap[:, npos], data[3])
 
 gm = {}
 ims = {}
@@ -92,23 +92,28 @@ for n in args.ns:
             and not all(h[i] == 1 for h in data[2][:n])]
     segdata = np.array([[ba[i] for i in seg] for ba in data[2][:n]])
     dsub = (data[0], data[1][seg], segdata)
-    obs = psmcpp.util.hmm_data_format(dsub, n, (0, 1))
+    obs = psmcpp.lib.util.hmm_data_format(dsub, n, (0, 1))
     # oo[n] = np.array([c1[1:] for c1 in obs for _ in range(c1[0])])
     oo[n] = obs
     hidden_states = np.array([0., 14.0])
     im = psmcpp._pypsmcpp.PyInferenceManager(n - 2, [obs[:10]], hidden_states,
             4.0 * args.N0 * args.theta, 4.0 * args.N0 * args.rho, args.block_size, 10, [0])
+    im.hj = False
     hidden_states = im.balance_hidden_states((a, b, s), args.M)
     hidden_states[-1] = 14.9
+    print('hidden states', hidden_states * args.N0 * 25)
     em = np.arange(3 *  (n - 1), dtype=int).reshape([3, n - 1])
+    # em[0, 5:] = 5
+    # em[1] = 6
+    # em[2] = 7
     print(em)
     im = psmcpp._pypsmcpp.PyInferenceManager(n - 2, [obs], hidden_states,
             4.0 * args.N0 * args.theta, 4.0 * args.N0 * args.rho, args.block_size, args.alt_freq or n, [0], em)
     im.setParams((a, b, s), False)
     im.Estep()
     ims[n] = im
-    gamma = im.gammas()[0]
-    bks[n] = im.block_keys()[0]
+    gamma = im.gammas[0]
+    bks[n] = im.block_keys[0]
     bb = 0
     for i, (_, d) in enumerate(bks[n]):
         w = sum(d.values())
@@ -120,8 +125,8 @@ import matplotlib.pyplot as plt
 
 fig, axes = plt.subplots(nrows=len(args.ns), sharex=True, sharey=True, figsize=(25, 15))
 # for i, ll in enumerate(((0, 1), (1, 2))[:2]):
-coal_times = np.searchsorted(hidden_states, list(psmcpp.util.unpack(ct))) - 1
-zct = scipy.ndimage.zoom(list(psmcpp.util.unpack(ct)), 1. * width / args.L)
+coal_times = np.searchsorted(hidden_states, list(psmcpp.lib.util.unpack(ct))) - 1
+zct = scipy.ndimage.zoom(list(psmcpp.lib.util.unpack(ct)), 1. * width / args.L)
 true_pos = scipy.ndimage.zoom(coal_times, 1. * width / args.L)
 # axes[-1].step(range(width), true_pos)
 #end i loop
@@ -142,5 +147,5 @@ for n in sorted(gm):
     ax.set_ylim([-0.5, args.M - 0.5])
     ax.set_xticklabels(label_text)
     txt = ax.text(width + 35, 0, "%.4f" % escore, rotation=-90, va='bottom', ha='right')
-psmcpp.plotting.save_pdf(fig, args.outpdf)
+psmcpp.lib.plotting.save_pdf(fig, args.outpdf)
 plt.close(fig)
