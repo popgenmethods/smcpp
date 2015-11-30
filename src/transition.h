@@ -7,7 +7,6 @@
 
 #include "common.h"
 #include "piecewise_exponential_rate_function.h"
-#include "simpsons.h"
 
 template <typename T>
 class Transition
@@ -23,18 +22,6 @@ class Transition
     const int M;
     Matrix<T> Phi;
     const double rho;
-};
-
-template <typename T> 
-class SMCPrimeTransition : public Transition<T>
-{
-    public:
-    SMCPrimeTransition(const PiecewiseExponentialRateFunction<T> &eta, const double rho) : Transition<T>(eta, rho) { compute(); }
-
-    protected:
-    void compute();
-    T P_no_recomb(const int);
-    T trans(int, int);
 };
 
 template <typename T>
