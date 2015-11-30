@@ -53,7 +53,7 @@ InferenceManager::InferenceManager(
     emission = Matrix<adouble>::Zero(M, 3 * (n + 1));
     emission.setZero();
 #pragma omp parallel for
-    for (int i = 0; i < observations.size(); ++i)
+    for (unsigned int i = 0; i < observations.size(); ++i)
     {
         int ell = L[i];
         Eigen::Matrix<int, Eigen::Dynamic, 3> obs = 

@@ -4,7 +4,9 @@
 #include <unordered_map>
 #include <map>
 #include <gmpxx.h>
+
 #include "common.h"
+#include "hash.h"
 
 struct block_key
 {
@@ -16,64 +18,19 @@ struct block_key
     }
 };
 
-// Allow for hashing of map<T, U>
-// a little helper that should IMHO be standardized
-namespace
-{
-    template<typename T>
-    std::size_t make_hash(const T& v)
-    {
-        return std::hash<T>()(v);
-    }
-
-    // adapted from boost::hash_combine
-    void hash_combine(std::size_t& h, const std::size_t& v)
-    {
-        h ^= v + 0x9e3779b9 + (h << 6) + (h >> 2);
-    }
-
-    // hash any container
-    template<typename T>
-    struct hash_container
-    {
-        size_t operator()(const T& v) const
-        {
-            size_t h=0;
-            for( const auto& e : v ) {
-                hash_combine(h, make_hash(e));
-            }
-            return h;
-        }
-    };
-}
-
-// the same for map<T,U> if T and U are hashable
 namespace std
 {
-    template<typename T, typename U>
-    struct hash<pair<T, U>>
-    {
-        size_t operator()(const pair<T,U>& v) const
-        {
-            size_t h=make_hash(v.first);
-            hash_combine(h, make_hash(v.second));
-            return h;
-        }
-    };
-    template<typename... T>
-    struct hash<map<T...>> : hash_container<map<T...>> {};
     template <>
     struct hash<block_key>
     {
         size_t operator()(const block_key& bk) const
         {
-            size_t h=make_hash(bk.alt_block);
-            hash_combine(h, make_hash(bk.powers));
+            size_t h = hash_helpers::make_hash(bk.alt_block);
+            hash_helpers::hash_combine(h, hash_helpers::make_hash(bk.powers));
             return h;
         }
     };
 }
-
 
 class InferenceManager;
 
@@ -100,10 +57,9 @@ class HMM
     void domain_error(double);
     bool is_alt_block(int);
 
-    const int block_size, alt_block_size;
-
     // Instance variables
     const int n;
+    const int block_size, alt_block_size;
     const Vector<adouble> *pi;
     const Matrix<adouble> *transition, *emission;
     const Matrix<int> emission_mask, two_mask;

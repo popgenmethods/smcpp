@@ -46,7 +46,7 @@ class ConditionedSFS : public ConditionedSFSBase
     const MoranEigensystem mei;
     const MatrixCache mcache;
     Matrix<T> tjj_below, M0_below, M1_below;
-    std::vector<Matrix<T> > csfs_below, csfs_above, csfs, C_above;
+    std::vector<Matrix<T> > csfs, csfs_below, csfs_above, C_above;
 };
 
 #endif

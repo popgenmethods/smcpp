@@ -46,11 +46,12 @@ PiecewiseExponentialRateFunction<T>::PiecewiseExponentialRateFunction(
         const std::vector<std::pair<int, int>> derivatives,
         const std::vector<double> hidden_states) :
     params(params),
-    derivatives(derivatives), K(params[0].size()), ada(params[0].begin(), params[0].end()), 
-    adb(params[1].begin(), params[1].end()), ads(params[2].begin(), params[2].end()),
-    ts(K + 1), Rrng(K), _reg(0.0), 
+    derivatives(derivatives), 
     zero(init_derivative(0.0)), one(init_derivative(1.0)),
-    hidden_states(hidden_states)
+    K(params[0].size()), ada(params[0].begin(), params[0].end()), 
+    adb(params[1].begin(), params[1].end()), ads(params[2].begin(), params[2].end()),
+    ts(K + 1), Rrng(K), 
+    _reg(0.0), hidden_states(hidden_states)
 {
     for (auto &pp : params)
         if (pp.size() != params[0].size())

@@ -77,14 +77,14 @@ void HMM::prepare_B(const Matrix<int> &obs)
     block_key key;
     unsigned long int L = obs.col(0).sum();
     std::map<Eigen::Array<adouble, Eigen::Dynamic, 1>*, std::vector<int> > block_map;
-    int current_block_size = is_alt_block(0) ? alt_block_size : block_size;
+    unsigned int current_block_size = is_alt_block(0) ? alt_block_size : block_size;
     std::pair<int, int> ob;
     mpz_class coef;
-    for (unsigned long int ell = 0; ell < obs.rows(); ++ell)
+    for (unsigned int ell = 0; ell < obs.rows(); ++ell)
     {
         R = obs(ell, 0);
         ob = {obs(ell, 1), obs(ell, 2)};
-        for (int r = 0; r < R; ++r)
+        for (unsigned int r = 0; r < R; ++r)
         {
             alt_block = is_alt_block(block);
             powers[ob]++;

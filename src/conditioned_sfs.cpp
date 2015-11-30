@@ -279,6 +279,7 @@ void print_sfs(int n, const std::vector<double> &sfs)
 template class ConditionedSFS<double>;
 template class ConditionedSFS<adouble>;
 
+/*
 int csfs_main(int argc, char** argv)
 {
     int n = atoi(argv[1]);
@@ -309,3 +310,4 @@ int csfs_main(int argc, char** argv)
             << std::endl << std::endl;
     }
 }
+*/

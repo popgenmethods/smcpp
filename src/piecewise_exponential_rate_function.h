@@ -7,17 +7,6 @@
 #include "mpq_support.h"
 #include "exponential_integrals.h"
 
-/*
-template <typename T>
-class Machar<MyAutoDiffScalar<T> > : public Machar<typename MyAutoDiffScalar<T>::Scalar> 
-{
-    public:
-    inline MyAutoDiffScalar<T> abs(MyAutoDiffScalar<T> x) { return myabs(x); }
-    inline MyAutoDiffScalar<T> max(MyAutoDiffScalar<T> x, MyAutoDiffScalar<T> y) { return dmax(x, y); }
-    inline MyAutoDiffScalar<T> min(MyAutoDiffScalar<T> x, MyAutoDiffScalar<T> y) { return dmin(x, y); }
-};
-*/
-
 template <typename T>
 class ConditionedSFS;
 
@@ -43,9 +32,6 @@ class PiecewiseExponentialRateFunction
     T R_integral(const T, const T, const int) const;
     void print_debug() const;
     const T regularizer(void) const { return _reg; }
-    const std::vector<std::pair<int, int>> derivatives;
-    const T zero;
-    const T one;
     
     Matrix<T> tjj_all_above(const int, const MatrixXq&, const MatrixXq&, const MatrixXq&, const MatrixXq&) const;
     void tjj_double_integral_above(const int, long, std::vector<Matrix<T> > &) const;
@@ -65,6 +51,13 @@ class PiecewiseExponentialRateFunction
     private:
     T init_derivative(double x);
     std::vector<std::vector<double>> params;
+    const std::vector<std::pair<int, int>> derivatives;
+    
+    public:
+    const T zero;
+    const T one;
+
+    private:
     int K;
     std::vector<T> ada, adb, ads, ts, Rrng;
     void initialize_derivatives();
