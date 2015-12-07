@@ -11,7 +11,8 @@ from collections import Counter
 import sys
 import time
 import argparse
-import psmcpp.scrm, psmcpp._pypsmcpp, psmcpp.util, _newick
+import psmcpp._pypsmcpp
+from psmcpp.lib.util import config2dict
 import ConfigParser as configparser
 import cPickle as pickle
 
@@ -23,6 +24,7 @@ def exp_quantiles(M, h_M):
 
 parser = argparse.ArgumentParser("smc++")
 parser.add_argument("--debug", action="store_true", default=False, help="display a lot of debugging info")
+parser.add_argument("--comment", default=None, type=str)
 parser.add_argument('config', type=argparse.FileType('r'), help="config file")
 parser.add_argument('data', type=argparse.FileType('rb'), help="data file in smcpp format")
 args = parser.parse_args()
@@ -33,8 +35,22 @@ obs_list = smcpp_data['obs']
 n = smcpp_data['n']
 config = configparser.SafeConfigParser()
 config.readfp(args.config)
+print(config2dict(config))
 
-# Hidden states
+## Calculate observed SFS for use later
+osfs = []
+for ol0 in obs_list:
+    obsfs = np.zeros([3, n - 1])
+    for r, c1, c2 in ol0[ol0[:, 1:].sum(axis=1) > 0]:
+        obsfs[c1, c2] += r
+    obsfs /= ol0[:, 0].sum()
+    obsfs[0, 0] = 1. - obsfs.sum()
+    osfs.append(obsfs)
+obsfs = np.mean(osfs, axis=0)
+print(" - Observed sfs:")
+print(obsfs)
+
+## Compute hidden states
 try:
     hs = np.array(eval(config.get('hidden states', 'hidden states')))
 except configparser.NoOptionError:
@@ -47,32 +63,34 @@ print("hidden states", hs)
 
 # Emission mask
 em = np.arange(3 * (n - 1), dtype=int).reshape([3, n - 1])
-# em[3:] = 3
+# em[0, 3:] = 3
 # em[1] = 4
 # em[2] = 5
 
 # Model parameters
+mbs = config.getfloat('advanced', 'minimum block size')
+
 try:
-    ts = eval(config.get('model parameters', 'ts'))
+    ts = np.array(eval(config.get('model parameters', 'ts')))
     s = ts[1:] - ts[:-1]
+    K = len(s)
 except configparser.NoOptionError:
-    K = config.getint('model parameters', 'K')
+    t_1 = config.getfloat('model parameters', 't_1')
     t_K = config.getfloat('model parameters', 't_K')
-    s = np.logspace(np.log10(.005), np.log10(t_K), K)
-    s = np.concatenate(([.005], s[1:] - s[:-1]))
+    K = config.getint('model parameters', 'K')
+    s = np.logspace(np.log10(t_1), np.log10(t_K), K)
+    s = np.concatenate(([t_1], s[1:] - s[:-1]))
     s = np.append(s, .1)
 print("time points", s)
 print(np.cumsum(s))
+
+hs = np.unique(np.sort(np.concatenate([np.cumsum(s), hs])))
 
 # Load additional params
 N0 = config.getfloat('parameters', 'N0')
 mu = config.getfloat('parameters', 'mu')
 rho = config.getfloat('parameters', 'rho')
 block_size = config.getint('advanced', 'block size')
-try:
-    psmcpp._pypsmcpp.set_hj(config.getboolean('advanced', 'use hj'))
-except configparser.NoOptionError:
-    psmcpp._pypsmcpp.set_hj(True)
 
 t_start = time.time()
 try:
@@ -83,6 +101,12 @@ except configparser.NoOptionError:
 im = psmcpp._pypsmcpp.PyInferenceManager(n - 2, obs_list, hs,
         4.0 * N0 * mu, 4.0 * N0 * rho,
         block_size, thinning, [0], em)
+
+try:
+    im.hj = config.getboolean('advanced', 'use hj')
+except configparser.NoOptionError:
+    im.hj = True
+print("using hj: {hj}".format(hj=im.hj))
 
 K = len(s)
 x0 = np.ones([2, K])
@@ -96,6 +120,7 @@ else:
 
 im.setParams((a,b,s),False)
 im.Estep()
+
 llold = -np.inf
 bounds = np.array([[0.1, 20.0]] * K + [[0.15, 19.9]] * K).reshape([2, K, 2])
 
@@ -145,12 +170,13 @@ def optimize_fullgrad(iter, coords, x0, factr=1e7):
         # print("------")
         return ret
     # print("gradient check")
-    # f0, fp = fprime([x0[cc] for cc in coords])
+    # xx0 = np.array([x0[cc] / precond[cc[1]] for cc in coords])
+    # f0, fp = fprime(xx0)
     # for i, cc in enumerate(coords):
-    #     x0c = x0.copy()
-    #     x0c[cc] += 1e-8
-    #     f1, _ = fprime([x0c[cc] for cc in coords])
-    #     print(i, f1, f0, (f1 - f0) / 1e-8, fp[i])
+    #     x0c = xx0.copy()
+    #     x0c[i] += 1e-8
+    #     f1, _ = fprime(x0c)
+    #     print(cc, f1, f0, (f1 - f0) / 1e-8, fp[i])
     # print("gradient check", scipy.optimize.check_grad(lambda x: fprime(x)[0], lambda x: fprime(x)[1], x0))
     res = scipy.optimize.fmin_l_bfgs_b(fprime, [x0[cc] / precond[cc[1]] for cc in coords], 
             None, bounds=[tuple(bounds[cc] / precond[cc[1]]) for cc in coords], disp=False, factr=factr)
@@ -161,15 +187,14 @@ break_loop = False
 import signal, sys
 def print_state():
     global a, b, s
-    d = {'a': a, 'b': b, 's': s, 'argv': sys.argv, 't_start': t_start, 't_now': time.time()}
-    print(repr(d))
+    d = {'a': a, 'b': b, 's': s, 'argv': sys.argv, 't_start': t_start, 't_now': time.time(), 'config': config2dict(config), 'comment': args.comment}
+    pprint.pprint(repr(d))
     return d
 
 def signal_handler(signal, frame):
-    print("Terminating optimization...")
+    print("State...")
     print_state()
-    sys.exit(1)
-signal.signal(signal.SIGINT, signal_handler)
+# signal.signal(signal.SIGINT, signal_handler)
 
 def run_iteration(i, coords, factr):
     global x0
@@ -200,8 +225,13 @@ i = 0
 ca = [0]
 if not flat:
     ca.append(1)
-while i < 30:
+while i < 20:
     coords = [(aa, j) for aa in ca for j in range(K)]
-    run_iteration(i, coords, 1e9)
+    run_iteration(i, coords, (10**(12 - i / 10.)))
+    esfs = psmcpp._pypsmcpp.sfs(n, (a,b,s), 0.0, hs[-1], 4 * N0 * mu, False)
+    print("calculated sfs")
+    print(esfs)
+    print("observed sfs")
+    print(obsfs)
     i += 1
 d = print_state()

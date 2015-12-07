@@ -100,4 +100,5 @@ def hmm_data_format(dataset, n, distinguished_rows):
     assert np.all(ret[:, 0] >= 1)
     return ret
 
-
+def config2dict(cp):
+    return {sec: dict(cp.items(sec)) for sec in cp.sections()}

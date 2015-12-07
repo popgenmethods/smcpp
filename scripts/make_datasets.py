@@ -10,7 +10,7 @@ import cPickle as pickle
 import os.path
 import vcf
 import cStringIO
-import psmcpp, psmcpp.scrm, psmcpp.util
+import psmcpp, psmcpp.lib.scrm, psmcpp.lib.util
 
 parser = argparse.ArgumentParser()
 parser.add_argument("seed", type=int)
@@ -46,7 +46,7 @@ def mk_outdir(prog):
 np.random.seed = args.seed
 
 if args.sawtooth:
-    st = psmcpp.util.sawtooth
+    st = psmcpp.lib.util.sawtooth
     a0 = st['a']
     b0 = st['b']
     s0 = st['s_gen'] / (2. * args.N0)
@@ -59,13 +59,13 @@ else:
 if args.panel_size is None:
     args.panel_size = args.n
 
-demography = psmcpp.scrm.demography_from_params((a0 * 2.0, b0 * 2.0, s0))
+demography = psmcpp.lib.scrm.demography_from_params((a0 * 2.0, b0 * 2.0, s0))
 
 # Generate data set using scrm
 print("simulating")
 def perform_sim(args):
     n, N0, theta, rho, L, demography, seed, ell = args
-    return psmcpp.scrm.simulate(n, N0, theta, rho, L, demography, False, seed, ell)
+    return psmcpp.lib.scrm.simulate(n, N0, theta, rho, L, demography, False, seed, ell)
 
 p = multiprocessing.Pool(16)
 data_sets = list(p.imap_unordered(perform_sim, 
@@ -87,7 +87,7 @@ open(os.path.join(args.outdir, "meta.txt"), "wt").write(
 # 1. Write smc++ format
 if args.smcpp:
     smcpp_outdir = mk_outdir("smc++")
-    obs = [psmcpp.util.hmm_data_format(data, args.n, (0, 1)) for data in data_sets]
+    obs = [psmcpp.lib.util.hmm_data_format(data, args.n, (0, 1)) for data in data_sets]
     smcpp_data = {"obs": obs, "n": args.n, "L": args.L, "theta": args.theta, "rho": args.rho, "N0": args.N0}
     with open(os.path.join(smcpp_outdir, "smc++.dat"), "wb") as f:
         pickle.dump(smcpp_data, f)
@@ -100,11 +100,11 @@ if args.psmc:
     psmc_outdir = mk_outdir("psmc")
     with open(os.path.join(psmc_outdir, "psmc.psmcfa"), "wt") as f:
         for i, data in enumerate(data_sets, 1):
-            obs = psmcpp.util.hmm_data_format(data, args.n, (0, 1))
+            obs = psmcpp.lib.util.hmm_data_format(data, args.n, (0, 1))
             f.write(">seq{i}\n".format(i=i))
             obsiter = ((x[0], x[1:]) for x in obs)
-            seqs = ["K" if np.sum(ob, axis=0)[0] > 0 else "T" for ob in psmcpp.util.grouper(psmcpp.util.unpack(obsiter), 100)]
-            f.writelines("".join(sq) + "\n" for sq in psmcpp.util.grouper(seqs, 60, ""))
+            seqs = ["K" if np.sum(ob, axis=0)[0] > 0 else "T" for ob in psmcpp.lib.util.grouper(psmcpp.lib.util.unpack(obsiter), 100)]
+            f.writelines("".join(sq) + "\n" for sq in psmcpp.lib.util.grouper(seqs, 60, ""))
 
 
 # The next two methods require phased data. To model the effect of
