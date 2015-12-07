@@ -68,6 +68,7 @@ class PiecewiseExponentialRateFunction
 
     public:
     const std::vector<double> hidden_states;
+    const double tmax;
 };
 
 template <typename T>

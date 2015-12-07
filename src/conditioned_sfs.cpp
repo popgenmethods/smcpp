@@ -127,7 +127,7 @@ void ConditionedSFS<T>::compute_below(const PiecewiseExponentialRateFunction<T> 
     for (int m = 0; m < eta.K; ++m)
         eta.tjj_double_integral_below(n, m, ts_integrals);
     for (int h = 1; h < H + 1; ++h)
-        tjj_below.row(h - 1) = ts_integrals.block(eta.hs_indices[h - 1] + 1, 0, 
+        tjj_below.row(h - 1) = ts_integrals.block(eta.hs_indices[h - 1], 0, 
                 eta.hs_indices[h] - eta.hs_indices[h - 1], n + 1).colwise().sum();
     PROGRESS("matrix products below");
     M0_below = tjj_below * mcache.M0.template cast<T>();

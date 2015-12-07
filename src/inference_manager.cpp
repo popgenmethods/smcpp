@@ -52,6 +52,7 @@ InferenceManager::InferenceManager(
     transition.setZero();
     emission = Matrix<adouble>::Zero(M, 3 * (n + 1));
     emission.setZero();
+    hmms.resize(observations.size());
 #pragma omp parallel for
     for (unsigned int i = 0; i < observations.size(); ++i)
     {
@@ -63,10 +64,7 @@ InferenceManager::InferenceManager(
             throw std::runtime_error("An observation has derived allele count greater than n + 1");
         PROGRESS("creating HMM");
         hmmptr h(new HMM(obs, n, block_size, &pi, &transition, &emission, emask, mask_freq, 0));
-#pragma omp critical
-        {
-            hmms.push_back(std::move(h));
-        }
+        hmms[i] = std::move(h);
     }
 }
 

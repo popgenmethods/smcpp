@@ -21,9 +21,9 @@ long num_blocks(int total_loci, int block_size, int alt_block_size, int mask_fre
     return base;
 }
 
-Matrix<int> make_two_mask(int n, int m)
+Matrix<int> make_two_mask(int m)
 {
-    Matrix<int> two_mask(n, m);
+    Matrix<int> two_mask(3, m);
     two_mask.fill(0);
     two_mask.row(1).fill(1);
     return two_mask;
@@ -35,7 +35,7 @@ HMM::HMM(const Matrix<int> &obs, int n, const int block_size,
         const int mask_freq, const int mask_offset) : 
     n(n), block_size(block_size), alt_block_size(1),
     pi(pi), transition(transition), emission(emission), emission_mask(emission_mask),
-    two_mask(make_two_mask(3, emission_mask.cols())),
+    two_mask(make_two_mask(emission_mask.cols())),
     mask_freq(mask_freq), mask_offset(mask_offset),
     M(pi->rows()), 
     Ltot(num_blocks(obs.col(0).sum(), block_size, alt_block_size, mask_freq, mask_offset)),

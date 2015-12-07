@@ -34,10 +34,11 @@ class HJTransition : public Transition<T>
     }
 
     protected:
+    Matrix<T> matrix_exp(T, T);
+    const float delta = 0.001;
     void compute();
     Matrix<T> expm(int, int);
-    std::map<std::pair<int, int>, Matrix<T>> _expm_memo;
-    const std::map<std::pair<int, int>, Matrix<T>> & expm_memo(void) { return _expm_memo; }
+    std::map<std::pair<int, int>, Matrix<T>> expm_memo;
 };
 
 template <typename T>
