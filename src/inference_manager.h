@@ -57,11 +57,10 @@ class InferenceManager
     double getRegularizer() { return toDouble(regularizer); }
 
     bool debug, hj;
-    std::vector<Matrix<double>*> getXisums();
-    std::vector<Matrix<double>*> getAlphas();
-    std::vector<Matrix<double>*> getBetas();
-    std::vector<Matrix<double>*> getGammas();
-    void setGammas(double*);
+    std::vector<Matrix<float>*> getXisums();
+    std::vector<Matrix<float>*> getAlphas();
+    std::vector<Matrix<float>*> getBetas();
+    std::vector<Matrix<float>*> getGammas();
     std::vector<Matrix<adouble>*> getBs();
     std::vector<std::vector<std::pair<bool, decltype(block_key::powers)> > > getBlockKeys();
     Matrix<adouble>& getPi();

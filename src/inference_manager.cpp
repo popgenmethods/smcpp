@@ -179,9 +179,9 @@ std::vector<adouble> InferenceManager::Q(double lambda)
             });
 }
 
-std::vector<Matrix<double>*> InferenceManager::getXisums()
+std::vector<Matrix<float>*> InferenceManager::getXisums()
 {
-    std::vector<Matrix<double>*> ret;
+    std::vector<Matrix<float>*> ret;
     for (auto &hmm : hmms)
     {
         ret.push_back(&hmm->xisum);
@@ -189,9 +189,9 @@ std::vector<Matrix<double>*> InferenceManager::getXisums()
     return ret;
 }
 
-std::vector<Matrix<double>*> InferenceManager::getAlphas()
+std::vector<Matrix<float>*> InferenceManager::getAlphas()
 {
-    std::vector<Matrix<double>*> ret;
+    std::vector<Matrix<float>*> ret;
     for (auto &hmm : hmms)
     {
         ret.push_back(&hmm->alpha_hat);
@@ -199,9 +199,9 @@ std::vector<Matrix<double>*> InferenceManager::getAlphas()
     return ret;
 }
 
-std::vector<Matrix<double>*> InferenceManager::getBetas()
+std::vector<Matrix<float>*> InferenceManager::getBetas()
 {
-    std::vector<Matrix<double>*> ret;
+    std::vector<Matrix<float>*> ret;
     for (auto &hmm : hmms)
     {
         ret.push_back(&hmm->beta_hat);
@@ -209,17 +209,9 @@ std::vector<Matrix<double>*> InferenceManager::getBetas()
     return ret;
 }
 
-void InferenceManager::setGammas(double* g)
+std::vector<Matrix<float>*> InferenceManager::getGammas()
 {
-    Matrix<double> d1 = hmms[0]->gamma;
-    Matrix<double> gam = Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>::Map(g, d1.rows(), d1.cols());
-    for (auto &hmm : hmms)
-        hmm->gamma = gam;
-}
-
-std::vector<Matrix<double>*> InferenceManager::getGammas()
-{
-    std::vector<Matrix<double>*> ret;
+    std::vector<Matrix<float>*> ret;
     for (auto &hmm : hmms)
     {
         ret.push_back(&hmm->gamma);

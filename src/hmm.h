@@ -65,41 +65,16 @@ class HMM
     const Matrix<int> emission_mask, two_mask;
     const int mask_freq, mask_offset, M, Ltot;
     std::vector<Vector<adouble>*> Bptr;
-    std::vector<Eigen::Array<adouble, Eigen::Dynamic, 1>*> logBptr;
-    std::vector<Vector<double>*> dBptr;
     Matrix<adouble> B;
-    Matrix<double> alpha_hat, beta_hat, gamma, xisum, xisum_alt;
-    Vector<double> c;
+    Matrix<float> alpha_hat, beta_hat, gamma, xisum, xisum_alt;
+    Vector<float> c;
     std::vector<int> viterbi_path;
-    std::unordered_map<block_key, std::tuple<Vector<adouble>, Eigen::Array<adouble, Eigen::Dynamic, 1>, Vector<double> > > block_prob_map;
+    std::unordered_map<block_key, Vector<adouble> > block_prob_map;
     std::vector<block_key> block_prob_map_keys;
     std::vector<std::pair<bool, decltype(block_key::powers)> > block_keys;
     std::unordered_map<block_key, unsigned long> comb_coeffs;
-    // std::unordered_map<Eigen::Array<adouble, Eigen::Dynamic, 1>*, decltype(block_prob_map)::key_type> reverse_map;
-    std::vector<std::pair<Eigen::Array<adouble, Eigen::Dynamic, 1>*, std::vector<int> > > block_pairs;
+    std::vector<std::pair<Vector<adouble>*, std::vector<int> > > block_pairs;
     friend class InferenceManager;
 };
-
-template <typename T>
-Eigen::Matrix<T, 2, 1> compute_hmm_Q(
-        const Vector<T> &pi, const Matrix<T> &transition,
-        const Matrix<T> &emission,
-        const int n, const int L, const std::vector<int*> obs,
-        int block_size,
-        int numthreads, 
-        std::vector<Matrix<double>> &gammas,
-        std::vector<Matrix<double>> &xisums,
-        bool recompute);
-
-/*
-template <typename T>
-T compute_hmm_likelihood(
-        const Vector<T> &pi, const Matrix<T> &transition,
-        const std::vector<Matrix<T>>& emission, 
-        const int L, const std::vector<int*> obs,
-        int block_size,
-        int numthreads, 
-        bool viterbi, std::vector<std::vector<int>> &viterbi_paths);
-        */
 
 #endif

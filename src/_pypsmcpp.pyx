@@ -31,15 +31,15 @@ cdef ParameterVector make_params(params):
         ret.push_back(p)
     return ret
 
-cdef _make_em_matrix(vector[pMatrixD] mats):
-    cdef double[:, ::1] v
+cdef _make_em_matrix(vector[pMatrixF] mats):
+    cdef float[:, ::1] v
     ret = []
     for i in range(mats.size()):
         m = mats[i][0].rows()
         n = mats[i][0].cols()
-        ary = aca(np.zeros([m, n]))
+        ary = aca(np.zeros([m, n], dtype=np.float32))
         v = ary
-        store_matrix(mats[i], &v[0, 0])
+        store_matrix[float](mats[i], &v[0, 0])
         ret.append(ary)
     return ret
 
@@ -128,10 +128,6 @@ cdef class PyInferenceManager:
     property gammas:
         def __get__(self):
             return _make_em_matrix(self._im.getGammas())
-        def __set__(self, A):
-            Ac = aca(A)
-            cdef double[:, ::1] Av = Ac
-            self._im.setGammas(&Av[0, 0])
 
     property Bs:
         def __get__(self):
@@ -140,15 +136,7 @@ cdef class PyInferenceManager:
             cdef double[:, :, ::1] av
             ret = []
             for i in range(mats.size()):
-                if (self._nder == 0):
-                    m = mats[i][0].rows()
-                    n = mats[i][0].cols()
-                    ary = aca(np.zeros([m, n]))
-                    v = ary
-                    store_matrix(mats[i], &v[0, 0])
-                    ret.append(ary)
-                else:
-                    ret.append(_store_admatrix_helper(mats[i][0], self._nder))
+                ret.append(_store_admatrix_helper(mats[i][0], self._nder))
             return ret
 
     property block_keys:
@@ -228,7 +216,7 @@ def sfs(int n, params, double t1, double t2, double theta, jacobian=False):
     cdef double[:, ::1] vret = ret
     if not jacobian:
         sfs = sfs_cython[double](n, p, t1, t2, theta)
-        store_matrix(&sfs, &vret[0, 0])
+        store_matrix[double](&sfs, &vret[0, 0])
         return ret
     J = len(jacobian)
     jac = aca(np.zeros([3, n - 1, J]))
@@ -243,9 +231,6 @@ cdef _store_admatrix_helper(Matrix[adouble] &mat, int nder):
     n = mat.cols()
     ary = aca(np.zeros([m, n]))
     v = ary
-    if (nder == 0):
-        store_matrix(&mat, &v[0, 0])
-        return ary
     jac = aca(np.zeros([m, n, nder]))
     av = jac
     store_admatrix(mat, nder, &v[0, 0], &av[0, 0, 0])

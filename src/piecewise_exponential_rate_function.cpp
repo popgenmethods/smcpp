@@ -113,7 +113,7 @@ PiecewiseExponentialRateFunction<T>::PiecewiseExponentialRateFunction(
     _Rinv.reset(new PExpInverseIntegralEvaluator<T>(ada, adb, ts, Rrng));
     T elast, xx, etax, tmp;
     elast = 1. / eta(ts[0]);
-    const int delta = 50;
+    const int delta = 500;
     for (int k = 0; k < K - 1; ++k)
     {
         for (int i = 1; i < delta + 1; ++i)
