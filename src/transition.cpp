@@ -31,7 +31,7 @@ void HJTransition<T>::compute(void)
     expms_hs.push_back(Matrix<T>::Identity(3, 3));
     for (int k = 1; k < this->M; ++k)
     {
-        ip = insertion_point(eta->hidden_states[k], times, 0, times.size()) - 1;
+        ip = insertion_point(eta->hidden_states[k], times, 0, times.size());
         T c_rho = (eta->hidden_states[k] - times[ip]) * this->rho;
         T c_eta = eta->R(eta->hidden_states[k]) - eta->R(times[ip]);
         expms_hs.push_back(expms[ip] * matrix_exp(c_rho, c_eta));
@@ -56,8 +56,7 @@ void HJTransition<T>::compute(void)
                 p_coal = exp(-(eta->R(eta->hidden_states[k - 1]) - eta->R(rtimes[q])));
                 if (k < this->M - 1)
                     p_coal *= -expm1(-(eta->R(eta->hidden_states[k]) - eta->R(eta->hidden_states[k - 1])));
-                ip = insertion_point(rtimes[q], times, 0, times.size()) - 1;
-                std::cout << q << " " << rtimes[q] << " " << ip << " " << times[ip] << std::endl;
+                ip = insertion_point(rtimes[q], times, 0, times.size());
                 T dt = rtimes[q] - times[ip];
                 T c_rho = dt * this->rho;
                 T c_eta = eta->R(rtimes[q]) - eta->R(times[ip]);
