@@ -99,6 +99,14 @@ namespace Eigen {
     namespace internal 
     {
         template <>
+            struct cast_impl<adouble, float>
+            {
+                static inline double run(const adouble &x)
+                {
+                    return static_cast<float>(x.value());
+                }
+            };
+        template <>
             struct cast_impl<adouble, double>
             {
                 static inline double run(const adouble &x)
@@ -175,8 +183,11 @@ inline void fill_jacobian(const adouble &ll, double* outjac)
     _jac = d;
 }
 
-void store_matrix(Matrix<double> *M, double* out);
-void store_matrix(Matrix<adouble> *M, double* out);
+template <typename T>
+void store_matrix(Matrix<T> *M, T* out)
+{
+    Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>::Map(out, M->rows(), M->cols()) = *M;
+}
 void store_admatrix(const Matrix<adouble> &M, int nd, double* out, double* outjac);
 
 template <typename T>

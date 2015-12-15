@@ -27,7 +27,6 @@ InferenceManager::InferenceManager(
             const std::vector<double> hidden_states,
             const int* _emask,
             const int mask_freq,
-            std::vector<int> mask_offset,
             const double theta, const double rho, 
             const int block_size) :
     debug(false), hj(true),
@@ -37,7 +36,6 @@ InferenceManager::InferenceManager(
     H(hidden_states.size() - 1),
     emask(Eigen::Map<const Eigen::Matrix<int, 3, Eigen::Dynamic, Eigen::RowMajor>>(_emask, 3, n + 1)),
     mask_freq(mask_freq),
-    mask_offset(mask_offset),
     theta(theta), rho(rho),
     block_size(block_size), 
     M(hidden_states.size() - 1), 
@@ -63,7 +61,7 @@ InferenceManager::InferenceManager(
         if (max_n > n + 2 - 1)
             throw std::runtime_error("An observation has derived allele count greater than n + 1");
         PROGRESS("creating HMM");
-        hmmptr h(new HMM(obs, n, block_size, &pi, &transition, &emission, emask, mask_freq, 0));
+        hmmptr h(new HMM(obs, n, block_size, &pi, &transition, &emission, emask, mask_freq));
         hmms[i] = std::move(h);
     }
 }
@@ -179,50 +177,12 @@ std::vector<adouble> InferenceManager::Q(double lambda)
             });
 }
 
-std::vector<Matrix<double>*> InferenceManager::getXisums()
+std::vector<Matrix<float>*> InferenceManager::getXisums()
 {
-    std::vector<Matrix<double>*> ret;
+    std::vector<Matrix<float>*> ret;
     for (auto &hmm : hmms)
     {
         ret.push_back(&hmm->xisum);
-    }
-    return ret;
-}
-
-std::vector<Matrix<double>*> InferenceManager::getAlphas()
-{
-    std::vector<Matrix<double>*> ret;
-    for (auto &hmm : hmms)
-    {
-        ret.push_back(&hmm->alpha_hat);
-    }
-    return ret;
-}
-
-std::vector<Matrix<double>*> InferenceManager::getBetas()
-{
-    std::vector<Matrix<double>*> ret;
-    for (auto &hmm : hmms)
-    {
-        ret.push_back(&hmm->beta_hat);
-    }
-    return ret;
-}
-
-void InferenceManager::setGammas(double* g)
-{
-    Matrix<double> d1 = hmms[0]->gamma;
-    Matrix<double> gam = Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>::Map(g, d1.rows(), d1.cols());
-    for (auto &hmm : hmms)
-        hmm->gamma = gam;
-}
-
-std::vector<Matrix<double>*> InferenceManager::getGammas()
-{
-    std::vector<Matrix<double>*> ret;
-    for (auto &hmm : hmms)
-    {
-        ret.push_back(&hmm->gamma);
     }
     return ret;
 }

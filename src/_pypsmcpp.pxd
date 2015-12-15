@@ -12,12 +12,12 @@ cdef extern from "common.h":
     cdef double toDouble(const adouble &)
     void init_eigen()
     void fill_jacobian(const adouble &, double*)
-    void store_matrix(const Matrix[double] *, double*)
-    void store_matrix(const Matrix[adouble] *, double*)
+    void store_matrix[T](const Matrix[T] *, T*)
     void store_admatrix(const Matrix[adouble]&, int, double*, double*)
     void doProgress(bool)
 
 ctypedef Matrix[double]* pMatrixD
+ctypedef Matrix[float]* pMatrixF
 ctypedef Matrix[adouble]* pMatrixAd
 
 cdef extern from "inference_manager.h":
@@ -25,7 +25,7 @@ cdef extern from "inference_manager.h":
     cdef cppclass InferenceManager:
         InferenceManager(const int, const vector[int],
                 const vector[int*], const vector[double], const int*, const int, 
-                const vector[int], const double, const double, const int)
+                const double, const double, const int)
         void setParams_d(const ParameterVector)
         void setParams_ad(const ParameterVector, vector[pair[int, int]] derivatives)
         void Estep()
@@ -35,11 +35,7 @@ cdef extern from "inference_manager.h":
         bool debug
         bool hj
         double getRegularizer()
-        vector[pMatrixD] getXisums()
-        vector[pMatrixD] getAlphas()
-        vector[pMatrixD] getBetas()
-        vector[pMatrixD] getGammas()
-        void setGammas(double*)
+        vector[pMatrixF] getXisums()
         vector[pMatrixAd] getBs()
         Matrix[adouble]& getPi()
         Matrix[adouble]& getTransition()

@@ -31,15 +31,15 @@ cdef ParameterVector make_params(params):
         ret.push_back(p)
     return ret
 
-cdef _make_em_matrix(vector[pMatrixD] mats):
-    cdef double[:, ::1] v
+cdef _make_em_matrix(vector[pMatrixF] mats):
+    cdef float[:, ::1] v
     ret = []
     for i in range(mats.size()):
         m = mats[i][0].rows()
         n = mats[i][0].cols()
-        ary = aca(np.zeros([m, n]))
+        ary = aca(np.zeros([m, n]), dtype=np.float32)
         v = ary
-        store_matrix(mats[i], &v[0, 0])
+        store_matrix[float](mats[i], &v[0, 0])
         ret.append(ary)
     return ret
 
@@ -53,7 +53,7 @@ cdef class PyInferenceManager:
 
     def __cinit__(self, int n, observations, hidden_states, 
             double theta, double rho, int block_size,
-            int mask_freq, mask_offset, emission_mask = None):
+            int mask_freq, emission_mask = None):
         self.seed = 1
         self._n = n
         cdef int[:, ::1] vob
@@ -73,7 +73,7 @@ cdef class PyInferenceManager:
         cdef int[:, ::1] emv = self._emission_mask
         cdef vector[double] hs = hidden_states
         self._im = new InferenceManager(
-                n, Ls, obs, hs, &emv[0, 0], mask_freq, mask_offset, theta, rho, block_size)
+                n, Ls, obs, hs, &emv[0, 0], mask_freq, theta, rho, block_size)
 
 
     def __dealloc__(self):
@@ -117,22 +117,6 @@ cdef class PyInferenceManager:
         def __get__(self):
             return _make_em_matrix(self._im.getXisums())
 
-    property alphas:
-        def __get__(self):
-            return _make_em_matrix(self._im.getAlphas())
-
-    property betas:
-        def __get__(self):
-            return _make_em_matrix(self._im.getBetas())
-
-    property gammas:
-        def __get__(self):
-            return _make_em_matrix(self._im.getGammas())
-        def __set__(self, A):
-            Ac = aca(A)
-            cdef double[:, ::1] Av = Ac
-            self._im.setGammas(&Av[0, 0])
-
     property Bs:
         def __get__(self):
             cdef vector[pMatrixAd] mats = self._im.getBs()
@@ -140,15 +124,7 @@ cdef class PyInferenceManager:
             cdef double[:, :, ::1] av
             ret = []
             for i in range(mats.size()):
-                if (self._nder == 0):
-                    m = mats[i][0].rows()
-                    n = mats[i][0].cols()
-                    ary = aca(np.zeros([m, n]))
-                    v = ary
-                    store_matrix(mats[i], &v[0, 0])
-                    ret.append(ary)
-                else:
-                    ret.append(_store_admatrix_helper(mats[i][0], self._nder))
+                ret.append(_store_admatrix_helper(mats[i][0], self._nder))
             return ret
 
     property block_keys:
@@ -244,9 +220,10 @@ cdef _store_admatrix_helper(Matrix[adouble] &mat, int nder):
     ary = aca(np.zeros([m, n]))
     v = ary
     if (nder == 0):
-        store_matrix(&mat, &v[0, 0])
+        store_admatrix(mat, nder, &v[0, 0], NULL)
         return ary
-    jac = aca(np.zeros([m, n, nder]))
-    av = jac
-    store_admatrix(mat, nder, &v[0, 0], &av[0, 0, 0])
-    return ary, jac
+    else:
+        jac = aca(np.zeros([m, n, nder]))
+        av = jac
+        store_admatrix(mat, nder, &v[0, 0], &av[0, 0, 0])
+        return ary, jac

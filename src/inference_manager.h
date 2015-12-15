@@ -20,7 +20,6 @@ class InferenceManager
             const std::vector<double> hidden_states,
             const int* emission_mask,
             const int mask_freq,
-            const std::vector<int> mask_offset,
             const double theta, const double rho, 
             const int block_size);
     
@@ -57,11 +56,7 @@ class InferenceManager
     double getRegularizer() { return toDouble(regularizer); }
 
     bool debug, hj;
-    std::vector<Matrix<double>*> getXisums();
-    std::vector<Matrix<double>*> getAlphas();
-    std::vector<Matrix<double>*> getBetas();
-    std::vector<Matrix<double>*> getGammas();
-    void setGammas(double*);
+    std::vector<Matrix<float>*> getXisums();
     std::vector<Matrix<adouble>*> getBs();
     std::vector<std::vector<std::pair<bool, decltype(block_key::powers)> > > getBlockKeys();
     Matrix<adouble>& getPi();
@@ -84,7 +79,6 @@ class InferenceManager
     const int H;
     const Eigen::Matrix<int, 3, Eigen::Dynamic, Eigen::RowMajor> emask;
     const int mask_freq;
-    const std::vector<int> mask_offset;
     double theta, rho;
     const int block_size;
     const int M;
