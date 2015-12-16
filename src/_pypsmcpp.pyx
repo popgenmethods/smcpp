@@ -107,11 +107,27 @@ cdef class PyInferenceManager:
     def Estep(self):
         self._im.Estep()
 
+    property saveGamma:
+        def __get__(self):
+            return self._im.saveGamma
+        def __set__(self, bint sg):
+            self._im.saveGamma = sg
+
+    property forwardOnly:
+        def __get__(self):
+            return self._im.forwardOnly
+        def __set__(self, bint fo):
+            self._im.forwardOnly = fo
+
     property hj:
         def __get__(self):
             return self._im.hj
         def __set__(self, bint h):
             self._im.hj = h
+
+    property gammas:
+        def __get__(self):
+            return _make_em_matrix(self._im.getGammas())
 
     property xisums:
         def __get__(self):
@@ -142,10 +158,6 @@ cdef class PyInferenceManager:
     property emission:
         def __get__(self):
             return _store_admatrix_helper(self._im.getEmission(), self._nder)
-
-    property masked_emission:
-        def __get__(self):
-            return _store_admatrix_helper(self._im.getMaskedEmission(), self._nder)
 
     def _call_inference_func(self, func, lam):
         if func == "loglik":

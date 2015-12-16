@@ -34,13 +34,15 @@ cdef extern from "inference_manager.h":
         double R(const ParameterVector, double t)
         bool debug
         bool hj
+        bool forwardOnly
+        bool saveGamma
         double getRegularizer()
+        vector[pMatrixF] getGammas()
         vector[pMatrixF] getXisums()
         vector[pMatrixAd] getBs()
         Matrix[adouble]& getPi()
         Matrix[adouble]& getTransition()
         Matrix[adouble]& getEmission()
-        Matrix[adouble]& getMaskedEmission()
         vector[vector[pair[bool, map[pair[int, int], int]]]] getBlockKeys()
     Matrix[T] sfs_cython[T](int, const ParameterVector&, double, double, double)
     Matrix[T] sfs_cython[T](int, const ParameterVector&, double, double, double, vector[pair[int, int]])
