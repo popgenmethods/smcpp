@@ -16,6 +16,8 @@ from psmcpp.lib.util import config2dict
 import ConfigParser as configparser
 import cPickle as pickle
 
+np.set_printoptions(linewidth=120, precision=6, suppress=True)
+
 def exp_quantiles(M, h_M):
     hs = -np.log(1. - np.linspace(0, h_M, M, False) / h_M)
     hs = np.append(hs, h_M)
@@ -50,17 +52,6 @@ obsfs = np.mean(osfs, axis=0)
 print(" - Observed sfs:")
 print(obsfs)
 
-## Compute hidden states
-try:
-    hs = np.array(eval(config.get('hidden states', 'hidden states')))
-except configparser.NoOptionError:
-    M = config.getint('hidden states', 'M')
-    h_M = config.getfloat('hidden states', 'h_M')
-    hs = exp_quantiles(M, h_M)
-if hs[0] != 0:
-    raise Exception("First hidden state interval must begin at 0")
-print("hidden states", hs)
-
 # Emission mask
 em = np.arange(3 * (n - 1), dtype=int).reshape([3, n - 1])
 # em[0, 3:] = 3
@@ -77,14 +68,36 @@ try:
 except configparser.NoOptionError:
     t_1 = config.getfloat('model parameters', 't_1')
     t_K = config.getfloat('model parameters', 't_K')
-    K = config.getint('model parameters', 'K')
-    s = np.logspace(np.log10(t_1), np.log10(t_K), K)
+    Ks = config.get('model parameters', 'K').split("+")
+    pieces = []
+    for piece in Ks:
+        try:
+            num, span = list(map(int, piece.split("*")))
+        except ValueError:
+            span = int(piece)
+            num = 1
+        pieces += [span] * num
+    s = np.logspace(np.log10(t_1), np.log10(t_K), sum(pieces))
     s = np.concatenate(([t_1], s[1:] - s[:-1]))
-    s = np.append(s, .1)
+    sp = np.zeros(len(pieces))
+    count = 0
+    for i, p in enumerate(pieces):
+        sp[i] = s[count:(count+p)].sum()
+        count += p
+    s = sp
 print("time points", s)
 print(np.cumsum(s))
 
-hs = np.unique(np.sort(np.concatenate([np.cumsum(s), hs])))
+## Compute hidden states
+try:
+    hs = np.array(eval(config.get('hidden states', 'hidden states')))
+except configparser.NoOptionError:
+    M = config.getint('hidden states', 'M')
+    h_M = config.getfloat('hidden states', 'h_M')
+    hs = exp_quantiles(M, h_M)
+if hs[0] != 0:
+    raise Exception("First hidden state interval must begin at 0")
+print("hidden states", hs)
 
 # Load additional params
 N0 = config.getfloat('parameters', 'N0')
@@ -98,9 +111,14 @@ try:
 except configparser.NoOptionError:
     thinning = n
 
+try:
+    lambda_penalty = config.getfloat("advanced", "lambda penalty")
+except configparser.NoOptionError:
+    lambda_penalty = 0.0
+
 im = psmcpp._pypsmcpp.PyInferenceManager(n - 2, obs_list, hs,
         4.0 * N0 * mu, 4.0 * N0 * rho,
-        block_size, thinning, [0], em)
+        block_size, thinning, em)
 
 try:
     im.hj = config.getboolean('advanced', 'use hj')
@@ -128,8 +146,8 @@ bounds = np.array([[0.1, 20.0]] * K + [[0.15, 19.9]] * K).reshape([2, K, 2])
 precond = 1. / s
 precond[-1] = 1. / (15.0 - np.sum(s))
 
-def optimize_fullgrad(iter, coords, x0, factr=1e7):
-    print("Optimizing %s" % str(coords))
+def optimize_fullgrad(iter, coords, x0, factr=1e9):
+    print("Optimizing factr {factr}".format(factr=factr))
     def fprime(x):
         x0c = x0.copy()
         # Preconditioner (sort of)
@@ -144,7 +162,7 @@ def optimize_fullgrad(iter, coords, x0, factr=1e7):
         print(s)
         im.setParams((aa, bb, s), coords)
         print("done")
-        res = im.Q(0.0)
+        res = im.Q(lambda_penalty)
         lls = np.array([ll for ll, jac in res])
         jacs = np.array([jac for ll, jac in res])
         ret = [-np.mean(lls, axis=0), -np.mean(jacs, axis=0)]
@@ -176,8 +194,7 @@ def optimize_fullgrad(iter, coords, x0, factr=1e7):
     #     x0c = xx0.copy()
     #     x0c[i] += 1e-8
     #     f1, _ = fprime(x0c)
-    #     print(cc, f1, f0, (f1 - f0) / 1e-8, fp[i])
-    # print("gradient check", scipy.optimize.check_grad(lambda x: fprime(x)[0], lambda x: fprime(x)[1], x0))
+    #     print(i, cc, f1, f0, (f1 - f0) / 1e-8, fp[i])
     res = scipy.optimize.fmin_l_bfgs_b(fprime, [x0[cc] / precond[cc[1]] for cc in coords], 
             None, bounds=[tuple(bounds[cc] / precond[cc[1]]) for cc in coords], disp=False, factr=factr)
     # print(res)
@@ -227,7 +244,8 @@ if not flat:
     ca.append(1)
 while i < 20:
     coords = [(aa, j) for aa in ca for j in range(K)]
-    run_iteration(i, coords, (10**(12 - i / 10.)))
+    # run_iteration(i, coords, (10**(12 - i / 10.)))
+    run_iteration(i, coords, 1e9)
     esfs = psmcpp._pypsmcpp.sfs(n, (a,b,s), 0.0, hs[-1], 4 * N0 * mu, False)
     print("calculated sfs")
     print(esfs)
