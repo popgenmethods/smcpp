@@ -12,39 +12,37 @@ cdef extern from "common.h":
     cdef double toDouble(const adouble &)
     void init_eigen()
     void fill_jacobian(const adouble &, double*)
-    void store_matrix[T](const Matrix[T]*, T*)
+    void store_matrix[T](const Matrix[T] *, T*)
     void store_admatrix(const Matrix[adouble]&, int, double*, double*)
     void doProgress(bool)
 
 ctypedef Matrix[double]* pMatrixD
 ctypedef Matrix[float]* pMatrixF
 ctypedef Matrix[adouble]* pMatrixAd
-ctypedef pair[int, int] pair2int
 
 cdef extern from "inference_manager.h":
     ctypedef vector[vector[double]] ParameterVector
     cdef cppclass InferenceManager:
         InferenceManager(const int, const vector[int],
                 const vector[int*], const vector[double], const int*, const int, 
-                const vector[int], const double, const double, const int)
+                const double, const double, const int)
         void setParams_d(const ParameterVector)
-        void setParams_ad(const ParameterVector, vector[pair2int] derivatives)
+        void setParams_ad(const ParameterVector, vector[pair[int, int]] derivatives)
         void Estep()
         vector[double] loglik(double)
         vector[adouble] Q(double)
         double R(const ParameterVector, double t)
         bool debug
         bool hj
+        bool forwardOnly
+        bool saveGamma
         double getRegularizer()
-        vector[pMatrixF] getXisums()
-        vector[pMatrixF] getAlphas()
-        vector[pMatrixF] getBetas()
         vector[pMatrixF] getGammas()
+        vector[pMatrixF] getXisums()
         vector[pMatrixAd] getBs()
         Matrix[adouble]& getPi()
         Matrix[adouble]& getTransition()
         Matrix[adouble]& getEmission()
-        Matrix[adouble]& getMaskedEmission()
-        vector[vector[pair[bool, map[pair2int, int]]]] getBlockKeys()
+        vector[vector[pair[bool, map[pair[int, int], int]]]] getBlockKeys()
     Matrix[T] sfs_cython[T](int, const ParameterVector&, double, double, double)
-    Matrix[T] sfs_cython[T](int, const ParameterVector&, double, double, double, vector[pair2int])
+    Matrix[T] sfs_cython[T](int, const ParameterVector&, double, double, double, vector[pair[int, int]])

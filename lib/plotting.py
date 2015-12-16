@@ -5,6 +5,13 @@ matplotlib.use('Agg')
 import numpy as np
 from numpy import array
 
+sawtooth = {
+        'a': np.array([7.1, 7.1, 0.9, 7.1, 0.9, 7.1, 0.9]),
+        'b': np.array([7.1, 0.9, 7.1, 0.9, 7.1, 0.9, 0.9]),
+        's': np.array([1000.0, 4000.0 - 1000., 10500. - 4000., 65000. - 10500., 115000. - 65000., 1e6 - 115000, 1.0]) / 25.0 /
+        (2 * 10000.)
+        }
+
 themes = """Palette	Palette Column	Palette Row	PC (c,r)	RGB	One
 Tableau 10	1	2	T 10: 1,2	255.127.14	1
 Tableau 10	1	4	T 10: 1,4	214.39.40	1
@@ -160,7 +167,7 @@ def convert_psmc(psmc_out):
     a *= 3
     return {'s': s, 'a': a, 'b': a}
     
-if __name__ == "__main__":
+if __name__ == "1__main__":
     N0 = 10000.
     sawtooth = {
             'a': np.array([7.1, 7.1, 0.9, 7.1, 0.9, 7.1, 0.9]),

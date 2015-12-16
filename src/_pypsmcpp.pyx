@@ -37,7 +37,7 @@ cdef _make_em_matrix(vector[pMatrixF] mats):
     for i in range(mats.size()):
         m = mats[i][0].rows()
         n = mats[i][0].cols()
-        ary = aca(np.zeros([m, n], dtype=np.float32))
+        ary = aca(np.zeros([m, n]), dtype=np.float32)
         v = ary
         store_matrix[float](mats[i], &v[0, 0])
         ret.append(ary)
@@ -53,7 +53,7 @@ cdef class PyInferenceManager:
 
     def __cinit__(self, int n, observations, hidden_states, 
             double theta, double rho, int block_size,
-            int mask_freq, mask_offset, emission_mask = None):
+            int mask_freq, emission_mask = None):
         self.seed = 1
         self._n = n
         cdef int[:, ::1] vob
@@ -73,7 +73,7 @@ cdef class PyInferenceManager:
         cdef int[:, ::1] emv = self._emission_mask
         cdef vector[double] hs = hidden_states
         self._im = new InferenceManager(
-                n, Ls, obs, hs, &emv[0, 0], mask_freq, mask_offset, theta, rho, block_size)
+                n, Ls, obs, hs, &emv[0, 0], mask_freq, theta, rho, block_size)
 
 
     def __dealloc__(self):
@@ -107,27 +107,31 @@ cdef class PyInferenceManager:
     def Estep(self):
         self._im.Estep()
 
+    property saveGamma:
+        def __get__(self):
+            return self._im.saveGamma
+        def __set__(self, bint sg):
+            self._im.saveGamma = sg
+
+    property forwardOnly:
+        def __get__(self):
+            return self._im.forwardOnly
+        def __set__(self, bint fo):
+            self._im.forwardOnly = fo
+
     property hj:
         def __get__(self):
             return self._im.hj
         def __set__(self, bint h):
             self._im.hj = h
 
-    property xisums:
-        def __get__(self):
-            return _make_em_matrix(self._im.getXisums())
-
-    property alphas:
-        def __get__(self):
-            return _make_em_matrix(self._im.getAlphas())
-
-    property betas:
-        def __get__(self):
-            return _make_em_matrix(self._im.getBetas())
-
     property gammas:
         def __get__(self):
             return _make_em_matrix(self._im.getGammas())
+
+    property xisums:
+        def __get__(self):
+            return _make_em_matrix(self._im.getXisums())
 
     property Bs:
         def __get__(self):
@@ -154,10 +158,6 @@ cdef class PyInferenceManager:
     property emission:
         def __get__(self):
             return _store_admatrix_helper(self._im.getEmission(), self._nder)
-
-    property masked_emission:
-        def __get__(self):
-            return _store_admatrix_helper(self._im.getMaskedEmission(), self._nder)
 
     def _call_inference_func(self, func, lam):
         if func == "loglik":
@@ -216,7 +216,7 @@ def sfs(int n, params, double t1, double t2, double theta, jacobian=False):
     cdef double[:, ::1] vret = ret
     if not jacobian:
         sfs = sfs_cython[double](n, p, t1, t2, theta)
-        store_matrix[double](&sfs, &vret[0, 0])
+        store_matrix(&sfs, &vret[0, 0])
         return ret
     J = len(jacobian)
     jac = aca(np.zeros([3, n - 1, J]))
@@ -231,7 +231,11 @@ cdef _store_admatrix_helper(Matrix[adouble] &mat, int nder):
     n = mat.cols()
     ary = aca(np.zeros([m, n]))
     v = ary
-    jac = aca(np.zeros([m, n, nder]))
-    av = jac
-    store_admatrix(mat, nder, &v[0, 0], &av[0, 0, 0])
-    return ary, jac
+    if (nder == 0):
+        store_admatrix(mat, nder, &v[0, 0], NULL)
+        return ary
+    else:
+        jac = aca(np.zeros([m, n, nder]))
+        av = jac
+        store_admatrix(mat, nder, &v[0, 0], &av[0, 0, 0])
+        return ary, jac

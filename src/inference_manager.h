@@ -2,14 +2,18 @@
 #define INFERENCE_MANAGER_H
 
 #include <algorithm>
+#include <gmpxx.h>
 
 #include "common.h"
 #include "hmm.h"
 #include "piecewise_exponential_rate_function.h"
 #include "conditioned_sfs.h"
 #include "transition.h"
+#include "block_key.h"
 
 typedef std::vector<std::vector<double>> ParameterVector;
+
+class HMM;
 
 class InferenceManager
 {
@@ -20,12 +24,9 @@ class InferenceManager
             const std::vector<double> hidden_states,
             const int* emission_mask,
             const int mask_freq,
-            const std::vector<int> mask_offset,
             const double theta, const double rho, 
             const int block_size);
     
-    void set_seed(long long s) { seed = s; }
-
     template <typename T>
     void setParams(const ParameterVector, const std::vector<std::pair<int, int> >);
 
@@ -37,43 +38,27 @@ class InferenceManager
     std::vector<Matrix<T> > sfs(const PiecewiseExponentialRateFunction<T>&);
 
     // Unfortunately these are necessary to work around a bug in Cython
-    void setParams_d(const ParameterVector params) 
-    { 
-        std::vector<std::pair<int, int>> d;
-        setParams<double>(params, d);
-    }
-    void setParams_ad(const ParameterVector params, 
-            const std::vector<std::pair<int, int>> derivatives) 
-    {  
-        setParams<adouble>(params, derivatives);
-    }
-
-    double R(const ParameterVector params, double t)
-    {
-        PiecewiseExponentialRateFunction<double> eta(params, std::vector<std::pair<int, int> >(), std::vector<double>());
-        return (*eta.getR())(t);
-    }
-
-    double getRegularizer() { return toDouble(regularizer); }
-
-    bool debug, hj;
+    void setParams_d(const ParameterVector params);
+    void setParams_ad(const ParameterVector params, const std::vector<std::pair<int, int>> derivatives);
+    double R(const ParameterVector params, double t);
+    double getRegularizer();
+    bool debug, hj, forwardOnly, saveGamma;
+    std::unordered_map<block_key, Vector<adouble> > block_prob_map;
     std::vector<Matrix<float>*> getXisums();
-    std::vector<Matrix<float>*> getAlphas();
-    std::vector<Matrix<float>*> getBetas();
     std::vector<Matrix<float>*> getGammas();
     std::vector<Matrix<adouble>*> getBs();
     std::vector<std::vector<std::pair<bool, decltype(block_key::powers)> > > getBlockKeys();
     Matrix<adouble>& getPi();
     Matrix<adouble>& getTransition();
     Matrix<adouble>& getEmission();
-    Matrix<adouble>& getMaskedEmission();
+    std::mutex bpm_lock;
 
     private:
     template <typename T> 
     ConditionedSFS<T>& getCsfs();
-
+    void recompute_B();
+    void populate_block_prob_map();
     typedef std::unique_ptr<HMM> hmmptr;
-
     // Passed-in parameters
     std::mt19937 gen;
     const int n;
@@ -81,20 +66,19 @@ class InferenceManager
     const std::vector<int*> observations;
     const std::vector<double> hidden_states;
     const int H;
-    const Eigen::Matrix<int, 3, Eigen::Dynamic, Eigen::RowMajor> emask;
+    const Eigen::Matrix<int, 3, Eigen::Dynamic, Eigen::RowMajor> emask, two_mask;
     const int mask_freq;
-    const std::vector<int> mask_offset;
     double theta, rho;
     const int block_size;
     const int M;
-    long long seed;
     adouble regularizer;
 
     std::vector<hmmptr> hmms;
     Vector<adouble> pi;
-    Matrix<adouble> transition, emission, emission2, emission_mask;
+    Matrix<adouble> transition, emission;
     ConditionedSFS<double> csfs_d;
     ConditionedSFS<adouble> csfs_ad;
+    std::unordered_map<block_key, unsigned long> comb_coeffs;
 
     // Methods
     void parallel_do(std::function<void(hmmptr &)>);

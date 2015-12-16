@@ -15,13 +15,13 @@ import psmcpp, psmcpp.lib.scrm, psmcpp.lib.util
 parser = argparse.ArgumentParser()
 parser.add_argument("seed", type=int)
 parser.add_argument("outdir")
-parser.add_argument("-l", type=str, default="100r", help="SCRM approximation parameter")
 parser.add_argument("--a", type=float, nargs="+")
 parser.add_argument("--b", type=float, nargs="+")
 parser.add_argument("--s", type=float, nargs="+")
 parser.add_argument("n", type=int, help="Sample size.")
 parser.add_argument("L", type=int, help="Length of each simulated chromosome.")
 parser.add_argument("C", type=int, help="Number of chromosomes to simulate.")
+parser.add_argument("--pairs", type=int, default=1, help="Number of pairs to generate")
 parser.add_argument("--sawtooth", const=True, default=False, action="store_const")
 parser.add_argument("--panel-size", type=int, default=None, help="Panel size (SMC++ only)")
 parser.add_argument("--N0", type=int, default=10000)
@@ -57,20 +57,19 @@ else:
     s0 = np.array(args.s)
 
 if args.panel_size is None:
-    args.panel_size = args.n
+    args.panel_size = 2 * args.n
 
 demography = psmcpp.lib.scrm.demography_from_params((a0 * 2.0, b0 * 2.0, s0))
 
 # Generate data set using scrm
 print("simulating")
 def perform_sim(args):
-    n, N0, theta, rho, L, demography, seed, ell = args
-    return psmcpp.lib.scrm.simulate(n, N0, theta, rho, L, demography, False, seed, ell)
+    n, N0, theta, rho, L, demography, seed = args
+    return psmcpp.lib.scrm.simulate(n, N0, theta, rho, L, demography, False, seed)
 
-p = multiprocessing.Pool(16)
+p = multiprocessing.Pool(args.C)
 data_sets = list(p.imap_unordered(perform_sim, 
-    [(args.panel_size, args.N0, args.theta, args.rho, args.L, demography, np.random.randint(0, sys.maxint), args.l)
-        for _ in range(args.C)]))
+    [(args.panel_size, args.N0, args.theta, args.rho, args.L, demography, np.random.randint(0, sys.maxint, size=3)) for _ in range(args.C)]))
 assert data_sets
 p.terminate()
 p.join()
@@ -84,11 +83,14 @@ open(os.path.join(args.outdir, "meta.txt"), "wt").write(
         "{argv0} created this dataset. The command line was:\n\t{cmd_line}\nThe args object looks like:\n{args}".format(
         argv0=sys.argv[0], args=args, cmd_line=" ".join(sys.argv)))
 
+assert args.pairs <= args.n
+pairs = [(2 * k, 2 * k + 1) for k in range(args.pairs)]
+
 # 1. Write smc++ format
 if args.smcpp:
     smcpp_outdir = mk_outdir("smc++")
-    obs = [psmcpp.lib.util.hmm_data_format(data, args.n, (0, 1)) for data in data_sets]
-    smcpp_data = {"obs": obs, "n": args.n, "L": args.L, "theta": args.theta, "rho": args.rho, "N0": args.N0}
+    obs = [psmcpp.lib.util.hmm_data_format(data, 2 * args.n, p) for data in data_sets for p in pairs]
+    smcpp_data = {"obs": obs, "n": 2 * args.n, "L": args.L, "theta": args.theta, "rho": args.rho, "N0": args.N0}
     with open(os.path.join(smcpp_outdir, "smc++.dat"), "wb") as f:
         pickle.dump(smcpp_data, f)
 

@@ -8,8 +8,8 @@ from fixtures import *
 np.set_printoptions(suppress=True)
 
 N0 = 10000
-theta = 1e-8
-rho = 1e-8
+theta = 1.25e-8
+rho = theta / 4.
 L = 1e8
 demography = []
 
@@ -50,17 +50,26 @@ def test_transition1():
     import re
     r = 4 * N0 * rho * (L - 1)
     array = np.array
-    # a = array([ 7.1,  7.1,  0.9,  7.1,  0.9,  7.1,  0.9])
-    # b = array([ 7.1,  0.9,  7.1,  0.9,  7.1,  0.9,  0.9])
-    # s = array([ 0.002   ,  0.006   ,  0.013   ,  0.109   ,  0.1     ,  1.77    ,  0.000002])
-    a = np.array([2., 1.])
-    b = np.array([2., 1.])
-    s = np.array([0.5, 0.5])
+    a = array([ 7.1,  7.1,  0.9,  7.1,  0.9,  7.1,  0.9])
+    b = array([ 7.1,  0.9,  7.1,  0.9,  7.1,  0.9,  0.9])
+    s = array([ 0.002   ,  0.006   ,  0.013   ,  0.109   ,  0.1     ,  1.77    ,  0.000002])
+    # a = np.array([2., 1.])
+    # b = np.array([2., 1.])
+    # s = np.array([0.5, 0.5])
     hs = array([0., 0.25, 0.5, 1.0, 2.0, 5.0, 14.9])
     ctre = re.compile(r"^\[([^]]+)\]\(\d:(\d+(\.\d+)?),")
+    obs = [np.array([[1, 0, 0], [1, 0, 0]], dtype=np.int32)]
+    im = _pypsmcpp.PyInferenceManager(0, obs, hs, 4 * N0 * theta, 4 * N0 * rho, 1, 5, [0])
+    for hj in (True, False):
+        print(hj)
+        im.hj = hj
+        im.setParams((a, b, s), False)
+        np.set_printoptions(suppress=True, linewidth=140)
+        trans = im.transition
+        print(trans)
     demo = scrm.demography_from_params((2 * a, 2 * b, s))
     print(demo, r)
-    out = scrm.scrm(2, 1, "-r", r, L, '-T', '-l', 0, *demo, _iter=True)
+    out = scrm.scrm(2, 1, "-r", r, L, '-T', *demo, _iter=True)
     spans = []
     cts = []
     for line in out:
@@ -70,7 +79,7 @@ def test_transition1():
             cts.append(float(m.group(2)))
     cts = np.array(cts)
     spans = np.array(spans)
-    ctis = np.searchsorted(hs, cts) - 1
+    ctis = np.minimum(np.searchsorted(hs, cts) - 1, len(hs) - 2)
     M = np.zeros([len(hs) - 1, len(hs) - 1])
     C = np.zeros(M.shape)
     P = np.zeros([len(hs) - 1, 2])
@@ -83,15 +92,6 @@ def test_transition1():
     M /= M.sum(axis=1)[:,None]
     C /= C.sum(axis=1)[:, None]
     # print(P)
-    obs = [np.array([[1, 0, 0], [1, 0, 0]], dtype=np.int32)]
-    im = _pypsmcpp.PyInferenceManager(0, obs, hs, 4 * N0 * theta, 4 * N0 * rho, 1, 5, [0])
-    for hj in (True, False):
-        print(hj)
-        im.hj = hj
-        im.setParams((a, b, s), False)
-        np.set_printoptions(suppress=True, linewidth=140)
-        trans = im.transition
-        print(trans)
     print(C)
     aoeu
 

@@ -1,5 +1,20 @@
 #include "inference_manager.h"
 
+inline mpz_class multinomial(const std::vector<int> &ks)
+{
+    mpz_class num, den, tmp;
+    int sum = 0;
+    den = 1_mpz;
+    for (auto k : ks) 
+    {
+        sum += k;
+        mpz_fac_ui(tmp.get_mpz_t(), k);
+        den *= tmp;
+    }
+    mpz_fac_ui(num.get_mpz_t(), sum);
+    return num / den;
+}
+
 template <typename T>
 Vector<T> compute_initial_distribution(const PiecewiseExponentialRateFunction<T> &eta)
 {
@@ -21,27 +36,35 @@ Vector<T> compute_initial_distribution(const PiecewiseExponentialRateFunction<T>
     return pi;
 }
 
+Matrix<int> make_two_mask(int m)
+{
+    Matrix<int> two_mask(3, m);
+    two_mask.fill(0);
+    two_mask.row(1).fill(1);
+    return two_mask;
+}
+
+
 InferenceManager::InferenceManager(
             const int n, const std::vector<int> L,
             const std::vector<int*> observations,
             const std::vector<double> hidden_states,
             const int* _emask,
             const int mask_freq,
-            std::vector<int> mask_offset,
             const double theta, const double rho, 
             const int block_size) :
-    debug(false), hj(true),
+    debug(false), hj(true), forwardOnly(false), saveGamma(false),
     n(n), L(L),
     observations(observations), 
     hidden_states(hidden_states),
     H(hidden_states.size() - 1),
     emask(Eigen::Map<const Eigen::Matrix<int, 3, Eigen::Dynamic, Eigen::RowMajor>>(_emask, 3, n + 1)),
+    two_mask(make_two_mask(n + 1)),
     mask_freq(mask_freq),
-    mask_offset(mask_offset),
     theta(theta), rho(rho),
     block_size(block_size), 
     M(hidden_states.size() - 1), 
-    seed(1), csfs_d(n, H), csfs_ad(n, H)
+    csfs_d(n, H), csfs_ad(n, H)
 {
     if (*std::min_element(hidden_states.begin(), hidden_states.end()) != 0.)
         throw std::runtime_error("first hidden interval should be [0, <something>)");
@@ -63,9 +86,127 @@ InferenceManager::InferenceManager(
         if (max_n > n + 2 - 1)
             throw std::runtime_error("An observation has derived allele count greater than n + 1");
         PROGRESS("creating HMM");
-        hmmptr h(new HMM(obs, n, block_size, &pi, &transition, &emission, emask, mask_freq, 0));
+        hmmptr h(new HMM(obs, n, block_size, &pi, &transition, &emission, mask_freq, this));
         hmms[i] = std::move(h);
     }
+    // Collect all the block keys for recomputation later
+    populate_block_prob_map();
+}
+
+void InferenceManager::populate_block_prob_map()
+{
+    Vector<adouble> tmp;
+    mpz_class coef;
+    for (auto &p : block_prob_map)
+    {
+        block_key key = p.first;
+        std::array<std::map<std::set<int>, int>, 4> classes;
+        std::vector<int> ctot(4, 0);
+        const Matrix<int> &em = key.alt_block ? emask : two_mask;
+        int ai;
+        for (auto &p : key.powers)
+        {
+            std::set<int> s;
+            int a = p.first.first, b = p.first.second;
+            if (a >= 0 and b >= 0)
+            {
+                ai = 0;
+                s = {em(a, b)};
+            }
+            else if (a >= 0)
+            {
+                for (int bb = 0; bb < n + 1; ++bb)
+                    s.insert(em(a, bb));
+                ai = 1;
+            }
+            else if (b >= 0)
+            {
+                // a is missing => sum along cols
+                s = {em(0, b), em(1, b), em(2, b)};
+                ai = 2;
+            }
+            else
+            {
+               ai = 3;
+            }
+            if (classes[ai].count(s) == 0)
+                classes[ai].emplace(s, 0);
+            classes[ai][s] += p.second;
+            ctot[ai] += p.second;
+        }
+        coef = multinomial(ctot);
+        for (int j = 0; j < 4; ++j)
+        {
+            std::vector<int> values;
+            for (auto &kv : classes[j])
+                values.push_back(kv.second);
+            coef *= multinomial(values);
+        }
+        comb_coeffs[key] = coef.get_ui();
+    }
+}
+
+void InferenceManager::recompute_B(void)
+{
+    PROGRESS("recompute B");
+    std::map<int, Vector<adouble> > mask_probs, two_probs;
+    for (int i = 0; i < 3; ++i)
+        for (int j = 0; j < n + 1; ++j)
+        {
+            int e = emask(i, j);
+            if (mask_probs.count(e) == 0)
+                mask_probs[e] = Vector<adouble>::Zero(M);
+            mask_probs[e] += emission.col((n + 1) * i + j);
+            if (two_probs.count(i % 2) == 0)
+                two_probs[i % 2] = Vector<adouble>::Zero(M);
+            two_probs[i % 2] += emission.col((n + 1) * i + j);
+        }
+    for (auto &p : block_prob_map)
+    {
+        block_key key = p.first;
+        Eigen::Array<adouble, Eigen::Dynamic, 1> tmp(M), log_tmp(M);
+        log_tmp.setZero();
+        const Matrix<int> &em = key.alt_block ? emask : two_mask;
+        std::map<int, Vector<adouble> > &prbs = key.alt_block ? mask_probs : two_probs;
+        Vector<adouble> ob;
+        for (auto &p : key.powers)
+        {
+            ob = Vector<adouble>::Zero(M);
+            int a = p.first.first, b = p.first.second;
+            if (a == -1)
+            {
+                if (b == -1)
+                    // Double missing!
+                    continue;
+                else
+                {
+                    for (int x : std::set<int>{em(0, b), em(1, b), em(2, b)})
+                        ob += prbs[x];
+                }
+            }
+            else
+            {
+                if (b == -1)
+                {
+                    std::set<int> bbs;
+                    for (int bb = 0; bb < em.cols(); ++bb)
+                        bbs.insert(em(a, bb));
+                    for (int x : bbs)
+                        ob += prbs[x];
+                }
+                else
+                    ob = prbs[em(a, b)];
+            }
+            log_tmp += ob.array().log() * p.second;
+        }
+        log_tmp += log(comb_coeffs[key]);
+        tmp = exp(log_tmp);
+        if (tmp.maxCoeff() > 1.0 or tmp.minCoeff() < 0.0)
+            throw std::runtime_error("probability vector not in [0, 1]");
+        check_nan(tmp);
+        block_prob_map[key] = tmp.matrix();
+    }
+    PROGRESS_DONE();
 }
 
 template <typename T>
@@ -99,12 +240,7 @@ void InferenceManager::setParams(const ParameterVector params, const std::vector
         em_tmp = sfss[m];
         emission.row(m) = Matrix<T>::Map(em_tmp.data(), 1, 3 * (n + 1)).template cast<adouble>();
     }
-    /*
-    std::cout << emission.template cast<double>() << std::endl << std::endl;
-    std::cout << emission_mask.template cast<double>() << std::endl << std::endl;
-    std::cout << emission2.template cast<double>() << std::endl;
-    */
-    parallel_do([] (hmmptr &hmm) { hmm->recompute_B(); });
+    recompute_B();
 }
 template void InferenceManager::setParams<double>(const ParameterVector, const std::vector<std::pair<int, int>>);
 template void InferenceManager::setParams<adouble>(const ParameterVector, const std::vector<std::pair<int, int>>);
@@ -179,42 +315,22 @@ std::vector<adouble> InferenceManager::Q(double lambda)
             });
 }
 
-std::vector<Matrix<float>*> InferenceManager::getXisums()
-{
-    std::vector<Matrix<float>*> ret;
-    for (auto &hmm : hmms)
-    {
-        ret.push_back(&hmm->xisum);
-    }
-    return ret;
-}
-
-std::vector<Matrix<float>*> InferenceManager::getAlphas()
-{
-    std::vector<Matrix<float>*> ret;
-    for (auto &hmm : hmms)
-    {
-        ret.push_back(&hmm->alpha_hat);
-    }
-    return ret;
-}
-
-std::vector<Matrix<float>*> InferenceManager::getBetas()
-{
-    std::vector<Matrix<float>*> ret;
-    for (auto &hmm : hmms)
-    {
-        ret.push_back(&hmm->beta_hat);
-    }
-    return ret;
-}
-
 std::vector<Matrix<float>*> InferenceManager::getGammas()
 {
     std::vector<Matrix<float>*> ret;
     for (auto &hmm : hmms)
     {
         ret.push_back(&hmm->gamma);
+    }
+    return ret;
+}
+
+std::vector<Matrix<float>*> InferenceManager::getXisums()
+{
+    std::vector<Matrix<float>*> ret;
+    for (auto &hmm : hmms)
+    {
+        ret.push_back(&hmm->xisum);
     }
     return ret;
 }
@@ -257,16 +373,31 @@ Matrix<adouble>& InferenceManager::getEmission(void)
     return emission;
 }
 
-Matrix<adouble>& InferenceManager::getMaskedEmission(void)
-{
-    return emission_mask;
-}
-
 std::vector<double> InferenceManager::loglik(double lambda)
 {
     double reg = toDouble(regularizer);
     return parallel_select<double>([lambda, reg] (hmmptr &hmm) { return hmm->loglik() - lambda * reg; });
 }
+
+void InferenceManager::setParams_d(const ParameterVector params) 
+{ 
+    std::vector<std::pair<int, int>> d;
+    setParams<double>(params, d);
+}
+
+void InferenceManager::setParams_ad(const ParameterVector params, 
+        const std::vector<std::pair<int, int>> derivatives) 
+{  
+    setParams<adouble>(params, derivatives);
+}
+
+double InferenceManager::R(const ParameterVector params, double t)
+{
+    PiecewiseExponentialRateFunction<double> eta(params, std::vector<std::pair<int, int> >(), std::vector<double>());
+    return (*eta.getR())(t);
+}
+
+double InferenceManager::getRegularizer() { return toDouble(regularizer); }
 
 /*
 int main(int argc, char** argv)

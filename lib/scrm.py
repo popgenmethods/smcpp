@@ -88,7 +88,7 @@ def parse_scrm(n, L, output, include_trees):
         coal_times.append((span, l[(k+1):]))
     positions = next(output).strip()
     if positions:
-        positions = np.fromstring(positions[11:], sep=" ").astype('int')
+        positions = (np.fromstring(positions[11:], sep=" ").astype('float32') * L).astype('int')
         # ignore trailing newline
         haps = np.zeros([n, len(positions)], dtype=np.int8)
         # haps = []
@@ -107,14 +107,14 @@ def parse_scrm(n, L, output, include_trees):
         return ret
     return None
 
-def simulate(n, N0, theta, rho, L, demography=[], include_trees=False, seed=None, ell='100r'):
+def simulate(n, N0, theta, rho, L, demography=[], include_trees=False, seed=None):
     # scrm will emit positions in [0, L] (inclusive).
     L -= 1
-    if not seed:
-        seed = np.random.randint(0, sys.maxint)
+    if seed is None:
+        seed = np.random.randint(0, sys.maxint, size=3)
     r = 4 * N0 * rho * (L - 1)
     t = 4 * N0 * theta * L
-    args = [n, 1, '-p', int(math.log10(L)) + 1, '-l', ell, '-t', t, '-r', r, L, '-SC', 'abs', '-seed', seed] + demography
+    args = [n, 1, '-p', int(math.log10(L)) + 1, '-t', t, '-r', r, L, '-seeds'] + list(seed) + demography
     if include_trees:
         args.append("-T")
     output = scrm(*args, _iter=True)

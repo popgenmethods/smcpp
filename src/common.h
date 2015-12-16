@@ -101,9 +101,9 @@ namespace Eigen {
         template <>
             struct cast_impl<adouble, float>
             {
-                static inline float run(const adouble &x)
+                static inline double run(const adouble &x)
                 {
-                    return (float)x.value();
+                    return static_cast<float>(x.value());
                 }
             };
         template <>
