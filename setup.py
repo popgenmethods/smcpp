@@ -19,7 +19,7 @@ extensions = [
             language="c++",
             include_dirs=["src", "/usr/include/eigen3", "/usr/local/include/eigen3", np.get_include()],
             extra_compile_args=["-O2", "-std=c++11", "-Wfatal-errors", "-Wno-unused-variable", "-Wno-unused-function", "-fopenmp"],
-            # extra_compile_args=["-O0", "-g", "-std=c++11", "-Wfatal-errors", "-Wno-unused-variable", "-Wno-unused-function"],
+            # extra_compile_args=["-O0", "-g", "-std=c++11", "-Wfatal-errors", "-Wno-unused-variable", "-Wno-unused-function", "-D_GLIBCXX_DEBUG"],
             libraries=['stdc++', 'mpfr', 'gmp', 'gmpxx', 'gsl', 'gslcblas'],
             extra_link_args=['-fopenmp']
             ),
@@ -40,4 +40,8 @@ setup(name='psmc++',
         author_email='terhorst@stat.berkeley.edu',
         url='https://github.com/terhorst/psmc++',
         ext_modules=cythonize(extensions),
+        install_requires=[
+            "cython>=0.23",
+            "scipy>=0.16",
+            "numpy>=1.9"]
     )
