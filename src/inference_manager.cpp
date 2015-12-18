@@ -100,6 +100,7 @@ void InferenceManager::populate_block_prob_map()
     for (auto &p : block_prob_map)
     {
         block_key key = p.first;
+        bpm_keys.push_back(key);
         std::array<std::map<std::set<int>, int>, 4> classes;
         std::vector<int> ctot(4, 0);
         const Matrix<int> &em = key.alt_block ? emask : two_mask;
@@ -161,9 +162,10 @@ void InferenceManager::recompute_B(void)
                 two_probs[i % 2] = Vector<adouble>::Zero(M);
             two_probs[i % 2] += emission.col((n + 1) * i + j);
         }
-    for (auto &p : block_prob_map)
+#pragma omp parallel for
+    for (auto it = bpm_keys.begin(); it < bpm_keys.end(); ++it)
     {
-        block_key key = p.first;
+        block_key key = *it;
         Eigen::Array<adouble, Eigen::Dynamic, 1> tmp(M), log_tmp(M);
         log_tmp.setZero();
         const Matrix<int> &em = key.alt_block ? emask : two_mask;

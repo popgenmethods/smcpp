@@ -79,6 +79,7 @@ class InferenceManager
     ConditionedSFS<double> csfs_d;
     ConditionedSFS<adouble> csfs_ad;
     std::unordered_map<block_key, unsigned long> comb_coeffs;
+    std::vector<block_key> bpm_keys;
 
     // Methods
     void parallel_do(std::function<void(hmmptr &)>);
