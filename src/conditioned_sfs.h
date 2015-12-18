@@ -7,11 +7,13 @@
 #include <thread>
 #include <random>
 #include <gmpxx.h>
+#include <gperftools/profiler.h>
 
 #include "common.h"
 #include "piecewise_exponential_rate_function.h"
 #include "moran_eigensystem.h"
 #include "mpq_support.h"
+#include "timer.h"
 
 typedef struct 
 {
@@ -47,6 +49,7 @@ class ConditionedSFS : public ConditionedSFSBase
     const MatrixCache mcache;
     Matrix<T> tjj_below, M0_below, M1_below;
     std::vector<Matrix<T> > csfs, csfs_below, csfs_above, C_above;
+    const Matrix<double> Uinv_mp0, Uinv_mp2;
 };
 
 #endif
