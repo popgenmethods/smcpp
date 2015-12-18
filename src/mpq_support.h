@@ -29,6 +29,16 @@ namespace Eigen {
     namespace internal
     {
         template <>
+            struct scalar_product_traits<double, mpq_class>
+            {
+                typedef double ReturnType;
+            };
+        template <>
+            struct scalar_product_traits<adouble, mpq_class>
+            {
+                typedef adouble ReturnType;
+            };
+        template <>
             struct cast_impl<mpq_class, adouble>
             {
                 static inline adouble run(const mpq_class &x)
