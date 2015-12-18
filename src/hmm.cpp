@@ -8,7 +8,7 @@ HMM::HMM(const Matrix<int> &obs, int n, const int block_size,
     pi(pi), transition(transition), emission(emission),
     mask_freq(mask_freq),
     M(pi->rows()), 
-    Ltot(std::ceil(obs.col(0).sum() / block_size)),
+    Ltot(std::ceil(obs.col(0).sum() / (double)block_size)),
     Bptr(Ltot),
     xisum(M, M), c(Ltot),
     im(im)
@@ -139,24 +139,27 @@ void HMM::forward_backward(void)
     PROGRESS("forward backward");
     alpha_hat = Matrix<float>::Zero(M, Ltot);
     Matrix<double> tt = transition->template cast<double>();
-    Matrix<float> ttpow = tt.pow(block_size).template cast<float>();
-    alpha_hat.col(0) = pi->template cast<float>().cwiseProduct(Bptr[0]->template cast<float>());
-	c(0) = alpha_hat.col(0).sum();
-    alpha_hat.col(0) /= c(0);
+    Matrix<double> ttpow = tt.pow(block_size).template cast<double>();
+    Vector<double> tmp(M);
+    Matrix<double> tmpmat;
+    tmp = pi->template cast<double>().cwiseProduct(Bptr[0]->template cast<double>());
+	c(0) = tmp.sum();
+    alpha_hat.col(0) = (tmp / c(0)).template cast<float>();
     for (int ell = 1; ell < Ltot; ++ell)
     {
-        alpha_hat.col(ell) = Bptr[ell]->template cast<float>().cwiseProduct(ttpow.transpose() * alpha_hat.col(ell - 1));
-        c(ell) = alpha_hat.col(ell).sum();
+        tmp = Bptr[ell]->template cast<double>().cwiseProduct(ttpow.transpose() * alpha_hat.col(ell - 1).template cast<double>());
+        c(ell) = tmp.sum();
+        alpha_hat.col(ell) = (tmp / c(ell)).template cast<float>();
         if (std::isnan(toDouble(c(ell))))
             throw std::domain_error("something went wrong in forward algorithm");
-        alpha_hat.col(ell) /= c(ell);
     }
     Vector<float> beta = Vector<float>::Ones(M), g;
     gamma_sums.clear();
     gamma_sums[Bptr[Ltot - 1]] = alpha_hat.col(Ltot - 1);
     xisum.setZero();
-    xisum += alpha_hat.col(Ltot - 2) * beta.transpose() * 
-        Bptr[Ltot - 1]->template cast<float>().asDiagonal() / c(Ltot - 1);
+    tmpmat = Bptr[Ltot - 1]->template cast<double>().asDiagonal();
+    tmpmat /= c(Ltot - 1);
+    xisum += alpha_hat.col(Ltot - 2) * beta.transpose() * tmpmat.template cast<float>();
     if (im->saveGamma)
     {
         gamma = Matrix<float>::Zero(M, Ltot);
@@ -164,7 +167,9 @@ void HMM::forward_backward(void)
     }
     for (int ell = Ltot - 2; ell >= 0; --ell)
     {
-        beta = ttpow * (Bptr[ell + 1]->template cast<float>().cwiseProduct(beta)) / c(ell + 1);
+        tmpmat = ttpow * Bptr[ell + 1]->template cast<double>().asDiagonal();
+        tmpmat /= c(ell + 1);
+        beta = tmpmat.template cast<float>() * beta;
         if (gamma_sums.count(Bptr[ell]) == 0)
             gamma_sums[Bptr[ell]] = Vector<float>::Zero(M);
         g = alpha_hat.col(ell).cwiseProduct(beta);
@@ -172,9 +177,13 @@ void HMM::forward_backward(void)
         if (im->saveGamma)
             gamma.col(ell) = g;
         if (ell > 0)
-            xisum += alpha_hat.col(ell - 1) * beta.transpose() * Bptr[ell]->template cast<float>().asDiagonal() / c(ell);
+        {
+            tmpmat = Bptr[ell]->template cast<double>().asDiagonal();
+            tmpmat /= c(ell);
+            xisum += alpha_hat.col(ell - 1) * beta.transpose() * tmpmat.template cast<float>();
+        }
     }
-    xisum = xisum.cwiseProduct(ttpow);
+    xisum = xisum.cwiseProduct(ttpow.template cast<float>());
     gamma0 = g;
     PROGRESS_DONE();
 }

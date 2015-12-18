@@ -42,7 +42,8 @@ class HMM
     std::vector<Vector<adouble>*> Bptr;
     Matrix<adouble> B;
     Matrix<float> alpha_hat, xisum, gamma;
-    Vector<float> c, gamma0;
+    Vector<float> gamma0;
+    Vector<double> c;
     InferenceManager* im;
 
     std::vector<std::pair<bool, decltype(block_key::powers)> > block_keys;
