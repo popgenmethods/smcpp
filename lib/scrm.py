@@ -107,25 +107,23 @@ def parse_scrm(n, L, output, include_trees):
         return ret
     return None
 
-def simulate(n, N0, theta, rho, L, demography=[], include_trees=False, seed=None):
+def simulate(n, N0, theta, rho, L, demography=[], include_trees=False):
     # scrm will emit positions in [0, L] (inclusive).
     L -= 1
-    if seed is None:
-        seed = np.random.randint(0, sys.maxint, size=3)
+    seeds = np.random.randint(0, sys.maxint, size=3)
     r = 4 * N0 * rho * (L - 1)
     t = 4 * N0 * theta * L
-    args = [n, 1, '-p', int(math.log10(L)) + 1, '-t', t, '-r', r, L, '-seeds'] + list(seed) + demography
+    args = [n, 1, '-p', int(math.log10(L)) + 2, '-t', t, '-r', r, L, '-seeds'] + list(seeds) + demography
     if include_trees:
         args.append("-T")
     output = scrm(*args, _iter=True)
     cmd_line, seed, _, _ = [line.strip() for line in itertools.islice(output, 4)]
-    return parse_scrm(n, L + 1, output, include_trees)
+    return parse_scrm(n, L - 1, output, include_trees)
 
-def distinguished_sfs(n, M, N0, theta, demography, t0=0.0, t1=np.inf, seed=None):
-    if not seed:
-        seed = np.random.randint(0, sys.maxint)
+def distinguished_sfs(n, M, N0, theta, demography, t0=0.0, t1=np.inf):
+    seeds = np.random.randint(0, sys.maxint, size=3)
     t = 4 * N0 * theta
-    args = [n, M, '-t', t, '-seed', seed] + demography
+    args = [n, M, '-t', t, '-seeds'] + list(seeds) + demography
     if t0 > 0.0 or t1 < np.inf:
         args.append("-T")
     cmd = os.environ['SCRM_PATH'] + " " + " ".join(map(str, args))

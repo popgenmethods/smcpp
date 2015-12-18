@@ -8,6 +8,12 @@ sawtooth = {
         's_gen': np.array([1000.0, 4000.0 - 1000., 10500. - 4000., 65000. - 10500., 115000. - 65000., 1e6 - 115000, 1.0]) / 25.0
         }
 
+humany = {
+    'a': np.array([10.0, 0.5, 1.0, 2.0, 3.0]),
+    'b': np.array([1.0, 0.5, 1.0, 2.0, 3.0]),
+    's_gen': np.array([10000., 70000. - 10000., 150000. - 70000., 1.0]) / 25.0
+    }
+
 def grouper(iterable, n, fillvalue=None):
     "Collect data into fixed-length chunks or blocks"
     # grouper('ABCDEFG', 3, 'x') --> ABC DEF Gxx
@@ -98,7 +104,7 @@ def hmm_data_format(dataset, n, distinguished_rows):
     # eliminate "no gaps"
     ret = ret[ret[:, 0] > 0]
     # assert np.all(ret >= 0)
-    assert ret.sum(axis=0)[0] == L
+    assert ret.sum(axis=0)[0] == L, (L, ret.sum(axis=0)[0], ret)
     ret = np.array(ret, dtype=np.int32)
     assert ret.sum(axis=0)[0] == L
     assert np.all(ret[:, 0] >= 1)
