@@ -11,10 +11,7 @@ import logging
 import sys
 from collections import Counter
 import re
-
-from Bio import Phylo
 from cStringIO import StringIO
-import networkx as nx
 
 import _newick
 import util
