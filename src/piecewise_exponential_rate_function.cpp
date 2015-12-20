@@ -492,9 +492,21 @@ T exp1_conditional(T a, T b, std::mt19937 &gen)
 }
 
 template <typename T>
+T PiecewiseExponentialRateFunction<T>::random_time(const double fac, const T &a, const T &b, std::mt19937 &gen) const
+{
+    T Rb;
+    if (b == INFINITY)
+        Rb = R(0.99 * T_MAX);
+    else
+        Rb = R(b);
+    return (*getRinv())(exp1_conditional(R(a), Rb, gen) / fac);
+}
+
+
+template <typename T>
 T PiecewiseExponentialRateFunction<T>::random_time(const T &a, const T &b, std::mt19937 &gen) const
 {
-    return (*getRinv())(exp1_conditional(R(a), R(b), gen));
+    return random_time(1.0, a, b, gen);
 }
 
 

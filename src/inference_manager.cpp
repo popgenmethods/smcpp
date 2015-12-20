@@ -54,17 +54,16 @@ InferenceManager::InferenceManager(
             const double theta, const double rho, 
             const int block_size) :
     debug(false), hj(true), forwardOnly(false), saveGamma(false),
+    hidden_states(hidden_states),
     n(n), L(L),
     observations(observations), 
-    hidden_states(hidden_states),
-    H(hidden_states.size() - 1),
     emask(Eigen::Map<const Eigen::Matrix<int, 3, Eigen::Dynamic, Eigen::RowMajor>>(_emask, 3, n + 1)),
     two_mask(make_two_mask(n + 1)),
     mask_freq(mask_freq),
     theta(theta), rho(rho),
     block_size(block_size), 
     M(hidden_states.size() - 1), 
-    csfs_d(n, H), csfs_ad(n, H)
+    csfs_d(n, M), csfs_ad(n, M)
 {
     if (*std::min_element(hidden_states.begin(), hidden_states.end()) != 0.)
         throw std::runtime_error("first hidden interval should be [0, <something>)");
@@ -220,6 +219,16 @@ Matrix<T> matpow(Matrix<T> M, int p)
     if (p % 2 == 0)
         return P * P;
     return M * P * P;
+}
+
+std::vector<double> InferenceManager::randomCoalTimes(const ParameterVector params, double fac, const int size)
+{
+    PiecewiseExponentialRateFunction<double> eta(params, {}, hidden_states);
+    std::vector<double> ret(size);
+    std::mt19937 gen;
+    for (int i = 0; i < size; ++i)
+        ret[i] = eta.random_time(fac, 0., .99 * T_MAX, gen);
+    return ret;
 }
 
 template <typename T>

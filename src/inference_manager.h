@@ -43,6 +43,9 @@ class InferenceManager
     double R(const ParameterVector params, double t);
     double getRegularizer();
     bool debug, hj, forwardOnly, saveGamma;
+    std::vector<double> hidden_states;
+    std::mutex bpm_lock;
+    std::vector<double> randomCoalTimes(const ParameterVector params, double fac, const int size);
     std::unordered_map<block_key, Vector<adouble> > block_prob_map;
     std::vector<Matrix<float>*> getXisums();
     std::vector<Matrix<float>*> getGammas();
@@ -51,7 +54,6 @@ class InferenceManager
     Matrix<adouble>& getPi();
     Matrix<adouble>& getTransition();
     Matrix<adouble>& getEmission();
-    std::mutex bpm_lock;
 
     private:
     template <typename T> 
@@ -64,8 +66,6 @@ class InferenceManager
     const int n;
     const std::vector<int> L;
     const std::vector<int*> observations;
-    const std::vector<double> hidden_states;
-    const int H;
     const Eigen::Matrix<int, 3, Eigen::Dynamic, Eigen::RowMajor> emask, two_mask;
     const int mask_freq;
     double theta, rho;

@@ -1,16 +1,29 @@
 #include "hmm.h"
 
+long num_blocks(int total_loci, int block_size, int alt_block_size, int mask_freq)
+{
+    long base = mask_freq * std::floor(total_loci / (double)((mask_freq - 1) * block_size + alt_block_size));
+    int remain = total_loci % ((mask_freq - 1) * block_size + alt_block_size);
+    if (remain == 0)
+        return base;
+    else if (remain <= alt_block_size)
+        return base + 1;
+    return base + 1 + std::ceil((remain - alt_block_size) / (double)block_size);
+}
+
 HMM::HMM(const Matrix<int> &obs, int n, const int block_size,
         const Vector<adouble> *pi, const Matrix<adouble> *transition, 
         const Matrix<adouble> *emission,
         const int mask_freq, InferenceManager* im) :
-    n(n), block_size(block_size), 
+    n(n), block_size(block_size), alt_block_size(1),
     pi(pi), transition(transition), emission(emission),
     mask_freq(mask_freq),
     M(pi->rows()), 
-    Ltot(std::ceil(obs.col(0).sum() / (double)block_size)),
+    Ltot(num_blocks(obs.col(0).sum(), block_size, alt_block_size, mask_freq)),
     Bptr(Ltot),
-    xisum(M, M), c(Ltot),
+    xisum(M, M), 
+    xisum_alt(M, M),
+    c(Ltot),
     im(im)
 { 
     prepare_B(obs);
@@ -27,37 +40,36 @@ void HMM::prepare_B(const Matrix<int> &obs)
     std::map<std::pair<int, int>, int> powers;
     Vector<adouble> tmp(M);
     const Matrix<adouble> *em_ptr;
-    bool alt_block;
     unsigned long int R, i = 0, block = 0, tobs = 0;
     block_key key;
     unsigned long int L = obs.col(0).sum();
     std::pair<int, int> ob;
+    int current_block_size = (is_alt_block(block)) ? alt_block_size : block_size;
     for (unsigned int ell = 0; ell < obs.rows(); ++ell)
     {
         R = obs(ell, 0);
         ob = {obs(ell, 1), obs(ell, 2)};
         for (unsigned int r = 0; r < R; ++r)
         {
-            alt_block = is_alt_block(block);
-            if (! alt_block or (alt_block and i == 0))
-                // For alt block, take only the first observation
-                powers[ob]++;
+            powers[ob]++;
             if (tobs > L)
                 throw std::domain_error("what?");
             tobs++;
-            if (++i == block_size or (r == R - 1 and ell == obs.rows() - 1))
+            if (++i == current_block_size or (r == R - 1 and ell == obs.rows() - 1))
             {
                 i = 0;
-                key.alt_block = alt_block;
+                key.alt_block = is_alt_block(block);
                 key.powers = powers;
                 block_keys.emplace_back(key.alt_block, key.powers);
-                im->bpm_lock.lock();
-                if (im->block_prob_map.count(key) == 0)
-                    im->block_prob_map[key] = tmp;
-                im->bpm_lock.unlock();
+                {
+                    std::lock_guard<std::mutex> lock(im->bpm_lock);
+                    if (im->block_prob_map.count(key) == 0)
+                        im->block_prob_map[key] = tmp;
+                }
                 Bptr[block] = &(im->block_prob_map[key]);
                 block++;
                 powers.clear();
+                current_block_size = (is_alt_block(block)) ? alt_block_size : block_size;
             }
         }
     }
@@ -123,6 +135,7 @@ void HMM::forward_only(void)
     gamma_sums[Bptr[0]] += delta;
     gamma0 = delta;
     xisum.setZero();
+    xisum_alt.setZero();
     for (int u = 0; u < M; ++u)
         for (int v = 0; v < M; ++v)
         {
@@ -140,6 +153,8 @@ void HMM::forward_backward(void)
     alpha_hat = Matrix<float>::Zero(M, Ltot);
     Matrix<double> tt = transition->template cast<double>();
     Matrix<double> ttpow = tt.pow(block_size).template cast<double>();
+    Matrix<double> ttalt = tt.pow(alt_block_size).template cast<double>();
+    Matrix<double> *tr;
     Vector<double> tmp(M);
     Matrix<double> tmpmat;
     tmp = pi->template cast<double>().cwiseProduct(Bptr[0]->template cast<double>());
@@ -147,16 +162,27 @@ void HMM::forward_backward(void)
     alpha_hat.col(0) = (tmp / c(0)).template cast<float>();
     for (int ell = 1; ell < Ltot; ++ell)
     {
-        tmp = Bptr[ell]->template cast<double>().cwiseProduct(ttpow.transpose() * alpha_hat.col(ell - 1).template cast<double>());
+        tr = (is_alt_block(ell - 1)) ? &ttalt : &ttpow;
+        tmp = Bptr[ell]->template cast<double>().cwiseProduct(tr->transpose() * alpha_hat.col(ell - 1).template cast<double>());
         c(ell) = tmp.sum();
         alpha_hat.col(ell) = (tmp / c(ell)).template cast<float>();
-        if (std::isnan(toDouble(c(ell))))
+        if (std::isnan(toDouble(c(ell))) or std::isinf(toDouble(c(ell))) or c(ell) <= 0.)
+        {
+            std::cout << tmp.transpose() << std::endl << std::endl;
+            std::cout << Bptr[ell]->template cast<double>().transpose() << std::endl;
+            std::cout << ell << std::endl;
+            std::cout << alpha_hat.col(ell - 2).transpose() << std::endl << std::endl;
+            std::cout << alpha_hat.col(ell - 1).transpose() << std::endl << std::endl;
+            std::cout << alpha_hat.col(ell).transpose() << std::endl << std::endl;
+            std::cout << c(ell - 2) << " " << c(ell - 1) << " " << c(ell) << std::endl;
             throw std::domain_error("something went wrong in forward algorithm");
+        }
     }
     Vector<float> beta = Vector<float>::Ones(M), g;
     gamma_sums.clear();
     gamma_sums[Bptr[Ltot - 1]] = alpha_hat.col(Ltot - 1);
     xisum.setZero();
+    xisum_alt.setZero();
     tmpmat = Bptr[Ltot - 1]->template cast<double>().asDiagonal();
     tmpmat /= c(Ltot - 1);
     xisum += alpha_hat.col(Ltot - 2) * beta.transpose() * tmpmat.template cast<float>();
@@ -165,9 +191,11 @@ void HMM::forward_backward(void)
         gamma = Matrix<float>::Zero(M, Ltot);
         gamma.col(Ltot - 1) = alpha_hat.col(Ltot - 1);
     }
+    Matrix<float> *xir;
     for (int ell = Ltot - 2; ell >= 0; --ell)
     {
-        tmpmat = ttpow * Bptr[ell + 1]->template cast<double>().asDiagonal();
+        tr = is_alt_block(ell) ? &ttalt : &ttpow;
+        tmpmat = (*tr) * Bptr[ell + 1]->template cast<double>().asDiagonal();
         tmpmat /= c(ell + 1);
         beta = tmpmat.template cast<float>() * beta;
         if (gamma_sums.count(Bptr[ell]) == 0)
@@ -180,10 +208,15 @@ void HMM::forward_backward(void)
         {
             tmpmat = Bptr[ell]->template cast<double>().asDiagonal();
             tmpmat /= c(ell);
-            xisum += alpha_hat.col(ell - 1) * beta.transpose() * tmpmat.template cast<float>();
+            xir = (is_alt_block(ell - 1)) ? &xisum_alt : &xisum;
+            *xir += alpha_hat.col(ell - 1) * beta.transpose() * tmpmat.template cast<float>();
+            check_nan(*xir);
         }
     }
     xisum = xisum.cwiseProduct(ttpow.template cast<float>());
+    xisum_alt = xisum_alt.cwiseProduct(ttalt.template cast<float>());
+    check_nan(xisum);
+    check_nan(xisum_alt);
     gamma0 = g;
     PROGRESS_DONE();
 }
@@ -219,7 +252,13 @@ adouble HMM::Q(void)
     for (auto &p : gamma_sums)
         q2 += (p.first->array().log() * p.second.array().template cast<adouble>()).sum();
     Matrix<adouble> ttpow = mymatpow(*transition, block_size).array().log().matrix();
+    Matrix<adouble> ttalt = mymatpow(*transition, alt_block_size).array().log().matrix();
+    check_nan(ttalt);
+    check_nan(ttpow);
     q3 = xisum.template cast<adouble>().cwiseProduct(ttpow).sum();
+    check_nan(q3);
+    q3 += xisum_alt.template cast<adouble>().cwiseProduct(ttalt).sum();
+    check_nan(q3);
     PROGRESS_DONE();
     check_nan(q1);
     check_nan(q2);

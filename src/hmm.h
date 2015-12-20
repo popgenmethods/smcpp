@@ -34,14 +34,13 @@ class HMM
     bool is_alt_block(int);
 
     // Instance variables
-    const int n;
-    const int block_size;
+    const int n, block_size, alt_block_size;
     const Vector<adouble> *pi;
     const Matrix<adouble> *transition, *emission;
     const int mask_freq, M, Ltot;
     std::vector<Vector<adouble>*> Bptr;
     Matrix<adouble> B;
-    Matrix<float> alpha_hat, xisum, gamma;
+    Matrix<float> alpha_hat, xisum, xisum_alt, gamma;
     Vector<float> gamma0;
     Vector<double> c;
     InferenceManager* im;

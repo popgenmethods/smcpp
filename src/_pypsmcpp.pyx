@@ -107,11 +107,21 @@ cdef class PyInferenceManager:
     def Estep(self):
         self._im.Estep()
 
+    def random_times(self, params, fac, size):
+        cdef ParameterVector p = make_params(params)
+        return self._im.randomCoalTimes(p, fac, size)
+
     property saveGamma:
         def __get__(self):
             return self._im.saveGamma
         def __set__(self, bint sg):
             self._im.saveGamma = sg
+
+    property hidden_states:
+        def __get__(self):
+            return self._im.hidden_states
+        def __set__(self, hs):
+            self._im.hidden_states = hs
 
     property forwardOnly:
         def __get__(self):

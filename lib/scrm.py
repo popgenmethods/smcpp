@@ -88,7 +88,7 @@ def parse_scrm(n, L, output, include_trees):
         coal_times.append((span, l[(k+1):]))
     positions = next(output).strip()
     if positions:
-        positions = (np.fromstring(positions[11:], sep=" ").astype('float32') * L).astype('int')
+        positions = (np.fromstring(positions[11:], sep=" ").astype('float32') * (L - 1)).astype('int')
         # ignore trailing newline
         haps = np.zeros([n, len(positions)], dtype=np.int8)
         # haps = []
@@ -109,7 +109,6 @@ def parse_scrm(n, L, output, include_trees):
 
 def simulate(n, N0, theta, rho, L, demography=[], include_trees=False):
     # scrm will emit positions in [0, L] (inclusive).
-    L -= 1
     seeds = np.random.randint(0, sys.maxint, size=3)
     r = 4 * N0 * rho * (L - 1)
     t = 4 * N0 * theta * L
@@ -118,7 +117,7 @@ def simulate(n, N0, theta, rho, L, demography=[], include_trees=False):
         args.append("-T")
     output = scrm(*args, _iter=True)
     cmd_line, seed, _, _ = [line.strip() for line in itertools.islice(output, 4)]
-    return parse_scrm(n, L - 1, output, include_trees)
+    return parse_scrm(n, L, output, include_trees)
 
 def distinguished_sfs(n, M, N0, theta, demography, t0=0.0, t1=np.inf):
     seeds = np.random.randint(0, sys.maxint, size=3)

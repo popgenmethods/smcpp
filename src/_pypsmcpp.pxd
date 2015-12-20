@@ -31,11 +31,13 @@ cdef extern from "inference_manager.h":
         void Estep()
         vector[double] loglik(double)
         vector[adouble] Q(double)
+        vector[double] randomCoalTimes(const ParameterVector, double, int)
         double R(const ParameterVector, double t)
         bool debug
         bool hj
         bool forwardOnly
         bool saveGamma
+        vector[double] hidden_states
         double getRegularizer()
         vector[pMatrixF] getGammas()
         vector[pMatrixF] getXisums()

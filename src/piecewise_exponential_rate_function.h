@@ -37,6 +37,7 @@ class PiecewiseExponentialRateFunction
     void tjj_double_integral_above(const int, long, std::vector<Matrix<T> > &) const;
     void tjj_double_integral_below(const int, const int, Matrix<T>&) const;
     T random_time(const T&, const T&, std::mt19937&) const;
+    T random_time(const double, const T&, const T&, std::mt19937&) const;
 
     friend class ConditionedSFS<T>;
 

@@ -55,6 +55,7 @@ def plot_psfs(psfs, N0=1e4, xlim=None, ylim=None, order=None):
     if order is None:
         order = sorted(psfs)
     for label in order:
+        if label == "coal_times": continue
         a = psfs[label]['a']
         b = psfs[label]['b']
         s = psfs[label]['s']
@@ -82,6 +83,15 @@ def plot_psfs(psfs, N0=1e4, xlim=None, ylim=None, order=None):
         # ax.step(cs, a, where='post')
         ymax = max(ymax, np.max(y))
         xmax = max(xmax, np.max(x))
+    if 'coal_times' in psfs:
+        from scipy.stats import gaussian_kde
+        ct = psfs['coal_times']
+        del psfs['coal_times']
+        kde = gaussian_kde(ct)
+        x = np.arange(xlim[0], xlim[1], 5000)
+        y = kde.evaluate(x)
+        y *= 10. / max(y)
+        ax.plot(x, y, color="grey", linestyle="--")
     first_legend = ax.legend(handles=labels, loc=1)
     ax.set_xscale('log')
     if not xlim:
@@ -95,6 +105,8 @@ def plot_psfs(psfs, N0=1e4, xlim=None, ylim=None, order=None):
 def make_psfs(d):
     ret = {'fit': {'a': d['a'], 'b': d['b'], 's': d['s']},
             None: {'a': d['a0'], 'b': d['b0'], 's': d['s0']}}
+    if 'coal_times' in d:
+        ret['coal_times'] = d['coal_times']
     return ret
 
 def plot_output(psfs, fname, **kwargs):
