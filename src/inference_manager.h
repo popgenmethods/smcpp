@@ -44,7 +44,6 @@ class InferenceManager
     double getRegularizer();
     bool debug, hj, forwardOnly, saveGamma;
     std::vector<double> hidden_states;
-    std::mutex bpm_lock;
     std::vector<double> randomCoalTimes(const ParameterVector params, double fac, const int size);
     std::unordered_map<block_key, Vector<adouble> > block_prob_map;
     std::vector<Matrix<float>*> getXisums();

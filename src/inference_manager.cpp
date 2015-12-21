@@ -205,7 +205,7 @@ void InferenceManager::recompute_B(void)
         if (tmp.maxCoeff() > 1.0 or tmp.minCoeff() < 0.0)
             throw std::runtime_error("probability vector not in [0, 1]");
         check_nan(tmp);
-        block_prob_map[key] = tmp.matrix();
+        block_prob_map.at(key) = tmp.matrix();
     }
     PROGRESS_DONE();
 }

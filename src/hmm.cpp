@@ -61,12 +61,12 @@ void HMM::prepare_B(const Matrix<int> &obs)
                 key.alt_block = is_alt_block(block);
                 key.powers = powers;
                 block_keys.emplace_back(key.alt_block, key.powers);
+#pragma omp critical
                 {
-                    std::lock_guard<std::mutex> lock(im->bpm_lock);
                     if (im->block_prob_map.count(key) == 0)
-                        im->block_prob_map[key] = tmp;
+                        im->block_prob_map.insert({key, tmp});
                 }
-                Bptr[block] = &(im->block_prob_map[key]);
+                Bptr[block] = &(im->block_prob_map.at(key));
                 block++;
                 powers.clear();
                 current_block_size = (is_alt_block(block)) ? alt_block_size : block_size;
