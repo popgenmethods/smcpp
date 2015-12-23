@@ -4,8 +4,7 @@ template <typename T>
 PiecewiseExponentialRateFunction<T>::PiecewiseExponentialRateFunction(const std::vector<std::vector<double>> params,
         const std::vector<double> hidden_states) : 
     PiecewiseExponentialRateFunction(params, std::vector<std::pair<int, int>>(), hidden_states) 
-{
-}
+{ }
 
 std::vector<std::pair<int, int>> derivatives_from_params(const std::vector<std::vector<double>> params)
 {
@@ -111,6 +110,13 @@ PiecewiseExponentialRateFunction<T>::PiecewiseExponentialRateFunction(
     _eta.reset(new PExpEvaluator<T>(ada, adb, ts, Rrng));
     _R.reset(new PExpIntegralEvaluator<T>(ada, adb, ts, Rrng));
     _Rinv.reset(new PExpInverseIntegralEvaluator<T>(ada, adb, ts, Rrng));
+
+    compute_regularizer();
+}
+
+template <typename T>
+void PiecewiseExponentialRateFunction<T>::compute_regularizer()
+{
     T elast, xx, etax, tmp;
     elast = 1. / eta(ts[0]);
     const int delta = 500;
@@ -121,7 +127,7 @@ PiecewiseExponentialRateFunction<T>::PiecewiseExponentialRateFunction(
             xx = (i / delta) * (ts[k + 1] - ts[k]) + ts[k];
             etax = 1. / eta(xx);
             tmp = etax - elast;
-            _reg += myabs(tmp);
+            _reg += tmp * tmp * exp(-R(xx));
             elast = etax;
         }
     }

@@ -63,6 +63,7 @@ class PiecewiseExponentialRateFunction
     std::vector<T> ada, adb, ads, ts, Rrng;
     void initialize_derivatives();
     void compute_antiderivative();
+    void compute_regularizer();
     feval<T> _eta, _R, _Rinv;
     T _reg;
     std::vector<int> hs_indices;
