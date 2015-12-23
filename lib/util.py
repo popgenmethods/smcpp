@@ -113,5 +113,22 @@ def hmm_data_format(dataset, n, distinguished_rows, missing=0.):
     assert np.all(ret[:, 0] >= 1)
     return ret
 
+def parse_text_datasets(datasets):
+    obs = []
+    for ds in datasets:
+        n = int(next(ds).strip())
+        ob = []
+        ell0, dist, undist, nb = [int(x) for x in next(ds).strip().split()]
+        ob.append([1, dist, undist, nb])
+        for line in ds:
+            ell, dist, undist, nb = [int(x) for x in line.strip().split()]
+            gap = ell - ell0 - 1
+            ell0 = ell
+            if gap > 0:
+                ob.append([gap, 0, 0, n - 2])
+            ob.append([1, dist, undist, nb]) 
+        obs.append(np.array(ob, dtype=np.int32))
+    return {'n': n, 'obs': obs}
+
 def config2dict(cp):
     return {sec: dict(cp.items(sec)) for sec in cp.sections()}

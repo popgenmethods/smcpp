@@ -16,7 +16,7 @@ from psmcpp.lib.util import config2dict
 import ConfigParser as configparser
 import cPickle as pickle
 
-np.set_printoptions(linewidth=120, precision=6, suppress=True)
+np.set_printoptions(linewidth=120, precision=6, suppress=False)
 
 def exp_quantiles(M, h_M):
     hs = -np.log(1. - np.linspace(0, h_M, M, False) / h_M)
@@ -28,11 +28,14 @@ parser = argparse.ArgumentParser("smc++")
 parser.add_argument("--debug", action="store_true", default=False, help="display a lot of debugging info")
 parser.add_argument("--comment", default=None, type=str)
 parser.add_argument('config', type=argparse.FileType('r'), help="config file")
-parser.add_argument('data', type=argparse.FileType('rb'), help="data file in smcpp format")
+parser.add_argument('data', type=argparse.FileType('rt'), nargs="+", help="data file in SMC++ format")
 args = parser.parse_args()
 
 psmcpp._pypsmcpp.do_progress(args.debug)
-smcpp_data = pickle.load(args.data)
+try:
+    smcpp_data = pickle.load(args.data)
+except:
+    smcpp_data = psmcpp.lib.util.parse_text_datasets(args.data)
 obs_list = smcpp_data['obs']
 n = smcpp_data['n']
 config = configparser.SafeConfigParser()
@@ -41,9 +44,10 @@ print(config2dict(config))
 
 ## Calculate observed SFS for use later
 osfs = []
-for ol0 in obs_list:
+for ol in obs_list:
     obsfs = np.zeros([3, n - 1])
-    for r, c1, c2 in ol0[ol0[:, 1:].sum(axis=1) > 0]:
+    ol0 = ol[:, :3]
+    for r, c1, c2 in ol0[ol0[:, 1:3].min(axis=1) != -1]:
         obsfs[c1, c2] += r
     obsfs /= ol0[:, 0].sum()
     obsfs[0, 0] = 1. - obsfs.sum()
@@ -97,6 +101,7 @@ except configparser.NoOptionError:
     hs = exp_quantiles(M, h_M)
 if hs[0] != 0:
     raise Exception("First hidden state interval must begin at 0")
+hs = np.unique(np.sort(np.concatenate([hs, np.cumsum(s)])))
 print("hidden states", hs)
 
 # Load additional params
@@ -211,12 +216,18 @@ def print_state():
 def signal_handler(signal, frame):
     print("State...")
     print_state()
-# signal.signal(signal.SIGINT, signal_handler)
+
+def reverse_progress(signal, frame):
+    args.debug = not args.debug
+    psmcpp._pypsmcpp.do_progress(args.debug)
+
+signal.signal(signal.SIGUSR1, reverse_progress)
 
 def run_iteration(i, coords, factr):
     global x0
     global llold
     global im
+    global hs
     # for j in range(K * di // 3, K * (di + 1) // 3)]
     ret = optimize_fullgrad(i, coords, x0, factr)
     for xx, cc in zip(ret, coords):
@@ -224,6 +235,14 @@ def run_iteration(i, coords, factr):
     print("************** ITERATION %d ***************" % i)
     print(a)
     print(b)
+    if i == 5:
+        print("rebalancing hidden states")
+        h_M = hs[-1]
+        hs = im.balance_hidden_states((a, b, s), M)
+        hs[-1] = h_M
+        hs = np.unique(np.sort(np.concatenate([hs, np.cumsum(s)])))
+        im.hidden_states = hs
+        print(hs)
     im.setParams((a, b, s), False)
     im.Estep()
     ll = np.sum(im.loglik(0.0))
