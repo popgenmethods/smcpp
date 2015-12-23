@@ -15,7 +15,6 @@ class HMM
     public:
     HMM(const Matrix<int> &obs, const int n, const int block_size,
         const Vector<adouble> *pi, const Matrix<adouble> *transition, 
-        const Matrix<adouble> *emission,
         const int mask_freq, InferenceManager* im);
     void Estep(void);
     double loglik(void);
@@ -36,7 +35,7 @@ class HMM
     // Instance variables
     const int n, block_size, alt_block_size;
     const Vector<adouble> *pi;
-    const Matrix<adouble> *transition, *emission;
+    const Matrix<adouble> *transition;
     const int mask_freq, M, Ltot;
     std::vector<Vector<adouble>*> Bptr;
     Matrix<adouble> B;
@@ -45,7 +44,7 @@ class HMM
     Vector<double> c;
     InferenceManager* im;
 
-    std::vector<std::pair<bool, decltype(block_key::powers)> > block_keys;
+    block_key_vector block_keys;
     std::map<Vector<adouble>*, Vector<float> > gamma_sums;
     friend class InferenceManager;
 };

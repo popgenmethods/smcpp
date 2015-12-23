@@ -1,8 +1,7 @@
 #ifndef INFERENCE_MANAGER_H
 #define INFERENCE_MANAGER_H
 
-#include <algorithm>
-#include <gmpxx.h>
+#include "gsl/gsl_randist.h"
 
 #include "common.h"
 #include "hmm.h"
@@ -49,7 +48,7 @@ class InferenceManager
     std::vector<Matrix<float>*> getXisums();
     std::vector<Matrix<float>*> getGammas();
     std::vector<Matrix<adouble>*> getBs();
-    std::vector<std::vector<std::pair<bool, decltype(block_key::powers)> > > getBlockKeys();
+    std::vector<block_key_vector> getBlockKeys();
     Matrix<adouble>& getPi();
     Matrix<adouble>& getTransition();
     Matrix<adouble>& getEmission();
@@ -57,9 +56,11 @@ class InferenceManager
     private:
     template <typename T> 
     ConditionedSFS<T>& getCsfs();
+    Matrix<double>& subEmissionCoefs(int);
     void recompute_B();
     void populate_block_prob_map();
     typedef std::unique_ptr<HMM> hmmptr;
+
     // Passed-in parameters
     std::mt19937 gen;
     const int n;
@@ -77,12 +78,12 @@ class InferenceManager
     Matrix<adouble> transition, emission;
     ConditionedSFS<double> csfs_d;
     ConditionedSFS<adouble> csfs_ad;
-    std::unordered_map<block_key, unsigned long> comb_coeffs;
     std::vector<block_key> bpm_keys;
+    std::set<int> nbs;
+    std::map<int, Matrix<double> > subEmissionCoefs_memo;
 
     // Methods
     void parallel_do(std::function<void(hmmptr &)>);
-
     template <typename T>
     std::vector<T> parallel_select(std::function<T(hmmptr &)>);
 };

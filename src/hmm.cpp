@@ -13,10 +13,9 @@ long num_blocks(int total_loci, int block_size, int alt_block_size, int mask_fre
 
 HMM::HMM(const Matrix<int> &obs, int n, const int block_size,
         const Vector<adouble> *pi, const Matrix<adouble> *transition, 
-        const Matrix<adouble> *emission,
         const int mask_freq, InferenceManager* im) :
     n(n), block_size(block_size), alt_block_size(1),
-    pi(pi), transition(transition), emission(emission),
+    pi(pi), transition(transition),
     mask_freq(mask_freq),
     M(pi->rows()), 
     Ltot(num_blocks(obs.col(0).sum(), block_size, alt_block_size, mask_freq)),
@@ -37,18 +36,18 @@ bool HMM::is_alt_block(int block)
 void HMM::prepare_B(const Matrix<int> &obs)
 {
     PROGRESS("preparing B");
-    std::map<std::pair<int, int>, int> powers;
+    decltype(block_key::powers) powers;
     Vector<adouble> tmp(M);
     const Matrix<adouble> *em_ptr;
     unsigned long int R, i = 0, block = 0, tobs = 0;
     block_key key;
     unsigned long int L = obs.col(0).sum();
-    std::pair<int, int> ob;
+    block_power ob;
     int current_block_size = (is_alt_block(block)) ? alt_block_size : block_size;
     for (unsigned int ell = 0; ell < obs.rows(); ++ell)
     {
         R = obs(ell, 0);
-        ob = {obs(ell, 1), obs(ell, 2)};
+        ob = {obs(ell, 1), obs(ell, 2), obs(ell, 3)};
         for (unsigned int r = 0; r < R; ++r)
         {
             powers[ob]++;
@@ -60,7 +59,7 @@ void HMM::prepare_B(const Matrix<int> &obs)
                 i = 0;
                 key.alt_block = is_alt_block(block);
                 key.powers = powers;
-                block_keys.emplace_back(key.alt_block, key.powers);
+                block_keys.emplace_back(key.alt_block, std::vector<std::pair<block_power, int> >(key.powers.begin(), key.powers.end()));
 #pragma omp critical
                 {
                     if (im->block_prob_map.count(key) == 0)
@@ -88,7 +87,6 @@ void HMM::domain_error(double ret)
     {
         std::cout << pi->template cast<double>() << std::endl << std::endl;
         std::cout << transition->template cast<double>() << std::endl << std::endl;
-        std::cout << emission->template cast<double>() << std::endl << std::endl;
         throw std::domain_error("badness encountered");
     }
 }

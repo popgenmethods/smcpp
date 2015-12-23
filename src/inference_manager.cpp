@@ -79,13 +79,13 @@ InferenceManager::InferenceManager(
     for (unsigned int i = 0; i < observations.size(); ++i)
     {
         int ell = L[i];
-        Eigen::Matrix<int, Eigen::Dynamic, 3> obs = 
-            Eigen::Matrix<int, Eigen::Dynamic, 3, Eigen::RowMajor>::Map(observations[i], ell, 3);
-        int max_n = obs.rightCols(2).rowwise().sum().maxCoeff();
+        Eigen::Matrix<int, Eigen::Dynamic, 4> obs = 
+            Eigen::Matrix<int, Eigen::Dynamic, 4, Eigen::RowMajor>::Map(observations[i], ell, 4);
+        int max_n = obs.middleCols(1, 2).rowwise().sum().maxCoeff();
         if (max_n > n + 2 - 1)
             throw std::runtime_error("An observation has derived allele count greater than n + 1");
         PROGRESS("creating HMM");
-        hmmptr h(new HMM(obs, n, block_size, &pi, &transition, &emission, mask_freq, this));
+        hmmptr h(new HMM(obs, n, block_size, &pi, &transition, mask_freq, this));
         hmms[i] = std::move(h);
     }
     // Collect all the block keys for recomputation later
@@ -100,112 +100,91 @@ void InferenceManager::populate_block_prob_map()
     {
         block_key key = p.first;
         bpm_keys.push_back(key);
-        std::array<std::map<std::set<int>, int>, 4> classes;
-        std::vector<int> ctot(4, 0);
-        const Matrix<int> &em = key.alt_block ? emask : two_mask;
-        int ai;
-        for (auto &p : key.powers)
-        {
-            std::set<int> s;
-            int a = p.first.first, b = p.first.second;
-            if (a >= 0 and b >= 0)
-            {
-                ai = 0;
-                s = {em(a, b)};
-            }
-            else if (a >= 0)
-            {
-                for (int bb = 0; bb < n + 1; ++bb)
-                    s.insert(em(a, bb));
-                ai = 1;
-            }
-            else if (b >= 0)
-            {
-                // a is missing => sum along cols
-                s = {em(0, b), em(1, b), em(2, b)};
-                ai = 2;
-            }
-            else
-            {
-               ai = 3;
-            }
-            if (classes[ai].count(s) == 0)
-                classes[ai].emplace(s, 0);
-            classes[ai][s] += p.second;
-            ctot[ai] += p.second;
-        }
-        coef = multinomial(ctot);
-        for (int j = 0; j < 4; ++j)
-        {
-            std::vector<int> values;
-            for (auto &kv : classes[j])
-                values.push_back(kv.second);
-            coef *= multinomial(values);
-        }
-        comb_coeffs[key] = coef.get_ui();
+        if (key.alt_block)
+            nbs.insert(key.powers.begin()->first.nb);
     }
+}
+
+Matrix<double>& InferenceManager::subEmissionCoefs(int m)
+{
+    if (subEmissionCoefs_memo.count(m) == 0)
+    {
+        // FIXME: this direct sum representation is pretty wasteful
+        Matrix<double> M(3 * (n + 1), 3 * (m + 1));
+        M.setZero();
+        for (int i = 0; i < n + 1; ++i)
+            for (int j = 0; j < m + 1; ++j)
+                M(i, j) = gsl_ran_hypergeometric_pdf(j, i, n - i, m);
+        M.block(n + 1, m + 1, n + 1, m + 1) = M.block(0, 0, n + 1, m + 1);
+        M.block(2 * (n + 1), 2 * (m + 1), n + 1, m + 1) = M.block(0, 0, n + 1, m + 1);
+        subEmissionCoefs_memo[m] = M;
+    }
+    return subEmissionCoefs_memo[m];
 }
 
 void InferenceManager::recompute_B(void)
 {
     PROGRESS("recompute B");
-    std::map<int, Vector<adouble> > mask_probs, two_probs;
+    std::map<int, Vector<adouble> > two_probs;
     for (int i = 0; i < 3; ++i)
         for (int j = 0; j < n + 1; ++j)
         {
-            int e = emask(i, j);
-            if (mask_probs.count(e) == 0)
-                mask_probs[e] = Vector<adouble>::Zero(M);
-            mask_probs[e] += emission.col((n + 1) * i + j);
             if (two_probs.count(i % 2) == 0)
                 two_probs[i % 2] = Vector<adouble>::Zero(M);
             two_probs[i % 2] += emission.col((n + 1) * i + j);
         }
+    std::map<int, Matrix<adouble> > subemissions;
+    for (int nb : nbs)
+        subemissions[nb] = emission.lazyProduct(subEmissionCoefs(nb));
 #pragma omp parallel for
     for (auto it = bpm_keys.begin(); it < bpm_keys.end(); ++it)
     {
-        block_key key = *it;
         Eigen::Array<adouble, Eigen::Dynamic, 1> tmp(M), log_tmp(M);
         log_tmp.setZero();
-        const Matrix<int> &em = key.alt_block ? emask : two_mask;
-        std::map<int, Vector<adouble> > &prbs = key.alt_block ? mask_probs : two_probs;
-        Vector<adouble> ob;
-        for (auto &p : key.powers)
+        Vector<adouble> ob = Vector<adouble>::Zero(M);
+        if (it->alt_block)
         {
-            ob = Vector<adouble>::Zero(M);
-            int a = p.first.first, b = p.first.second;
-            if (a == -1)
+            // Full SFS emission
+            if (it->powers.size() != 1 or it->powers.begin()->second != 1)
+                throw std::runtime_error("Alt blocks >1 not supported.");
+            block_power bp = it->powers.begin()->first;
+            Matrix<adouble> emission_nb = subemissions.at(bp.nb);
+            if (bp.a == -1)
             {
-                if (b == -1)
-                    // Double missing!
-                    continue;
-                else
-                {
-                    for (int x : std::set<int>{em(0, b), em(1, b), em(2, b)})
-                        ob += prbs[x];
-                }
+                if (bp.nb == 0)
+                    tmp.fill(1);
+                else    
+                    tmp = (
+                            emission_nb.col(bp.b) + 
+                            emission_nb.col((bp.nb + 1) + bp.b) + 
+                            emission_nb.col(2 * (bp.nb + 1) + bp.b)
+                            );
             }
             else
-            {
-                if (b == -1)
-                {
-                    std::set<int> bbs;
-                    for (int bb = 0; bb < em.cols(); ++bb)
-                        bbs.insert(em(a, bb));
-                    for (int x : bbs)
-                        ob += prbs[x];
-                }
-                else
-                    ob = prbs[em(a, b)];
-            }
-            log_tmp += ob.array().log() * p.second;
+                tmp = emission_nb.col(bp.a * (bp.nb + 1) + bp.b);
         }
-        log_tmp += log(comb_coeffs[key]);
-        tmp = exp(log_tmp);
-        if (tmp.maxCoeff() > 1.0 or tmp.minCoeff() < 0.0)
+        else
+        {
+            // Reduced SFS emission
+            std::vector<int> nobs(2, 0);
+            for (auto &p : it->powers)
+                if (p.first.a != -1)
+                {
+                    nobs[p.first.a % 2]++;
+                    log_tmp += two_probs[p.first.a % 2].array().log() * p.second;
+                }
+            log_tmp += log(multinomial(nobs).get_ui());
+            tmp = exp(log_tmp);
+        }
+        if (tmp.maxCoeff() > 1 or tmp.minCoeff() <= 0.0)
+        {
+            std::cout << it->powers << std::endl;
+            std::cout << tmp.template cast<double>().transpose() << std::endl;
+            std::cout << tmp.maxCoeff() << std::endl;
             throw std::runtime_error("probability vector not in [0, 1]");
+        }
         check_nan(tmp);
-        block_prob_map.at(key) = tmp.matrix();
+        block_prob_map.at(*it) = tmp.matrix();
     }
     PROGRESS_DONE();
 }
@@ -359,9 +338,9 @@ std::vector<Matrix<adouble>*> InferenceManager::getBs()
     return ret;
 }
 
-std::vector<std::vector<std::pair<bool, decltype(block_key::powers)> > > InferenceManager::getBlockKeys()
+std::vector<block_key_vector> InferenceManager::getBlockKeys()
 {
-    std::vector<std::vector<std::pair<bool, decltype(block_key::powers)> > > ret;
+    std::vector<block_key_vector> ret;
     for (auto &hmm : hmms)
         ret.push_back(hmm->block_keys);
     return ret;

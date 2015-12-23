@@ -20,6 +20,12 @@ ctypedef Matrix[double]* pMatrixD
 ctypedef Matrix[float]* pMatrixF
 ctypedef Matrix[adouble]* pMatrixAd
 
+cdef extern from "block_key.h":
+    cdef struct block_power:
+        int a
+        int b
+        int nb
+
 cdef extern from "inference_manager.h":
     ctypedef vector[vector[double]] ParameterVector
     cdef cppclass InferenceManager:
@@ -45,6 +51,6 @@ cdef extern from "inference_manager.h":
         Matrix[adouble]& getPi()
         Matrix[adouble]& getTransition()
         Matrix[adouble]& getEmission()
-        vector[vector[pair[bool, map[pair[int, int], int]]]] getBlockKeys()
+        vector[vector[pair[bool, vector[pair[block_power, int]]]]] getBlockKeys()
     Matrix[T] sfs_cython[T](int, const ParameterVector&, double, double, double)
     Matrix[T] sfs_cython[T](int, const ParameterVector&, double, double, double, vector[pair[int, int]])
