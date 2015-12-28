@@ -60,12 +60,20 @@ void HMM::prepare_B(const Matrix<int> &obs)
                 key.alt_block = is_alt_block(block);
                 key.powers = powers;
                 block_keys.emplace_back(key.alt_block, std::vector<std::pair<block_power, int> >(key.powers.begin(), key.powers.end()));
-#pragma omp critical
+#pragma omp critical(map_insert)
                 {
                     if (im->block_prob_map.count(key) == 0)
                         im->block_prob_map.insert({key, tmp});
                 }
-                Bptr[block] = &(im->block_prob_map.at(key));
+                try
+                {
+                    Bptr[block] = &(im->block_prob_map.at(key));
+                }
+                catch (std::out_of_range)
+                {
+                    std::cout << block << " " << key.alt_block << " " << key.powers << std::endl;
+                    throw;
+                }
                 block++;
                 powers.clear();
                 current_block_size = (is_alt_block(block)) ? alt_block_size : block_size;
@@ -154,14 +162,13 @@ void HMM::forward_backward(void)
     Matrix<double> ttalt = tt.pow(alt_block_size).template cast<double>();
     Matrix<double> *tr;
     Vector<double> tmp(M);
-    Matrix<double> tmpmat;
     tmp = pi->template cast<double>().cwiseProduct(Bptr[0]->template cast<double>());
 	c(0) = tmp.sum();
     alpha_hat.col(0) = (tmp / c(0)).template cast<float>();
     for (int ell = 1; ell < Ltot; ++ell)
     {
         tr = (is_alt_block(ell - 1)) ? &ttalt : &ttpow;
-        tmp = Bptr[ell]->template cast<double>().cwiseProduct(tr->transpose() * alpha_hat.col(ell - 1).template cast<double>());
+        tmp = Bptr[ell]->template cast<double>().asDiagonal() * tr->transpose() * alpha_hat.col(ell - 1).template cast<double>();
         c(ell) = tmp.sum();
         alpha_hat.col(ell) = (tmp / c(ell)).template cast<float>();
         if (std::isnan(toDouble(c(ell))) or std::isinf(toDouble(c(ell))) or c(ell) <= 0.)
@@ -179,9 +186,10 @@ void HMM::forward_backward(void)
     Vector<float> beta = Vector<float>::Ones(M), g;
     gamma_sums.clear();
     gamma_sums[Bptr[Ltot - 1]] = alpha_hat.col(Ltot - 1);
+    // Transitions
     xisum.setZero();
     xisum_alt.setZero();
-    tmpmat = Bptr[Ltot - 1]->template cast<double>().asDiagonal();
+    Matrix<double> tmpmat = Bptr[Ltot - 1]->template cast<double>().asDiagonal();
     tmpmat /= c(Ltot - 1);
     xisum += alpha_hat.col(Ltot - 2) * beta.transpose() * tmpmat.template cast<float>();
     if (im->saveGamma)
@@ -197,9 +205,9 @@ void HMM::forward_backward(void)
         tmpmat /= c(ell + 1);
         beta = tmpmat.template cast<float>() * beta;
         if (gamma_sums.count(Bptr[ell]) == 0)
-            gamma_sums[Bptr[ell]] = Vector<float>::Zero(M);
+            gamma_sums.insert({Bptr[ell], Vector<float>::Zero(M)});
         g = alpha_hat.col(ell).cwiseProduct(beta);
-        gamma_sums[Bptr[ell]] += g;
+        gamma_sums.at(Bptr[ell]) += g;
         if (im->saveGamma)
             gamma.col(ell) = g;
         if (ell > 0)

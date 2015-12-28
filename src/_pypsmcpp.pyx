@@ -141,7 +141,8 @@ cdef class PyInferenceManager:
 
     property xisums:
         def __get__(self):
-            return _make_em_matrix(self._im.getXisums())
+            cdef pair[vector[pMatrixF], vector[pMatrixF]] xis = self._im.getXisums()
+            return [_make_em_matrix(xis.first), _make_em_matrix(xis.second)]
 
     property Bs:
         def __get__(self):

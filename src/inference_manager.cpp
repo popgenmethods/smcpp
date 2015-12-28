@@ -122,17 +122,14 @@ Matrix<double>& InferenceManager::subEmissionCoefs(int m)
     return subEmissionCoefs_memo[m];
 }
 
-void InferenceManager::recompute_B(void)
+template <typename T>
+void InferenceManager::recompute_B(const PiecewiseExponentialRateFunction<T> &eta)
 {
     PROGRESS("recompute B");
-    std::map<int, Vector<adouble> > two_probs;
+    Vector<adouble> two_probs[2] = {Vector<adouble>::Zero(M), Vector<adouble>::Zero(M)};
     for (int i = 0; i < 3; ++i)
         for (int j = 0; j < n + 1; ++j)
-        {
-            if (two_probs.count(i % 2) == 0)
-                two_probs[i % 2] = Vector<adouble>::Zero(M);
             two_probs[i % 2] += emission.col((n + 1) * i + j);
-        }
     std::map<int, Matrix<adouble> > subemissions;
     for (int nb : nbs)
         subemissions[nb] = emission.lazyProduct(subEmissionCoefs(nb));
@@ -152,13 +149,12 @@ void InferenceManager::recompute_B(void)
             if (bp.a == -1)
             {
                 if (bp.nb == 0)
-                    tmp.fill(1);
+                    tmp.fill(eta.one);
                 else    
-                    tmp = (
-                            emission_nb.col(bp.b) + 
+                    tmp = (emission_nb.col(bp.b) + 
                             emission_nb.col((bp.nb + 1) + bp.b) + 
                             emission_nb.col(2 * (bp.nb + 1) + bp.b)
-                            );
+                          );
             }
             else
                 tmp = emission_nb.col(bp.a * (bp.nb + 1) + bp.b);
@@ -170,13 +166,13 @@ void InferenceManager::recompute_B(void)
             for (auto &p : it->powers)
                 if (p.first.a != -1)
                 {
-                    nobs[p.first.a % 2]++;
+                    nobs[p.first.a % 2] += p.second;
                     log_tmp += two_probs[p.first.a % 2].array().log() * p.second;
                 }
             log_tmp += log(multinomial(nobs).get_ui());
             tmp = exp(log_tmp);
         }
-        if (tmp.maxCoeff() > 1 or tmp.minCoeff() <= 0.0)
+        if (tmp.maxCoeff() > 1.0 or tmp.minCoeff() <= 0.0)
         {
             std::cout << it->powers << std::endl;
             std::cout << tmp.template cast<double>().transpose() << std::endl;
@@ -230,7 +226,7 @@ void InferenceManager::setParams(const ParameterVector params, const std::vector
         em_tmp = sfss[m];
         emission.row(m) = Matrix<T>::Map(em_tmp.data(), 1, 3 * (n + 1)).template cast<adouble>();
     }
-    recompute_B();
+    recompute_B(eta);
 }
 template void InferenceManager::setParams<double>(const ParameterVector, const std::vector<std::pair<int, int>>);
 template void InferenceManager::setParams<adouble>(const ParameterVector, const std::vector<std::pair<int, int>>);
@@ -315,12 +311,13 @@ std::vector<Matrix<float>*> InferenceManager::getGammas()
     return ret;
 }
 
-std::vector<Matrix<float>*> InferenceManager::getXisums()
+std::pair<std::vector<Matrix<float>* >, std::vector<Matrix<float>* > > InferenceManager::getXisums()
 {
-    std::vector<Matrix<float>*> ret;
+    std::pair<std::vector<Matrix<float>* >, std::vector<Matrix<float>* > > ret;
     for (auto &hmm : hmms)
     {
-        ret.push_back(&hmm->xisum);
+        ret.first.push_back(&hmm->xisum);
+        ret.second.push_back(&hmm->xisum_alt);
     }
     return ret;
 }

@@ -46,7 +46,7 @@ cdef extern from "inference_manager.h":
         vector[double] hidden_states
         double getRegularizer()
         vector[pMatrixF] getGammas()
-        vector[pMatrixF] getXisums()
+        pair[vector[pMatrixF], vector[pMatrixF]] getXisums()
         vector[pMatrixAd] getBs()
         Matrix[adouble]& getPi()
         Matrix[adouble]& getTransition()

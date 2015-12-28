@@ -45,7 +45,7 @@ class InferenceManager
     std::vector<double> hidden_states;
     std::vector<double> randomCoalTimes(const ParameterVector params, double fac, const int size);
     std::unordered_map<block_key, Vector<adouble> > block_prob_map;
-    std::vector<Matrix<float>*> getXisums();
+    std::pair<std::vector<Matrix<float>* >, std::vector<Matrix<float>* > > getXisums();
     std::vector<Matrix<float>*> getGammas();
     std::vector<Matrix<adouble>*> getBs();
     std::vector<block_key_vector> getBlockKeys();
@@ -57,7 +57,8 @@ class InferenceManager
     template <typename T> 
     ConditionedSFS<T>& getCsfs();
     Matrix<double>& subEmissionCoefs(int);
-    void recompute_B();
+    template <typename T>
+    void recompute_B(const PiecewiseExponentialRateFunction<T> &);
     void populate_block_prob_map();
     typedef std::unique_ptr<HMM> hmmptr;
 
