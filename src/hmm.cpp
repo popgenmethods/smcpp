@@ -104,20 +104,20 @@ void HMM::forward_only(void)
 {
     PROGRESS("forward only");
     Matrix<double> tt = transition->template cast<double>();
-    Matrix<float> ttpow = tt.pow(block_size).template cast<float>();
-    Matrix<float> delta = ttpow * Bptr[Ltot - 1]->template cast<float>().asDiagonal();
-    Vector<float> d = delta.rowwise().sum().cwiseInverse();
+    Matrix<fbType> ttpow = tt.pow(block_size).template cast<fbType>();
+    Matrix<fbType> delta = ttpow * Bptr[Ltot - 1]->template cast<fbType>().asDiagonal();
+    Vector<fbType> d = delta.rowwise().sum().cwiseInverse();
     delta = d.asDiagonal() * delta;
-    float ll = -log(d(0)); // line 8
+    fbType ll = -log(d(0)); // line 8
     // Lines 9 - 11
-    std::map<Vector<adouble>*, Matrix<float> > a;
+    std::map<Vector<adouble>*, Matrix<fbType> > a;
     a[Bptr[Ltot - 1]] = delta;
     // Lines 12 - 13
-    std::vector<Matrix<float> > b(M, Matrix<float>::Zero(M, M));
-    Matrix<float> delta1 = delta, q1, q2, ttB, B;
+    std::vector<Matrix<fbType> > b(M, Matrix<fbType>::Zero(M, M));
+    Matrix<fbType> delta1 = delta, q1, q2, ttB, B;
     for (int ell = Ltot - 2; ell >= 1; --ell) // Line 15
     {
-        B = Bptr[ell]->template cast<float>().asDiagonal();
+        B = Bptr[ell]->template cast<fbType>().asDiagonal();
         ttB = ttpow * B;
         q1 = ttB * ttpow;
         q2 = delta.cwiseQuotient(ttpow);
@@ -126,16 +126,16 @@ void HMM::forward_only(void)
         for (auto &p : a)
             a[p.first] = delta * p.second;
         if (a.count(Bptr[ell]) == 0)
-            a[Bptr[ell]] = Matrix<float>::Zero(M, M);
+            a[Bptr[ell]] = Matrix<fbType>::Zero(M, M);
         a[Bptr[ell]] += delta;
         for (int m = 0; m < M; ++m)
             b[m] = delta * b[m] + delta * delta1.col(m).asDiagonal();
         delta1 = delta;
     }
-    B = Bptr[0]->template cast<float>().asDiagonal();
-    q1 = pi->template cast<float>().transpose() * B * ttpow;
+    B = Bptr[0]->template cast<fbType>().asDiagonal();
+    q1 = pi->template cast<fbType>().transpose() * B * ttpow;
     q2 = delta.cwiseQuotient(ttpow);
-    delta = (pi->template cast<float>().transpose() * B).cwiseQuotient((q2 * q1).transpose());
+    delta = (pi->template cast<fbType>().transpose() * B).cwiseQuotient((q2 * q1).transpose());
     for (auto &p : a)
         gamma_sums[p.first] = delta * p.second;
     gamma_sums[Bptr[0]] += delta;
@@ -149,14 +149,14 @@ void HMM::forward_only(void)
                 xisum(u, v) += delta(h) * b[v](h, u);
             xisum(u, v) += delta(u) * delta1(u, v);
         }
-    ll += log(pi->template cast<float>()(0) * B(0, 0) / delta(0, 0));
+    ll += log(pi->template cast<fbType>()(0) * B(0, 0) / delta(0, 0));
     PROGRESS_DONE();
 }
 
 void HMM::forward_backward(void)
 {
     PROGRESS("forward backward");
-    alpha_hat = Matrix<float>::Zero(M, Ltot);
+    alpha_hat = Matrix<fbType>::Zero(M, Ltot);
     Matrix<double> tt = transition->template cast<double>();
     Matrix<double> ttpow = tt.pow(block_size).template cast<double>();
     Matrix<double> ttalt = tt.pow(alt_block_size).template cast<double>();
@@ -164,13 +164,13 @@ void HMM::forward_backward(void)
     Vector<double> tmp(M);
     tmp = pi->template cast<double>().cwiseProduct(Bptr[0]->template cast<double>());
 	c(0) = tmp.sum();
-    alpha_hat.col(0) = (tmp / c(0)).template cast<float>();
+    alpha_hat.col(0) = (tmp / c(0)).template cast<fbType>();
     for (int ell = 1; ell < Ltot; ++ell)
     {
         tr = (is_alt_block(ell - 1)) ? &ttalt : &ttpow;
         tmp = Bptr[ell]->template cast<double>().asDiagonal() * tr->transpose() * alpha_hat.col(ell - 1).template cast<double>();
         c(ell) = tmp.sum();
-        alpha_hat.col(ell) = (tmp / c(ell)).template cast<float>();
+        alpha_hat.col(ell) = (tmp / c(ell)).template cast<fbType>();
         if (std::isnan(toDouble(c(ell))) or std::isinf(toDouble(c(ell))) or c(ell) <= 0.)
         {
             std::cout << tmp.transpose() << std::endl << std::endl;
@@ -183,7 +183,7 @@ void HMM::forward_backward(void)
             throw std::domain_error("something went wrong in forward algorithm");
         }
     }
-    Vector<float> beta = Vector<float>::Ones(M), g;
+    Vector<fbType> beta = Vector<fbType>::Ones(M), g;
     gamma_sums.clear();
     gamma_sums[Bptr[Ltot - 1]] = alpha_hat.col(Ltot - 1);
     // Transitions
@@ -191,21 +191,21 @@ void HMM::forward_backward(void)
     xisum_alt.setZero();
     Matrix<double> tmpmat = Bptr[Ltot - 1]->template cast<double>().asDiagonal();
     tmpmat /= c(Ltot - 1);
-    xisum += alpha_hat.col(Ltot - 2) * beta.transpose() * tmpmat.template cast<float>();
+    xisum += alpha_hat.col(Ltot - 2) * beta.transpose() * tmpmat.template cast<fbType>();
     if (im->saveGamma)
     {
-        gamma = Matrix<float>::Zero(M, Ltot);
+        gamma = Matrix<fbType>::Zero(M, Ltot);
         gamma.col(Ltot - 1) = alpha_hat.col(Ltot - 1);
     }
-    Matrix<float> *xir;
+    Matrix<fbType> *xir;
     for (int ell = Ltot - 2; ell >= 0; --ell)
     {
         tr = is_alt_block(ell) ? &ttalt : &ttpow;
         tmpmat = (*tr) * Bptr[ell + 1]->template cast<double>().asDiagonal();
         tmpmat /= c(ell + 1);
-        beta = tmpmat.template cast<float>() * beta;
+        beta = tmpmat.template cast<fbType>() * beta;
         if (gamma_sums.count(Bptr[ell]) == 0)
-            gamma_sums.insert({Bptr[ell], Vector<float>::Zero(M)});
+            gamma_sums.insert({Bptr[ell], Vector<fbType>::Zero(M)});
         g = alpha_hat.col(ell).cwiseProduct(beta);
         gamma_sums.at(Bptr[ell]) += g;
         if (im->saveGamma)
@@ -215,12 +215,12 @@ void HMM::forward_backward(void)
             tmpmat = Bptr[ell]->template cast<double>().asDiagonal();
             tmpmat /= c(ell);
             xir = (is_alt_block(ell - 1)) ? &xisum_alt : &xisum;
-            *xir += alpha_hat.col(ell - 1) * beta.transpose() * tmpmat.template cast<float>();
+            *xir += alpha_hat.col(ell - 1) * beta.transpose() * tmpmat.template cast<fbType>();
             check_nan(*xir);
         }
     }
-    xisum = xisum.cwiseProduct(ttpow.template cast<float>());
-    xisum_alt = xisum_alt.cwiseProduct(ttalt.template cast<float>());
+    xisum = xisum.cwiseProduct(ttpow.template cast<fbType>());
+    xisum_alt = xisum_alt.cwiseProduct(ttalt.template cast<fbType>());
     check_nan(xisum);
     check_nan(xisum_alt);
     gamma0 = g;

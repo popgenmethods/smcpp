@@ -39,13 +39,13 @@ class HMM
     const int mask_freq, M, Ltot;
     std::vector<Vector<adouble>*> Bptr;
     Matrix<adouble> B;
-    Matrix<float> alpha_hat, xisum, xisum_alt, gamma;
-    Vector<float> gamma0;
+    Matrix<fbType> alpha_hat, xisum, xisum_alt, gamma;
+    Vector<fbType> gamma0;
     Vector<double> c;
     InferenceManager* im;
 
     block_key_vector block_keys;
-    std::map<Vector<adouble>*, Vector<float> > gamma_sums;
+    std::map<Vector<adouble>*, Vector<fbType> > gamma_sums;
     friend class InferenceManager;
 };
 

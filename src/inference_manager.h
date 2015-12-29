@@ -45,8 +45,8 @@ class InferenceManager
     std::vector<double> hidden_states;
     std::vector<double> randomCoalTimes(const ParameterVector params, double fac, const int size);
     std::unordered_map<block_key, Vector<adouble> > block_prob_map;
-    std::pair<std::vector<Matrix<float>* >, std::vector<Matrix<float>* > > getXisums();
-    std::vector<Matrix<float>*> getGammas();
+    std::pair<std::vector<Matrix<fbType>* >, std::vector<Matrix<fbType>* > > getXisums();
+    std::vector<Matrix<fbType>*> getGammas();
     std::vector<Matrix<adouble>*> getBs();
     std::vector<block_key_vector> getBlockKeys();
     Matrix<adouble>& getPi();

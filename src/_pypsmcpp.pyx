@@ -32,14 +32,14 @@ cdef ParameterVector make_params(params):
     return ret
 
 cdef _make_em_matrix(vector[pMatrixF] mats):
-    cdef float[:, ::1] v
+    cdef fbType[:, ::1] v
     ret = []
     for i in range(mats.size()):
         m = mats[i][0].rows()
         n = mats[i][0].cols()
-        ary = aca(np.zeros([m, n]), dtype=np.float32)
+        ary = aca(np.zeros([m, n]))
         v = ary
-        store_matrix[float](mats[i], &v[0, 0])
+        store_matrix[fbType](mats[i], &v[0, 0])
         ret.append(ary)
     return ret
 

@@ -10,6 +10,7 @@ cdef extern from "common.h":
         int rows()
         int cols()
     cdef double toDouble(const adouble &)
+    ctypedef float fbType
     void init_eigen()
     void fill_jacobian(const adouble &, double*)
     void store_matrix[T](const Matrix[T] *, T*)
@@ -17,7 +18,7 @@ cdef extern from "common.h":
     void doProgress(bool)
 
 ctypedef Matrix[double]* pMatrixD
-ctypedef Matrix[float]* pMatrixF
+ctypedef Matrix[fbType]* pMatrixF
 ctypedef Matrix[adouble]* pMatrixAd
 
 cdef extern from "block_key.h":

@@ -39,6 +39,10 @@ extern bool do_progress;
 // Maximum time (in coalescent units) considered for all integrals and hidden states.
 // Technically this is not necessary -- the method works with T_MAX=infinity -- but
 // the derivatives and integrals seem a bit more accurate when everything is finite.
+//
+
+typedef double fbType;
+
 const double T_MAX = 15.0;
 
 constexpr long nC2(int n) { return n * (n - 1) / 2; }

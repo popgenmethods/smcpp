@@ -131,8 +131,14 @@ void InferenceManager::recompute_B(const PiecewiseExponentialRateFunction<T> &et
         for (int j = 0; j < n + 1; ++j)
             two_probs[i % 2] += emission.col((n + 1) * i + j);
     std::map<int, Matrix<adouble> > subemissions;
+    PROGRESS("subemissions");
     for (int nb : nbs)
+    {
         subemissions[nb] = emission.lazyProduct(subEmissionCoefs(nb));
+        subemissions[nb].col(0) += subemissions[nb].rightCols<1>();
+        subemissions[nb].rightCols<1>().fill(0);
+        PROGRESS(std::endl << nb << std::endl << subemissions[nb].template cast<double>() << std::endl << std::endl);
+    }
 #pragma omp parallel for
     for (auto it = bpm_keys.begin(); it < bpm_keys.end(); ++it)
     {
@@ -301,9 +307,9 @@ std::vector<adouble> InferenceManager::Q(double lambda)
             });
 }
 
-std::vector<Matrix<float>*> InferenceManager::getGammas()
+std::vector<Matrix<fbType>*> InferenceManager::getGammas()
 {
-    std::vector<Matrix<float>*> ret;
+    std::vector<Matrix<fbType>*> ret;
     for (auto &hmm : hmms)
     {
         ret.push_back(&hmm->gamma);
@@ -311,9 +317,9 @@ std::vector<Matrix<float>*> InferenceManager::getGammas()
     return ret;
 }
 
-std::pair<std::vector<Matrix<float>* >, std::vector<Matrix<float>* > > InferenceManager::getXisums()
+std::pair<std::vector<Matrix<fbType>* >, std::vector<Matrix<fbType>* > > InferenceManager::getXisums()
 {
-    std::pair<std::vector<Matrix<float>* >, std::vector<Matrix<float>* > > ret;
+    std::pair<std::vector<Matrix<fbType>* >, std::vector<Matrix<fbType>* > > ret;
     for (auto &hmm : hmms)
     {
         ret.first.push_back(&hmm->xisum);
