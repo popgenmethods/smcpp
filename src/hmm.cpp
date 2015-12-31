@@ -68,10 +68,11 @@ void HMM::prepare_B(const Matrix<int> &obs)
                 try
                 {
                     Bptr[block] = &(im->block_prob_map.at(key));
+                    bmap[Bptr[block]] = key;
                 }
                 catch (std::out_of_range)
                 {
-                    std::cout << block << " " << key.alt_block << " " << key.powers << std::endl;
+                    std::cout << block << " " << key.alt_block << " " << key.powers << " " << im->block_prob_map.count(key) << std::endl;
                     throw;
                 }
                 block++;
@@ -262,10 +263,7 @@ adouble HMM::Q(void)
     check_nan(ttalt);
     check_nan(ttpow);
     q3 = xisum.template cast<adouble>().cwiseProduct(ttpow).sum();
-    check_nan(q3);
     q3 += xisum_alt.template cast<adouble>().cwiseProduct(ttalt).sum();
-    check_nan(q3);
-    PROGRESS_DONE();
     check_nan(q1);
     check_nan(q2);
     check_nan(q3);

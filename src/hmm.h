@@ -38,6 +38,7 @@ class HMM
     const Matrix<adouble> *transition;
     const int mask_freq, M, Ltot;
     std::vector<Vector<adouble>*> Bptr;
+    std::map<Vector<adouble>*, block_key> bmap;
     Matrix<adouble> B;
     Matrix<fbType> alpha_hat, xisum, xisum_alt, gamma;
     Vector<fbType> gamma0;
