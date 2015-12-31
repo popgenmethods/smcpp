@@ -113,21 +113,15 @@ def hmm_data_format(dataset, n, distinguished_rows, missing=0.):
     assert np.all(ret[:, 0] >= 1)
     return ret
 
+def _pt_helper(fn):
+    A = np.loadtxt(fn, dtype=np.int32)
+    A[np.logical_and(A[:,1] == 2, A[:,2] == A[:,3]), 1:3] = 0
+    return A
+
 def parse_text_datasets(datasets):
-    obs = []
-    for ds in datasets:
-        n = int(next(ds).strip())
-        ob = []
-        ell0, dist, undist, nb = [int(x) for x in next(ds).strip().split()]
-        ob.append([1, dist, undist, nb])
-        for line in ds:
-            ell, dist, undist, nb = [int(x) for x in line.strip().split()]
-            gap = ell - ell0 - 1
-            ell0 = ell
-            if gap > 0:
-                ob.append([gap, 0, 0, n - 2])
-            ob.append([1, dist, undist, nb]) 
-        obs.append(np.array(ob, dtype=np.int32))
+    import multiprocessing
+    obs = list(multiprocessing.Pool(None).map(_pt_helper, datasets))
+    n = 2 + max([ob[:,-1].max() for ob in obs])
     return {'n': n, 'obs': obs}
 
 def config2dict(cp):
