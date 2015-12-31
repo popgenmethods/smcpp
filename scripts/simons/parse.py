@@ -25,8 +25,8 @@ def parse_chrom(base, chrom):
     print(missingness)
     return (chrom, snp_locs, geno)
 
-for chrom in range(1, 23)[::-1]:
+for chrom in [22]: # range(1, 23)[::-1]:
     print(chrom)
     parse_chrom("fullypublic", chrom)
-    # np.savez_compressed("/scratch/terhorst/simons/{chrom}".format(chrom=chrom), *parse_chrom("fullypublic", chrom))
+    np.savez_compressed("/scratch/terhorst/simons/{chrom}".format(chrom=chrom), *parse_chrom("fullypublic", chrom))
     print("done")
