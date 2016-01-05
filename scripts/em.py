@@ -260,8 +260,13 @@ try:
     iterations = config.getint("advanced", "em iterations")
 except configparser.NoOptionError:
     iterations = 20
+try:
+    factr = config.getfloat("advanced", "lbfgs factor")
+except configparser.NoOptionError:
+    factr = 1e9
+
 while i < iterations:
-    run_iteration(i, coords, 1e9)
+    run_iteration(i, coords, factr)
     esfs = psmcpp._pypsmcpp.sfs(n, (a,b,s), 0.0, hs[-1], 4 * N0 * mu, False)
     print("calculated sfs")
     print(esfs)
@@ -272,4 +277,5 @@ while i < iterations:
 d = print_state()
 args.output.write("# SMC++ output\n")
 args.output.write("a\tb\ts\n")
-np.savetxt(args.output, np.array([a * 2 * N0, b * 2 * N0, s * 2 * N0]).T, delimiter="\t")
+s[-1] = np.inf
+np.savetxt(args.output, np.array([a * 2 * N0, b * 2 * N0, np.cumsum(s) * 2 * N0]).T, fmt="%f", delimiter="\t")
