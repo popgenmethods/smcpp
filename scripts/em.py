@@ -28,31 +28,35 @@ parser = argparse.ArgumentParser("smc++")
 parser.add_argument("--debug", action="store_true", default=False, help="display a lot of debugging info")
 parser.add_argument("--comment", default=None, type=str)
 parser.add_argument('config', type=argparse.FileType('r'), help="config file")
-parser.add_argument('data', type=argparse.FileType('rt'), nargs="+", help="data file in SMC++ format")
+parser.add_argument('data', nargs="+", help="data file in SMC++ format")
 args = parser.parse_args()
 
 psmcpp._pypsmcpp.do_progress(args.debug)
 try:
-    smcpp_data = pickle.load(args.data)
+    smcpp_data = pickle.load(open(args.data[0], "rb"))
 except:
     smcpp_data = psmcpp.lib.util.parse_text_datasets(args.data)
-obs_list = smcpp_data['obs']
+obs_list = [ob for ob in smcpp_data['obs'] if ob[:,0].sum() > 1000000]
+print(len(obs_list))
 n = smcpp_data['n']
 config = configparser.SafeConfigParser()
 config.readfp(args.config)
 print(config2dict(config))
 
 ## Calculate observed SFS for use later
-osfs = []
-for ol in obs_list:
+def _obsfs_helper(ol):
     obsfs = np.zeros([3, n - 1])
-    ol0 = ol[:, :3]
-    for r, c1, c2 in ol0[ol0[:, 1:3].min(axis=1) != -1]:
+    olsub = ol[np.logical_and(ol[:, 1:3].min(axis=1) != -1, ol[:, -1] == n - 2)]
+    for r, c1, c2, _ in olsub:
         obsfs[c1, c2] += r
-    obsfs /= ol0[:, 0].sum()
-    obsfs[0, 0] = 1. - obsfs.sum()
-    osfs.append(obsfs)
-obsfs = np.mean(osfs, axis=0)
+    return obsfs
+pool = multiprocessing.Pool(None)
+osfs = list(pool.map(_obsfs_helper, obs_list))
+pool.close()
+pool.terminate()
+pool = None
+obsfs = np.sum(osfs, axis=0)
+obsfs /= obsfs.sum()
 print(" - Observed sfs:")
 print(obsfs)
 
@@ -134,12 +138,13 @@ print("using hj: {hj}".format(hj=im.hj))
 K = len(s)
 x0 = np.ones([2, K])
 a, b = x0
-flat = not config.getboolean('model parameters', 'piecewise exponential')
-print("Using piecewise exponential: {notflat}".format(notflat=not flat))
-if flat:
-    b = a
-else:
-    b += 0.1
+try:
+    exponential_pieces = eval(config.get('model parameters', 'exponential pieces'))
+except configparser.NoOptionError:
+    exponential_pieces = []
+flat_pieces = [i for i in range(K) if i not in exponential_pieces]
+b[:] = a + 0.1
+b[flat_pieces] = a[flat_pieces]
 
 im.setParams((a,b,s),False)
 im.Estep()
@@ -160,8 +165,7 @@ def optimize_fullgrad(iter, coords, x0, factr=1e9):
             x0c[cc] = xx * precond[cc[1]]
         global s
         aa, bb = x0c
-        if flat:
-            bb = aa
+        bb[flat_pieces] = aa[flat_pieces]
         print(aa)
         print(bb)
         print(s)
@@ -171,12 +175,11 @@ def optimize_fullgrad(iter, coords, x0, factr=1e9):
         lls = np.array([ll for ll, jac in res])
         jacs = np.array([jac for ll, jac in res])
         ret = [-np.mean(lls, axis=0), -np.mean(jacs, axis=0)]
+        dary = np.zeros([2, K])
         for i, cc in enumerate(coords):
             ret[1][i] *= precond[cc[1]]
-        if flat:
-            print(ret[1])
-        else:
-            print(ret[1].reshape([2,ret[1].shape[0] // 2]))
+            dary[cc] = ret[1][i]
+        print(dary)
         print(ret[0])
         # reg = im.regularizer()
         # print("regularizer: ", LAMBDA_PENALTY * reg)
@@ -224,6 +227,8 @@ def reverse_progress(signal, frame):
 signal.signal(signal.SIGUSR1, reverse_progress)
 
 def run_iteration(i, coords, factr):
+    global a
+    global b
     global x0
     global llold
     global im
@@ -232,6 +237,10 @@ def run_iteration(i, coords, factr):
     ret = optimize_fullgrad(i, coords, x0, factr)
     for xx, cc in zip(ret, coords):
         x0[cc] = xx
+    print(x0)
+    print(list(zip(ret, coords)))
+    print(flat_pieces)
+    b[flat_pieces] = a[flat_pieces]
     print("************** ITERATION %d ***************" % i)
     print(a)
     print(b)
@@ -258,12 +267,8 @@ def run_iteration(i, coords, factr):
     return ret
 
 i = 0
-ca = [0]
-if not flat:
-    ca.append(1)
+coords = [(aa, j) for j in range(K) for aa in ((0,) if j in flat_pieces else (0, 1))]
 while i < 20:
-    coords = [(aa, j) for aa in ca for j in range(K)]
-    # run_iteration(i, coords, (10**(12 - i / 10.)))
     run_iteration(i, coords, 1e9)
     esfs = psmcpp._pypsmcpp.sfs(n, (a,b,s), 0.0, hs[-1], 4 * N0 * mu, False)
     print("calculated sfs")

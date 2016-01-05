@@ -56,21 +56,21 @@ def plot_psfs(psfs, N0=1e4, xlim=None, ylim=None, order=None):
         order = sorted(psfs)
     for label in order:
         if label == "coal_times": continue
-        a = psfs[label]['a']
-        b = psfs[label]['b']
+        a = psfs[label]['a'] * 2 * N0 / 1000.
+        b = psfs[label]['b'] * 2 * N0 / 1000.
         s = psfs[label]['s']
         sp = s * 25.0 * 2 * N0
         # cs = np.concatenate(([100.], np.cumsum(s) * 25.0 * 2 * N0))
         # cs[-1] = 1e7
         # a = np.concatenate((a, [a[-1]]))
         # b = np.concatenate((b, [a[-1]]))
-        slope = np.log(b/a) / sp
+        slope = np.log(a/b) / sp
         cum = 0.
         x = []
         y = []
-        for aa, bb, ss in zip(a[:-1], slope[:-1], sp[:-1]):
+        for aa, bb, ss in zip(b[:-1], slope[:-1], sp[:-1]):
             tt = np.linspace(cum, cum + ss, 100)
-            yy = aa * np.exp(bb * (tt - cum))
+            yy = aa * np.exp(bb * (cum + ss - tt))
             x = np.concatenate([x, tt])
             y = np.concatenate([y, yy])
             cum += ss
@@ -94,6 +94,8 @@ def plot_psfs(psfs, N0=1e4, xlim=None, ylim=None, order=None):
         ax.plot(x, y, color="grey", linestyle="--")
     first_legend = ax.legend(handles=labels, loc=1)
     ax.set_xscale('log')
+    ax.set_xlabel('Years')
+    ax.set_ylabel(r'$N_e \times 10^3$')
     if not xlim:
         xlim = (3000., 1.1 * xmax)
     if not ylim:
