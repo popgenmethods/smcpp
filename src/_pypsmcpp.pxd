@@ -41,7 +41,6 @@ cdef extern from "inference_manager.h":
         vector[double] randomCoalTimes(const ParameterVector, double, int)
         double R(const ParameterVector, double t)
         bool debug
-        bool hj
         bool forwardOnly
         bool saveGamma
         vector[double] hidden_states

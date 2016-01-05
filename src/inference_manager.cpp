@@ -53,7 +53,7 @@ InferenceManager::InferenceManager(
             const int mask_freq,
             const double theta, const double rho, 
             const int block_size) :
-    debug(false), hj(true), forwardOnly(false), saveGamma(false),
+    debug(false), forwardOnly(false), saveGamma(false),
     hidden_states(hidden_states),
     n(n), L(L),
     observations(observations), 
@@ -222,7 +222,7 @@ void InferenceManager::setParams(const ParameterVector params, const std::vector
     PiecewiseExponentialRateFunction<T> eta(params, derivatives, hidden_states);
     regularizer = adouble(eta.regularizer());
     pi = compute_initial_distribution<T>(eta).template cast<adouble>();
-    transition = compute_transition<T>(eta, rho, hj).template cast<adouble>();
+    transition = compute_transition<T>(eta, rho).template cast<adouble>();
     check_nan(transition);
     std::vector<Matrix<T> > sfss = sfs<T>(eta);
     Eigen::Matrix<T, 3, Eigen::Dynamic, Eigen::RowMajor> em_tmp(3, n + 1);

@@ -72,7 +72,7 @@ void HJTransition<T>::compute(void)
 }
 
 template <typename T>
-Matrix<T> compute_transition(const PiecewiseExponentialRateFunction<T> &eta, const double rho, bool useHJ)
+Matrix<T> compute_transition(const PiecewiseExponentialRateFunction<T> &eta, const double rho)
 {
     return HJTransition<T>(eta, rho).matrix();
 }

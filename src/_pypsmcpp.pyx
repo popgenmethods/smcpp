@@ -43,6 +43,13 @@ cdef _make_em_matrix(vector[pMatrixF] mats):
         ret.append(ary)
     return ret
 
+def validate_observation(ob):
+    if np.isfortran(ob):
+        raise ValueError("Input arrays must be C-ordered")
+    if np.any(np.logical_and(ob[:, 1] == 2, ob[:, 2] == ob[:, 3])):
+        raise RuntimeError("Error: data set contains sites where every individual is homozygous recessive. "
+                           "Please encode / fold these as non-segregating (homozygous dominant).")
+
 cdef class PyInferenceManager:
     cdef InferenceManager *_im
     cdef int _n, _nder
@@ -61,8 +68,7 @@ cdef class PyInferenceManager:
         self._observations = observations
         Ls = []
         for ob in observations:
-            if np.isfortran(ob):
-                raise ValueError("Input arrays must be C-ordered")
+            validate_observation(ob)
             vob = ob
             obs.push_back(&vob[0, 0])
             Ls.append(ob.shape[0])
@@ -128,12 +134,6 @@ cdef class PyInferenceManager:
             return self._im.forwardOnly
         def __set__(self, bint fo):
             self._im.forwardOnly = fo
-
-    property hj:
-        def __get__(self):
-            return self._im.hj
-        def __set__(self, bint h):
-            self._im.hj = h
 
     property gammas:
         def __get__(self):

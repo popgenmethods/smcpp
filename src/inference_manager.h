@@ -41,7 +41,7 @@ class InferenceManager
     void setParams_ad(const ParameterVector params, const std::vector<std::pair<int, int>> derivatives);
     double R(const ParameterVector params, double t);
     double getRegularizer();
-    bool debug, hj, forwardOnly, saveGamma;
+    bool debug, forwardOnly, saveGamma;
     std::vector<double> hidden_states;
     std::vector<double> randomCoalTimes(const ParameterVector params, double fac, const int size);
     std::unordered_map<block_key, Vector<adouble> > block_prob_map;
