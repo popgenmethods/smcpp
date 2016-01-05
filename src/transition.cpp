@@ -77,5 +77,5 @@ Matrix<T> compute_transition(const PiecewiseExponentialRateFunction<T> &eta, con
     return HJTransition<T>(eta, rho).matrix();
 }
 
-template Matrix<double> compute_transition(const PiecewiseExponentialRateFunction<double> &eta, const double rho, bool);
-template Matrix<adouble> compute_transition(const PiecewiseExponentialRateFunction<adouble> &eta, const double rho, bool);
+template Matrix<double> compute_transition(const PiecewiseExponentialRateFunction<double> &eta, const double rho);
+template Matrix<adouble> compute_transition(const PiecewiseExponentialRateFunction<adouble> &eta, const double rho);

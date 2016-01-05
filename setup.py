@@ -17,10 +17,11 @@ extensions = [
             "_pypsmcpp",
             sources=["src/_pypsmcpp.pyx"] + cpps,
             language="c++",
-            include_dirs=["src", "/usr/include/eigen3", "/usr/local/include/eigen3", np.get_include()],
+            include_dirs=["src", "/usr/include/eigen3", "/usr/local/include/eigen3", np.get_include(), "/export/home/terhorst/opt/include/"],
+            # extra_compile_args=["-O0", "-ggdb3", "-std=c++11", "-Wfatal-errors", "-Wno-unused-variable", "-Wno-unused-function", "-D_GLIBCXX_DEBUG"],
             extra_compile_args=["-O2", "-std=c++11", "-Wfatal-errors", "-Wno-unused-variable", "-Wno-unused-function", "-fopenmp"],
-            # extra_compile_args=["-O0", "-g", "-std=c++11", "-Wfatal-errors", "-Wno-unused-variable", "-Wno-unused-function", "-D_GLIBCXX_DEBUG"],
-            libraries=['stdc++', 'mpfr', 'gmp', 'gmpxx', 'gsl', 'gslcblas'],
+            libraries=['stdc++', 'gmp', 'gmpxx', 'gsl', 'gslcblas'],
+            library_dirs=["/export/home/terhorst/opt/lib"],
             extra_link_args=['-fopenmp']
             ),
         Extension(

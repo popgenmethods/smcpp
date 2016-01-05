@@ -26,7 +26,7 @@ def exp_quantiles(M, h_M):
 
 parser = argparse.ArgumentParser("smc++")
 parser.add_argument("--debug", action="store_true", default=False, help="display a lot of debugging info")
-parser.add_argument("--comment", default=None, type=str)
+parser.add_argument("--output", "-o", type=argparse.FileType('wt'), help="output file", default=sys.stdout)
 parser.add_argument('config', type=argparse.FileType('r'), help="config file")
 parser.add_argument('data', nargs="+", help="data file in SMC++ format")
 args = parser.parse_args()
@@ -36,7 +36,7 @@ try:
     smcpp_data = pickle.load(open(args.data[0], "rb"))
 except:
     smcpp_data = psmcpp.lib.util.parse_text_datasets(args.data)
-obs_list = [ob for ob in smcpp_data['obs'] if ob[:,0].sum() > 1000000]
+obs_list = smcpp_data['obs']
 print(len(obs_list))
 n = smcpp_data['n']
 config = configparser.SafeConfigParser()
@@ -62,21 +62,15 @@ print(obsfs)
 
 # Emission mask
 em = np.arange(3 * (n - 1), dtype=int).reshape([3, n - 1])
-# em[0, 3:] = 3
-# em[1] = 4
-# em[2] = 5
-
-# Model parameters
-mbs = config.getfloat('advanced', 'minimum block size')
 
 try:
-    ts = np.array(eval(config.get('model parameters', 'ts')))
+    ts = np.array(eval(config.get('model', 'ts')))
     s = ts[1:] - ts[:-1]
     K = len(s)
 except configparser.NoOptionError:
-    t_1 = config.getfloat('model parameters', 't_1')
-    t_K = config.getfloat('model parameters', 't_K')
-    Ks = config.get('model parameters', 'K').split("+")
+    t_1 = config.getfloat('model', 't_1')
+    t_K = config.getfloat('model', 't_K')
+    Ks = config.get('model', 'K').split("+")
     pieces = []
     for piece in Ks:
         try:
@@ -129,17 +123,11 @@ im = psmcpp._pypsmcpp.PyInferenceManager(n - 2, obs_list, hs,
         4.0 * N0 * mu, 4.0 * N0 * rho,
         block_size, thinning, em)
 
-try:
-    im.hj = config.getboolean('advanced', 'use hj')
-except configparser.NoOptionError:
-    im.hj = True
-print("using hj: {hj}".format(hj=im.hj))
-
 K = len(s)
 x0 = np.ones([2, K])
 a, b = x0
 try:
-    exponential_pieces = eval(config.get('model parameters', 'exponential pieces'))
+    exponential_pieces = eval(config.get('model', 'exponential pieces'))
 except configparser.NoOptionError:
     exponential_pieces = []
 flat_pieces = [i for i in range(K) if i not in exponential_pieces]
@@ -212,7 +200,7 @@ break_loop = False
 import signal, sys
 def print_state():
     global a, b, s
-    d = {'a': a, 'b': b, 's': s, 'argv': sys.argv, 't_start': t_start, 't_now': time.time(), 'config': config2dict(config), 'comment': args.comment}
+    d = {'a': a, 'b': b, 's': s, 'argv': sys.argv, 't_start': t_start, 't_now': time.time(), 'config': config2dict(config)}
     pprint.pprint(repr(d))
     return d
 
@@ -268,7 +256,11 @@ def run_iteration(i, coords, factr):
 
 i = 0
 coords = [(aa, j) for j in range(K) for aa in ((0,) if j in flat_pieces else (0, 1))]
-while i < 20:
+try:
+    iterations = config.getint("advanced", "em iterations")
+except configparser.NoOptionError:
+    iterations = 20
+while i < iterations:
     run_iteration(i, coords, 1e9)
     esfs = psmcpp._pypsmcpp.sfs(n, (a,b,s), 0.0, hs[-1], 4 * N0 * mu, False)
     print("calculated sfs")
@@ -276,4 +268,8 @@ while i < 20:
     print("observed sfs")
     print(obsfs)
     i += 1
+# Output state and exit
 d = print_state()
+args.output.write("# SMC++ output\n")
+args.output.write("a\tb\ts\n")
+np.savetxt(args.output, np.array([a * 2 * N0, b * 2 * N0, s * 2 * N0]).T, delimiter="\t")

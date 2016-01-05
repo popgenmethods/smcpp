@@ -42,6 +42,6 @@ class HJTransition : public Transition<T>
 };
 
 template <typename T>
-Matrix<T> compute_transition(const PiecewiseExponentialRateFunction<T> &, const double, bool);
+Matrix<T> compute_transition(const PiecewiseExponentialRateFunction<T> &, const double);
 
 #endif

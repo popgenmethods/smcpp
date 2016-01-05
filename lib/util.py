@@ -1,6 +1,7 @@
 import numpy as np
 import functools
 import itertools
+import multiprocessing
 
 sawtooth = {
         'a': np.array([7.1, 7.1, 0.9, 7.1, 0.9, 7.1, 0.9]),
@@ -119,8 +120,11 @@ def _pt_helper(fn):
     return A
 
 def parse_text_datasets(datasets):
-    import multiprocessing
-    obs = list(multiprocessing.Pool(None).map(_pt_helper, datasets))
+    p = multiprocessing.Pool(None)
+    obs = list(p.map(_pt_helper, datasets))
+    p.close()
+    p.terminate()
+    p = None
     n = 2 + max([ob[:,-1].max() for ob in obs])
     return {'n': n, 'obs': obs}
 

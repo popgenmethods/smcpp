@@ -18,3 +18,4 @@ environ.sh
 .nfs*
 .moran_model.dat
 .ipynb_checkpoints/
+ccache.log
