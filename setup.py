@@ -17,11 +17,10 @@ extensions = [
             "_pypsmcpp",
             sources=["src/_pypsmcpp.pyx"] + cpps,
             language="c++",
-            include_dirs=["src", "/usr/include/eigen3", "/usr/local/include/eigen3", np.get_include(), "/export/home/terhorst/opt/include/"],
+            include_dirs=["src", "/usr/include/eigen3", "/usr/local/include/eigen3", np.get_include()],
             # extra_compile_args=["-O0", "-ggdb3", "-std=c++11", "-Wfatal-errors", "-Wno-unused-variable", "-Wno-unused-function", "-D_GLIBCXX_DEBUG"],
             extra_compile_args=["-O2", "-std=c++11", "-Wfatal-errors", "-Wno-unused-variable", "-Wno-unused-function", "-fopenmp"],
             libraries=['stdc++', 'gmp', 'gmpxx', 'gsl', 'gslcblas'],
-            library_dirs=["/export/home/terhorst/opt/lib"],
             extra_link_args=['-fopenmp']
             ),
         Extension(
@@ -34,9 +33,9 @@ extensions = [
             ),
         ]
 
-setup(name='psmc++',
+setup(name='smcpp',
         version='0.01',
-        description='PSMC++',
+        description='SMC++',
         author='Jonathan Terhorst, Jack Kamm, Yun S. Song',
         author_email='terhorst@stat.berkeley.edu',
         url='https://github.com/terhorst/psmc++',

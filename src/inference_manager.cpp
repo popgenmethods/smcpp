@@ -1,20 +1,5 @@
 #include "inference_manager.h"
 
-inline mpz_class multinomial(const std::vector<int> &ks)
-{
-    mpz_class num, den, tmp;
-    int sum = 0;
-    den = 1_mpz;
-    for (auto k : ks) 
-    {
-        sum += k;
-        mpz_fac_ui(tmp.get_mpz_t(), k);
-        den *= tmp;
-    }
-    mpz_fac_ui(num.get_mpz_t(), sum);
-    return num / den;
-}
-
 template <typename T>
 Vector<T> compute_initial_distribution(const PiecewiseExponentialRateFunction<T> &eta)
 {
@@ -36,34 +21,22 @@ Vector<T> compute_initial_distribution(const PiecewiseExponentialRateFunction<T>
     return pi;
 }
 
-Matrix<int> make_two_mask(int m)
-{
-    Matrix<int> two_mask(3, m);
-    two_mask.fill(0);
-    two_mask.row(1).fill(1);
-    return two_mask;
-}
-
-
 InferenceManager::InferenceManager(
-            const int n, const std::vector<int> L,
+            const int n, const std::vector<int> obs_lengths,
             const std::vector<int*> observations,
             const std::vector<double> hidden_states,
-            const int* _emask,
-            const int mask_freq,
-            const double theta, const double rho, 
-            const int block_size) :
-    debug(false), forwardOnly(false), saveGamma(false),
+            const double theta, const double rho) : 
+    debug(false), saveGamma(false),
     hidden_states(hidden_states),
-    n(n), L(L),
-    observations(observations), 
-    emask(Eigen::Map<const Eigen::Matrix<int, 3, Eigen::Dynamic, Eigen::RowMajor>>(_emask, 3, n + 1)),
-    two_mask(make_two_mask(n + 1)),
-    mask_freq(mask_freq),
+    n(n), 
+    obs(map_obs(observations, obs_lengths)),
     theta(theta), rho(rho),
-    block_size(block_size), 
     M(hidden_states.size() - 1), 
-    csfs_d(n, M), csfs_ad(n, M)
+    csfs_d(n, M), csfs_ad(n, M),
+    spans(fill_spans()),
+    targets(fill_targets()),
+    tb(spans, targets, &block_probs),
+    ib{&pi, &tb, &block_probs, &saveGamma}
 {
     if (*std::min_element(hidden_states.begin(), hidden_states.end()) != 0.)
         throw std::runtime_error("first hidden interval should be [0, <something>)");
@@ -74,35 +47,66 @@ InferenceManager::InferenceManager(
     transition.setZero();
     emission = Matrix<adouble>::Zero(M, 3 * (n + 1));
     emission.setZero();
-    hmms.resize(observations.size());
+    hmms.resize(obs.size());
+
 #pragma omp parallel for
-    for (unsigned int i = 0; i < observations.size(); ++i)
+    for (unsigned int i = 0; i < obs.size(); ++i)
     {
-        int ell = L[i];
-        Eigen::Matrix<int, Eigen::Dynamic, 4> obs = 
-            Eigen::Matrix<int, Eigen::Dynamic, 4, Eigen::RowMajor>::Map(observations[i], ell, 4);
-        int max_n = obs.middleCols(1, 2).rowwise().sum().maxCoeff();
+        int max_n = obs[i].middleCols(1, 2).rowwise().sum().maxCoeff();
         if (max_n > n + 2 - 1)
             throw std::runtime_error("An observation has derived allele count greater than n + 1");
         PROGRESS("creating HMM");
-        hmmptr h(new HMM(obs, n, block_size, &pi, &transition, mask_freq, this));
+        hmmptr h(new HMM(obs[i], &ib));
         hmms[i] = std::move(h);
     }
     // Collect all the block keys for recomputation later
-    populate_block_prob_map();
+    populate_block_probs();
 }
 
-void InferenceManager::populate_block_prob_map()
+std::vector<Eigen::Matrix<int, Eigen::Dynamic, 4, Eigen::RowMajor> > map_obs(
+        const std::vector<int*> &observations, const std::vector<int> &obs_lengths
+        )
+{
+    std::vector<Eigen::Matrix<int, Eigen::Dynamic, 4, Eigen::RowMajor> > ret;
+    for (unsigned int i = 0; i < observations.size(); ++i)
+        ret.push_back(Eigen::Matrix<int, Eigen::Dynamic, 4, Eigen::RowMajor>::Map(observations[i], obs_lengths[i], 4));
+    return ret;
+};
+
+
+std::set<int> InferenceManager::fill_spans()
+{
+    std::set<int> ret;
+    for (auto ob : obs)
+        for (int i = 0; i < ob.rows(); ++i)
+            ret.insert(ob(i, 0));
+    return ret;
+}
+
+std::set<block_key> InferenceManager::fill_targets()
+{
+    std::set<block_key> ret;
+    for (auto ob : obs)
+        for (int i = 0; i < ob.rows(); ++i)
+            if (ob(i, 0) > 1)
+                ret.insert({ob(i, 1), ob(i, 2), ob(i, 3)});
+    return ret;
+}
+
+void InferenceManager::populate_block_probs()
 {
     Vector<adouble> tmp;
-    mpz_class coef;
-    for (auto &p : block_prob_map)
-    {
-        block_key key = p.first;
-        bpm_keys.push_back(key);
-        if (key.alt_block)
-            nbs.insert(key.powers.begin()->first.nb);
-    }
+    block_key key;
+    for (auto ob : obs)
+        for (int i = 0; i < ob.rows(); ++i)
+        {
+            key = {ob(i, 1), ob(i, 2), ob(i, 3)}; 
+            if (block_probs.count(key) == 0)
+            {
+                block_probs.insert({key, tmp});
+                bpm_keys.push_back(key);
+            }
+        }
 }
 
 Matrix<double>& InferenceManager::subEmissionCoefs(int m)
@@ -126,10 +130,6 @@ template <typename T>
 void InferenceManager::recompute_B(const PiecewiseExponentialRateFunction<T> &eta)
 {
     PROGRESS("recompute B");
-    Vector<adouble> two_probs[2] = {Vector<adouble>::Zero(M), Vector<adouble>::Zero(M)};
-    for (int i = 0; i < 3; ++i)
-        for (int j = 0; j < n + 1; ++j)
-            two_probs[i % 2] += emission.col((n + 1) * i + j);
     std::map<int, Matrix<adouble> > subemissions;
     PROGRESS("subemissions");
     for (int nb : nbs)
@@ -142,64 +142,31 @@ void InferenceManager::recompute_B(const PiecewiseExponentialRateFunction<T> &et
 #pragma omp parallel for
     for (auto it = bpm_keys.begin(); it < bpm_keys.end(); ++it)
     {
-        Eigen::Array<adouble, Eigen::Dynamic, 1> tmp(M), log_tmp(M);
-        log_tmp.setZero();
-        Vector<adouble> ob = Vector<adouble>::Zero(M);
-        if (it->alt_block)
+        int a = (*it)[0], b = (*it)[1], nb = (*it)[2];
+        Vector<adouble> tmp(M);
+        Matrix<adouble> emission_nb = subemissions.at(nb);
+        if (a == -1)
         {
-            // Full SFS emission
-            if (it->powers.size() != 1 or it->powers.begin()->second != 1)
-                throw std::runtime_error("Alt blocks >1 not supported.");
-            block_power bp = it->powers.begin()->first;
-            Matrix<adouble> emission_nb = subemissions.at(bp.nb);
-            if (bp.a == -1)
-            {
-                if (bp.nb == 0)
-                    tmp.fill(eta.one);
-                else    
-                    tmp = (emission_nb.col(bp.b) + 
-                            emission_nb.col((bp.nb + 1) + bp.b) + 
-                            emission_nb.col(2 * (bp.nb + 1) + bp.b)
-                          );
-            }
-            else
-                tmp = emission_nb.col(bp.a * (bp.nb + 1) + bp.b);
+            if (nb == 0)
+                tmp.fill(eta.one);
+            else    
+                tmp = (emission_nb.col(a) + 
+                        emission_nb.col((nb + 1) + b) + 
+                        emission_nb.col(2 * (nb + 1) + b));
         }
         else
-        {
-            // Reduced SFS emission
-            std::vector<int> nobs(2, 0);
-            for (auto &p : it->powers)
-                if (p.first.a != -1)
-                {
-                    nobs[p.first.a % 2] += p.second;
-                    log_tmp += two_probs[p.first.a % 2].array().log() * p.second;
-                }
-            log_tmp += log(multinomial(nobs).get_ui());
-            tmp = exp(log_tmp);
-        }
+            tmp = emission_nb.col(a * (nb + 1) + b);
         if (tmp.maxCoeff() > 1.0 or tmp.minCoeff() <= 0.0)
         {
-            std::cout << it->powers << std::endl;
+            std::cout << *it << std::endl;
             std::cout << tmp.template cast<double>().transpose() << std::endl;
             std::cout << tmp.maxCoeff() << std::endl;
             throw std::runtime_error("probability vector not in [0, 1]");
         }
         check_nan(tmp);
-        block_prob_map.at(*it) = tmp.matrix();
+        block_probs.at(*it) = tmp;
     }
     PROGRESS_DONE();
-}
-
-template <typename T>
-Matrix<T> matpow(Matrix<T> M, int p)
-{
-    if (p == 1)
-        return M;
-    Matrix<T> P = matpow(M, std::floor(p / 2.0));
-    if (p % 2 == 0)
-        return P * P;
-    return M * P * P;
 }
 
 std::vector<double> InferenceManager::randomCoalTimes(const ParameterVector params, double fac, const int size)
@@ -224,6 +191,7 @@ void InferenceManager::setParams(const ParameterVector params, const std::vector
     pi = compute_initial_distribution<T>(eta).template cast<adouble>();
     transition = compute_transition<T>(eta, rho).template cast<adouble>();
     check_nan(transition);
+    tb.update(transition);
     std::vector<Matrix<T> > sfss = sfs<T>(eta);
     Eigen::Matrix<T, 3, Eigen::Dynamic, Eigen::RowMajor> em_tmp(3, n + 1);
     for (int m = 0; m < M; ++m)
@@ -307,9 +275,9 @@ std::vector<adouble> InferenceManager::Q(double lambda)
             });
 }
 
-std::vector<Matrix<fbType>*> InferenceManager::getGammas()
+std::vector<Matrix<double>*> InferenceManager::getGammas()
 {
-    std::vector<Matrix<fbType>*> ret;
+    std::vector<Matrix<double>*> ret;
     for (auto &hmm : hmms)
     {
         ret.push_back(&hmm->gamma);
@@ -317,35 +285,13 @@ std::vector<Matrix<fbType>*> InferenceManager::getGammas()
     return ret;
 }
 
-std::pair<std::vector<Matrix<fbType>* >, std::vector<Matrix<fbType>* > > InferenceManager::getXisums()
+std::vector<Matrix<double>*> InferenceManager::getXisums()
 {
-    std::pair<std::vector<Matrix<fbType>* >, std::vector<Matrix<fbType>* > > ret;
+    std::vector<Matrix<double>*> ret;
     for (auto &hmm : hmms)
     {
-        ret.first.push_back(&hmm->xisum);
-        ret.second.push_back(&hmm->xisum_alt);
+        ret.push_back(&hmm->xisum);
     }
-    return ret;
-}
-
-std::vector<Matrix<adouble>*> InferenceManager::getBs()
-{
-    std::vector<Matrix<adouble>*> ret;
-    for (auto &hmm : hmms)
-    {
-        hmm->fill_B();
-        ret.push_back(&hmm->B);
-        // This takes up too much memory so only return one.
-        break;
-    }
-    return ret;
-}
-
-std::vector<block_key_vector> InferenceManager::getBlockKeys()
-{
-    std::vector<block_key_vector> ret;
-    for (auto &hmm : hmms)
-        ret.push_back(hmm->block_keys);
     return ret;
 }
 

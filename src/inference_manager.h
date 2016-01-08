@@ -8,24 +8,20 @@
 #include "piecewise_exponential_rate_function.h"
 #include "conditioned_sfs.h"
 #include "transition.h"
-#include "block_key.h"
+#include "transition_bundle.h"
+#include "inference_bundle.h"
 
 typedef std::vector<std::vector<double>> ParameterVector;
-
 class HMM;
 
 class InferenceManager
 {
     public:
     InferenceManager(
-            const int n, const std::vector<int> L,
-            const std::vector<int*> observations,
-            const std::vector<double> hidden_states,
-            const int* emission_mask,
-            const int mask_freq,
-            const double theta, const double rho, 
-            const int block_size);
-    
+            const int, const std::vector<int>,
+            const std::vector<int*>,
+            const std::vector<double>,
+            const double theta, const double rho);
     template <typename T>
     void setParams(const ParameterVector, const std::vector<std::pair<int, int> >);
 
@@ -41,14 +37,12 @@ class InferenceManager
     void setParams_ad(const ParameterVector params, const std::vector<std::pair<int, int>> derivatives);
     double R(const ParameterVector params, double t);
     double getRegularizer();
-    bool debug, forwardOnly, saveGamma;
+    bool debug, saveGamma;
     std::vector<double> hidden_states;
     std::vector<double> randomCoalTimes(const ParameterVector params, double fac, const int size);
-    std::unordered_map<block_key, Vector<adouble> > block_prob_map;
-    std::pair<std::vector<Matrix<fbType>* >, std::vector<Matrix<fbType>* > > getXisums();
-    std::vector<Matrix<fbType>*> getGammas();
-    std::vector<Matrix<adouble>*> getBs();
-    std::vector<block_key_vector> getBlockKeys();
+    std::map<block_key, Vector<adouble> > block_probs;
+    std::vector<Matrix<double>*> getXisums();
+    std::vector<Matrix<double>*> getGammas();
     Matrix<adouble>& getPi();
     Matrix<adouble>& getTransition();
     Matrix<adouble>& getEmission();
@@ -56,21 +50,20 @@ class InferenceManager
     private:
     template <typename T> 
     ConditionedSFS<T>& getCsfs();
+    std::vector<Eigen::Matrix<int, Eigen::Dynamic, 4, Eigen::RowMajor> > map_obs(const std::vector<int*>&, const std::vector<int>&);
+    std::set<int> fill_spans();
+    std::set<block_key> fill_targets();
     Matrix<double>& subEmissionCoefs(int);
     template <typename T>
     void recompute_B(const PiecewiseExponentialRateFunction<T> &);
-    void populate_block_prob_map();
+    void populate_block_probs();
     typedef std::unique_ptr<HMM> hmmptr;
 
     // Passed-in parameters
     std::mt19937 gen;
     const int n;
-    const std::vector<int> L;
-    const std::vector<int*> observations;
-    const Eigen::Matrix<int, 3, Eigen::Dynamic, Eigen::RowMajor> emask, two_mask;
-    const int mask_freq;
+    std::vector<Eigen::Matrix<int, Eigen::Dynamic, 4, Eigen::RowMajor> > obs;
     double theta, rho;
-    const int block_size;
     const int M;
     adouble regularizer;
 
@@ -82,6 +75,10 @@ class InferenceManager
     std::vector<block_key> bpm_keys;
     std::set<int> nbs;
     std::map<int, Matrix<double> > subEmissionCoefs_memo;
+    std::set<int> spans;
+    std::set<block_key> targets;
+    TransitionBundle tb;
+    InferenceBundle ib;
 
     // Methods
     void parallel_do(std::function<void(hmmptr &)>);

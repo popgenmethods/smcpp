@@ -1,5 +1,7 @@
 #include "piecewise_exponential_rate_function.h"
 
+constexpr long nC2(int n) { return n * (n - 1) / 2; }
+
 template <typename T>
 PiecewiseExponentialRateFunction<T>::PiecewiseExponentialRateFunction(const std::vector<std::vector<double>> params,
         const std::vector<double> hidden_states) : 

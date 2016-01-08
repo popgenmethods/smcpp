@@ -6,47 +6,36 @@
 
 #include "common.h"
 #include "inference_manager.h"
-#include "block_key.h"
+#include "inference_bundle.h"
+#include "transition_bundle.h"
 
 class InferenceManager;
 
 class HMM
 {
     public:
-    HMM(const Matrix<int> &obs, const int n, const int block_size,
-        const Vector<adouble> *pi, const Matrix<adouble> *transition, 
-        const int mask_freq, InferenceManager* im);
+    HMM(const Matrix<int> &obs, const InferenceBundle *ib);
     void Estep(void);
     double loglik(void);
     adouble Q(void);
-    // std::vector<int>& viterbi(void);
-    void fill_B(void) { B = Matrix<adouble>::Zero(M, Ltot); for (int ell = 0; ell < Ltot; ++ell) B.col(ell) = *Bptr[ell]; }
 
     private:
     HMM(HMM const&) = delete;
     HMM& operator=(HMM const&) = delete;
     // Methods
-    void prepare_B(const Matrix<int>&);
-    void forward_only(void);
     void forward_backward(void);
     void domain_error(double);
-    bool is_alt_block(int);
+    inline block_key ob_key(int i) { block_key ret = {obs(i, 1), obs(i, 2), obs(i, 3)}; return ret; }
 
     // Instance variables
-    const int n, block_size, alt_block_size;
-    const Vector<adouble> *pi;
-    const Matrix<adouble> *transition;
-    const int mask_freq, M, Ltot;
-    std::vector<Vector<adouble>*> Bptr;
-    std::map<Vector<adouble>*, block_key> bmap;
-    Matrix<adouble> B;
-    Matrix<fbType> alpha_hat, xisum, xisum_alt, gamma;
-    Vector<fbType> gamma0;
+    const Matrix<int> obs;
+    const InferenceBundle *ib;
+    const int M, L;
+    Matrix<double> alpha_hat, xisum, gamma;
     Vector<double> c;
-    InferenceManager* im;
-
-    block_key_vector block_keys;
-    std::map<Vector<adouble>*, Vector<fbType> > gamma_sums;
+    std::map<block_key, Vector<double> > gamma_sums;
+    // Stuff passed in by inference manager
+    std::map<block_key, Vector<adouble> > *block_prob_map;
     friend class InferenceManager;
 };
 

@@ -31,15 +31,15 @@ cdef ParameterVector make_params(params):
         ret.push_back(p)
     return ret
 
-cdef _make_em_matrix(vector[pMatrixF] mats):
-    cdef fbType[:, ::1] v
+cdef _make_em_matrix(vector[pMatrixD] mats):
+    cdef double[:, ::1] v
     ret = []
     for i in range(mats.size()):
         m = mats[i][0].rows()
         n = mats[i][0].cols()
         ary = aca(np.zeros([m, n]))
         v = ary
-        store_matrix[fbType](mats[i], &v[0, 0])
+        store_matrix[double](mats[i], &v[0, 0])
         ret.append(ary)
     return ret
 
@@ -55,12 +55,9 @@ cdef class PyInferenceManager:
     cdef int _n, _nder
     cdef int _num_hmms
     cdef object _observations
-    cdef np.ndarray _emission_mask
     cdef public long long seed
 
-    def __cinit__(self, int n, observations, hidden_states, 
-            double theta, double rho, int block_size,
-            int mask_freq, emission_mask = None):
+    def __cinit__(self, int n, observations, hidden_states, double theta, double rho):
         self.seed = 1
         self._n = n
         cdef int[:, ::1] vob
@@ -73,14 +70,8 @@ cdef class PyInferenceManager:
             obs.push_back(&vob[0, 0])
             Ls.append(ob.shape[0])
         self._num_hmms = len(observations)
-        if emission_mask is None:
-            emission_mask = np.arange(3 * (n + 1)).reshape([3, n + 1])
-        self._emission_mask = aca(np.array(emission_mask, dtype=np.int32))
-        cdef int[:, ::1] emv = self._emission_mask
         cdef vector[double] hs = hidden_states
-        self._im = new InferenceManager(
-                n, Ls, obs, hs, &emv[0, 0], mask_freq, theta, rho, block_size)
-
+        self._im = new InferenceManager(n, Ls, obs, hs, theta, rho)
 
     def __dealloc__(self):
         del self._im
@@ -129,34 +120,13 @@ cdef class PyInferenceManager:
         def __set__(self, hs):
             self._im.hidden_states = hs
 
-    property forwardOnly:
-        def __get__(self):
-            return self._im.forwardOnly
-        def __set__(self, bint fo):
-            self._im.forwardOnly = fo
-
     property gammas:
         def __get__(self):
             return _make_em_matrix(self._im.getGammas())
 
     property xisums:
         def __get__(self):
-            cdef pair[vector[pMatrixF], vector[pMatrixF]] xis = self._im.getXisums()
-            return [_make_em_matrix(xis.first), _make_em_matrix(xis.second)]
-
-    property Bs:
-        def __get__(self):
-            cdef vector[pMatrixAd] mats = self._im.getBs()
-            cdef double[:, ::1] v
-            cdef double[:, :, ::1] av
-            ret = []
-            for i in range(mats.size()):
-                ret.append(_store_admatrix_helper(mats[i][0], self._nder))
-            return ret
-
-    property block_keys:
-        def __get__(self):
-            return self._im.getBlockKeys()
+            return _make_em_matrix(self._im.getXisums())
 
     property pi:
         def __get__(self):

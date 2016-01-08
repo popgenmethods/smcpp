@@ -1,13 +1,9 @@
 #ifndef CONDITIONED_SFS_H
 #define CONDITIONED_SFS_H
 
-#include <cassert>
-#include <cfenv>
 #include <map>
-#include <thread>
 #include <random>
 #include <gmpxx.h>
-#include <gperftools/profiler.h>
 
 #include "common.h"
 #include "piecewise_exponential_rate_function.h"

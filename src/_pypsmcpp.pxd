@@ -10,7 +10,6 @@ cdef extern from "common.h":
         int rows()
         int cols()
     cdef double toDouble(const adouble &)
-    ctypedef float fbType
     void init_eigen()
     void fill_jacobian(const adouble &, double*)
     void store_matrix[T](const Matrix[T] *, T*)
@@ -18,21 +17,16 @@ cdef extern from "common.h":
     void doProgress(bool)
 
 ctypedef Matrix[double]* pMatrixD
-ctypedef Matrix[fbType]* pMatrixF
 ctypedef Matrix[adouble]* pMatrixAd
 
-cdef extern from "block_key.h":
-    cdef struct block_power:
-        int a
-        int b
-        int nb
-
 cdef extern from "inference_manager.h":
+    struct block_key:
+        pass
     ctypedef vector[vector[double]] ParameterVector
     cdef cppclass InferenceManager:
         InferenceManager(const int, const vector[int],
-                const vector[int*], const vector[double], const int*, const int, 
-                const double, const double, const int)
+                const vector[int*], const vector[double],
+                const double, const double)
         void setParams_d(const ParameterVector)
         void setParams_ad(const ParameterVector, vector[pair[int, int]] derivatives)
         void Estep()
@@ -41,16 +35,13 @@ cdef extern from "inference_manager.h":
         vector[double] randomCoalTimes(const ParameterVector, double, int)
         double R(const ParameterVector, double t)
         bool debug
-        bool forwardOnly
         bool saveGamma
         vector[double] hidden_states
         double getRegularizer()
-        vector[pMatrixF] getGammas()
-        pair[vector[pMatrixF], vector[pMatrixF]] getXisums()
-        vector[pMatrixAd] getBs()
+        vector[pMatrixD] getGammas()
+        vector[pMatrixD] getXisums()
         Matrix[adouble]& getPi()
         Matrix[adouble]& getTransition()
         Matrix[adouble]& getEmission()
-        vector[vector[pair[bool, vector[pair[block_power, int]]]]] getBlockKeys()
     Matrix[T] sfs_cython[T](int, const ParameterVector&, double, double, double)
     Matrix[T] sfs_cython[T](int, const ParameterVector&, double, double, double, vector[pair[int, int]])

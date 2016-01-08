@@ -41,11 +41,8 @@ extern bool do_progress;
 // the derivatives and integrals seem a bit more accurate when everything is finite.
 //
 
-typedef double fbType;
-
+typedef std::array<int, 3> block_key;
 const double T_MAX = 15.0;
-
-constexpr long nC2(int n) { return n * (n - 1) / 2; }
 
 template <typename T> using Matrix = Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic>;
 template <typename T> using Vector = Eigen::Matrix<T, Eigen::Dynamic, 1>;
@@ -76,23 +73,6 @@ struct Functor
 
 #ifdef AUTODIFF
 #include <unsupported/Eigen/AutoDiff>
-
-/*
-template <typename T>
-class MyAutoDiffScalar : public Eigen::AutoDiffScalar<T>
-{
-    public:
-    typedef typename Eigen::AutoDiffScalar<T>::Scalar Scalar;
-    typedef typename Eigen::AutoDiffScalar<T>::DerType DerType;
-    MyAutoDiffScalar() {}
-    MyAutoDiffScalar(const Scalar &x) : Eigen::AutoDiffScalar<T>(x) {}
-    MyAutoDiffScalar(const Scalar &x, const DerType &y) : Eigen::AutoDiffScalar<T>(x, y) {}
-    template <typename OtherDerType>
-    MyAutoDiffScalar(const Eigen::AutoDiffScalar<OtherDerType>& other) : 
-        Eigen::AutoDiffScalar<T>((Scalar)other.value(), 
-        other.derivatives().template cast<typename DerType::Scalar>()) {}
-};
-*/
 
 typedef Eigen::AutoDiffScalar<Eigen::VectorXd> adouble;
 inline double toDouble(const adouble &a) { return a.value(); }
@@ -198,18 +178,6 @@ template <typename T>
 inline T dmin(const T a, const T b) { if (a > b) return b; return a; }
 template <typename T>
 inline T dmax(const T a, const T b) { if (a > b) return a; return b; }
-
-/*
-inline adouble dmin(adouble a, adouble b)
-{
-    return (a + b - myabs(a - b)) / 2;
-}
-
-inline adouble dmax(adouble a, adouble b)
-{
-    return (a + b + myabs(a - b)) / 2;
-}
-*/
 
 #define check_nan(X) { try { _check_nan(X); } catch (std::runtime_error e) { std::cout << __FILE__ << ":" << __LINE__ << std::endl; throw; } }
 

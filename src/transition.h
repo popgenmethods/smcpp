@@ -7,6 +7,7 @@
 
 #include "common.h"
 #include "piecewise_exponential_rate_function.h"
+#include "transition_bundle.h"
 
 template <typename T>
 class Transition
@@ -22,6 +23,7 @@ class Transition
     const int M;
     Matrix<T> Phi;
     const double rho;
+    TransitionBundle tb;
 };
 
 template <typename T>
