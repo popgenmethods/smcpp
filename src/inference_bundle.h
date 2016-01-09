@@ -11,6 +11,7 @@ struct InferenceBundle
     TransitionBundle *tb;
     std::map<block_key, Vector<adouble> > *emission_probs;
     bool *saveGamma;
+    int *spanCutoff;
 };
 
 #endif

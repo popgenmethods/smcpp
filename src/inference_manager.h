@@ -77,6 +77,7 @@ class InferenceManager
     std::map<int, Matrix<double> > subEmissionCoefs_memo;
     const std::set<std::pair<int, block_key> > targets;
     TransitionBundle tb;
+    int spanCutoff;
     InferenceBundle ib;
 
     // Methods

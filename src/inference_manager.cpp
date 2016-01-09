@@ -36,7 +36,8 @@ InferenceManager::InferenceManager(
     targets(fill_targets()),
     nbs(fill_nbs()),
     tb(targets, &emission_probs),
-    ib{&pi, &tb, &emission_probs, &saveGamma}
+    spanCutoff(M / 2),
+    ib{&pi, &tb, &emission_probs, &saveGamma, &spanCutoff}
 {
     if (*std::min_element(hidden_states.begin(), hidden_states.end()) != 0.)
         throw std::runtime_error("first hidden interval should be [0, <something>)");
@@ -54,7 +55,9 @@ InferenceManager::InferenceManager(
     {
         int max_n = obs[i].middleCols(1, 2).rowwise().sum().maxCoeff();
         if (max_n > n + 2 - 1)
-            throw std::runtime_error("An observation has derived allele count greater than n + 1");
+            throw std::runtime_error("Dataset did not validate: an observation has derived allele count greater than n + 1");
+        if (obs[i](0, 0) > 1)
+            throw std::runtime_error("Dataset did not validate: first observation must have span=1");
         PROGRESS("creating HMM");
         hmmptr h(new HMM(obs[i], &ib));
         hmms[i] = std::move(h);

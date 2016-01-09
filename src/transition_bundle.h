@@ -5,16 +5,24 @@ struct eigensystem
 {
     Eigen::MatrixXcd P, Pinv;
     Eigen::VectorXcd d;
+    Matrix<double> P_r, Pinv_r;
+    Vector<double> d_r;
     eigensystem(const Eigen::EigenSolver<Matrix<double> > &es) :
-        P(es.eigenvectors()), Pinv(P.inverse()), d(es.eigenvalues()) {}
+        P(es.eigenvectors()), Pinv(P.inverse()), d(es.eigenvalues()),
+        P_r(P.real()), Pinv_r(Pinv.real()), d_r(d.real())
+    {
+        if (Pinv.imag().cwiseAbs().maxCoeff() > 1e-10 or P.imag().cwiseAbs().maxCoeff() > 1e-10)
+            throw std::runtime_error("Non-negligible imaginary part of eigendecomposition");
+    }
 };
 
 class TransitionBundle
 {
     public:
-    TransitionBundle(const std::set<std::pair<int, block_key> > &targets,
+    TransitionBundle(const std::set<std::pair<int, block_key> > &targets_s,
             const std::map<block_key, Vector<adouble> >* emission_probs) : 
-        targets(targets), emission_probs(emission_probs) {}
+        targets(targets_s.begin(), targets_s.end()),
+        emission_probs(emission_probs) {}
 
     void update(const Matrix<adouble> &new_T)
     {
@@ -22,37 +30,40 @@ class TransitionBundle
         Td = T.template cast<double>();
         Matrix<double> tmp;
         int M = T.rows();
-        Eigen::MatrixXcd A(M, M);
+        Matrix<double> A(M, M);
         eigensystems.clear();
         span_Qs.clear();
-        for (auto &p : targets)
+#pragma omp parallel for
+        for (auto it = targets.begin(); it < targets.end(); ++it)
         {
-            int span = p.first;
-            block_key key = p.second;
-            if (eigensystems.count(key) == 0)
+            int span = it->first;
+            block_key key = it->second;
+#pragma omp critical
             {
-                tmp = emission_probs->at(key).template cast<double>().asDiagonal() * Td.transpose();
-                es = Eigen::EigenSolver<Matrix<double> >(tmp);
-                eigensystems.emplace(key, es);
+                if (eigensystems.count(key) == 0)
+                {
+                    tmp = emission_probs->at(key).template cast<double>().asDiagonal() * Td.transpose();
+                    Eigen::EigenSolver<Matrix<double> > es(tmp);
+                    eigensystems.emplace(key, es);
+                }
             }
             eigensystem eig = eigensystems.at(key);
             for (int a = 0; a < M; ++a)
                 for (int b = 0; b < M; ++b)
-                    A(a, b) = (a == b) ? (double)span * std::pow(eig.d(a), span - 1) : 
-                        (std::pow(eig.d(a), span) - std::pow(eig.d(b), span)) / (eig.d(a) - eig.d(b));
-            span_Qs[{span, key}] = A;
+                    A(a, b) = (a == b) ? (double)span * std::pow(eig.d_r(a), span - 1) : 
+                        (std::pow(eig.d_r(a), span) - std::pow(eig.d_r(b), span)) / (eig.d_r(a) - eig.d_r(b));
+            span_Qs.emplace(*it, A);
         }
     }
     Matrix<adouble> T;
     Matrix<double> Td;
-    Eigen::EigenSolver<Matrix<double> > es;
     Eigen::VectorXcd d;
     Eigen::MatrixXcd P, Pinv;
-    std::map<std::pair<int, block_key>, Eigen::MatrixXcd> span_Qs;
+    std::map<std::pair<int, block_key>, Matrix<double> > span_Qs;
     std::map<block_key, eigensystem> eigensystems;
 
     private:
-    const std::set<std::pair<int, block_key> > targets;
+    const std::vector<std::pair<int, block_key> > targets;
     const std::map<block_key, Vector<adouble> >* emission_probs;
 };
 

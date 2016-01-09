@@ -42,8 +42,10 @@ void HMM::forward_backward(void)
         if (tb->eigensystems.count(key) > 0)
         {
             eigensystem es = tb->eigensystems.at(key);
-            alpha_hat.col(ell) = (es.P * (es.d.array().pow(span).matrix().asDiagonal() * 
-                        (es.Pinv * alpha_hat.col(ell - 1).template cast<std::complex<double> >()))).real();
+            // alpha_hat.col(ell) = (es.P * (es.d.array().pow(span).matrix().asDiagonal() * 
+            //             (es.Pinv * alpha_hat.col(ell - 1).template cast<std::complex<double> >()))).real();
+            alpha_hat.col(ell) = (es.P_r * (es.d_r.array().pow(span).matrix().asDiagonal() * 
+                        (es.Pinv_r * alpha_hat.col(ell - 1))));
         }
         else
         {
@@ -53,32 +55,58 @@ void HMM::forward_backward(void)
         c(ell) = alpha_hat.col(ell).sum();
         alpha_hat.col(ell) /= c(ell);
     }
-    Vector<double> beta = Vector<double>::Ones(M), v;
+    Vector<double> beta = Vector<double>::Ones(M), v(M), alpha(M);
     xisum.setZero();
-    Eigen::MatrixXcd Q;
+    Matrix<double> Q(M, M), Qt(M, M), xis(M, M);
+    Eigen::Array<double, Eigen::Dynamic, Eigen::Dynamic> atmp(M, *(ib->spanCutoff)), btmp(M, *(ib->spanCutoff));
     for (int ell = L - 1; ell > 0; --ell)
     {
+        v.setZero();
         int span = obs(ell, 0);
         key = ob_key(ell);
         B = ib->emission_probs->at(ob_key(ell)).template cast<double>().asDiagonal();
-        if (tb->span_Qs.count({span, key}) > 0 and span > 1)
+        if (tb->span_Qs.count({span, key}) > 0 and span > *(ib->spanCutoff))
         {
             eigensystem es = tb->eigensystems.at(key);
-            Q = es.Pinv * alpha_hat.col(ell - 1).template cast<std::complex<double> >() * 
-                beta.transpose() * es.P;
-            Q = Q.cwiseProduct(tb->span_Qs.at({span, key}));
-            v = (es.P * es.d.asDiagonal() * Q * es.Pinv).diagonal().real() / c(ell);
-            xisum += (es.P * Q * es.Pinv).real() * B / c(ell);
-            beta = (es.Pinv.transpose() * (es.d.array().pow(span).matrix().asDiagonal() * 
-                        (es.P.transpose() * beta.template cast<std::complex<double> >()))).real();
+            // Q = es.Pinv * alpha_hat.col(ell - 1).template cast<std::complex<double> >() * 
+            //     beta.transpose() * es.P;
+            Q = es.Pinv_r * alpha_hat.col(ell - 1) * beta.transpose() * es.P_r;
+            // Q = Q.cwiseProduct(tb->span_Qs.at({span, key}));
+            Q = Q.cwiseProduct(tb->span_Qs.at({span, key}).real());
+            // v = (es.P * es.d.asDiagonal() * Q * es.Pinv).diagonal().real() / c(ell);
+            v = (es.P_r * es.d_r.asDiagonal() * Q * es.Pinv_r).diagonal() / c(ell);
+            // xisum += (es.P * Q * es.Pinv).real() * B / c(ell);
+            xisum += (es.P_r * Q * es.Pinv_r) * B / c(ell);
+            // beta = (es.Pinv.transpose() * (es.d.array().pow(span).matrix().asDiagonal() * 
+            //             (es.P.transpose() * beta.template cast<std::complex<double> >()))).real();
+            beta = (es.Pinv_r.transpose() * (es.d_r.array().pow(span).matrix().asDiagonal() * 
+                        (es.P_r.transpose() * beta)));
         }
         else
         {
-            if (span > 1)
-                throw std::runtime_error("span >1 but no eigendecomposition found");
-            v = alpha_hat.col(ell).cwiseProduct(beta);
-            xisum += alpha_hat.col(ell - 1) * beta.transpose() * B / c(ell);
-            beta = T * (B * beta);
+            if (span == 1)
+            {
+                v = alpha_hat.col(ell).cwiseProduct(beta);
+                xisum += alpha_hat.col(ell - 1) * beta.transpose() * B / c(ell);
+                beta = T * (B * beta);
+            }
+            else
+            {
+                Q = B * T.transpose();
+                alpha = alpha_hat.col(ell - 1);
+                for (int i = 0; i < span; ++i)
+                {
+                    alpha = Q * alpha;
+                    atmp.col(i) = alpha;
+                    btmp.col(span - i - 1) = beta;
+                    beta = Q.transpose() * beta;
+                }
+                v = (atmp.leftCols(span) * btmp.leftCols(span)).rowwise().sum().matrix() / c(ell);
+                xis = alpha_hat.col(ell - 1) * btmp.col(0).matrix().transpose();
+                for (int i = 1; i < span; ++i)
+                    xis += atmp.col(i - 1).matrix() * btmp.col(i).transpose().matrix();
+                xisum += xis * B / c(ell);
+            }
         }
         beta /= c(ell);
         gamma_sums[key] += v;
