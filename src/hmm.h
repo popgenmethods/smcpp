@@ -25,17 +25,15 @@ class HMM
     // Methods
     void forward_backward(void);
     void domain_error(double);
-    inline block_key ob_key(int i) { block_key ret = {obs(i, 1), obs(i, 2), obs(i, 3)}; return ret; }
+    inline block_key ob_key(int i) { return {obs(i, 1), obs(i, 2), obs(i, 3)}; }
 
     // Instance variables
     const Matrix<int> obs;
     const InferenceBundle *ib;
     const int M, L;
     Matrix<double> alpha_hat, xisum, gamma;
-    Vector<double> c;
+    Vector<double> c, gamma0;
     std::map<block_key, Vector<double> > gamma_sums;
-    // Stuff passed in by inference manager
-    std::map<block_key, Vector<adouble> > *block_prob_map;
     friend class InferenceManager;
 };
 

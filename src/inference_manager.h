@@ -40,7 +40,7 @@ class InferenceManager
     bool debug, saveGamma;
     std::vector<double> hidden_states;
     std::vector<double> randomCoalTimes(const ParameterVector params, double fac, const int size);
-    std::map<block_key, Vector<adouble> > block_probs;
+    std::map<block_key, Vector<adouble> > emission_probs;
     std::vector<Matrix<double>*> getXisums();
     std::vector<Matrix<double>*> getGammas();
     Matrix<adouble>& getPi();
@@ -51,12 +51,12 @@ class InferenceManager
     template <typename T> 
     ConditionedSFS<T>& getCsfs();
     std::vector<Eigen::Matrix<int, Eigen::Dynamic, 4, Eigen::RowMajor> > map_obs(const std::vector<int*>&, const std::vector<int>&);
-    std::set<int> fill_spans();
-    std::set<block_key> fill_targets();
+    std::set<std::pair<int, block_key> > fill_targets();
+    std::set<int> fill_nbs();
     Matrix<double>& subEmissionCoefs(int);
+    void populate_emission_probs();
     template <typename T>
-    void recompute_B(const PiecewiseExponentialRateFunction<T> &);
-    void populate_block_probs();
+    void recompute_emission_probs(const PiecewiseExponentialRateFunction<T> &);
     typedef std::unique_ptr<HMM> hmmptr;
 
     // Passed-in parameters
@@ -73,10 +73,9 @@ class InferenceManager
     ConditionedSFS<double> csfs_d;
     ConditionedSFS<adouble> csfs_ad;
     std::vector<block_key> bpm_keys;
-    std::set<int> nbs;
+    const std::set<int> nbs;
     std::map<int, Matrix<double> > subEmissionCoefs_memo;
-    std::set<int> spans;
-    std::set<block_key> targets;
+    const std::set<std::pair<int, block_key> > targets;
     TransitionBundle tb;
     InferenceBundle ib;
 

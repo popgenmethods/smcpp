@@ -33,10 +33,10 @@ InferenceManager::InferenceManager(
     theta(theta), rho(rho),
     M(hidden_states.size() - 1), 
     csfs_d(n, M), csfs_ad(n, M),
-    spans(fill_spans()),
     targets(fill_targets()),
-    tb(spans, targets, &block_probs),
-    ib{&pi, &tb, &block_probs, &saveGamma}
+    nbs(fill_nbs()),
+    tb(targets, &emission_probs),
+    ib{&pi, &tb, &emission_probs, &saveGamma}
 {
     if (*std::min_element(hidden_states.begin(), hidden_states.end()) != 0.)
         throw std::runtime_error("first hidden interval should be [0, <something>)");
@@ -60,10 +60,10 @@ InferenceManager::InferenceManager(
         hmms[i] = std::move(h);
     }
     // Collect all the block keys for recomputation later
-    populate_block_probs();
+    populate_emission_probs();
 }
 
-std::vector<Eigen::Matrix<int, Eigen::Dynamic, 4, Eigen::RowMajor> > map_obs(
+std::vector<Eigen::Matrix<int, Eigen::Dynamic, 4, Eigen::RowMajor> > InferenceManager::map_obs(
         const std::vector<int*> &observations, const std::vector<int> &obs_lengths
         )
 {
@@ -73,27 +73,26 @@ std::vector<Eigen::Matrix<int, Eigen::Dynamic, 4, Eigen::RowMajor> > map_obs(
     return ret;
 };
 
+std::set<std::pair<int, block_key> > InferenceManager::fill_targets()
+{
+    std::set<std::pair<int, block_key> > ret;
+    for (auto ob : obs)
+        for (int i = 0; i < ob.rows(); ++i)
+            if (ob(i, 0) > 1)
+                ret.insert({ob(i, 0), {ob(i, 1), ob(i, 2), ob(i, 3)}});
+    return ret;
+}
 
-std::set<int> InferenceManager::fill_spans()
+std::set<int> InferenceManager::fill_nbs()
 {
     std::set<int> ret;
     for (auto ob : obs)
         for (int i = 0; i < ob.rows(); ++i)
-            ret.insert(ob(i, 0));
+            ret.insert(ob(i, 3));
     return ret;
 }
 
-std::set<block_key> InferenceManager::fill_targets()
-{
-    std::set<block_key> ret;
-    for (auto ob : obs)
-        for (int i = 0; i < ob.rows(); ++i)
-            if (ob(i, 0) > 1)
-                ret.insert({ob(i, 1), ob(i, 2), ob(i, 3)});
-    return ret;
-}
-
-void InferenceManager::populate_block_probs()
+void InferenceManager::populate_emission_probs()
 {
     Vector<adouble> tmp;
     block_key key;
@@ -101,9 +100,9 @@ void InferenceManager::populate_block_probs()
         for (int i = 0; i < ob.rows(); ++i)
         {
             key = {ob(i, 1), ob(i, 2), ob(i, 3)}; 
-            if (block_probs.count(key) == 0)
+            if (emission_probs.count(key) == 0)
             {
-                block_probs.insert({key, tmp});
+                emission_probs.insert({key, tmp});
                 bpm_keys.push_back(key);
             }
         }
@@ -127,7 +126,7 @@ Matrix<double>& InferenceManager::subEmissionCoefs(int m)
 }
 
 template <typename T>
-void InferenceManager::recompute_B(const PiecewiseExponentialRateFunction<T> &eta)
+void InferenceManager::recompute_emission_probs(const PiecewiseExponentialRateFunction<T> &eta)
 {
     PROGRESS("recompute B");
     std::map<int, Matrix<adouble> > subemissions;
@@ -150,7 +149,7 @@ void InferenceManager::recompute_B(const PiecewiseExponentialRateFunction<T> &et
             if (nb == 0)
                 tmp.fill(eta.one);
             else    
-                tmp = (emission_nb.col(a) + 
+                tmp = (emission_nb.col(b) + 
                         emission_nb.col((nb + 1) + b) + 
                         emission_nb.col(2 * (nb + 1) + b));
         }
@@ -164,7 +163,7 @@ void InferenceManager::recompute_B(const PiecewiseExponentialRateFunction<T> &et
             throw std::runtime_error("probability vector not in [0, 1]");
         }
         check_nan(tmp);
-        block_probs.at(*it) = tmp;
+        emission_probs.at(*it) = tmp;
     }
     PROGRESS_DONE();
 }
@@ -191,7 +190,6 @@ void InferenceManager::setParams(const ParameterVector params, const std::vector
     pi = compute_initial_distribution<T>(eta).template cast<adouble>();
     transition = compute_transition<T>(eta, rho).template cast<adouble>();
     check_nan(transition);
-    tb.update(transition);
     std::vector<Matrix<T> > sfss = sfs<T>(eta);
     Eigen::Matrix<T, 3, Eigen::Dynamic, Eigen::RowMajor> em_tmp(3, n + 1);
     for (int m = 0; m < M; ++m)
@@ -200,7 +198,9 @@ void InferenceManager::setParams(const ParameterVector params, const std::vector
         em_tmp = sfss[m];
         emission.row(m) = Matrix<T>::Map(em_tmp.data(), 1, 3 * (n + 1)).template cast<adouble>();
     }
-    recompute_B(eta);
+    recompute_emission_probs(eta);
+    // Important: this must be called after updating B since it depends on B!
+    tb.update(transition);
 }
 template void InferenceManager::setParams<double>(const ParameterVector, const std::vector<std::pair<int, int>>);
 template void InferenceManager::setParams<adouble>(const ParameterVector, const std::vector<std::pair<int, int>>);
