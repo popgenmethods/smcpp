@@ -16,6 +16,8 @@ from psmcpp.lib.util import config2dict
 import ConfigParser as configparser
 import cPickle as pickle
 
+t_start = time.time()
+
 np.set_printoptions(linewidth=120, precision=6, suppress=False)
 
 def exp_quantiles(M, h_M):
@@ -60,9 +62,6 @@ obsfs /= obsfs.sum()
 print(" - Observed sfs:")
 print(obsfs)
 
-# Emission mask
-em = np.arange(3 * (n - 1), dtype=int).reshape([3, n - 1])
-
 try:
     ts = np.array(eval(config.get('model', 'ts')))
     s = ts[1:] - ts[:-1]
@@ -106,22 +105,13 @@ print("hidden states", hs)
 N0 = config.getfloat('parameters', 'N0')
 mu = config.getfloat('parameters', 'mu')
 rho = config.getfloat('parameters', 'rho')
-block_size = config.getint('advanced', 'block size')
-
-t_start = time.time()
-try:
-    thinning = config.getint('advanced', 'thinning')
-except configparser.NoOptionError:
-    thinning = n
 
 try:
     lambda_penalty = config.getfloat("advanced", "lambda penalty")
 except configparser.NoOptionError:
     lambda_penalty = 0.0
 
-im = psmcpp._pypsmcpp.PyInferenceManager(n - 2, obs_list, hs,
-        4.0 * N0 * mu, 4.0 * N0 * rho,
-        block_size, thinning, em)
+im = psmcpp._pypsmcpp.PyInferenceManager(n - 2, obs_list, hs, 4.0 * N0 * mu, 4.0 * N0 * rho)
 
 K = len(s)
 x0 = np.ones([2, K])
