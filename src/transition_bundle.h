@@ -28,17 +28,16 @@ class TransitionBundle
     {
         T = new_T;
         Td = T.template cast<double>();
-        Matrix<double> tmp;
-        int M = T.rows();
-        Matrix<double> A(M, M);
+        const int M = T.rows();
         eigensystems.clear();
         span_Qs.clear();
 #pragma omp parallel for
         for (auto it = targets.begin(); it < targets.end(); ++it)
         {
+            Matrix<double> tmp;
             int span = it->first;
             block_key key = it->second;
-#pragma omp critical
+#pragma omp critical(checkEigensystem)
             {
                 if (eigensystems.count(key) == 0)
                 {
@@ -48,11 +47,13 @@ class TransitionBundle
                 }
             }
             eigensystem eig = eigensystems.at(key);
+            tmp = Matrix<double>::Zero(M, M);
             for (int a = 0; a < M; ++a)
                 for (int b = 0; b < M; ++b)
-                    A(a, b) = (a == b) ? (double)span * std::pow(eig.d_r(a), span - 1) : 
+                    tmp(a, b) = (a == b) ? (double)span * std::pow(eig.d_r(a), span - 1) : 
                         (std::pow(eig.d_r(a), span) - std::pow(eig.d_r(b), span)) / (eig.d_r(a) - eig.d_r(b));
-            span_Qs.emplace(*it, A);
+#pragma omp critical(spanQinsert)
+            span_Qs.emplace(*it, tmp);
         }
     }
     Matrix<adouble> T;
