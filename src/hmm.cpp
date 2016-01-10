@@ -28,6 +28,9 @@ void HMM::forward_backward(void)
     if (*(ib->saveGamma))
         gamma = Matrix<double>::Zero(M, L);
     Matrix<double> T = tb->Td;
+    gamma_sums.clear();
+    const Vector<double> z = Vector<double>::Zero(M);
+    gamma_sums.emplace(ob_key(0), z);
     alpha_hat.col(0) = ib->pi->template cast<double>().cwiseProduct(ib->emission_probs->at(ob_key(0)).template cast<double>());
 	c(0) = alpha_hat.col(0).sum();
     alpha_hat.col(0) /= c(0);
@@ -37,6 +40,7 @@ void HMM::forward_backward(void)
     for (int ell = 1; ell < L; ++ell)
     {
         key = ob_key(ell);
+        gamma_sums.emplace(key, z);
         B = ib->emission_probs->at(key).template cast<double>().asDiagonal();
         int span = obs(ell, 0);
         if (tb->eigensystems.count(key) > 0)
@@ -109,12 +113,12 @@ void HMM::forward_backward(void)
             }
         }
         beta /= c(ell);
-        gamma_sums[key] += v;
+        gamma_sums.at(key) += v;
         if (*(ib->saveGamma))
             gamma.col(ell) = v;
     }
     gamma0 = alpha_hat.col(0) * beta;
-    gamma_sums[ob_key(0)] += gamma0;
+    gamma_sums.at(ob_key(0)) += gamma0;
     xisum = xisum.cwiseProduct(T);
     PROGRESS_DONE();
 }
@@ -133,7 +137,7 @@ adouble HMM::Q(void)
     q2 = 0.0;
     for (auto &p : gamma_sums)
         q2 += (ib->emission_probs->at(p.first).array().log() * p.second.array().template cast<adouble>()).sum();
-    q3 = xisum.template cast<adouble>().cwiseProduct(ib->tb->T).sum();
+    q3 = (xisum.template cast<adouble>().array() * ib->tb->T.array().log()).sum();
     check_nan(q1);
     check_nan(q2);
     check_nan(q3);

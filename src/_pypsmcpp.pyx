@@ -108,6 +108,12 @@ cdef class PyInferenceManager:
         cdef ParameterVector p = make_params(params)
         return self._im.randomCoalTimes(p, fac, size)
 
+    property spanCutoff:
+        def __get__(self):
+            return self._im.spanCutoff
+        def __set__(self, bint sc):
+            self._im.spanCutoff = sc
+
     property saveGamma:
         def __get__(self):
             return self._im.saveGamma
