@@ -114,6 +114,47 @@ def hmm_data_format(dataset, n, distinguished_rows, missing=0.):
     assert np.all(ret[:, 0] >= 1)
     return ret
 
+def normalize_dataset(A, thinning):
+    '''Normalize list of observations for inputting into the model.
+    Namely, make sure the span of the first row is 0 and implement the 
+    thinning procedure needed to break up correlation among the full
+    SFS emissions.'''
+    if A[0, 0] > 1:
+        np.insert(A, 0, [1] + list(A[0, 1:]), 0)
+        A[1, 0] -= 1
+    # Thinning
+    i = 0
+    out = []
+    for span, a, b, nb in A:
+        a1 = np.sign(a) * (a % 2)
+        while span > 0:
+            if i < thinning and i + span >= thinning:
+                out.append([thinning - i - 1, a1, 0, 0])
+                out.append([1, a, b, nb])
+                span -= thinning - i
+                i = 0
+            else:
+                out.append([span, a1, 0, 0])
+                i += span
+                break
+    ret = []
+    lastobs = out[0]
+    for obs in out[1:]:
+        if obs[0] == 0:
+            continue
+        if obs == lastobs:
+            lastobs[0] += obs[0]
+        else:
+            ret.append(lastobs)
+            lastobs = obs
+    ret.append(lastobs)
+    if ret[0][0] > 1:
+        ret.insert(0, [1] + ret[0][1:])
+        ret[1][0] -= 1
+    ret = np.array(ret, dtype=np.int32)
+    assert ret[:, 0].sum() == A[:, 0].sum()
+    return ret
+
 def _pt_helper(fn):
     A = np.loadtxt(fn, dtype=np.int32)
     A[np.logical_and(A[:,1] == 2, A[:,2] == A[:,3]), 1:3] = 0
