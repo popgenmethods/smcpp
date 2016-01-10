@@ -80,6 +80,7 @@ cdef class PyInferenceManager:
         return self._observations
 
     def setParams(self, params, derivatives):
+        logger.debug("Updating params")
         if not np.all(np.array(params) > 0):
             raise ValueError("All parameters must be strictly positive")
         if not all(len(pp) == len(params[0]) for pp in params):
@@ -94,6 +95,7 @@ cdef class PyInferenceManager:
         else:
             self._nder = 0
             self._im.setParams_d(p)
+        logger.debug("Updating params finished.")
 
     def setDebug(self, val):
         self._im.debug = val
@@ -102,7 +104,9 @@ cdef class PyInferenceManager:
         return self._im.getRegularizer()
 
     def Estep(self):
+        logger.debug("Forward-backward algorithm...")
         self._im.Estep()
+        logger.debug("Forward-backward algorithm finished.")
 
     def random_times(self, params, fac, size):
         cdef ParameterVector p = make_params(params)

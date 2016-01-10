@@ -25,20 +25,6 @@ below_coeff compute_below_coeffs(int n)
         }
         ret.coeffs = mlast;
         below_coeffs_memo.emplace(n, ret); 
-        /*
-        for (int i = 0; i < ret.coeffs.rows(); ++i)
-        {
-            std::cout << "{";
-            for (int j = 0; j < ret.coeffs.cols(); ++j)
-            {
-                std::cout << ret.coeffs(i, j);
-                if (j < ret.coeffs.cols() - 1)
-                    std::cout << ",";
-            }
-            std::cout << "},\n";
-        }
-        std::cout << std::endl;
-        */
         PROGRESS_DONE();
     }
     return below_coeffs_memo[n];
@@ -255,7 +241,6 @@ MatrixCache& ConditionedSFSBase::cached_matrices(int n)
     if (matrix_cache.count(n) == 0)
     {
         MatrixCache ret;
-        std::cout << "computing cached matrices..." << std::endl;
         VectorXq D_subtend_above = VectorXq::LinSpaced(n, 1, n);
         D_subtend_above /= n + 1;
 
