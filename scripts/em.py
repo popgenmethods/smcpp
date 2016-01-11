@@ -237,7 +237,7 @@ while i < args.em_iterations:
     run_iteration(i, coords, args.lbfgs_factor)
     esfs = psmcpp._pypsmcpp.sfs(n, (mp['a'],mp['b'],mp['s']), 0.0, mp['hidden states'][-1], 2 * args.N0 * args.mu, False)
     logging.debug("model sfs:\n%s" % str(esfs))
-    logging.debug("observed sfs:\n%s" % str(esfs))
+    logging.debug("observed sfs:\n%s" % str(obsfs))
     i += 1
 
 with open(os.path.join(args.output_directory, "output.txt"), "wt") as out:
