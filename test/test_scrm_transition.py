@@ -48,7 +48,6 @@ def _test_derivative():
 
 def test_transition1():
     import re
-    r = 4 * N0 * rho * (L - 1)
     array = np.array
     a = array([ 7.1,  7.1,  0.9,  7.1,  0.9,  7.1,  0.9])
     b = array([ 7.1,  0.9,  7.1,  0.9,  7.1,  0.9,  0.9])
@@ -59,12 +58,13 @@ def test_transition1():
     hs = array([0., 0.25, 0.5, 1.0, 2.0, 5.0, 14.9])
     ctre = re.compile(r"^\[([^]]+)\]\(\d:(\d+(\.\d+)?),")
     obs = [np.array([[1, 0, 0, 0], [1, 0, 0, 0]], dtype=np.int32)]
-    im = _pypsmcpp.PyInferenceManager(0, obs, hs, 4 * N0 * theta, 4 * N0 * rho)
+    im = _pypsmcpp.PyInferenceManager(0, obs, hs, 2 * N0 * theta, 2 * N0 * rho)
     im.setParams((a, b, s), False)
     np.set_printoptions(suppress=True, linewidth=140)
     trans = im.transition
     print(trans)
-    demo = scrm.demography_from_params((2 * a, 2 * b, s))
+    demo = scrm.demography_from_params((2. * a, 2. * b, s))
+    r = 2 * N0 * rho * (L - 1)
     print(demo, r)
     out = scrm.scrm(2, 1, "-r", r, L, '-T', *demo, _iter=True)
     spans = []
