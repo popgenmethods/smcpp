@@ -11,7 +11,8 @@ THREADS = 16
 theta = 1.25e-8
 
 def _scrm_sfs(args):
-    return scrm.distinguished_sfs(*args)
+    np.random.seed(args[-1])
+    return scrm.distinguished_sfs(*(args[:-1]))
 
 def _test_two_period0():
     N0 = 10000
@@ -24,10 +25,10 @@ def _test_two_period0():
     n = 10
     L = 100000
     t0, t1 = 0., np.inf
-    sfs = _pypsmcpp.sfs(n, [a, b, s], t0, t1, 4 * N0 * theta, jacobian=False)
+    sfs = _pypsmcpp.sfs(n, [a, b, s], t0, t1, 2 * N0 * theta, jacobian=False)
     # Everything in ms is in units of 4 * N0
     print(sfs)
-    demography = scrm.demography_from_params(np.array([2. * a, 2. * b, s]))
+    demography = scrm.demography_from_params(np.array([a, b, s]))
     print(demography)
     args = (n, L, N0, theta, demography, t0, t1)
     scrm_sfs = np.mean(list(multiprocessing.Pool(THREADS).map(_scrm_sfs, [args + (np.random.randint(0, 1000000),) for _ in range(THREADS)])), axis=0)
@@ -43,16 +44,16 @@ def test_two_period1():
     # a = np.array([8.0, 8.0, .75, .75, 4.0, 4.0])
     # b = a + .5
     # s = np.array([0.5] * 6) * 2.0
-    a = sawtooth['a']
-    b = sawtooth['b']
-    s = sawtooth['s_gen'] / N0
+    a = np.array([15.0, 1.0, 2.0])
+    b = np.array([1.0, 1.0, 2.0])
+    s = np.array([2.0, 1.0, 1.0])
     n = 10
     L = 100000
-    t0, t1 = 1.0, 2.0
-    sfs = _pypsmcpp.sfs(n, [a, b, s], t0, t1, 4 * N0 * theta, jacobian=False)
+    t0, t1 = 0.0, 14.9
+    sfs = _pypsmcpp.sfs(n, [a, b, s], t0, t1, 2 * N0 * theta, jacobian=False)
     # Everything in ms is in units of 4 * N0
     print(sfs)
-    demography = scrm.demography_from_params(np.array([2. * a, 2. * b, s]))
+    demography = scrm.demography_from_params(np.array([a, b, s * 0.5]))
     print(demography)
     args = (n, L, N0, theta, demography, t0, t1)
     scrm_sfs = np.mean(list(multiprocessing.Pool(THREADS).map(_scrm_sfs, [args + (np.random.randint(0, 1000000),) for _ in range(THREADS)])), axis=0)
