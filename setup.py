@@ -43,5 +43,6 @@ setup(name='smcpp',
         install_requires=[
             "cython>=0.23",
             "scipy>=0.16",
-            "numpy>=1.9"]
+            "numpy>=1.9",
+            "configargparse>=0.10"]
     )
