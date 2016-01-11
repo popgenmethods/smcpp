@@ -20,7 +20,7 @@ def _test_derivative():
     s = array([ 0.002,  0.006   ,  0.013   ,  0.109   ,  0.1     ,  1.77    ,  0.000002])
     hs = array([ 0., 0.5, 1.0, 2.0, 5.0, 14.0])
     obs = [np.array([[1, 0, 0], [1, 0, 0]], dtype=np.int32)]
-    im = _pypsmcpp.PyInferenceManager(0, obs, hs, 4 * N0 * theta, 4 * N0 * rho, 100, 5, [0])
+    im = _pypsmcpp.PyInferenceManager(0, obs, hs, 2 * N0 * theta, 2 * N0 * rho, 100, 5, [0])
     im.setParams((a, b, s), True)
     K = len(a)
     np.set_printoptions(suppress=True)
@@ -58,15 +58,12 @@ def test_transition1():
     # s = np.array([0.5, 0.5])
     hs = array([0., 0.25, 0.5, 1.0, 2.0, 5.0, 14.9])
     ctre = re.compile(r"^\[([^]]+)\]\(\d:(\d+(\.\d+)?),")
-    obs = [np.array([[1, 0, 0], [1, 0, 0]], dtype=np.int32)]
-    im = _pypsmcpp.PyInferenceManager(0, obs, hs, 4 * N0 * theta, 4 * N0 * rho, 1, 5, [0])
-    for hj in (True, False):
-        print(hj)
-        im.hj = hj
-        im.setParams((a, b, s), False)
-        np.set_printoptions(suppress=True, linewidth=140)
-        trans = im.transition
-        print(trans)
+    obs = [np.array([[1, 0, 0, 0], [1, 0, 0, 0]], dtype=np.int32)]
+    im = _pypsmcpp.PyInferenceManager(0, obs, hs, 4 * N0 * theta, 4 * N0 * rho)
+    im.setParams((a, b, s), False)
+    np.set_printoptions(suppress=True, linewidth=140)
+    trans = im.transition
+    print(trans)
     demo = scrm.demography_from_params((2 * a, 2 * b, s))
     print(demo, r)
     out = scrm.scrm(2, 1, "-r", r, L, '-T', *demo, _iter=True)

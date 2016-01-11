@@ -28,7 +28,7 @@ parser.add_argument("--panel-size", type=int, default=None)
 parser.add_argument("--alt-freq", type=int, default=None)
 parser.add_argument("--missing", type=float, default=None)
 parser.add_argument("L", type=int)
-parser.add_argument("seed", type=int)
+parser.add_argument("seed", type=int, default=None)
 parser.add_argument("outpdf", type=str, help="Name of output pdf")
 parser.add_argument("-a", type=float, nargs="+")
 parser.add_argument("-b", type=float, nargs="+")
@@ -38,9 +38,12 @@ args = parser.parse_args()
 
 theta = 1.25e-8
 rho = theta / 4.0
-a = np.array(args.a)
-b = np.array(args.b)
-s = np.array(args.s)
+# a = np.array(args.a)
+# b = np.array(args.b)
+# s = np.array(args.s)
+a = psmcpp.lib.util.sawtooth['a']
+b = psmcpp.lib.util.sawtooth['b']
+s = psmcpp.lib.util.sawtooth['s_gen'] / (2. * args.N0)
 true_parameters = (a, b, s)
 width = 2000
 G = np.zeros([args.M, args.L])
@@ -49,8 +52,10 @@ if args.panel_size is None:
     args.panel_size = n_max
 demography = psmcpp.lib.scrm.demography_from_params((a * 2.0, b * 2.0, s))
 print(" ".join(map(str, demography)))
+if args.seed is not None:
+    np.random.seed(args.seed)
 data0 = psmcpp.lib.scrm.simulate(args.panel_size, args.N0, args.theta, args.rho, 
-        args.L, demography, include_trees=True, seed=args.seed)
+        args.L, demography, include_trees=True)
 
 # Create missingness in data
 if args.missing is not None:
@@ -97,9 +102,10 @@ for n in args.ns:
     oo[n] = obs
     hidden_states = np.array([0., 14.0])
     im = psmcpp._pypsmcpp.PyInferenceManager(n - 2, [obs[:10]], hidden_states,
-            4.0 * args.N0 * args.theta, 4.0 * args.N0 * args.rho, args.block_size, 10, [0])
-    im.hj = False
-    hidden_states = im.balance_hidden_states((a, b, s), args.M)
+            4.0 * args.N0 * args.theta, 4.0 * args.N0 * args.rho, args.block_size, 10)
+    hidden_states = im.balance_hidden_states((a,b,s), args.M)
+    # hidden_states = np.logspace(np.log10(.001), np.log10(14.9), args.M)
+    hidden_states[0] = 0.
     hidden_states[-1] = 14.9
     print('hidden states', hidden_states * args.N0 * 25)
     em = np.arange(3 *  (n - 1), dtype=int).reshape([3, n - 1])
@@ -108,18 +114,13 @@ for n in args.ns:
     # em[2] = 7
     print(em)
     im = psmcpp._pypsmcpp.PyInferenceManager(n - 2, [obs], hidden_states,
-            4.0 * args.N0 * args.theta, 4.0 * args.N0 * args.rho, args.block_size, args.alt_freq or n, [0], em)
+            4.0 * args.N0 * args.theta, 4.0 * args.N0 * args.rho, args.block_size, args.alt_freq or n, em)
+    im.saveGamma = True
     im.setParams((a, b, s), False)
     im.Estep()
     ims[n] = im
     gamma = im.gammas[0]
-    bks[n] = im.block_keys[0]
-    bb = 0
-    for i, (_, d) in enumerate(bks[n]):
-        w = sum(d.values())
-        G[:,bb:(bb+w)] = gamma[:,i:(i+1)]
-        bb += w
-    gm[n] = scipy.ndimage.zoom(G, (1.0, 1. * width / args.L))
+    gm[n] = scipy.ndimage.zoom(gamma, (1.0, 1. * width / args.L))
 
 import matplotlib.pyplot as plt
 
@@ -142,10 +143,10 @@ for n in sorted(gm):
     im = ax.imshow(gm[n][::-1], extent=[0, width, -0.5, args.M - 0.5],aspect='auto', vmin=0.0, vmax=mx)
     ax.step(range(width), true_pos, color=(0, 1., 1.))
     diff = np.abs(np.subtract.outer(hs_mid, zct))
-    escore = (diff * gm[n]).sum() / diff.shape[1]
+    # escore = (diff * gm[n]).sum() / diff.shape[1]
     ax.set_ylabel("n=%d" % n)
     ax.set_ylim([-0.5, args.M - 0.5])
     ax.set_xticklabels(label_text)
-    txt = ax.text(width + 35, 0, "%.4f" % escore, rotation=-90, va='bottom', ha='right')
+    # txt = ax.text(width + 35, 0, "%.4f" % escore, rotation=-90, va='bottom', ha='right')
 psmcpp.lib.plotting.save_pdf(fig, args.outpdf)
 plt.close(fig)
