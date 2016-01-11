@@ -117,8 +117,10 @@ void HMM::forward_backward(void)
         if (*(ib->saveGamma))
             gamma.col(ell) = v;
     }
-    gamma0 = alpha_hat.col(0) * beta;
+    gamma0 = alpha_hat.col(0).cwiseProduct(beta);
     gamma_sums.at(ob_key(0)) += gamma0;
+    if (*(ib->saveGamma))
+        gamma.col(0) = gamma0;
     xisum = xisum.cwiseProduct(T);
     PROGRESS_DONE();
 }
