@@ -142,7 +142,7 @@ def normalize_dataset(A, thinning):
     for obs in out[1:]:
         if obs[0] == 0:
             continue
-        if obs == lastobs:
+        if obs[1:] == lastobs[1:]:
             lastobs[0] += obs[0]
         else:
             ret.append(lastobs)
