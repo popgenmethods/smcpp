@@ -51,7 +51,7 @@ pop_params.add_argument('--rho', type=float, help="per-generation recombination 
 model.add_argument('--pieces', type=str, help="span of model pieces", required=True, default="32*1")
 model.add_argument('--t1', type=float, help="end-point of first piece, in generations", required=True, default=40.)
 model.add_argument('--tK', type=float, help="end-point of last piece, in generations", required=True, default=40000.)
-model.add_argument('--exponential-pieces', nargs="+", type=int, action="append", help="pieces which have exponential growth")
+model.add_argument('--exponential-pieces', type=int, action="append", help="pieces which have exponential growth")
 hmm.add_argument('--thinning', type=int, help="frequency to emit full SFS (default: 25 * sample size)")
 hmm.add_argument('--M', type=int, help="number of hidden states", required=True, default=32)
 hmm.add_argument('--hM', type=float, help="hidden state cutoff, in generations", required=True, default=8000.)
@@ -201,6 +201,7 @@ def reverse_progress(signal, frame):
 signal.signal(signal.SIGUSR1, reverse_progress)
 
 def run_iteration(i, coords, factr):
+    global llold
     # for j in range(K * di // 3, K * (di + 1) // 3)]
     ret = optimize_fullgrad(i, coords, mp['x'], factr)
     for xx, cc in zip(ret, coords):
@@ -208,15 +209,14 @@ def run_iteration(i, coords, factr):
     mp['b'][flat_pieces] = mp['a'][flat_pieces]
     logging.info("************** EM ITERATION %d ***************" % i)
     logging.info("Current model:\n%s", str(mp['x']))
-    if i == 5:
-        print("rebalancing hidden states")
-        h_M = hs[-1]
-        hs = im.balance_hidden_states((mp['a'], mp['b'], mp['s']), M)
-        hs[-1] = h_M
-        hs = np.unique(np.sort(np.concatenate([hs, np.cumsum(s)])))
-        im.hidden_states = hs
-        print(hs)
-    im.setParams((a, b, s), False)
+    # if i == 5:
+    #     print("rebalancing hidden states")
+    #     args.hM = mp['hidden states'][-1]
+    #     hs = im.balance_hidden_states((mp['a'], mp['b'], mp['s']), args.M)
+    #     hs[-1] = args.hM
+    #     hs = np.unique(np.sort(np.concatenate([hs, np.cumsum(mp['s'])])))
+    #     im.hidden_states = hs
+    im.setParams((mp['a'], mp['b'], mp['s']), False)
     im.Estep()
     ll = np.sum(im.loglik(0.0))
     print(" - New loglik:" + str(ll))
@@ -235,13 +235,17 @@ coords = [(aa, j) for j in range(mp['K']) for aa in ((0,) if j in flat_pieces el
 
 while i < args.em_iterations:
     run_iteration(i, coords, args.lbfgs_factor)
-    esfs = psmcpp._pypsmcpp.sfs(n, (mp['a'],mp['b'],mp['s']), 0.0, mp['hidden states'][-1], 2 * N0 * args.mu, False)
+    esfs = psmcpp._pypsmcpp.sfs(n, (mp['a'],mp['b'],mp['s']), 0.0, mp['hidden states'][-1], 2 * args.N0 * args.mu, False)
     logging.debug("model sfs:\n%s" % str(esfs))
     logging.debug("observed sfs:\n%s" % str(esfs))
     i += 1
-# Output state and exit
-d = print_state()
-args.output.write("# SMC++ output\n")
-args.output.write("a\tb\ts\n")
-s[-1] = np.inf
-np.savetxt(args.output, np.array([a * 2 * N0, b * 2 * N0, np.cumsum(s) * 2 * N0]).T, fmt="%f", delimiter="\t")
+
+with open(os.path.join(args.output_directory, "output.txt"), "wt") as out:
+    out.write("# SMC++ output\n")
+    out.write("a\tb\ts\n")
+    s[-1] = np.inf
+    np.savetxt(out, np.array([mp['a'] * 2 * args.N0, mp['b'] * 2 * args.N0, np.cumsum(mp['s']) * 2 * args.N0]).T, fmt="%f", delimiter="\t")
+    out.seek(0)
+    logging.debug(out.read())
+
+

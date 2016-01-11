@@ -27,6 +27,7 @@ parser.add_argument("--panel-size", type=int, default=None, help="Panel size (SM
 parser.add_argument("--N0", type=int, default=10000)
 parser.add_argument("--theta", type=float, default=1.25e-8, help="Unscaled mutation rate")
 parser.add_argument("--rho", type=float, default=1.25e-8 / 4.0, help="Unscaled recombination rate")
+parser.add_argument("--missing", type=float, default=0., help="Missingness fraction for data")
 parser.add_argument("--switch-error", type=float, default=0.02, 
         help="Probability of switch error for simulating phasing.")
 parser.add_argument("--smcpp", action="store_true", default=True, help="Generate dataset for SMC++")
@@ -34,6 +35,7 @@ parser.add_argument("--psmc", action="store_true", default=False, help="Generate
 parser.add_argument("--msmc", action="store_true", default=False, help="Generate dataset for MSMC")
 parser.add_argument("--dical", action="store_true",  default=False, help="Generate dataset for diCal")
 args = parser.parse_args()
+assert 0. <= args.missing < 1
 
 def mk_outdir(prog):
     ret = os.path.join(args.outdir, prog)
@@ -43,7 +45,7 @@ def mk_outdir(prog):
         pass
     return ret
 
-np.random.seed = args.seed
+np.random.seed(args.seed)
 
 if args.sawtooth:
     st = psmcpp.lib.util.sawtooth
@@ -65,11 +67,12 @@ demography = psmcpp.lib.scrm.demography_from_params((a0 * 2.0, b0 * 2.0, s0))
 print("simulating")
 def perform_sim(args):
     n, N0, theta, rho, L, demography, seed = args
-    return psmcpp.lib.scrm.simulate(n, N0, theta, rho, L, demography, False, seed)
+    np.random.seed(seed)
+    return psmcpp.lib.scrm.simulate(n, N0, theta, rho, L, demography, False)
 
 p = multiprocessing.Pool(args.C)
 data_sets = list(p.imap_unordered(perform_sim, 
-    [(args.panel_size, args.N0, args.theta, args.rho, args.L, demography, np.random.randint(0, sys.maxint, size=3)) for _ in range(args.C)]))
+    [(args.panel_size, args.N0, args.theta, args.rho, args.L, demography, np.random.randint(0, 4000000000)) for _ in range(args.C)]))
 assert data_sets
 p.terminate()
 p.join()
@@ -89,10 +92,9 @@ pairs = [(2 * k, 2 * k + 1) for k in range(args.pairs)]
 # 1. Write smc++ format
 if args.smcpp:
     smcpp_outdir = mk_outdir("smc++")
-    obs = [psmcpp.lib.util.hmm_data_format(data, 2 * args.n, p) for data in data_sets for p in pairs]
-    smcpp_data = {"obs": obs, "n": 2 * args.n, "L": args.L, "theta": args.theta, "rho": args.rho, "N0": args.N0}
-    with open(os.path.join(smcpp_outdir, "smc++.dat"), "wb") as f:
-        pickle.dump(smcpp_data, f)
+    obs = [psmcpp.lib.util.hmm_data_format(data, 2 * args.n, p, missing=args.missing) for data in data_sets for p in pairs]
+    for i, ob in enumerate(obs, 1):
+        np.savetxt(os.path.join(smcpp_outdir, "%i.txt.gz" % i), ob, fmt="%i")
 
 if not(any([args.psmc, args.dical, args.msmc])): sys.exit(0)
 
