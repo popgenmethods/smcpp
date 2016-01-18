@@ -48,7 +48,7 @@ def save_pdf(plt, filename):
     plt.savefig(pp, format='pdf')
     pp.close()
 
-def plot_psfs(psfs, N0=1e4, xlim=None, ylim=None, order=None):
+def plot_psfs(psfs, xlim=None, ylim=None, order=None):
     fig, ax = pretty_plot()
     xmax = ymax = 0.
     labels = []
@@ -56,19 +56,16 @@ def plot_psfs(psfs, N0=1e4, xlim=None, ylim=None, order=None):
         order = sorted(psfs)
     for label in order:
         if label == "coal_times": continue
-        a = psfs[label]['a'] * 2 * N0 / 1000.
-        b = psfs[label]['b'] * 2 * N0 / 1000.
+        a = psfs[label]['a']
+        b = psfs[label]['b']
         s = psfs[label]['s']
-        sp = s * 25.0 * 2 * N0
-        # cs = np.concatenate(([100.], np.cumsum(s) * 25.0 * 2 * N0))
-        # cs[-1] = 1e7
-        # a = np.concatenate((a, [a[-1]]))
-        # b = np.concatenate((b, [a[-1]]))
-        slope = np.log(a/b) / sp
+        s = np.concatenate([[0.], s])
+        s = s[1:] - s[:-1]
+        slope = np.log(a/b) / s
         cum = 0.
         x = []
         y = []
-        for aa, bb, ss in zip(b[:-1], slope[:-1], sp[:-1]):
+        for aa, bb, ss in zip(b[:-1], slope[:-1], s[:-1]):
             tt = np.linspace(cum, cum + ss, 100)
             yy = aa * np.exp(bb * (cum + ss - tt))
             x = np.concatenate([x, tt])
