@@ -1,7 +1,7 @@
 #include "hmm.h"
 
-HMM::HMM(const Matrix<int> &obs, const InferenceBundle* ib) : 
-    obs(obs), ib(ib), M(ib->pi->rows()), L(obs.rows()), alpha_hat(M, L), xisum(M, M), c(L)
+HMM::HMM(const int hmm_num, const Matrix<int> &obs, const InferenceBundle* ib) : 
+    hmm_num(hmm_num), obs(obs), ib(ib), M(ib->pi->rows()), L(obs.rows()), alpha_hat(M, L), xisum(M, M), c(L)
 {}
 
 double HMM::loglik()
@@ -23,7 +23,6 @@ void HMM::domain_error(double ret)
 void HMM::forward_backward(void)
 {
     TransitionBundle *tb = ib->tb;
-    PROGRESS("forward backward");
     alpha_hat = Matrix<double>::Zero(M, L);
     if (*(ib->saveGamma))
         gamma = Matrix<double>::Zero(M, L);
@@ -34,9 +33,9 @@ void HMM::forward_backward(void)
     alpha_hat.col(0) = ib->pi->template cast<double>().cwiseProduct(ib->emission_probs->at(ob_key(0)).template cast<double>());
 	c(0) = alpha_hat.col(0).sum();
     alpha_hat.col(0) /= c(0);
-    PROGRESS("forward algorithm");
     block_key key;
     Eigen::DiagonalMatrix<double, Eigen::Dynamic, Eigen::Dynamic> B;
+    DEBUG("forward algorithm (HMM #" << hmm_num << ")");
     for (int ell = 1; ell < L; ++ell)
     {
         key = ob_key(ell);
@@ -63,6 +62,7 @@ void HMM::forward_backward(void)
     xisum.setZero();
     Matrix<double> Q(M, M), Qt(M, M), xis(M, M);
     Eigen::Array<double, Eigen::Dynamic, Eigen::Dynamic> atmp(M, *(ib->spanCutoff)), btmp(M, *(ib->spanCutoff));
+    DEBUG("backward algorithm (HMM #" << hmm_num << ")");
     for (int ell = L - 1; ell > 0; --ell)
     {
         v.setZero();

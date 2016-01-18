@@ -11,6 +11,7 @@ cdef extern from "common.h":
         int cols()
     cdef double toDouble(const adouble &)
     void init_eigen()
+    void init_logger_cb(void(*)(const char*, const char*, const char*))
     void fill_jacobian(const adouble &, double*)
     void store_matrix[T](const Matrix[T] *, T*)
     void store_admatrix(const Matrix[adouble]&, int, double*, double*)
@@ -29,7 +30,7 @@ cdef extern from "inference_manager.h":
                 const double, const double)
         void setParams_d(const ParameterVector)
         void setParams_ad(const ParameterVector, vector[pair[int, int]] derivatives)
-        void Estep()
+        void Estep() nogil
         vector[double] loglik(double)
         vector[adouble] Q(double)
         vector[double] randomCoalTimes(const ParameterVector, double, int)

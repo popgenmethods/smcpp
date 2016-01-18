@@ -59,7 +59,7 @@ InferenceManager::InferenceManager(
         if (obs[i](0, 0) > 1)
             throw std::runtime_error("Dataset did not validate: first observation must have span=1");
         PROGRESS("creating HMM");
-        hmmptr h(new HMM(obs[i], &ib));
+        hmmptr h(new HMM(i, obs[i], &ib));
         hmms[i] = std::move(h);
     }
     // Collect all the block keys for recomputation later

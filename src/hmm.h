@@ -14,7 +14,7 @@ class InferenceManager;
 class HMM
 {
     public:
-    HMM(const Matrix<int> &obs, const InferenceBundle *ib);
+    HMM(const int hmm_num, const Matrix<int> &obs, const InferenceBundle *ib);
     void Estep(void);
     double loglik(void);
     adouble Q(void);
@@ -28,6 +28,7 @@ class HMM
     inline block_key ob_key(int i) { return {obs(i, 1), obs(i, 2), obs(i, 3)}; }
 
     // Instance variables
+    const int hmm_num;
     const Matrix<int> obs;
     const InferenceBundle *ib;
     const int M, L;

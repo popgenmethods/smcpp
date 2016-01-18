@@ -7,8 +7,13 @@ import collections
 import scipy.optimize
 
 init_eigen();
-
 logger = logging.getLogger(__name__)
+
+cdef void logger_cb(const char* name, const char* level, const char* message) with gil:
+    lvl = {"INFO": logging.INFO, "DEBUG": logging.DEBUG, "WARNING": logging.WARNING}
+    logging.getLogger(name).log(lvl[level.upper()], message)
+
+init_logger_cb(logger_cb);
 
 # Everything needs to be C-order contiguous to pass in as
 # flat arrays

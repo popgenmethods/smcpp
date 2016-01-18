@@ -19,3 +19,17 @@ void store_admatrix(const Matrix<adouble> &M, int nd, double* out, double* outja
         }
 }
 
+void (*Logger::logger_cb)(const char*, const char*, const char*) = 0;
+void call_logger(const char* name, const char* level, const char* message)
+{
+    return;
+#pragma omp critical(call_logger)
+    {
+        Logger::logger_cb(name, level, message);
+    }
+}
+
+void init_logger_cb(void(*fp)(const char*, const char*, const char*))
+{
+    Logger::logger_cb = fp;
+}

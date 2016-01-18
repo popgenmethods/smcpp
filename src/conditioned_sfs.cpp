@@ -228,7 +228,7 @@ std::vector<Matrix<T> >& ConditionedSFS<T>::compute(const PiecewiseExponentialRa
             std::cout << i << "\n" << csfs[i].template cast<double>() << std::endl;
             throw;
         }
-        if (csfs[i].minCoeff() < 0 or csfs[i].maxCoeff() > 1)
+        if (csfs[i].template cast<double>().minCoeff() < 0 or csfs[i].template cast<double>().maxCoeff() > 1)
             throw std::runtime_error("csfs is not a probability distribution");
      }
     return csfs;

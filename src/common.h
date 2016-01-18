@@ -14,27 +14,7 @@
 
 #include "prettyprint.hpp"
 
-#define AUTODIFF 1
 #define EIGEN_NO_AUTOMATIC_RESIZING 1
-#define RATE_FUNCTION PiecewiseExponentialRateFunction
-
-#ifdef NDEBUG
-#define _DEBUG(x)
-#else
-#define _DEBUG(x) x
-#endif
-
-
-#if 1
-void doProgress(bool);
-extern std::mutex mtx;
-extern bool do_progress;
-#define PROGRESS(x) if (do_progress) { mtx.lock(); std::cout << __FILE__ << ":" << __func__ << x << "... " << std::flush; mtx.unlock(); }
-#define PROGRESS_DONE() if (do_progress) { mtx.lock(); std::cout << "done." << std::endl << std::flush; mtx.unlock(); }
-#else
-#define PROGRESS(x)
-#define PROGRESS_DONE()
-#endif
 
 // Maximum time (in coalescent units) considered for all integrals and hidden states.
 // Technically this is not necessary -- the method works with T_MAX=infinity -- but
@@ -71,7 +51,6 @@ struct Functor
     // //  void operator() (const InputType& x, ValueType* v, JacobianType* _j=0) const;
 };
 
-#ifdef AUTODIFF
 #include <unsupported/Eigen/AutoDiff>
 
 typedef Eigen::AutoDiffScalar<Eigen::VectorXd> adouble;
@@ -134,12 +113,6 @@ EIGEN_AUTODIFF_DECLARE_GLOBAL_UNARY(log1p,
 #undef EIGEN_AUTODIFF_DECLARE_GLOBAL_UNARY
 
 };
-
-#else
-
-typedef double adouble;
-
-#endif
 
 template <typename T, typename U>
 inline int insertion_point(const T x, const std::vector<U>& ary, int first, int last)
@@ -226,5 +199,37 @@ void _check_negative(const T x)
     if (x < -1e-16)
         throw std::runtime_error("negative x");
 }
+
+void init_logger_cb(void(*)(const char*, const char*, const char*));
+void call_logger(const char*, const char*, const char*);
+struct Logger
+{
+    static void(*logger_cb)(const char*, const char*, const char*);
+    Logger(const char* name, const char* level) : name(name), level(level) {}
+    const char* name;
+    const char* level;
+    std::stringstream stream;
+    template <typename T>
+    Logger &operator<<(const T &data)
+    {
+        stream << data;
+        return *this;
+    }
+    void flush()
+    {
+        call_logger(name, level, stream.str().c_str());
+    }
+};
+
+#define DEBUG(x) (Logger(__FILE__, "DEBUG") << x).flush()
+#define INFO(x) (Logger(__FILE__, "INFO") << x).flush()
+#define WARN(x) (Logger(__FILE__, "WARN") << x).flush()
+
+void doProgress(bool);
+extern std::mutex mtx;
+extern bool do_progress;
+#define PROGRESS(x) if (do_progress) { mtx.lock(); std::cout << __FILE__ << ":" << __func__ << x << "... " << std::flush; mtx.unlock(); }
+#define PROGRESS_DONE() if (do_progress) { mtx.lock(); std::cout << "done." << std::endl << std::flush; mtx.unlock(); }
+#else
 
 #endif
