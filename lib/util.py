@@ -2,6 +2,9 @@ import numpy as np
 import functools
 import itertools
 import multiprocessing
+import logging
+
+logger = logging.getLogger(__name__)
 
 sawtooth = {
         'a': np.array([7.1, 7.1, 0.9, 7.1, 0.9, 7.1, 0.9]),
@@ -119,25 +122,27 @@ def normalize_dataset(A, thinning):
     Namely, make sure the span of the first row is 0 and implement the 
     thinning procedure needed to break up correlation among the full
     SFS emissions.'''
-    if A[0, 0] > 1:
-        np.insert(A, 0, [1] + list(A[0, 1:]), 0)
-        A[1, 0] -= 1
     # Thinning
+    SPAN_CUTOFF = 40000
     i = 0
     out = []
     for span, a, b, nb in A:
         a1 = np.sign(a) * (a % 2)
         while span > 0:
             if i < thinning and i + span >= thinning:
-                out.append([thinning - i - 1, a1, 0, 0])
-                out.append([1, a, b, nb])
+                if thinning - i > 1:
+                    out.append([thinning - i - 1, a1, 0, 0])
+                if a == 2 and b == nb:
+                    out.append([1, 0, 0, nb])
+                else:
+                    out.append([1, a, b, nb])
                 span -= thinning - i
                 i = 0
             else:
                 out.append([span, a1, 0, 0])
                 i += span
                 break
-    ret = []
+    ret = [[]]
     lastobs = out[0]
     for obs in out[1:]:
         if obs[0] == 0:
@@ -145,15 +150,22 @@ def normalize_dataset(A, thinning):
         if obs[1:] == lastobs[1:]:
             lastobs[0] += obs[0]
         else:
-            ret.append(lastobs)
+            if lastobs[0] > SPAN_CUTOFF:
+                logger.debug("Skipping long span: %s" % str(lastobs))
+                ret.append([])
+            else:
+                ret[-1].append(lastobs)
             lastobs = obs
-    ret.append(lastobs)
-    if ret[0][0] > 1:
-        ret.insert(0, [1] + ret[0][1:])
-        ret[1][0] -= 1
-    ret = np.array(ret, dtype=np.int32)
-    assert ret[:, 0].sum() == A[:, 0].sum()
-    return ret
+    ret[-1].append(lastobs)
+    r2 = []
+    for rr in ret:
+        if rr == []:
+            continue
+        if rr[0][0] > 1:
+            rr.insert(0, [1] + rr[0][1:])
+            rr[1][0] -= 1
+        r2.append(np.array(rr, dtype=np.int32))
+    return r2
 
 def _pt_helper(fn):
     A = np.loadtxt(fn, dtype=np.int32)

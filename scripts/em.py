@@ -12,18 +12,25 @@ import time
 import configargparse
 import logging
 import os
+import traceback
 
 # Package imports
-import psmcpp._pypsmcpp, psmcpp.lib.util
+import psmcpp._pypsmcpp, psmcpp.lib.util, psmcpp.lib.plotting
 
 np.set_printoptions(linewidth=120, precision=6, suppress=True)
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.DEBUG,
+        format='%(asctime)s %(name)-12s %(levelname)-8s %(message)s',
+        datefmt='%m-%d %H:%M')
 logger = logging.getLogger(__name__)
 
 ## Helper functions used for multiprocessing
 def _norm_help(args):
     logger.info("Normalizing dataset...")
-    return psmcpp.lib.util.normalize_dataset(*args)
+    try:
+        return psmcpp.lib.util.normalize_dataset(*args)
+    # This is where you do your actual work
+    except:
+        raise Exception("".join(traceback.format_exception(*sys.exc_info())))
 
 def _obsfs_helper(args):
     ol, n = args
@@ -45,7 +52,7 @@ def setup_parser():
     pop_params = parser.add_argument_group('population parameters')
     model = parser.add_argument_group('model')
     hmm = parser.add_argument_group('HMM and fitting parameters')
-    parser.add_argument("--output-directory", "-o", help="output directory", default=".")
+    parser.add_argument("--output-directory", help="output directory", default=".")
     parser.add_argument('--config', is_config_file=True, help="config file path")
     pop_params.add_argument('--N0', type=float, help="reference effective (diploid) population size", required=True)
     pop_params.add_argument('--mu', type=float, help="per-generation mutation rate", required=True)
@@ -116,6 +123,16 @@ def optimize(ctx, coords, factr=1e9):
     logger.debug(res)
     return np.array([x * precond[cc[1]] for x, cc in zip(res[0], coords)])
 
+def write_output(args, ctx):
+## Finally, save output and exit
+    with open(os.path.join(args.output_directory, "output.txt"), "wt") as out:
+        out.write("# SMC++ output\n")
+        out.write("# a\tb\ts\n")
+        ctx['s'][-1] = np.inf
+        np.savetxt(out, np.array([ctx['a'] * 2 * args.N0, ctx['b'] * 2 * args.N0, np.cumsum(ctx['s']) * 2 * args.N0]).T, 
+                fmt="%f", delimiter="\t")
+    logger.debug(open(os.path.join(args.output_directory, "output.txt"), "rt").read())
+
 def main():
     '''Main control loop.'''
     parser, args = setup_parser();
@@ -134,13 +151,16 @@ def main():
     except:
         smcpp_data = psmcpp.lib.util.parse_text_datasets(args.data)
     n = smcpp_data['n']
+    logger.debug("max samples: %d" % n)
 
     if args.thinning is None:
-        args.thinning = 50 * n
+        args.thinning = 25 * n
 
     ## In parallel, process data sets
     pool = multiprocessing.Pool(None)
-    obs_list = list(pool.map(_norm_help, [(ob, args.thinning) for ob in smcpp_data['obs']]))
+    obs_list = [subob 
+            for subobs in pool.map(_norm_help, [(ob, args.thinning) for ob in smcpp_data['obs']])
+            for subob in subobs]
     ## Calculate observed SFS for use later
     osfs = list(pool.map(_obsfs_helper, [(ob, n) for ob in obs_list]))
     pool.close()
@@ -185,7 +205,7 @@ def main():
 
     ## Create inference object which will be used for all further calculations.
     im = ctx['im'] = psmcpp._pypsmcpp.PyInferenceManager(n - 2, obs_list, 
-            ctx['hidden states'], 4.0 * args.N0 * args.mu, 4.0 * args.N0 * args.rho)
+            ctx['hidden states'], 2.0 * args.N0 * args.mu, 2.0 * args.N0 * args.rho)
     im.setParams([ctx[x] for x in "abs"], False)
     im.Estep()
     ctx['llold'] = llold = -np.inf
@@ -223,20 +243,13 @@ def main():
         logger.info("New/old loglik: %f/%f" % (ll, llold))
         if ll < llold:
             logger.warn("Log-likelihood decreased")
+        llold = ll
         esfs = psmcpp._pypsmcpp.sfs(n, (ctx['a'], ctx['b'], ctx['s']), 0.0, 
-                ctx['hidden states'][-1], 4 * args.N0 * args.mu, False)
+                ctx['hidden states'][-1], 2. * args.N0 * args.mu, False)
         logger.debug("model sfs:\n%s" % str(esfs))
         logger.debug("observed sfs:\n%s" % str(obsfs))
         i += 1
-
-    ## Finally, save output and exit
-    with open(os.path.join(args.output_directory, "output.txt"), "wt") as out:
-        out.write("# SMC++ output\n")
-        out.write("a\tb\ts\n")
-        ctx['s'][-1] = np.inf
-        np.savetxt(out, np.array([ctx['a'] * 2 * args.N0, ctx['b'] * 2 * args.N0, np.cumsum(ctx['s']) * 2 * args.N0]).T, fmt="%f", delimiter="\t")
-        out.seek(0)
-        logger.debug(out.read())
+    write_output(args, ctx)
 
 if __name__=="__main__":
     main()
