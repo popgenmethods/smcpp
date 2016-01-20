@@ -126,7 +126,7 @@ void PiecewiseExponentialRateFunction<T>::compute_regularizer()
     {
         for (int i = 1; i < delta + 1; ++i)
         {
-            xx = (i / delta) * (ts[k + 1] - ts[k]) + ts[k];
+            xx = ((double)i / delta) * (ts[k + 1] - ts[k]) + ts[k];
             etax = 1. / eta(xx);
             tmp = etax - elast;
             _reg += tmp * tmp * exp(-R(xx));
