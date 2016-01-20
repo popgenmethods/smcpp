@@ -76,7 +76,9 @@ cdef class PyInferenceManager:
             Ls.append(ob.shape[0])
         self._num_hmms = len(observations)
         cdef vector[double] hs = hidden_states
-        self._im = new InferenceManager(n, Ls, obs, hs, theta, rho)
+        cdef vector[int] _Ls = Ls
+        with nogil:
+            self._im = new InferenceManager(n, _Ls, obs, hs, theta, rho)
 
     def __dealloc__(self):
         del self._im
@@ -93,29 +95,40 @@ cdef class PyInferenceManager:
         cdef ParameterVector p = make_params(params)
         if derivatives is True:
             derivatives = [(a, b) for a in range(len(params)) for b in range(len(params[0]))]
+        cdef vector[pair[int, int]] _derivatives
         if derivatives:
             # It should be pairs of tuples in this case
             self._nder = len(derivatives)
-            self._im.setParams_ad(p, derivatives)
+            _derivatives = derivatives
+            with nogil:
+                self._im.setParams_ad(p, _derivatives)
         else:
             self._nder = 0
-            self._im.setParams_d(p)
+            with nogil:
+                self._im.setParams_d(p)
         logger.debug("Updating params finished.")
 
     def setDebug(self, val):
         self._im.debug = val
 
     def regularizer(self):
-        return self._im.getRegularizer()
+        cdef double ret
+        with nogil:
+            ret = self._im.getRegularizer()
+        return ret
 
     def Estep(self):
         logger.debug("Forward-backward algorithm...")
-        self._im.Estep()
+        with nogil:
+            self._im.Estep()
         logger.debug("Forward-backward algorithm finished.")
 
-    def random_times(self, params, fac, size):
-        cdef ParameterVector p = make_params(params)
-        return self._im.randomCoalTimes(p, fac, size)
+    # def random_times(self, params, fac, size):
+    #     cdef ParameterVector p = make_params(params)
+    #     cdef vector[double] ret
+    #     with nogil:
+    #         ret = self._im.randomCoalTimes(p, fac, size)
+    #     return ret
 
     property spanCutoff:
         def __get__(self):
@@ -156,9 +169,15 @@ cdef class PyInferenceManager:
             return _store_admatrix_helper(self._im.getEmission(), self._nder)
 
     def _call_inference_func(self, func, lam):
+        cdef vector[double] llret
+        cdef double _lam = lam
         if func == "loglik":
-            return self._im.loglik(lam)
-        cdef vector[adouble] ad_rets = self._im.Q(lam)
+            with nogil:
+                llret = self._im.loglik(_lam)
+            return llret
+        cdef vector[adouble] ad_rets 
+        with nogil:
+            ad_rets = self._im.Q(_lam)
         cdef int K = ad_rets.size()
         ret = []
         cdef double[::1] vjac

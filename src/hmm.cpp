@@ -133,7 +133,7 @@ void HMM::Estep(void)
 
 adouble HMM::Q(void)
 {
-    PROGRESS("HMM::Q");
+    DEBUG("HMM::Q");
     adouble q1, q2, q3;
     q1 = (gamma0.array().template cast<adouble>() * ib->pi->array().log()).sum();
     q2 = 0.0;
@@ -143,7 +143,7 @@ adouble HMM::Q(void)
     check_nan(q1);
     check_nan(q2);
     check_nan(q3);
-    PROGRESS("q1:" << q1 << " [" << q1.derivatives().transpose() << "]\nq2:" 
+    DEBUG("q1:" << q1 << " [" << q1.derivatives().transpose() << "]\nq2:" 
             << q2 << " [" << q2.derivatives().transpose() << "]\nq3:" << q3 
             << " [" << q3.derivatives().transpose() << "]\n");
     return q1 + q2 + q3;

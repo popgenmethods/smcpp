@@ -139,7 +139,6 @@ void InferenceManager::recompute_emission_probs(const PiecewiseExponentialRateFu
         subemissions[nb] = emission.lazyProduct(subEmissionCoefs(nb));
         subemissions[nb].col(0) += subemissions[nb].rightCols<1>();
         subemissions[nb].rightCols<1>().fill(0);
-        PROGRESS(std::endl << nb << std::endl << subemissions[nb].template cast<double>() << std::endl << std::endl);
     }
 #pragma omp parallel for
     for (auto it = bpm_keys.begin(); it < bpm_keys.end(); ++it)

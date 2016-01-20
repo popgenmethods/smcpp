@@ -24,13 +24,13 @@ cdef extern from "inference_manager.h":
     struct block_key:
         pass
     ctypedef vector[vector[double]] ParameterVector
-    cdef cppclass InferenceManager:
+    cdef cppclass InferenceManager nogil:
         InferenceManager(const int, const vector[int],
                 const vector[int*], const vector[double],
                 const double, const double)
         void setParams_d(const ParameterVector)
         void setParams_ad(const ParameterVector, vector[pair[int, int]] derivatives)
-        void Estep() nogil
+        void Estep()
         vector[double] loglik(double)
         vector[adouble] Q(double)
         vector[double] randomCoalTimes(const ParameterVector, double, int)
