@@ -1,0 +1,9 @@
+x = None
+a = None
+b = None
+s = None
+precond = None
+lambda_penalty = None
+bounds = None
+K = None
+flat_pieces = None

@@ -15,7 +15,7 @@ import os
 import traceback
 
 # Package imports
-import psmcpp._pypsmcpp, psmcpp.lib.util, psmcpp.lib.plotting
+import psmcpp._pypsmcpp, psmcpp.lib.util, psmcpp.lib.plotting, psmcpp.lib.em_context as ctx
 
 np.set_printoptions(linewidth=120, precision=6, suppress=True)
 logging.basicConfig(level=logging.DEBUG,
@@ -84,54 +84,51 @@ def extract_pieces(piece_str):
         pieces += [span] * num
     return pieces
 
-def optimize(ctx, coords, factr=1e9):
+def optimize(coords, factr=1e9):
     logger.debug("Optimizing factr {factr}".format(factr=factr))
-    precond = ctx['precond']
-    bounds = ctx['bounds']
-    flat_pieces = ctx['flat_pieces']
-    im = ctx['im']
     def fprime(x):
-        x0c = ctx['x'].copy()
+        x0c = ctx.x.copy()
         # Preconditioner (sort of)
         for xx, cc in zip(x, coords):
-            x0c[cc] = xx * precond[cc[1]]
+            x0c[cc] = xx * ctx.precond[cc]
         aa, bb = x0c
-        bb[flat_pieces] = aa[flat_pieces]
-        im.setParams((aa, bb, ctx['s']), coords)
-        res = im.Q(ctx['lambda_penalty'])
+        bb[ctx.flat_pieces] = aa[ctx.flat_pieces]
+        ctx.im.setParams((aa, bb, ctx.s), coords)
+        res = ctx.im.Q(ctx.lambda_penalty)
         lls = np.array([ll for ll, jac in res])
         jacs = np.array([jac for ll, jac in res])
         ret = [-np.mean(lls, axis=0), -np.mean(jacs, axis=0)]
-        dary = np.zeros([2, ctx['K']])
+        dary = np.zeros([2, ctx.K])
         for i, cc in enumerate(coords):
-            ret[1][i] *= precond[cc[1]]
+            ret[1][i] *= ctx.precond[cc]
             dary[cc] = ret[1][i]
         logger.debug(x0c)
         logger.debug(dary)
         logger.debug(ret[0])
         return ret
-    # print("gradient check")
-    # xx0 = np.array([x0[cc] / precond[cc[1]] for cc in coords])
+    # logger.debug("gradient check")
+    # xx0 = np.array([ctx.x[cc] / ctx.precond[cc] for cc in coords])
     # f0, fp = fprime(xx0)
     # for i, cc in enumerate(coords):
     #     x0c = xx0.copy()
     #     x0c[i] += 1e-8
     #     f1, _ = fprime(x0c)
-    #     print(i, cc, f1, f0, (f1 - f0) / 1e-8, fp[i])
-    res = scipy.optimize.fmin_l_bfgs_b(fprime, [ctx['x'][cc] / precond[cc[1]] for cc in coords], 
-            None, bounds=[tuple(bounds[cc] / precond[cc[1]]) for cc in coords], disp=False, factr=factr)
+    #     logger.debug((i, cc, f1, f0, (f1 - f0) / 1e-8, fp[i]))
+    res = scipy.optimize.fmin_l_bfgs_b(fprime, [ctx.x[cc] / ctx.precond[cc] for cc in coords], 
+            None, bounds=[tuple(ctx.bounds[cc] / ctx.precond[cc]) for cc in coords], disp=False, factr=factr)
     logger.debug(res)
-    return np.array([x * precond[cc[1]] for x, cc in zip(res[0], coords)])
+    return np.array([x * ctx.precond[cc] for x, cc in zip(res[0], coords)])
 
-def write_output(args, ctx):
+def write_output(args):
 ## Finally, save output and exit
     with open(os.path.join(args.output_directory, "output.txt"), "wt") as out:
         out.write("# SMC++ output\n")
         out.write("# a\tb\ts\n")
-        ctx['s'][-1] = np.inf
-        np.savetxt(out, np.array([ctx['a'] * 2 * args.N0, ctx['b'] * 2 * args.N0, np.cumsum(ctx['s']) * 2 * args.N0]).T, 
-                fmt="%f", delimiter="\t")
+        ctx.s[-1] = np.inf
+        ret = np.array([ctx.a * 2 * args.N0, ctx.b * 2 * args.N0, np.cumsum(ctx.s) * 2 * args.N0]).T 
+        np.savetxt(out, ret, fmt="%f", delimiter="\t")
     logger.debug(open(os.path.join(args.output_directory, "output.txt"), "rt").read())
+    return ret
 
 def main():
     '''Main control loop.'''
@@ -184,52 +181,54 @@ def main():
         sp[i] = s[count:(count+p)].sum()
         count += p
     s = sp
-    ctx = {'s': s, 'K': len(s), 'lambda_penalty': args.lambda_penalty}
+    ctx.s = s
+    ctx.K = len(s)
+    ctx.lambda_penalty = args.lambda_penalty
     logger.debug("time points in coalescent scaling:\n%s", str(s))
 
     ## Initialize model values
-    ctx['x'] = np.ones([2, ctx['K']])
-    ctx['a'] = ctx['x'][0]
-    ctx['b'] = ctx['x'][1]
-    flat_pieces = ctx['flat_pieces'] = [i for i in range(ctx['K']) if i not in args.exponential_pieces]
-    ctx['b'][:] = ctx['a'] + 0.1
-    ctx['b'][flat_pieces] = ctx['a'][flat_pieces]
+    ctx.x = np.ones([2, ctx.K])
+    ctx.a = ctx.x[0]
+    ctx.b = ctx.x[1]
+    ctx.flat_pieces = [i for i in range(ctx.K) if i not in args.exponential_pieces]
+    ctx.b[:] = ctx.a + 0.1
+    ctx.b[ctx.flat_pieces] = ctx.a[ctx.flat_pieces]
 
     ## Compute hidden states
     args.hM /= 2 * args.N0
     hs = exp_quantiles(args.M, args.hM)
     if hs[0] != 0:
         raise Exception("First hidden state interval must begin at 0")
-    ctx['hidden states'] = np.unique(np.sort(np.concatenate([hs, np.cumsum(s)])))
-    logger.debug("hidden states:\n%s", str(ctx['hidden states']))
+    ctx.hidden_states = np.unique(np.sort(np.concatenate([hs, np.cumsum(s)])))
+    logger.debug("hidden states:\n%s", str(ctx.hidden_states))
 
     ## Create inference object which will be used for all further calculations.
-    im = ctx['im'] = psmcpp._pypsmcpp.PyInferenceManager(n - 2, obs_list, 
-            ctx['hidden states'], 2.0 * args.N0 * args.mu, 2.0 * args.N0 * args.rho)
-    im.setParams([ctx[x] for x in "abs"], False)
-    im.Estep()
-    ctx['llold'] = llold = -np.inf
+    ctx.im = psmcpp._pypsmcpp.PyInferenceManager(n - 2, obs_list, 
+            ctx.hidden_states, 2.0 * args.N0 * args.mu, 2.0 * args.N0 * args.rho)
+    ctx.im.setParams([ctx.a, ctx.b, ctx.s], False)
+    ctx.im.Estep()
+    ctx.llold = -np.inf
 
     ## Bounds
     args.Nmin /= 2 * args.N0
     args.Nmax /= 2 * args.N0
-    ctx['bounds'] = np.array([[args.Nmin, args.Nmax]] * ctx['K'] + 
-            [[1.01 * args.Nmin, 0.99 * args.Nmax]] * ctx['K']).reshape([2, ctx['K'], 2])
+    ctx.bounds = np.array([[args.Nmin, args.Nmax]] * ctx.K + 
+            [[1.01 * args.Nmin, 0.99 * args.Nmax]] * ctx.K).reshape([2, ctx.K, 2])
 
     ## Optimization stuff 
-    # Vector of "preconditioners" helps with optimization
-    ctx['precond'] = 1. / ctx['s']
-    ctx['precond'][-1] = 1. / (15.0 - np.sum(ctx['s']))
-
     i = 0
-    coords = [(aa, j) for j in range(ctx['K']) for aa in ((0,) if j in flat_pieces else (0, 1))]
+    coords = [(aa, j) for j in range(ctx.K) for aa in ((0,) if j in ctx.flat_pieces else (0, 1))]
+    # Vector of "preconditioners" helps with optimization
+    ctx.precond = {coord: 1. / ctx.s[coord[0]] if coord[0] not in ctx.flat_pieces else 1. for coord in coords}
+    if (ctx.K - 1, 0) in coords:
+        ctx.precond[(ctx.K - 1, 0)] = 1. / (15.0 - np.sum(ctx.s))
     while i < args.em_iterations:
-        ret = optimize(ctx, coords, args.lbfgs_factor)
+        ret = optimize(coords, args.lbfgs_factor)
         for xx, cc in zip(ret, coords):
-            ctx['x'][cc] = xx
-        ctx['b'][flat_pieces] = ctx['a'][flat_pieces]
+            ctx.x[cc] = xx
+        ctx.b[ctx.flat_pieces] = ctx.a[ctx.flat_pieces]
         logger.info("************** EM ITERATION %d ***************" % i)
-        logger.info("Current model:\n%s", str(ctx['x']))
+        logger.info("Current model:\n%s", str(ctx.x))
         # if i == 5:
         #     print("rebalancing hidden states")
         #     args.hM = mp['hidden states'][-1]
@@ -237,19 +236,19 @@ def main():
         #     hs[-1] = args.hM
         #     hs = np.unique(np.sort(np.concatenate([hs, np.cumsum(mp['s'])])))
         #     im.hidden_states = hs
-        im.setParams((ctx['a'], ctx['b'], ctx['s']), False)
-        im.Estep()
-        ll = np.sum(im.loglik(0.0))
-        logger.info("New/old loglik: %f/%f" % (ll, llold))
-        if ll < llold:
+        ctx.im.setParams((ctx.a, ctx.b, ctx.s), False)
+        ctx.im.Estep()
+        ll = np.sum(ctx.im.loglik(0.0))
+        logger.info("New/old loglik: %f/%f" % (ll, ctx.llold))
+        if ll < ctx.llold:
             logger.warn("Log-likelihood decreased")
-        llold = ll
-        esfs = psmcpp._pypsmcpp.sfs(n, (ctx['a'], ctx['b'], ctx['s']), 0.0, 
-                ctx['hidden states'][-1], 2. * args.N0 * args.mu, False)
+        ctx.llold = ll
+        esfs = psmcpp._pypsmcpp.sfs(n, (ctx.a, ctx.b, ctx.s), 0.0, 
+                ctx.hidden_states[-1], 2. * args.N0 * args.mu, False)
         logger.debug("model sfs:\n%s" % str(esfs))
         logger.debug("observed sfs:\n%s" % str(obsfs))
         i += 1
-    write_output(args, ctx)
+    write_output(args)
 
 if __name__=="__main__":
     main()
