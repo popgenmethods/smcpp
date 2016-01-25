@@ -1,6 +1,8 @@
+cimport numpy as np
+from cython.operator cimport dereference as deref, preincrement as inc
+
 import random
 import sys
-cimport numpy as np
 import numpy as np
 import logging
 import collections
@@ -111,16 +113,11 @@ cdef class PyInferenceManager:
     def setDebug(self, val):
         self._im.debug = val
 
-    def regularizer(self):
-        cdef double ret
-        with nogil:
-            ret = self._im.getRegularizer()
-        return ret
-
-    def Estep(self):
+    def Estep(self, forward_backward_only=False):
         logger.debug("Forward-backward algorithm...")
+        cdef bool fbOnly = forward_backward_only
         with nogil:
-            self._im.Estep()
+            self._im.Estep(fbOnly)
         logger.debug("Forward-backward algorithm finished.")
 
     # def random_times(self, params, fac, size):
@@ -136,6 +133,20 @@ cdef class PyInferenceManager:
         def __set__(self, bint sc):
             self._im.spanCutoff = sc
 
+    property regularizer:
+        def __get__(self):
+            cdef adouble reg
+            cdef double[::1] vjac
+            with nogil:
+                reg = self._im.getRegularizer()
+            if self._nder == 0:
+                return toDouble(reg)
+            else:
+                jac = np.zeros(self._nder)
+                vjac = jac
+                fill_jacobian(reg, &vjac[0])
+                return (toDouble(reg), jac)
+
     property saveGamma:
         def __get__(self):
             return self._im.saveGamma
@@ -147,6 +158,52 @@ cdef class PyInferenceManager:
             return self._im.hidden_states
         def __set__(self, hs):
             self._im.hidden_states = hs
+
+    property emission_probs:
+        def __get__(self):
+            cdef map[block_key, Vector[adouble]] ep = self._im.getEmissionProbs()
+            cdef map[block_key, Vector[adouble]].iterator it = ep.begin()
+            cdef pair[block_key, Vector[adouble]] p
+            ret = {}
+            while it != ep.end():
+                p = deref(it)
+                key = [0] * 3
+                for i in range(3):
+                    key[i] = p.first[i]
+                M = p.second.size()
+                v = np.zeros(M)
+                for i in range(M):
+                    v[i] = p.second(i).value()
+                ret[tuple(key)] = v
+                inc(it)
+            return ret
+
+
+    property gamma_sums:
+        def __get__(self):
+            ret = []
+            cdef vector[pBlockMap] gs = self._im.getGammaSums()
+            cdef vector[pBlockMap].iterator it = gs.begin()
+            cdef map[block_key, Vector[double]].iterator map_it
+            cdef pair[block_key, Vector[double]] p
+            cdef double[::1] vary
+            cdef int M = len(self.hidden_states) - 1
+            while it != gs.end():
+                map_it = deref(it).begin()
+                pairs = {}
+                while map_it != deref(it).end():
+                    p = deref(map_it)
+                    bk = [0, 0, 0]
+                    ary = np.zeros(M)
+                    for i in range(3):
+                        bk[i] = p.first[i]
+                    for i in range(M):
+                        ary[i] = p.second(i)
+                    pairs[tuple(bk)] = ary
+                    inc(map_it)
+                inc(it)
+                ret.append(pairs)
+            return ret
 
     property gammas:
         def __get__(self):
@@ -168,16 +225,15 @@ cdef class PyInferenceManager:
         def __get__(self):
             return _store_admatrix_helper(self._im.getEmission(), self._nder)
 
-    def _call_inference_func(self, func, lam):
+    def _call_inference_func(self, func):
         cdef vector[double] llret
-        cdef double _lam = lam
         if func == "loglik":
             with nogil:
-                llret = self._im.loglik(_lam)
+                llret = self._im.loglik()
             return llret
         cdef vector[adouble] ad_rets 
         with nogil:
-            ad_rets = self._im.Q(_lam)
+            ad_rets = self._im.Q()
         cdef int K = ad_rets.size()
         ret = []
         cdef double[::1] vjac
@@ -191,27 +247,29 @@ cdef class PyInferenceManager:
                 ret.append(toDouble(ad_rets[i]))
         return ret
 
-    def Q(self, lam):
-        return self._call_inference_func("Q", lam)
+    def Q(self):
+        return self._call_inference_func("Q")
 
-    def loglik(self, lam):
-        return self._call_inference_func("loglik", lam)
+    def loglik(self):
+        return self._call_inference_func("loglik")
 
-    def balance_hidden_states(self, params, int M):
-        cdef ParameterVector p = make_params(params)
+def balance_hidden_states(params, int M):
+    cdef ParameterVector p = make_params(params)
+    cdef vector[double] v = []
+    cdef PiecewiseExponentialRateFunction[double] *eta = new PiecewiseExponentialRateFunction[double](p, v)
+    try:
         ret = [0.0]
         t = 0
-        T_MAX = 14.9
         for m in range(1, M):
-            def f(t):
-                return np.exp(-self._im.R(params, t)) - 1.0 * (M - m) / M
-            while np.sign(f(T_MAX)) == np.sign(f(0)):
-                T_MAX *= 2
-                print(T_MAX)
+            def f(double t):
+                cdef double Rt = eta.R(t)
+                return np.exp(-Rt) - 1.0 * (M - m) / M
             res = scipy.optimize.brentq(f, ret[-1], T_MAX)
             ret.append(res)
-        ret.append(np.inf)
-        return np.array(ret)
+        ret.append(T_MAX - .001)
+    finally:
+        del eta
+    return np.array(ret)
 
 def reduced_sfs(sfs):
     n = sfs.shape[1] - 1

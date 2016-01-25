@@ -20,7 +20,7 @@ void HMM::domain_error(double ret)
     }
 }
 
-void HMM::forward_backward(void)
+void HMM::Estep(bool fbOnly)
 {
     TransitionBundle *tb = ib->tb;
     alpha_hat = Matrix<double>::Zero(M, L);
@@ -72,17 +72,13 @@ void HMM::forward_backward(void)
         if (tb->span_Qs.count({span, key}) > 0 and span > *(ib->spanCutoff))
         {
             eigensystem es = tb->eigensystems.at(key);
-            // Q = es.Pinv * alpha_hat.col(ell - 1).template cast<std::complex<double> >() * 
-            //     beta.transpose() * es.P;
-            Q = es.Pinv_r * alpha_hat.col(ell - 1) * beta.transpose() * es.P_r;
-            // Q = Q.cwiseProduct(tb->span_Qs.at({span, key}));
-            Q = Q.cwiseProduct(tb->span_Qs.at({span, key}).real());
-            // v = (es.P * es.d.asDiagonal() * Q * es.Pinv).diagonal().real() / c(ell);
-            v = (es.P_r * es.d_r.asDiagonal() * Q * es.Pinv_r).diagonal() / c(ell);
-            // xisum += (es.P * Q * es.Pinv).real() * B / c(ell);
-            xisum += (es.P_r * Q * es.Pinv_r) * B / c(ell);
-            // beta = (es.Pinv.transpose() * (es.d.array().pow(span).matrix().asDiagonal() * 
-            //             (es.P.transpose() * beta.template cast<std::complex<double> >()))).real();
+            if (not fbOnly)
+            {
+                Q = es.Pinv_r * alpha_hat.col(ell - 1) * beta.transpose() * es.P_r;
+                Q = Q.cwiseProduct(tb->span_Qs.at({span, key}).real());
+                v = (es.P_r * es.d_r.asDiagonal() * Q * es.Pinv_r).diagonal() / c(ell);
+                xisum += (es.P_r * Q * es.Pinv_r) * B / c(ell);
+            }
             beta = (es.Pinv_r.transpose() * (es.d_r.array().pow(span).matrix().asDiagonal() * 
                         (es.P_r.transpose() * beta)));
         }
@@ -91,7 +87,8 @@ void HMM::forward_backward(void)
             if (span == 1)
             {
                 v = alpha_hat.col(ell).cwiseProduct(beta);
-                xisum += alpha_hat.col(ell - 1) * beta.transpose() * B / c(ell);
+                if (not fbOnly)
+                    xisum += alpha_hat.col(ell - 1) * beta.transpose() * B / c(ell);
                 beta = T * (B * beta);
             }
             else
@@ -105,15 +102,19 @@ void HMM::forward_backward(void)
                     btmp.col(span - i - 1) = beta;
                     beta = Q.transpose() * beta;
                 }
-                v = (atmp.leftCols(span) * btmp.leftCols(span)).rowwise().sum().matrix() / c(ell);
-                xis = alpha_hat.col(ell - 1) * btmp.col(0).matrix().transpose();
-                for (int i = 1; i < span; ++i)
-                    xis += atmp.col(i - 1).matrix() * btmp.col(i).transpose().matrix();
-                xisum += xis * B / c(ell);
+                if (not fbOnly)
+                {
+                    v = (atmp.leftCols(span) * btmp.leftCols(span)).rowwise().sum().matrix() / c(ell);
+                    xis = alpha_hat.col(ell - 1) * btmp.col(0).matrix().transpose();
+                    for (int i = 1; i < span; ++i)
+                        xis += atmp.col(i - 1).matrix() * btmp.col(i).transpose().matrix();
+                    xisum += xis * B / c(ell);
+                }
             }
         }
         beta /= c(ell);
-        gamma_sums.at(key) += v;
+        if (not fbOnly)
+            gamma_sums.at(key) += v;
         if (*(ib->saveGamma))
             gamma.col(ell) = v;
     }
@@ -121,20 +122,14 @@ void HMM::forward_backward(void)
     gamma_sums.at(ob_key(0)) += gamma0;
     if (*(ib->saveGamma))
         gamma.col(0) = gamma0;
-    xisum = xisum.cwiseProduct(T);
+    if (not fbOnly)
+        xisum = xisum.cwiseProduct(T);
     PROGRESS_DONE();
-}
-
-
-void HMM::Estep(void)
-{
-    forward_backward();
 }
 
 adouble HMM::Q(void)
 {
     DEBUG("HMM::Q");
-    adouble q1, q2, q3;
     q1 = (gamma0.array().template cast<adouble>() * ib->pi->array().log()).sum();
     q2 = 0.0;
     for (auto &p : gamma_sums)

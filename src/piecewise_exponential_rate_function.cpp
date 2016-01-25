@@ -52,7 +52,7 @@ PiecewiseExponentialRateFunction<T>::PiecewiseExponentialRateFunction(
     K(params[0].size()), ada(params[0].begin(), params[0].end()), 
     adb(params[1].begin(), params[1].end()), ads(params[2].begin(), params[2].end()),
     ts(K + 1), Rrng(K), 
-    _reg(0.0), 
+    _reg(zero),
     hidden_states(hidden_states),
     tmax(std::accumulate(params[2].begin(), params[2].end() - 1, 0.0))
 {
@@ -112,13 +112,14 @@ PiecewiseExponentialRateFunction<T>::PiecewiseExponentialRateFunction(
     _eta.reset(new PExpEvaluator<T>(ada, adb, ts, Rrng));
     _R.reset(new PExpIntegralEvaluator<T>(ada, adb, ts, Rrng));
     _Rinv.reset(new PExpInverseIntegralEvaluator<T>(ada, adb, ts, Rrng));
-
+    // lastly
     compute_regularizer();
 }
 
 template <typename T>
 void PiecewiseExponentialRateFunction<T>::compute_regularizer()
 {
+    _reg = zero;
     T elast, xx, etax, tmp;
     elast = 1. / eta(ts[0]);
     const int delta = 500;

@@ -19,7 +19,6 @@ void HJTransition<T>::compute(void)
     std::vector<T> times;
     std::vector<Matrix<T> > expms;
     expms.push_back(Matrix<T>::Identity(3, 3));
-    int ip;
     for (double t = 0.0; t < eta->tmax; t += delta)
     {
         T c_rho = delta * this->rho;
@@ -31,18 +30,19 @@ void HJTransition<T>::compute(void)
     expms_hs.push_back(Matrix<T>::Identity(3, 3));
     for (int k = 1; k < this->M; ++k)
     {
-        ip = insertion_point(eta->hidden_states[k], times, 0, times.size());
+        int ip = insertion_point(eta->hidden_states[k], times, 0, times.size());
         T c_rho = (eta->hidden_states[k] - times[ip]) * this->rho;
         T c_eta = eta->R(eta->hidden_states[k]) - eta->R(times[ip]);
         expms_hs.push_back(expms[ip] * matrix_exp(c_rho, c_eta));
     }
+    this->Phi.setZero();
+    const int Q = 50;
+    // TODO parallelize this loop
     std::mt19937 gen;
     gen.seed(1);
-    T r, p_coal;
-    this->Phi.setZero();
-    const int Q = 10;
     for (int j = 1; j < this->M; ++j)
     {
+        T r, p_coal;
         std::vector<T> rtimes;
         for (int q = 0; q < Q; ++q)
             // Sample coalescence times in this interval
@@ -56,7 +56,7 @@ void HJTransition<T>::compute(void)
                 p_coal = exp(-(eta->R(eta->hidden_states[k - 1]) - eta->R(rtimes[q])));
                 if (k < this->M - 1)
                     p_coal *= -expm1(-(eta->R(eta->hidden_states[k]) - eta->R(eta->hidden_states[k - 1])));
-                ip = insertion_point(rtimes[q], times, 0, times.size());
+                int ip = insertion_point(rtimes[q], times, 0, times.size());
                 T dt = rtimes[q] - times[ip];
                 T c_rho = dt * this->rho;
                 T c_eta = eta->R(rtimes[q]) - eta->R(times[ip]);
@@ -74,7 +74,10 @@ void HJTransition<T>::compute(void)
 template <typename T>
 Matrix<T> compute_transition(const PiecewiseExponentialRateFunction<T> &eta, const double rho)
 {
-    return HJTransition<T>(eta, rho).matrix();
+    DEBUG("computing transition");
+    Matrix<T> ret = HJTransition<T>(eta, rho).matrix();
+    DEBUG("done computing transition");
+    return ret;
 }
 
 template Matrix<double> compute_transition(const PiecewiseExponentialRateFunction<double> &eta, const double rho);

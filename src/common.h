@@ -22,7 +22,7 @@
 //
 
 typedef std::array<int, 3> block_key;
-const double T_MAX = 15.0;
+const double T_MAX = 50.0;
 
 template <typename T> using Matrix = Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic>;
 template <typename T> using Vector = Eigen::Matrix<T, Eigen::Dynamic, 1>;

@@ -258,23 +258,26 @@ std::vector<T> InferenceManager::parallel_select(std::function<T(hmmptr &)> lamb
 template std::vector<double> InferenceManager::parallel_select(std::function<double(hmmptr &)>);
 template std::vector<adouble> InferenceManager::parallel_select(std::function<adouble(hmmptr &)>);
 
-void InferenceManager::Estep(void)
+void InferenceManager::Estep(bool fbonly)
 {
-    PROGRESS("E step");
-    parallel_do([] (hmmptr &hmm) { hmm->Estep(); });
-    PROGRESS_DONE();
+    DEBUG("E step");
+    parallel_do([fbonly] (hmmptr &hmm) { hmm->Estep(fbonly); });
 }
 
-std::vector<adouble> InferenceManager::Q(double lambda)
+std::vector<adouble> InferenceManager::Q(void)
 {
-    adouble reg = regularizer;
-    PROGRESS("InferenceManager::Q");
-    return parallel_select<adouble>([lambda, reg] (hmmptr &hmm) { 
-            adouble q = hmm->Q();
-            adouble rr = reg * lambda;
-            adouble ret = q - rr;
-            return ret;
-            });
+    DEBUG("InferenceManager::Q");
+    return parallel_select<adouble>([] (hmmptr &hmm) { return hmm->Q(); });
+}
+
+std::vector<std::map<block_key, Vector<double> >*> InferenceManager::getGammaSums()
+{
+    std::vector<std::map<block_key, Vector<double> >*> ret;
+    for (auto &hmm : hmms)
+    {
+        ret.push_back(&hmm->gamma_sums);
+    }
+    return ret;
 }
 
 std::vector<Matrix<double>*> InferenceManager::getGammas()
@@ -314,10 +317,14 @@ Matrix<adouble>& InferenceManager::getEmission(void)
     return emission;
 }
 
-std::vector<double> InferenceManager::loglik(double lambda)
+std::map<block_key, Vector<adouble> >& InferenceManager::getEmissionProbs()
 {
-    double reg = toDouble(regularizer);
-    return parallel_select<double>([lambda, reg] (hmmptr &hmm) { return hmm->loglik() - lambda * reg; });
+    return emission_probs;
+}
+
+std::vector<double> InferenceManager::loglik(void)
+{
+    return parallel_select<double>([] (hmmptr &hmm) { return hmm->loglik(); });
 }
 
 void InferenceManager::setParams_d(const ParameterVector params) 
@@ -338,7 +345,7 @@ double InferenceManager::R(const ParameterVector params, double t)
     return (*eta.getR())(t);
 }
 
-double InferenceManager::getRegularizer() { return toDouble(regularizer); }
+adouble InferenceManager::getRegularizer() { return regularizer; }
 
 /*
 int main(int argc, char** argv)

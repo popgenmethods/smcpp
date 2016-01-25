@@ -25,9 +25,9 @@ class InferenceManager
     template <typename T>
     void setParams(const ParameterVector, const std::vector<std::pair<int, int> >);
 
-    void Estep(void);
-    std::vector<adouble> Q(double);
-    std::vector<double> loglik(double);
+    void Estep(bool);
+    std::vector<adouble> Q();
+    std::vector<double> loglik();
 
     template <typename T>
     std::vector<Matrix<T> > sfs(const PiecewiseExponentialRateFunction<T>&);
@@ -36,16 +36,18 @@ class InferenceManager
     void setParams_d(const ParameterVector params);
     void setParams_ad(const ParameterVector params, const std::vector<std::pair<int, int>> derivatives);
     double R(const ParameterVector params, double t);
-    double getRegularizer();
+    adouble getRegularizer();
     bool debug, saveGamma;
     std::vector<double> hidden_states;
     std::vector<double> randomCoalTimes(const ParameterVector params, double fac, const int size);
     std::map<block_key, Vector<adouble> > emission_probs;
     std::vector<Matrix<double>*> getXisums();
     std::vector<Matrix<double>*> getGammas();
+    std::vector<std::map<block_key, Vector<double> >*> getGammaSums();
     Matrix<adouble>& getPi();
     Matrix<adouble>& getTransition();
     Matrix<adouble>& getEmission();
+    std::map<block_key, Vector<adouble> >& getEmissionProbs();
 
     private:
     template <typename T> 

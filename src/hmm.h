@@ -15,7 +15,7 @@ class HMM
 {
     public:
     HMM(const int hmm_num, const Matrix<int> &obs, const InferenceBundle *ib);
-    void Estep(void);
+    void Estep(bool);
     double loglik(void);
     adouble Q(void);
 
@@ -23,7 +23,6 @@ class HMM
     HMM(HMM const&) = delete;
     HMM& operator=(HMM const&) = delete;
     // Methods
-    void forward_backward(void);
     void domain_error(double);
     inline block_key ob_key(int i) { return {obs(i, 1), obs(i, 2), obs(i, 3)}; }
 
@@ -35,6 +34,7 @@ class HMM
     Matrix<double> alpha_hat, xisum, gamma;
     Vector<double> c, gamma0;
     std::map<block_key, Vector<double> > gamma_sums;
+    adouble q1, q2, q3;
     friend class InferenceManager;
 };
 
