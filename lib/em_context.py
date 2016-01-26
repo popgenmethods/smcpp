@@ -1,3 +1,4 @@
+obs_list = None
 x = None
 a = None
 b = None
