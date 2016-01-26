@@ -130,11 +130,22 @@ void HMM::Estep(bool fbOnly)
 adouble HMM::Q(void)
 {
     DEBUG("HMM::Q");
+    adouble q1, q2, q3;
     q1 = (gamma0.array().template cast<adouble>() * ib->pi->array().log()).sum();
     q2 = 0.0;
     for (auto &p : gamma_sums)
-        q2 += (ib->emission_probs->at(p.first).array().log() * p.second.array().template cast<adouble>()).sum();
-    q3 = (xisum.template cast<adouble>().array() * ib->tb->T.array().log()).sum();
+    {
+        Eigen::Array<adouble, Eigen::Dynamic, 1> logep = ib->emission_probs->at(p.first).array().log();
+        q2 += (logep * p.second.array().template cast<adouble>()).sum();
+    }
+
+    // Am getting a weird memory-related bug here when I do this all in
+    // one line. Something related to threading and CRTP, maybe. Split
+    // things up a bit to fix.
+    Eigen::Array<adouble, Eigen::Dynamic, Eigen::Dynamic> logT = ib->tb->T.array().log();
+    Eigen::Array<adouble, Eigen::Dynamic, Eigen::Dynamic> _xiT = xisum.template cast<adouble>().array() * logT;
+    q3 = _xiT.sum();
+
     check_nan(q1);
     check_nan(q2);
     check_nan(q3);

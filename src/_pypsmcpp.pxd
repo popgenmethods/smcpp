@@ -4,11 +4,12 @@ from libcpp.map cimport map
 from libcpp cimport bool
 
 cdef extern from "common.h":
-    cdef cppclass adouble:
-        double value()
     cdef cppclass Vector[T]:
         T& operator()(int)
         int size()
+    cdef cppclass adouble:
+        double value()
+        Vector[double] derivatives()
     cdef cppclass Matrix[T]:
         int rows()
         int cols()

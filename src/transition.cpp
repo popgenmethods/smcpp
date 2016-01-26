@@ -37,29 +37,30 @@ void HJTransition<T>::compute(void)
     }
     this->Phi.setZero();
     const int Q = 50;
-    // TODO parallelize this loop
-    std::mt19937 gen;
-    gen.seed(1);
+#pragma omp parallel for
     for (int j = 1; j < this->M; ++j)
     {
+        std::mt19937 gen;
+        gen.seed(1);
+        const PiecewiseExponentialRateFunction<T> myeta(*eta);
         T r, p_coal;
         std::vector<T> rtimes;
         for (int q = 0; q < Q; ++q)
             // Sample coalescence times in this interval
-            rtimes.push_back(eta->random_time(eta->hidden_states[j - 1], eta->hidden_states[j], gen));
+            rtimes.push_back(myeta.random_time(myeta.hidden_states[j - 1], myeta.hidden_states[j], gen));
         for (int k = 1; k < j; ++k)
             this->Phi(j - 1, k - 1) = 0.5 * (expms_hs[k](0, 2) - expms_hs[k - 1](0, 2));
         for (int k = j + 1; k < this->M; ++k)
         {
             for (int q = 0; q < Q; ++q)
             {
-                p_coal = exp(-(eta->R(eta->hidden_states[k - 1]) - eta->R(rtimes[q])));
+                p_coal = exp(-(myeta.R(eta->hidden_states[k - 1]) - myeta.R(rtimes[q])));
                 if (k < this->M - 1)
-                    p_coal *= -expm1(-(eta->R(eta->hidden_states[k]) - eta->R(eta->hidden_states[k - 1])));
+                    p_coal *= -expm1(-(myeta.R(eta->hidden_states[k]) - myeta.R(eta->hidden_states[k - 1])));
                 int ip = insertion_point(rtimes[q], times, 0, times.size());
                 T dt = rtimes[q] - times[ip];
                 T c_rho = dt * this->rho;
-                T c_eta = eta->R(rtimes[q]) - eta->R(times[ip]);
+                T c_eta = myeta.R(rtimes[q]) - myeta.R(times[ip]);
                 Matrix<T> tmp = expms[ip] * matrix_exp(c_rho, c_eta);
                 r = tmp(0, 1) * p_coal;
                 this->Phi(j - 1, k - 1) += r / Q;
@@ -67,7 +68,7 @@ void HJTransition<T>::compute(void)
         }
         this->Phi(j - 1, j - 1) = 0;
         T rowsum = this->Phi.row(j - 1).sum();
-        this->Phi(j - 1, j - 1) = eta->one - rowsum;
+        this->Phi(j - 1, j - 1) = myeta.one - rowsum;
     }
 }
 

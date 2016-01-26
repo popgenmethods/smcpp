@@ -28,8 +28,7 @@ class PiecewiseExponentialRateFunction
     const FunctionEvaluator<T>* getRinv() const { return _Rinv.get(); }
     T R(T x) const { T ret = (*_R)(x); check_nan(ret); return ret; }
     T eta(T x) const { return (*_eta)(x); }
-    T R_integral(const T x) const { return R_integral(x, zero, -1); }
-    T R_integral(const T, const T, const int) const;
+    T R_integral(const double, const double) const;
     void print_debug() const;
     const T regularizer(void) const { return _reg; }
     

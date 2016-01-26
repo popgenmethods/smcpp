@@ -232,40 +232,31 @@ void PiecewiseExponentialRateFunction<T>::compute_antiderivative()
 }
 
 template <typename T>
-T PiecewiseExponentialRateFunction<T>::R_integral(const T x, const T y, const int m) const
+T PiecewiseExponentialRateFunction<T>::R_integral(const double a, const double b) const
 {
-    // int_0^x exp(m * R(t) + y) dt
-    if (x == 0)
-        return zero;
-    if (x < 1e-6)
-    {
-        return x * exp(y);
-    }
-    int ip = insertion_point(x, ts, 0, ts.size());
+    // int_a^b exp(-R(t)) dt
+    T Ta = one * a, Tb = one * b;
+    int ip_a = insertion_point(Ta, ts, 0, ts.size());
+    int ip_b = insertion_point(Tb, ts, 0, ts.size());
     T ret = zero, tmp, r;
-    if (x == 0)
-        return zero;
-    for (int i = 0; i < ip + 1; ++i)
+    for (int i = ip_a; i < ip_b + 1; ++i)
     {
-        tmp = dmin(x, ts[i + 1]) - ts[i];
+        T left = dmax(Ta, ts[i]);
+        T right = dmin(Tb, ts[i + 1]);
+        T diff = right - left;
         if (adb[i] == 0)
         {
-            r = exp(m * Rrng[i] + y) * expm1(m * tmp * ada[i]);
-            r /= m * ada[i];
+            T Rleft = R(left);
+            r = -exp(-Rleft) * expm1(-diff * ada[i]);
+            r /= ada[i];
         }
         else
         {
             T adab = ada[i] / adb[i];
-            T c1 = m * adab * exp(adb[i] * tmp);
-            T c2 = m * adab;
-            T c3 = m * (Rrng[i] - adab) + y;
-            /*
-            T r1 = expintei(c1);
-            T r2 = expintei(c2);
-            r = r1 - r2;
-            r *= exp(2 * (Rrng[i] - adab) + y) / adb[i];
-            */
-            r = eintdiff(c2, c1, c3) / adb[i];
+            T c1 = -adab * exp(adb[i] * (left - ts[i]));
+            T c2 = -adab * exp(adb[i] * (right - ts[i]));
+            T c3 = adab - Rrng[i];
+            r = eintdiff(c1, c2, c3) / adb[i];
             check_negative(r);
             check_nan(r);
         }

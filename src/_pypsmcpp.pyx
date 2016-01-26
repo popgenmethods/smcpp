@@ -172,9 +172,13 @@ cdef class PyInferenceManager:
                     key[i] = p.first[i]
                 M = p.second.size()
                 v = np.zeros(M)
+                if self._nder > 0:
+                    dv = np.zeros([M, self._nder])
                 for i in range(M):
                     v[i] = p.second(i).value()
-                ret[tuple(key)] = v
+                    for j in range(self._nder):
+                        dv[i, j] = p.second(i).derivatives()(j)
+                ret[tuple(key)] = (v, dv) if self._nder else v
                 inc(it)
             return ret
 
@@ -264,7 +268,7 @@ def balance_hidden_states(params, int M):
             def f(double t):
                 cdef double Rt = eta.R(t)
                 return np.exp(-Rt) - 1.0 * (M - m) / M
-            res = scipy.optimize.brentq(f, ret[-1], T_MAX)
+            res = scipy.optimize.brentq(f, ret[-1], T_MAX - .001)
             ret.append(res)
         ret.append(T_MAX - .001)
     finally:

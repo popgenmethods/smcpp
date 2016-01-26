@@ -34,7 +34,6 @@ class HMM
     Matrix<double> alpha_hat, xisum, gamma;
     Vector<double> c, gamma0;
     std::map<block_key, Vector<double> > gamma_sums;
-    adouble q1, q2, q3;
     friend class InferenceManager;
 };
 

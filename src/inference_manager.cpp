@@ -140,23 +140,45 @@ void InferenceManager::recompute_emission_probs(const PiecewiseExponentialRateFu
         subemissions[nb].col(0) += subemissions[nb].rightCols<1>();
         subemissions[nb].rightCols<1>().fill(0);
     }
+    // subemissions[0] is computed more easily / accurately by direct method
+    // than by marginalizing. (in particular, the derivatives)
+    // std::cerr << "old sub[0]\n" << subemissions[0].template cast<double>() << std::endl;
+    subemissions[0] = Matrix<adouble>::Zero(M, 2);
+    for (int m = 0; m < M; ++m)
+    {
+        double hsm = eta.hidden_states[m], hsm1 = eta.hidden_states[m + 1];
+        T Rhsm1 = exp(-eta.R(hsm1)), Rhsm = exp(-eta.R(hsm));
+        subemissions[0](m, 1) = eta.R_integral(hsm, hsm1);
+        subemissions[0](m, 1) += hsm * Rhsm;
+        subemissions[0](m, 1) -= hsm1 * Rhsm1;
+        subemissions[0](m, 1) /= (Rhsm - Rhsm1);
+    }
+    subemissions[0].col(1) *= 2. * theta;
+    subemissions[0].col(0).fill(eta.one);
+    subemissions[0].col(0) -= subemissions[0].col(1);
+    // std::cerr << "new sub[0]\n" << subemissions[0].template cast<double>() << std::endl;
 #pragma omp parallel for
     for (auto it = bpm_keys.begin(); it < bpm_keys.end(); ++it)
     {
         int a = (*it)[0], b = (*it)[1], nb = (*it)[2];
         Vector<adouble> tmp(M);
         Matrix<adouble> emission_nb = subemissions.at(nb);
-        if (a == -1)
+        if (nb > 0)
         {
-            if (nb == 0)
-                tmp.fill(eta.one);
-            else    
+            if (a == -1)
                 tmp = (emission_nb.col(b) + 
                         emission_nb.col((nb + 1) + b) + 
                         emission_nb.col(2 * (nb + 1) + b));
+            else
+                tmp = emission_nb.col(a * (nb + 1) + b);
         }
         else
-            tmp = emission_nb.col(a * (nb + 1) + b);
+        {
+            if (a == -1)
+                tmp.fill(eta.one);
+            else
+                tmp = emission_nb.col(a);
+        }
         if (tmp.maxCoeff() > 1.0 or tmp.minCoeff() <= 0.0)
         {
             std::cout << *it << std::endl;
