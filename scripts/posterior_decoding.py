@@ -19,10 +19,9 @@ np.set_printoptions(linewidth=120, precision=6, suppress=True)
 
 # Begin program
 parser = argparse.ArgumentParser()
-parser.add_argument("--block-size", type=int, default=50)
 parser.add_argument("--N0", type=int, default=10000)
 parser.add_argument("--theta", type=float, default=1.25e-8)
-parser.add_argument("--rho", type=float, default=1.25e-8 / 4.0)
+parser.add_argument("--rho", type=float, default=1.25e-8)
 parser.add_argument("--M", type=int, default=32, help="number of hidden states")
 parser.add_argument("--panel-size", type=int, default=None)
 parser.add_argument("--alt-freq", type=int, default=None)
@@ -36,21 +35,29 @@ parser.add_argument("-s", type=float, nargs="+")
 parser.add_argument("-ns", type=int, nargs="+")
 args = parser.parse_args()
 
+hidden_states = np.array([
+0.,0.022651,0.029053,0.037265,0.037273,0.044289,0.047798,0.052648,0.061308,0.063315,
+0.069434,0.078637,0.082681,0.089059,0.100863,0.105106,0.114232,0.129372,0.133422,0.146519,
+0.165939,0.17141,0.187933,0.212842,0.223077,0.241052,0.273002,0.292716,0.309186,0.350165,
+0.383141,0.396577,0.44914,0.495336,0.508669,0.576089,0.627677,0.652444,0.73892,0.776481,
+0.836858,0.940592,0.947776,1.073395,1.122644,1.215665,1.326254,1.37679,1.555871,1.559272,1.76594,
+1.82735,2.,2.153478,2.507998,2.896332,3.325614,3.805511,4.349574,4.977648,5.720502,
+6.629682,7.801818,9.453852,12.278022,49.999])
+args.M = len(hidden_states) - 1
+
 theta = 1.25e-8
-rho = theta / 4.0
-# a = np.array(args.a)
-# b = np.array(args.b)
-# s = np.array(args.s)
-a = psmcpp.lib.util.sawtooth['a']
-b = psmcpp.lib.util.sawtooth['b']
-s = psmcpp.lib.util.sawtooth['s_gen'] / (2. * args.N0)
+rho = theta / 4
+demo = psmcpp.lib.util.human
+a = demo['a']
+b = demo['b']
+s = demo['s_gen'] / (2. * args.N0)
 true_parameters = (a, b, s)
 width = 2000
 G = np.zeros([args.M, args.L])
 n_max = max(args.ns)
 if args.panel_size is None:
     args.panel_size = n_max
-demography = psmcpp.lib.scrm.demography_from_params((a * 2.0, b * 2.0, s))
+demography = psmcpp.lib.scrm.demography_from_params((a, b, s * 0.5))
 print(" ".join(map(str, demography)))
 if args.seed is not None:
     np.random.seed(args.seed)
@@ -67,7 +74,7 @@ if args.missing is not None:
 data = psmcpp.lib.util.dataset_from_panel(data0, n_max, (0, 1), True)
 
 # True coalescence times
-ct = [(c1, psmcpp._newick.tmrca(c2, "1", "2")) for c1, c2 in data[3]]
+ct = [(c1, 2. * psmcpp._newick.tmrca(c2, "1", "2")) for c1, c2 in data[3]]
 # Get rid of these it's really annoying when you accidentally print them.
 data = data[:3]
 
@@ -99,27 +106,23 @@ for n in args.ns:
     dsub = (data[0], data[1][seg], segdata)
     obs = psmcpp.lib.util.hmm_data_format(dsub, n, (0, 1))
     # oo[n] = np.array([c1[1:] for c1 in obs for _ in range(c1[0])])
-    oo[n] = obs
-    hidden_states = np.array([0., 14.0])
-    im = psmcpp._pypsmcpp.PyInferenceManager(n - 2, [obs[:10]], hidden_states,
-            4.0 * args.N0 * args.theta, 4.0 * args.N0 * args.rho, args.block_size, 10)
-    hidden_states = im.balance_hidden_states((a,b,s), args.M)
-    # hidden_states = np.logspace(np.log10(.001), np.log10(14.9), args.M)
-    hidden_states[0] = 0.
-    hidden_states[-1] = 14.9
-    print('hidden states', hidden_states * args.N0 * 25)
-    em = np.arange(3 *  (n - 1), dtype=int).reshape([3, n - 1])
-    # em[0, 5:] = 5
-    # em[1] = 6
-    # em[2] = 7
-    print(em)
-    im = psmcpp._pypsmcpp.PyInferenceManager(n - 2, [obs], hidden_states,
-            4.0 * args.N0 * args.theta, 4.0 * args.N0 * args.rho, args.block_size, args.alt_freq or n, em)
+    oo[n] = psmcpp.lib.util.normalize_dataset(obs, n)
+    # hidden_states = psmcpp._pypsmcpp.balance_hidden_states((a,b,s), args.M)
+    # hidden_states[0] = 0.
+    # hidden_states[-1] = 49.9
+    im = psmcpp._pypsmcpp.PyInferenceManager(n - 2, oo[n], hidden_states,
+            2.0 * args.N0 * args.theta, 2.0 * args.N0 * args.rho)
     im.saveGamma = True
     im.setParams((a, b, s), False)
     im.Estep()
     ims[n] = im
-    gamma = im.gammas[0]
+    gamma = np.zeros([args.M, args.L])
+    sp = 0
+    for row, col in zip(oo[n][0], im.gammas[0].T):
+        an = row[0]
+        gamma[:, sp:(sp+an)] = col[:, None] / an
+        sp += an
+    # gamma = gamma[:, 311000:313000]
     gm[n] = scipy.ndimage.zoom(gamma, (1.0, 1. * width / args.L))
 
 import matplotlib.pyplot as plt

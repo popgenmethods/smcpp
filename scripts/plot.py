@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-import psmcpp.lib.plotting
+import psmcpp.lib.plotting, psmcpp.lib.util
 import argparse
 import numpy as np
 
@@ -24,7 +24,13 @@ def main():
         label, fn = pair.split(":")
         if label == "None": 
             label = None
-        psfs[label] = dict(zip("abs", np.loadtxt(fn).T))
+        if fn in ["human", "sawtooth"]:
+            psfs[label] = getattr(psmcpp.lib.util, fn)
+            psfs[label]['a'] *= 20000.
+            psfs[label]['b'] *= 20000.
+            psfs[label]['s'] = np.cumsum(psfs[label]['s_gen'])
+        else:
+            psfs[label] = dict(zip("abs", np.loadtxt(fn).T))
         psfs[label]['s'] *= args.g
     psmcpp.lib.plotting.save_pdf(psmcpp.lib.plotting.plot_psfs(psfs, args.xlim, args.ylim), args.pdf)
 
