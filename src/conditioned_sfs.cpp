@@ -1,5 +1,7 @@
 #include "conditioned_sfs.h"
 
+const Eigen::IOFormat fmt(Eigen::FullPrecision);
+
 std::map<int, below_coeff> below_coeffs_memo;
 below_coeff compute_below_coeffs(int n)
 {
@@ -109,7 +111,7 @@ ConditionedSFS<T>::ConditionedSFS(int n, int H) :
 template <typename T>
 void ConditionedSFS<T>::compute_below(const PiecewiseExponentialRateFunction<T> &eta)
 {
-    PROGRESS("compute below");
+    DEBUG("compute below");
     Matrix<T> ts_integrals(eta.K, n + 1); 
 #pragma omp parallel for
     for (int m = 0; m < eta.K; ++m)
@@ -117,10 +119,8 @@ void ConditionedSFS<T>::compute_below(const PiecewiseExponentialRateFunction<T> 
     for (int h = 1; h < H + 1; ++h)
         tjj_below.row(h - 1) = ts_integrals.block(eta.hs_indices[h - 1], 0, 
                 eta.hs_indices[h] - eta.hs_indices[h - 1], n + 1).colwise().sum();
-    PROGRESS("matrix products below");
     M0_below = tjj_below * mcache.M0.template cast<T>();
     M1_below = tjj_below * mcache.M1.template cast<T>();
-    PROGRESS("mpfr sfs below");
     for (int h = 0; h < H; ++h) 
     {
         csfs_below[h].fill(eta.zero);
@@ -128,21 +128,35 @@ void ConditionedSFS<T>::compute_below(const PiecewiseExponentialRateFunction<T> 
         csfs_below[h].block(1, 0, 1, n + 1) = M1_below.row(h);
         check_nan(csfs_below[h]);
     }
-    PROGRESS_DONE();
+}
+
+template <typename T>
+inline T doubly_compensated_summation(const std::vector<T> &x)
+{
+    T s = x[0];
+    T c = 0.0;
+    T y, u, v, t, z;
+    for (int i = 1; i < x.size(); ++i)
+    {
+        y = c + x[i];
+        u = x[i] - (y - c);
+        t = y + s;
+        v = y - (t - s);
+        z = u + v;
+        s = t + z;
+        c = z - (s - t);
+    }
+    return s;
 }
 
 template <typename T>
 void ConditionedSFS<T>::compute_above(const PiecewiseExponentialRateFunction<T> &eta)
 {
-    //ProfilerStart("compute above");
-    PROGRESS("compute above");
-    PROGRESS("tjj double integral");
+    DEBUG("compute above");
 #pragma omp parallel for
     for (int j = 2; j < n + 3; ++j)
         eta.tjj_double_integral_above(n, j, C_above);
     Matrix<T> tmp;
-    PROGRESS("matrix products");
-    PROGRESS("Method 1" << " " << H << " " << n << " " << std::endl);
     Timer t1;
 #pragma omp parallel for
     for (int h = 0; h < H; ++h)
@@ -154,45 +168,27 @@ void ConditionedSFS<T>::compute_above(const PiecewiseExponentialRateFunction<T> 
         tmp0.fill(eta.zero);
         c = eta.zero;
         for (int j = 0; j < mcache.X0.cols(); ++j)
+        {
+            std::vector<T> v;
             for (int i = 0; i < mcache.X0.rows(); ++i)
-            {
-                y = mcache.X0(i, j) * C0(i, j) - c;
-                t = tmp0(j) + y;
-                c = (t - tmp0(j)) - y;
-                tmp0(j) = t;
-            }
+                v.push_back(mcache.X0(i, j) * C0(i, j));
+            std::sort(v.begin(), v.end(), [] (T x, T y) { return myabs(x) > myabs(y); });
+            tmp0(j) = doubly_compensated_summation(v);
+        }
         csfs_above[h].block(0, 1, 1, n) = tmp0.transpose().lazyProduct(Uinv_mp0);
         tmp2.fill(eta.zero);
         c = eta.zero;
         for (int j = 0; j < mcache.X2.cols(); ++j)
+        {
+            std::vector<T> v;
             for (int i = 0; i < mcache.X2.rows(); ++i)
-            {
-                y = mcache.X2(i, j) * C2(i, j) - c;
-                t = tmp2(j) + y;
-                c = (t - tmp2(j)) - y;
-                tmp2(j) = t;
-            }
+                v.push_back(mcache.X2(i, j) * C2(i, j));
+            std::sort(v.begin(), v.end(), [] (T x, T y) { return myabs(x) > myabs(y); });
+            tmp2(j) = doubly_compensated_summation(v);
+        }
         csfs_above[h].block(2, 0, 1, n) = tmp2.transpose().lazyProduct(Uinv_mp2);
         check_nan(csfs_above[h]);
     }
-    PROGRESS(t1.elapsed() << " seconds" << std::endl << std::endl);
-    // PROGRESS("Method 2" << std::endl);
-    // t1.reset();
-    /*
-#pragma omp parallel for
-    for (int h = 0; h < H; ++h)
-    {
-        csfs_above[h].fill(eta.zero);
-        csfs_above[h].block(0, 1, 1, n) = 
-            mcache.X0.template cast<T>().cwiseProduct(C_above[h].transpose()).colwise().sum() * Uinv_mp0.template cast<T>();
-        csfs_above[h].block(2, 0, 1, n) = 
-            mcache.X2.template cast<T>().cwiseProduct(C_above[h].colwise().reverse().transpose()).colwise().sum() * Uinv_mp2.template cast<T>();
-        check_nan(csfs_above[h]);
-    }
-//     PROGRESS(t1.elapsed() << " seconds" << std::endl << std::endl);
-//     */
-    PROGRESS_DONE();
-    //ProfilerStop();
 }
 
 template <typename T>
