@@ -275,16 +275,6 @@ def balance_hidden_states(params, int M):
         del eta
     return np.array(ret)
 
-def reduced_sfs(sfs):
-    n = sfs.shape[1] - 1
-    new_shape = [n + 2] + list(sfs.shape[2:])
-    reduced_sfs = np.zeros(new_shape)
-    for i in range(3):
-        for j in range(n + 1):
-            if 0 <= i + j < n + 2:
-                reduced_sfs[i + j] += sfs[i][j]
-    return reduced_sfs
-
 def sfs(int n, params, double t1, double t2, double theta, jacobian=False):
     cdef ParameterVector p = make_params(params)
     cdef Matrix[double] sfs
@@ -316,3 +306,39 @@ cdef _store_admatrix_helper(Matrix[adouble] &mat, int nder):
         av = jac
         store_admatrix(mat, nder, &v[0, 0], &av[0, 0, 0])
         return ary, jac
+
+cdef int sgn(int x):
+    return (x > 0) - (x < 0)
+
+def thin_data(data, int thinning):
+    '''Normalize list of observations for inputting into the model.
+    Namely, make sure the span of the first row is 0 and implement the 
+    thinning procedure needed to break up correlation among the full
+    SFS emissions.'''
+    # Thinning
+    cdef int i = 0
+    out = []
+    cdef int[:, ::1] vdata = data
+    cdef int k = data.shape[0]
+    cdef int span, a, b, nb, a1
+    for j in range(k):
+        span = vdata[j, 0]
+        a = vdata[j, 1]
+        b = vdata[j, 2]
+        nb = vdata[j, 3]
+        a1 = sgn(a) * (a % 2)
+        while span > 0:
+            if i < thinning and i + span >= thinning:
+                if thinning - i > 1:
+                    out.append([thinning - i - 1, a1, 0, 0])
+                if a == 2 and b == nb:
+                    out.append([1, 0, 0, nb])
+                else:
+                    out.append([1, a, b, nb])
+                span -= thinning - i
+                i = 0
+            else:
+                out.append([span, a1, 0, 0])
+                i += span
+                break
+    return out

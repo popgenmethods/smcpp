@@ -18,6 +18,16 @@ human = {
     's_gen': np.array([10000., 70000. - 10000., 200000. - 70000., 1.0]) / 25.0
     }
 
+def undistinguished_sfs(sfs):
+    n = sfs.shape[1] - 1
+    new_shape = [n + 2] + list(sfs.shape[2:])
+    usfs = np.zeros(new_shape)
+    for i in range(3):
+        for j in range(n + 1):
+            if 0 <= i + j < n + 2:
+                usfs[i + j] += sfs[i][j]
+    return usfs
+
 def grouper(iterable, n, fillvalue=None):
     "Collect data into fixed-length chunks or blocks"
     # grouper('ABCDEFG', 3, 'x') --> ABC DEF Gxx
@@ -117,37 +127,13 @@ def hmm_data_format(dataset, n, distinguished_rows, missing=0.):
     assert np.all(ret[:, 0] >= 1)
     return ret
 
-def normalize_dataset(A, thinning):
-    '''Normalize list of observations for inputting into the model.
-    Namely, make sure the span of the first row is 0 and implement the 
-    thinning procedure needed to break up correlation among the full
-    SFS emissions.'''
-    # Thinning
-    SPAN_CUTOFF = 40000
-    i = 0
-    out = []
-    for span, a, b, nb in A:
-        a1 = np.sign(a) * (a % 2)
-        while span > 0:
-            if i < thinning and i + span >= thinning:
-                if thinning - i > 1:
-                    out.append([thinning - i - 1, a1, 0, 0])
-                if a == 2 and b == nb:
-                    out.append([1, 0, 0, nb])
-                else:
-                    out.append([1, a, b, nb])
-                span -= thinning - i
-                i = 0
-            else:
-                out.append([span, a1, 0, 0])
-                i += span
-                break
+def break_long_missing_spans(data):
     ret = [[]]
-    lastobs = out[0]
-    for obs in out[1:]:
+    lastobs = data[0]
+    for obs in data[1:]:
         if obs[0] == 0:
             continue
-        if obs[1:] == lastobs[1:]:
+        if np.all(obs[1:] == lastobs[1:]):
             lastobs[0] += obs[0]
         else:
             if lastobs[0] > SPAN_CUTOFF:
@@ -162,7 +148,7 @@ def normalize_dataset(A, thinning):
         if rr == []:
             continue
         if rr[0][0] > 1:
-            rr.insert(0, [1] + rr[0][1:])
+            rr.insert(0, np.concatenate([[1], rr[0][1:]]))
             rr[1][0] -= 1
         r2.append(np.array(rr, dtype=np.int32))
     return r2
