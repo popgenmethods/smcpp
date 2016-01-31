@@ -71,6 +71,10 @@ cdef class PyInferenceManager:
         cdef vector[int*] obs
         self._observations = observations
         Ls = []
+        ## Validate hidden states
+        if any([not np.all(np.sort(hidden_states) == hidden_states),
+            hidden_states[0] != 0., hidden_states[-1] >= T_MAX]):
+            raise RuntimeError("Hidden states must be in ascending order with hs[0]=0 and hs[-1] < %g" % T_MAX)
         for ob in observations:
             validate_observation(ob)
             vob = ob
