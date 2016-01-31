@@ -270,7 +270,6 @@ def balance_hidden_states(params, int M):
                 return np.exp(-Rt) - 1.0 * (M - m) / M
             res = scipy.optimize.brentq(f, ret[-1], T_MAX - .001)
             ret.append(res)
-        ret.append(T_MAX - .001)
     finally:
         del eta
     return np.array(ret)
@@ -307,14 +306,9 @@ cdef _store_admatrix_helper(Matrix[adouble] &mat, int nder):
         store_admatrix(mat, nder, &v[0, 0], &av[0, 0, 0])
         return ary, jac
 
-cdef int sgn(int x):
-    return (x > 0) - (x < 0)
-
 def thin_data(data, int thinning):
-    '''Normalize list of observations for inputting into the model.
-    Namely, make sure the span of the first row is 0 and implement the 
-    thinning procedure needed to break up correlation among the full
-    SFS emissions.'''
+    '''Implement the thinning procedure needed to break up correlation
+    among the full SFS emissions.'''
     # Thinning
     cdef int i = 0
     out = []
@@ -326,7 +320,9 @@ def thin_data(data, int thinning):
         a = vdata[j, 1]
         b = vdata[j, 2]
         nb = vdata[j, 3]
-        a1 = sgn(a) * (a % 2)
+        a1 = a
+        if a1 == 2:
+            a1 = 0
         while span > 0:
             if i < thinning and i + span >= thinning:
                 if thinning - i > 1:
@@ -341,4 +337,13 @@ def thin_data(data, int thinning):
                 out.append([span, a1, 0, 0])
                 i += span
                 break
-    return out
+    out2 = []
+    last_ob = out[0]
+    for ob in out[1:]:
+        if ob[1:] == last_ob[1:]:
+            last_ob[0] += ob[0]
+        else:
+            out2.append(last_ob)
+            last_ob = ob
+    out2.append(last_ob)
+    return out2
