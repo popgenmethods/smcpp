@@ -52,7 +52,7 @@ remainder of the (undistinguished) sample, as well as the *haploid*
 sample size (number of non-missing observations) in that sample. 
 
 For example, consider the following set of genotypes at a set of 10
-contiguous bases on three diploid individuals:::
+contiguous bases on three diploid individuals::
 
     dist.   ..1..N...2
             .....N...1
@@ -63,13 +63,14 @@ individual is homozygous for the ancestral allele, while an integer
 indicates that that individual possesses `(1,2)` copies of the derived
 allele. Finally, an `N` indicates a missing genotype at that position.
 
-The SMC++ format for this input file is:::
+The SMC++ format for this input file is::
 
     1   0   2   4
     1   0   0   2
     1   1   0   4
     2   0   0   0
     1   -1  0   2
+    3   0   0   0
     1   2   1   4
 
 Output
