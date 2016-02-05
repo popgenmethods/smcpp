@@ -127,8 +127,9 @@ def hmm_data_format(dataset, n, distinguished_rows, missing=0.):
     assert np.all(ret[:, 0] >= 1)
     return ret
 
-def break_long_missing_spans(data):
+def break_long_missing_spans(data, span_cutoff=50000):
     ret = [[]]
+    inds = np.where(data[:, 0] >= span_cutoff)
     lastobs = data[0]
     for obs in data[1:]:
         if obs[0] == 0:
@@ -136,7 +137,7 @@ def break_long_missing_spans(data):
         if np.all(obs[1:] == lastobs[1:]):
             lastobs[0] += obs[0]
         else:
-            if lastobs[0] > SPAN_CUTOFF:
+            if lastobs[0] > span_cutoff:
                 logger.debug("Skipping long span: %s" % str(lastobs))
                 ret.append([])
             else:
@@ -154,9 +155,14 @@ def break_long_missing_spans(data):
     return r2
 
 def _pt_helper(fn):
-    A = np.loadtxt(fn, dtype=np.int32)
+    try:
+        # This parser is way faster than loadtxt
+        import pandas as pd
+        A = pd.read_csv(fn, sep=' ').values
+    except ImportError:
+        A = np.loadtxt(fn, dtype=np.int32)
     A[np.logical_and(A[:,1] == 2, A[:,2] == A[:,3]), 1:3] = 0
-    return A
+    return np.ascontiguousarray(A, dtype=np.int32)
 
 def parse_text_datasets(datasets):
     p = multiprocessing.Pool(None)
@@ -169,3 +175,13 @@ def parse_text_datasets(datasets):
 
 def config2dict(cp):
     return {sec: dict(cp.items(sec)) for sec in cp.sections()}
+
+def compress_repeated_obs(dataset):
+    # pad with illegal value at starting position
+    dataset = np.insert(dataset, 0, [1, -999, 0, 0], 0)
+    nonreps = np.any(dataset[1:, 1:] != dataset[:-1, 1:], axis=1)
+    newob = dataset[1:][nonreps]
+    csw = np.cumsum(dataset[:, 0])[np.where(nonreps)]
+    newob[:-1, 0] = csw[1:] - csw[:-1]
+    return newob
+

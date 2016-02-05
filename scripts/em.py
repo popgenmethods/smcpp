@@ -19,16 +19,20 @@ import psmcpp._pypsmcpp, psmcpp.lib.util, psmcpp.lib.plotting, psmcpp.lib.em_con
 from psmcpp.lib.util import undistinguished_sfs
 
 np.set_printoptions(linewidth=120)
-logging.basicConfig(level=logging.INFO, format='%(asctime)s %(name)-12s %(levelname)-8s %(message)s')
 logger = logging.getLogger(__name__)
 
 def _obsfs_helper(args):
     ol, n = args
     obsfs = np.zeros([3, n - 1])
     olsub = ol[np.logical_and(ol[:, 1:3].min(axis=1) != -1, ol[:, -1] == n - 2)]
-    for r, c1, c2, _ in olsub:
-        obsfs[c1, c2] += r
+    for a in [0, 1, 2]:
+        for b in range(n - 1):
+            obsfs[a, b] = olsub[np.logical_and(olsub[:, 1] == a, olsub[:, 2] == b)][:, 0].sum()
     return obsfs
+
+def _thin_helper(args):
+    thinned = np.array(psmcpp._pypsmcpp.thin_data(*args), dtype=np.int32)
+    return psmcpp.lib.util.compress_repeated_obs(thinned)
 
 def exp_quantiles(M, h_M):
     hs = -np.log(1. - np.linspace(0, h_M, M, False) / h_M)
@@ -47,11 +51,12 @@ def setup_parser():
     parser.add_argument('-v', '--verbose', action='store_true', help="output lots of debugging info")
     pop_params.add_argument('--N0', type=float, help="reference effective (diploid) population size", required=True)
     pop_params.add_argument('--mu', type=float, help="per-generation mutation rate", required=True)
-    pop_params.add_argument('--rho', type=float, help="per-generation recombination rate", required=True)
+    pop_params.add_argument('--r', type=float, help="per-generation recombination rate", required=True)
     model.add_argument('--pieces', type=str, help="span of model pieces", required=True, default="32*1")
     model.add_argument('--t1', type=float, help="end-point of first piece, in generations", required=True, default=40.)
     model.add_argument('--tK', type=float, help="end-point of last piece, in generations", required=True, default=40000.)
     model.add_argument('--exponential-pieces', type=int, action="append", default=[], help="pieces which have exponential growth")
+    hmm.add_argument('--thinning', help="emit full SFS every <k>th site", default=None, type=int, metavar="k")
     hmm.add_argument('--no-pretrain', help="do not pretrain model", action="store_true", default=False)
     hmm.add_argument('--M', type=int, help="number of hidden states", required=True, default=32)
     hmm.add_argument('--em-iterations', type=float, help="number of EM steps to perform", default=20)
@@ -59,9 +64,30 @@ def setup_parser():
     hmm.add_argument('--lbfgs-factor', type=float, help="stopping criterion for optimizer", default=1e10)
     hmm.add_argument('--Nmin', type=float, help="Lower bound on effective population size", default=500)
     hmm.add_argument('--Nmax', type=float, help="Upper bound on effective population size", default=100000)
-    hmm.add_argument('--length-cutoff', help="omit sequences < cutoff", default=0, type=int)
+    hmm.add_argument('--span-cutoff', help="treat spans > as missing", default=50000, type=int)
+    hmm.add_argument('--length-cutoff', help="omit sequences < cutoff", default=1000000, type=int)
     parser.add_argument('data', nargs="+", help="data file(s) in SMC++ format")
     return parser, parser.parse_args()
+
+def regularizer(y, coords, cons):
+    ## Regularizer
+    reg = 0
+    dreg = np.zeros(len(coords))
+    aa, bb = y
+    cs = np.cumsum(ctx.s)
+    for i in range(1, ctx.K):
+        x = bb[i - 1] - aa[i]
+        _cons = cons
+        # rr = (abs(x) - .25) if abs(x) >= 0.5 else x**2
+        reg += _cons * x**2
+        for c in [(0 if i - 1 in ctx.flat_pieces else 1, i - 1), (0, i)]:
+            dx = 1 if c[1] == i - 1 else -1
+            try:
+                i = coords.index(c)
+                dreg[i] += _cons * 2 * x * dx
+            except ValueError:
+                pass
+    return reg, dreg
 
 def pretrain(args, obsfs):
     n = obsfs.shape[1] + 1
@@ -76,33 +102,22 @@ def pretrain(args, obsfs):
             y[cc] = xx
         y[1, ctx.flat_pieces] = y[0, ctx.flat_pieces]
         print(y)
-        sfs, jac = psmcpp._pypsmcpp.sfs(n, (y[0], y[1], ctx.s), 0., 49.0, 2 * args.N0 * args.mu, coords)
+        sfs, jac = psmcpp._pypsmcpp.sfs(n, (y[0], y[1], ctx.s), 0., 49.0, ctx.theta, coords)
         usfs = undistinguished_sfs(sfs)
         ujac = undistinguished_sfs(jac)
         kl = -(uobsfs * np.log(usfs)).sum()
         dkl = -(uobsfs[:, None] * ujac / usfs[:, None]).sum(axis=0)
-        reg = 0
-        dreg = np.zeros(dkl.shape)
-        for i in range(1, ctx.K):
-            x = y[1, i - 1] - y[0, i]
-            sx = np.sign(x)
-            reg += ctx.lambda_penalty * abs(x)
-            for c in [(1, i - 1), (0, i)]:
-                try:
-                    i = coords.index((0, i))
-                    dreg[i] += ctx.lambda_penalty * sx 
-                except ValueError:
-                    pass
-                sx *= sx
-        kl += reg
-        dkl += dreg
-        logger.info((reg, dreg))
-        logger.info((kl, usfs))
-        return kl, dkl
+        ret = [kl, dkl]
+        reg, dreg = regularizer(y, coords, ctx.lambda_penalty * 1e-3)
+        ret[0] += reg
+        ret[1] += dreg
+        logger.info(ret[0])
+        logger.info(ret[1])
+        logger.info("regularizer: %s" % str((reg, dreg)))
+        return ret
     x0 = np.ones(len(coords))
-    res = scipy.optimize.fmin_tnc(f, x0, None,
-            bounds=[tuple(ctx.bounds[cc]) for cc in coords],
-            disp=5, xtol=.0001)
+    res = scipy.optimize.fmin_l_bfgs_b(f, x0, None,
+            bounds=[tuple(ctx.bounds[cc]) for cc in coords])
     ret = np.ones([2, ctx.K])
     for cc, xx in zip(coords, res[0]):
         ret[cc] = xx
@@ -122,7 +137,7 @@ def extract_pieces(piece_str):
         pieces += [span] * num
     return pieces
 
-def optimize(coords, factr=1e9):
+def optimize(coords, factr):
     def fprime(x):
         x0c = ctx.x.copy()
         # Preconditioner (sort of)
@@ -135,12 +150,9 @@ def optimize(coords, factr=1e9):
         lls = np.array([ll for ll, jac in res])
         jacs = np.array([jac for ll, jac in res])
         ret = [-np.mean(lls, axis=0), -np.mean(jacs, axis=0)]
-        reg, jac = ctx.im.regularizer
-        reg *= ctx.lambda_penalty
-        jac *= ctx.lambda_penalty
-        logger.info("regularizer: %s" % str((reg, jac)))
+        reg, dreg = regularizer([aa, bb], coords, ctx.lambda_penalty)
         ret[0] += reg
-        ret[1] += jac
+        ret[1] += dreg
         dary = np.zeros([2, ctx.K])
         for i, cc in enumerate(coords):
             ret[1][i] *= ctx.precond[cc]
@@ -148,6 +160,7 @@ def optimize(coords, factr=1e9):
         logger.info(x0c)
         logger.info(dary)
         logger.info(ret[0])
+        logger.info("regularizer: %s" % str((reg, dreg)))
         return ret
     # logger.debug("gradient check")
     # xx0 = np.array([ctx.x[cc] / ctx.precond[cc] for cc in coords])
@@ -159,8 +172,9 @@ def optimize(coords, factr=1e9):
     #     logger.debug((i, cc, f1, f0, (f1 - f0) / 1e-8, fp[i]))
     res = scipy.optimize.fmin_l_bfgs_b(fprime, [ctx.x[cc] / ctx.precond[cc] for cc in coords], 
             None, bounds=[tuple(ctx.bounds[cc] / ctx.precond[cc]) for cc in coords], 
-            disp=True, factr=factr)
-    return np.array([x * ctx.precond[cc] for x, cc in zip(res[0], coords)])
+            factr=factr)
+    ret = np.array([x * ctx.precond[cc] for x, cc in zip(res[0], coords)])
+    return ret
 
     ## Ignore below here
     def f2(x):
@@ -188,6 +202,7 @@ def optimize(coords, factr=1e9):
             ctx.im.setParams((aa, bb, ctx.s), coords)
         except RuntimeError as e:
             if e.message == "SFS is not a probability distribution":
+                logger.warn("extreme parameter values led to numerical problems in SFS calculation")
                 return (np.inf, None)
             else:
                 raise
@@ -218,6 +233,14 @@ def optimize(coords, factr=1e9):
         ret[0] += reg
         ret[1] += dreg
         return ret
+    logger.debug("gradient check")
+    xx0 = [ctx.x[cc] for cc in coords]
+    f0, fp = fprime2(xx0)
+    for i, cc in enumerate(coords):
+        x0c = xx0.copy()
+        x0c[i] += 1e-8
+        f1, _ = fprime2(x0c)
+        logger.debug((i, cc, f1, f0, (f1 - f0) / 1e-8, fp[i]))
     res = scipy.optimize.fmin_tnc(fprime2, 
             [ctx.x[cc] for cc in coords], None,
             bounds=[tuple(ctx.bounds[cc]) for cc in coords],
@@ -225,20 +248,23 @@ def optimize(coords, factr=1e9):
     logger.debug(res)
     return res[0]
 
-def write_output(tag, args):
+def write_output(fn):
 ## Finally, save output and exit
-    fn = os.path.join(args.output_directory, "output.%s.txt" % tag)
     with open(fn, "wt") as out:
         out.write("# SMC++ output\n")
         out.write("# a\tb\ts\n")
         ctx.s[-1] = np.inf
-        ret = np.array([ctx.a * 2 * args.N0, ctx.b * 2 * args.N0, np.cumsum(ctx.s) * 2 * args.N0]).T 
+        ret = np.array([ctx.a * 2 * ctx.N0, ctx.b * 2 * ctx.N0, np.cumsum(ctx.s) * 2 * ctx.N0]).T 
         np.savetxt(out, ret, fmt="%f", delimiter="\t")
     return ret
 
 def main():
     '''Main control loop.'''
     parser, args = setup_parser();
+
+    ctx.N0 = args.N0
+    ctx.theta = 2 * args.N0 * args.mu
+    ctx.rho = 2 * args.N0 * args.r
 
     ## Create output directory and dump all values for use later
     try:
@@ -248,38 +274,77 @@ def main():
     parser.print_values(open(os.path.join(args.output_directory, ".config.txt"), "wt"))
 
     ## Initialize the logger
-    fh = logging.FileHandler(os.path.join(args.output_directory, "log.txt"))
-    fh.setLevel(logging.INFO)
-    logging.getLogger().addHandler(fh)
-    fh = logging.FileHandler(os.path.join(args.output_directory, "debug.txt"))
-    fh.setLevel(logging.DEBUG)
-    logging.getLogger().addHandler(fh)
-    if args.verbose:
-        logging.getLogger().setLevel(logging.DEBUG)
+    # fmt = logging.Formatter('%(asctime)s %(name)-12s %(levelname)-8s %(message)s')
+    logging.addLevelName(logging.DEBUG-1, 'DEBUG1')
+    while len(logging.root.handlers) > 0:
+        logging.root.removeHandler(logging.root.handlers[-1])
+    fmtstr = '%(asctime)s %(name)-12s %(levelname)-8s %(message)s'
+    logging.basicConfig(level=logging.DEBUG, 
+            filename=os.path.join(args.output_directory, "debug.txt"),
+            filemode='wt',
+            format=fmtstr)
+    sh = logging.StreamHandler()
+    sh.setLevel(logging.INFO)
+    sh.setFormatter(logging.Formatter(fmtstr))
+    logging.getLogger().addHandler(sh)
 
     ## Begin main script
     ## Step 1: load data and clean up a bit
-    try:
-        smcpp_data = pickle.load(open(args.data[0], "rb"))
-    except:
-        smcpp_data = psmcpp.lib.util.parse_text_datasets(args.data)
+    logger.info("Loading data...")
+    smcpp_data = psmcpp.lib.util.parse_text_datasets(args.data)
     n = smcpp_data['n']
     logger.debug("max samples: %d" % n)
 
-    ## In parallel, process data sets
-    pool = multiprocessing.Pool(None)
-    obs_list = ctx.obs_list = [subob 
-            for subobs in pool.map(psmcpp.lib.util.break_long_missing_spans, smcpp_data['obs'])
-            for subob in subobs 
-            if subob[:, 0].sum() > args.length_cutoff]
     ## Calculate observed SFS for use later
+    pool = multiprocessing.Pool(None)
     osfs = list(pool.map(_obsfs_helper, [(ob, n) for ob in smcpp_data['obs']]))
-    pool.close()
-    pool.terminate()
-    pool = None
     obsfs = np.sum(osfs, axis=0)
     obsfs /= obsfs.sum()
     logger.info("Observed SFS:\n%s", str(obsfs))
+
+    if args.thinning is not None:
+        smcpp_data['obs'] = pool.map(_thin_helper, [(ob, args.thinning, i) for i, ob in enumerate(smcpp_data['obs'])])
+
+    pool.close()
+    pool.terminate()
+    pool = None
+
+    ## Break up regions separated by lots of missing data,
+    ## which are almost independent anyways
+    ctx.obs_list = []
+    obs_attributes = {}
+    for fn, obs in zip(args.data, smcpp_data['obs']):
+        long_spans = np.where(obs[:, 0] >= args.span_cutoff)[0]
+        cob = 0
+        logging.debug("Long spans: %s" % str(long_spans))
+        positions = np.insert(np.cumsum(obs[:, 0]), 0, 0)
+        for x in long_spans:
+            if not np.all(obs[x, 1:] == [-1, 0, 0]):
+                logger.warn("Data set contains a very long span of non-missing observations.")
+            s = obs[cob:x, 0].sum()
+            if s > args.length_cutoff:
+                ctx.obs_list.append(np.insert(obs[cob:x], 0, [1, -1, 0, 0], 0))
+                sums = ctx.obs_list[-1].sum(axis=0)
+                s2 = ctx.obs_list[-1][:,1][ctx.obs_list[-1][:,1]>=0].sum()
+                obs_attributes.setdefault(fn, []).append((positions[cob], positions[x], sums[0], 1. * s2 / sums[0], 1. * sums[2] / sums[0]))
+            else:
+                logger.warn("omitting sequence length < %d as less than length cutoff" % s)
+            cob = x + 1
+        s = obs[cob:, 0].sum()
+        if s > args.length_cutoff:
+            ctx.obs_list.append(np.insert(obs[cob:], 0, [1, -1, 0, 0], 0))
+            sums = ctx.obs_list[-1].sum(axis=0)
+            s2 = ctx.obs_list[-1][:,1][ctx.obs_list[-1][:,1]>=0].sum()
+            obs_attributes.setdefault(fn, []).append((positions[cob], positions[-1], sums[0], 1. * s2 / sums[0], 1. * sums[2] / sums[0]))
+        else:
+            logger.warn("omitting sequence length < %d as less than length cutoff" % s)
+
+    ## Sanity check
+    logging.info("Average hetorozygosity (derived / total bases) by data set:")
+    for fn in sorted(obs_attributes):
+        logging.info(fn + ":")
+        for attr in obs_attributes[fn]:
+            logging.info("%15d%15d%15d%12g%12g" % attr)
 
     ## Extract pieces from piece string
     pieces = extract_pieces(args.pieces)
@@ -296,11 +361,11 @@ def main():
         count += p
     s = sp
     ctx.s = s
-    ctx.K = len(s)
     ctx.lambda_penalty = args.lambda_penalty
     logger.info("time points in coalescent scaling:\n%s", str(s))
 
     ## Initialize model values
+    ctx.K = len(ctx.s)
     ctx.x = np.ones([2, ctx.K])
     ctx.a = ctx.x[0]
     ctx.b = ctx.x[1]
@@ -326,8 +391,8 @@ def main():
     logger.info("hidden states:\n%s", str(ctx.hidden_states))
 
     ## Create inference object which will be used for all further calculations.
-    ctx.im = psmcpp._pypsmcpp.PyInferenceManager(n - 2, obs_list, 
-            ctx.hidden_states, 2.0 * args.N0 * args.mu, 2.0 * args.N0 * args.rho)
+    ctx.im = psmcpp._pypsmcpp.PyInferenceManager(n - 2, ctx.obs_list, 
+            ctx.hidden_states, ctx.theta, ctx.rho)
     ctx.im.setParams([ctx.a, ctx.b, ctx.s], False)
     ctx.im.Estep()
     ctx.llold = -np.inf
@@ -337,6 +402,7 @@ def main():
     coords = [(aa, j) for j in range(ctx.K) for aa in ((0,) if j in ctx.flat_pieces else (0, 1))]
     # Vector of "preconditioners" helps with optimization
     ctx.precond = {coord: 1. / ctx.s[coord[1]] for coord in coords}
+    # ctx.precond = {coord: 1. for coord in coords}
     if (ctx.K - 1, 0) in coords:
         ctx.precond[(ctx.K - 1, 0)] = 1. / (15.0 - np.sum(ctx.s))
     while i < args.em_iterations:
@@ -361,12 +427,12 @@ def main():
             logger.warn("Log-likelihood decreased")
         ctx.llold = ll
         esfs = psmcpp._pypsmcpp.sfs(n, (ctx.a, ctx.b, ctx.s), 0.0, 
-                ctx.hidden_states[-1], 2. * args.N0 * args.mu, False)
-        write_output(str(i), args)
+                ctx.hidden_states[-1], ctx.theta, False)
+        write_output(os.path.join(args.output_directory, "output.%d.txt" % i))
         logger.info("model sfs:\n%s" % str(esfs))
         logger.info("observed sfs:\n%s" % str(obsfs))
         i += 1
-    write_output("final", args)
+    write_output(os.path.join(args.output_directory, "output.final.txt"))
 
 if __name__=="__main__":
     main()

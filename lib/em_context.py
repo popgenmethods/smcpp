@@ -8,3 +8,5 @@ lambda_penalty = None
 bounds = None
 K = None
 flat_pieces = None
+N0 = None
+theta = None

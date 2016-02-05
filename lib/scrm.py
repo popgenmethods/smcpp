@@ -90,8 +90,14 @@ def parse_scrm(n, L, output, include_trees):
         haps = np.zeros([n, len(positions)], dtype=np.int8)
         # haps = []
         i = 0
+        scrm_sfs = None
         for line in output:
-            if line.strip():
+            ls = line.strip()
+            if not ls:
+                continue
+            if ls.startswith("SFS:"):
+                scrm_sfs = [int(x) for x in ls[5:].split()]
+            else:
                 haps[i] = np.fromstring(str(line.strip()), np.uint8) - 48
                 i += 1
                 # .append(bitarray.bitarray(str(line).strip()))
@@ -99,6 +105,14 @@ def parse_scrm(n, L, output, include_trees):
         # haps = [bitarray.bitarray(str(line).strip()) for line in output if line.strip()] 
         uniqpos = np.concatenate(([True], positions[1:] != positions[:-1]))
         ret = (L, positions[uniqpos], haps[:, uniqpos])
+        if scrm_sfs is not None:
+            c = Counter(haps.sum(axis=0))
+            psfs = [0] * (n - 1)
+            for s in c:
+                assert 0 < s < n
+                psfs[s - 1] = c[s]
+            if not np.array_equal(psfs, scrm_sfs):
+                raise RuntimeError("sfs mismatch in parser")
         if include_trees:
             ret += (coal_times,)
         return ret
@@ -109,12 +123,19 @@ def simulate(n, N0, theta, rho, L, demography=[], include_trees=False):
     seeds = np.random.randint(0, sys.maxint, size=3)
     r = 4 * N0 * rho * (L - 1)
     t = 4 * N0 * theta * L
-    args = [n, 1, '-p', int(math.log10(L)) + 2, '-t', t, '-r', r, L, '-seeds'] + list(seeds) + demography
+    args = [n, 1, '-l', 0, '-p', int(math.log10(L)) + 2, '-t', t, '-r', r, L, '-oSFS', '-seeds'] + list(seeds) + demography
     if include_trees:
         args.append("-T")
     output = scrm(*args, _iter=True)
     cmd_line, seed, _, _ = [line.strip() for line in itertools.islice(output, 4)]
-    return parse_scrm(n, L, output, include_trees)
+    ret = parse_scrm(n, L, output, include_trees)
+    haps = ret[2]
+    c = Counter(haps.sum(axis=0))
+    psfs = [0] * (n - 1)
+    for s in c:
+        assert 0 < s < n
+        psfs[s - 1] = c[s]
+    return ret
 
 def distinguished_sfs(n, M, N0, theta, demography, t0=0.0, t1=np.inf):
     seeds = np.random.randint(0, sys.maxint, size=3)
