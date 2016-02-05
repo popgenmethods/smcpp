@@ -120,31 +120,15 @@ template <typename T>
 void PiecewiseExponentialRateFunction<T>::compute_regularizer()
 {
     _reg = zero;
-    T elast, xx, etax, tmp;
-    elast = 1. / eta(ts[0]);
-    const int delta = 500;
-    for (int k = 0; k < K - 1; ++k)
-    {
-        for (int i = 1; i < delta + 1; ++i)
-        {
-            xx = ((double)i / delta) * (ts[k + 1] - ts[k]) + ts[k];
-            etax = 1. / eta(xx);
-            tmp = etax - elast;
-            _reg += tmp * tmp * exp(-R(xx));
-            elast = etax;
-        }
-    }
 }
 
 template <typename T>
 void PiecewiseExponentialRateFunction<T>::initialize_derivatives(void) {}
 
-static int nd;
-
 template <>
 void PiecewiseExponentialRateFunction<adouble>::initialize_derivatives(void)
 {
-    nd = derivatives.size();
+    int nd = derivatives.size();
     Eigen::VectorXd z = Eigen::VectorXd::Zero(nd);
     Eigen::MatrixXd I = Eigen::MatrixXd::Identity(nd, nd);
     for (int k = 0; k < K; ++k)

@@ -12,7 +12,7 @@ init_eigen();
 logger = logging.getLogger(__name__)
 
 cdef void logger_cb(const char* name, const char* level, const char* message) with gil:
-    lvl = {"INFO": logging.INFO, "DEBUG": logging.DEBUG, "WARNING": logging.WARNING}
+    lvl = {"INFO": logging.INFO, "DEBUG": logging.DEBUG - 1, "WARNING": logging.WARNING}
     logging.getLogger(name).log(lvl[level.upper()], message)
 
 init_logger_cb(logger_cb);
@@ -69,6 +69,8 @@ cdef class PyInferenceManager:
         self._n = n
         cdef int[:, ::1] vob
         cdef vector[int*] obs
+        if len(observations) == 0:
+            raise RuntimeError("Observations list is empty")
         self._observations = observations
         Ls = []
         ## Validate hidden states
@@ -276,6 +278,8 @@ def balance_hidden_states(params, int M):
             ret.append(res)
     finally:
         del eta
+    if ret[-1] < T_MAX - .1:
+        ret.append(T_MAX - .1)
     return np.array(ret)
 
 def sfs(int n, params, double t1, double t2, double theta, jacobian=False):
@@ -310,13 +314,13 @@ cdef _store_admatrix_helper(Matrix[adouble] &mat, int nder):
         store_admatrix(mat, nder, &v[0, 0], &av[0, 0, 0])
         return ary, jac
 
-def thin_data(data, int thinning):
+def thin_data(data, int thinning, int offset=0):
     '''Implement the thinning procedure needed to break up correlation
     among the full SFS emissions.'''
     # Thinning
-    cdef int i = 0
+    cdef int i = offset
     out = []
-    cdef int[:, ::1] vdata = data
+    cdef int[:, :] vdata = data
     cdef int k = data.shape[0]
     cdef int span, a, b, nb, a1
     for j in range(k):
@@ -341,13 +345,4 @@ def thin_data(data, int thinning):
                 out.append([span, a1, 0, 0])
                 i += span
                 break
-    out2 = []
-    last_ob = out[0]
-    for ob in out[1:]:
-        if ob[1:] == last_ob[1:]:
-            last_ob[0] += ob[0]
-        else:
-            out2.append(last_ob)
-            last_ob = ob
-    out2.append(last_ob)
-    return out2
+    return np.array(out, dtype=np.int32)

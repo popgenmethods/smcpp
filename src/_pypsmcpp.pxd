@@ -33,9 +33,9 @@ cdef extern from "inference_manager.h":
     cdef cppclass InferenceManager nogil:
         InferenceManager(const int, const vector[int],
                 const vector[int*], const vector[double],
-                const double, const double)
+                const double, const double) except +
         void setParams_d(const ParameterVector)
-        void setParams_ad(const ParameterVector, vector[pair[int, int]] derivatives)
+        void setParams_ad(const ParameterVector, vector[pair[int, int]] derivatives) 
         void Estep(bool)
         vector[double] loglik()
         vector[adouble] Q()

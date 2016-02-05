@@ -1,6 +1,7 @@
 #ifndef CONDITIONED_SFS_H
 #define CONDITIONED_SFS_H
 
+#include <exception>
 #include <map>
 #include <random>
 #include <gmpxx.h>
@@ -17,6 +18,14 @@ typedef struct
 } below_coeff;
 
 typedef struct { Matrix<double> X0, X2, M0, M1; } MatrixCache;
+
+class improper_sfs_exception : public std::exception
+{
+    virtual const char* what() const throw()
+    {
+        return "SFS is not a probability distribution";
+    }
+};
 
 class ConditionedSFSBase
 {

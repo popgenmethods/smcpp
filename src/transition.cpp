@@ -58,9 +58,14 @@ void HJTransition<T>::compute(void)
                 if (k < this->M - 1)
                     p_coal *= -expm1(-(myeta.R(eta->hidden_states[k]) - myeta.R(eta->hidden_states[k - 1])));
                 int ip = insertion_point(rtimes[q], times, 0, times.size());
-                T dt = rtimes[q] - times[ip];
+                if (ip >= times.size())
+                    throw std::runtime_error("erroneous insertion point");
+                // this copy is to avoid some race condition that is resulting
+                // in a double free.
+                T tip = times[ip];
+                T dt = rtimes[q] - tip;
                 T c_rho = dt * this->rho;
-                T c_eta = myeta.R(rtimes[q]) - myeta.R(times[ip]);
+                T c_eta = myeta.R(rtimes[q]) - myeta.R(tip);
                 Matrix<T> tmp = expms[ip] * matrix_exp(c_rho, c_eta);
                 r = tmp(0, 1) * p_coal;
                 this->Phi(j - 1, k - 1) += r / Q;

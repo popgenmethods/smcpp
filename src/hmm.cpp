@@ -131,20 +131,27 @@ adouble HMM::Q(void)
 {
     DEBUG("HMM::Q");
     adouble q1, q2, q3;
-    q1 = (gamma0.array().template cast<adouble>() * ib->pi->array().log()).sum();
+    q1 = 0.0;
+    Vector<adouble> pi = *(ib->pi);
+    for (int m = 0; m < M; ++m)
+        q1 += log(pi(m)) * gamma0(m);
+
     q2 = 0.0;
     for (auto &p : gamma_sums)
     {
-        Eigen::Array<adouble, Eigen::Dynamic, 1> logep = ib->emission_probs->at(p.first).array().log();
-        q2 += (logep * p.second.array().template cast<adouble>()).sum();
+        Vector<adouble> ep = ib->emission_probs->at(p.first);
+        for (int m = 0; m < M; ++m)
+            q2 += p.second(m) * log(ep(m));
     }
 
     // Am getting a weird memory-related bug here when I do this all in
     // one line. Something related to threading and CRTP, maybe. Split
     // things up a bit to fix.
-    Eigen::Array<adouble, Eigen::Dynamic, Eigen::Dynamic> logT = ib->tb->T.array().log();
-    Eigen::Array<adouble, Eigen::Dynamic, Eigen::Dynamic> _xiT = xisum.template cast<adouble>().array() * logT;
-    q3 = _xiT.sum();
+    q3 = 0.0;
+    Matrix<adouble> T = ib->tb->T;
+    for (int m1 = 0; m1 < M; ++m1)
+        for (int m2 = 0; m2 < M; ++m2)
+            q3 += log(T(m1, m2)) * xisum(m1, m2);
 
     check_nan(q1);
     check_nan(q2);

@@ -116,11 +116,15 @@ void ConditionedSFS<T>::compute_below(const PiecewiseExponentialRateFunction<T> 
 #pragma omp parallel for
     for (int m = 0; m < eta.K; ++m)
         eta.tjj_double_integral_below(n, m, ts_integrals);
+    DEBUG("tjj_double_integral below finished");
     for (int h = 1; h < H + 1; ++h)
         tjj_below.row(h - 1) = ts_integrals.block(eta.hs_indices[h - 1], 0, 
                 eta.hs_indices[h] - eta.hs_indices[h - 1], n + 1).colwise().sum();
+    DEBUG("matrix products below (M0)");
     M0_below = tjj_below * mcache.M0.template cast<T>();
+    DEBUG("matrix products below (M1)");
     M1_below = tjj_below * mcache.M1.template cast<T>();
+    DEBUG("filling csfs_below");
     for (int h = 0; h < H; ++h) 
     {
         csfs_below[h].fill(eta.zero);
@@ -128,6 +132,7 @@ void ConditionedSFS<T>::compute_below(const PiecewiseExponentialRateFunction<T> 
         csfs_below[h].block(1, 0, 1, n + 1) = M1_below.row(h);
         check_nan(csfs_below[h]);
     }
+    DEBUG("compute below finished");
 }
 
 template <typename T>
@@ -194,6 +199,7 @@ void ConditionedSFS<T>::compute_above(const PiecewiseExponentialRateFunction<T> 
 template <typename T>
 std::vector<Matrix<T> >& ConditionedSFS<T>::compute(const PiecewiseExponentialRateFunction<T> &eta, double theta)
 {
+    DEBUG("compute called");
     compute_above(eta);
     compute_below(eta);
     for (int i = 0; i < H; ++i)
@@ -210,7 +216,18 @@ std::vector<Matrix<T> >& ConditionedSFS<T>::compute(const PiecewiseExponentialRa
         csfs[i] /= d;
         check_nan(d);
         T tauh = csfs[i].sum();
-        check_nan(tauh);
+        if (toDouble(tauh) > 1.0 / theta)
+            throw improper_sfs_exception();
+        try
+        {
+            check_nan(tauh);
+        } catch (std::runtime_error)
+        {
+            std::cout << d << std::endl;
+            std::cout << tauh << std::endl;
+            std::cout << i << std::endl << csfs[i].template cast<double>() << std::endl;
+            throw;
+        }
         csfs[i] *= -expm1(-theta * tauh) / tauh;
         check_nan(csfs[i]);
         T tiny = eta.one * 1e-20;
@@ -225,8 +242,12 @@ std::vector<Matrix<T> >& ConditionedSFS<T>::compute(const PiecewiseExponentialRa
             throw;
         }
         if (csfs[i].template cast<double>().minCoeff() < 0 or csfs[i].template cast<double>().maxCoeff() > 1)
+        {
+            std::cout << i << std::endl << csfs[i].template cast<double>() << std::endl;
             throw std::runtime_error("csfs is not a probability distribution");
-     }
+        }
+    }
+    DEBUG("compute finished");
     return csfs;
 }
 

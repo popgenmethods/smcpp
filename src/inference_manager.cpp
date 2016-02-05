@@ -33,8 +33,8 @@ InferenceManager::InferenceManager(
     theta(theta), rho(rho),
     M(hidden_states.size() - 1), 
     csfs_d(n, M), csfs_ad(n, M),
-    targets(fill_targets()),
     nbs(fill_nbs()),
+    targets(fill_targets()),
     tb(targets, &emission_probs),
     spanCutoff(M / 2),
     ib{&pi, &tb, &emission_probs, &saveGamma, &spanCutoff}
@@ -86,13 +86,13 @@ std::set<std::pair<int, block_key> > InferenceManager::fill_targets()
     return ret;
 }
 
-std::set<int> InferenceManager::fill_nbs()
+std::vector<int> InferenceManager::fill_nbs()
 {
-    std::set<int> ret;
+    std::set<int> s;
     for (auto ob : obs)
         for (int i = 0; i < ob.rows(); ++i)
-            ret.insert(ob(i, 3));
-    return ret;
+            s.insert(ob(i, 3));
+    return std::vector<int>(s.begin(), s.end());
 }
 
 void InferenceManager::populate_emission_probs()
@@ -131,18 +131,25 @@ Matrix<double>& InferenceManager::subEmissionCoefs(int m)
 template <typename T>
 void InferenceManager::recompute_emission_probs(const PiecewiseExponentialRateFunction<T> &eta)
 {
-    PROGRESS("recompute B");
+    DEBUG("recompute B");
     std::map<int, Matrix<adouble> > subemissions;
-    PROGRESS("subemissions");
-    for (int nb : nbs)
+    DEBUG("subemissions");
+#pragma omp parallel for
+    for (auto it = nbs.begin(); it < nbs.end(); ++it)
     {
-        subemissions[nb] = emission.lazyProduct(subEmissionCoefs(nb));
-        subemissions[nb].col(0) += subemissions[nb].rightCols<1>();
-        subemissions[nb].rightCols<1>().fill(0);
+        int nb = *it;
+        Matrix<adouble> M = emission.lazyProduct(subEmissionCoefs(nb));
+        M.col(0) += M.rightCols(1);
+        M.rightCols(1).fill(eta.zero);
+#pragma omp critical(subemissions)
+        {
+            subemissions[nb] = M;
+        }
     }
     // subemissions[0] is computed more easily / accurately by direct method
     // than by marginalizing. (in particular, the derivatives)
     // std::cerr << "old sub[0]\n" << subemissions[0].template cast<double>() << std::endl;
+    DEBUG("done subemissions");
     subemissions[0] = Matrix<adouble>::Zero(M, 2);
     for (int m = 0; m < M; ++m)
     {
@@ -157,6 +164,7 @@ void InferenceManager::recompute_emission_probs(const PiecewiseExponentialRateFu
     subemissions[0].col(0).fill(eta.one);
     subemissions[0].col(0) -= subemissions[0].col(1);
     // std::cerr << "new sub[0]\n" << subemissions[0].template cast<double>() << std::endl;
+    DEBUG("emission keys");
 #pragma omp parallel for
     for (auto it = bpm_keys.begin(); it < bpm_keys.end(); ++it)
     {
@@ -189,7 +197,7 @@ void InferenceManager::recompute_emission_probs(const PiecewiseExponentialRateFu
         check_nan(tmp);
         emission_probs.at(*it) = tmp;
     }
-    PROGRESS_DONE();
+    DEBUG("recompute done");
 }
 
 std::vector<double> InferenceManager::randomCoalTimes(const ParameterVector params, double fac, const int size)
