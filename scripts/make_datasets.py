@@ -1,5 +1,5 @@
 #!/usr/bin/env python2.7
-'''Generated simulated data sets for the various inference packages.'''
+'''Generate simulated data sets for the various inference packages.'''
 
 import numpy as np
 import random
@@ -11,11 +11,60 @@ import os.path
 import vcf
 import cStringIO
 import psmcpp, psmcpp.lib.scrm, psmcpp.lib.util
+from collections import Counter
 
 def perform_sim(args):
-    n, N0, theta, rho, L, demography, seed = args
+    n, N0, theta, rho, L, demography, seed, trees, missing = args
     np.random.seed(seed)
-    return psmcpp.lib.scrm.simulate(n, N0, theta, rho, L, demography, False)
+    ret = psmcpp.lib.scrm.simulate(n, N0, theta, rho, L, demography, trees)
+    positions, haps = ret[1:3]
+    c = Counter(haps.sum(axis=0))
+    psfs = [0] * (n - 1)
+    for s in c:
+        assert 0 < s < n
+        psfs[s - 1] = c[s]
+    print(psfs)
+    if missing > 0:
+        new_positions = []
+        new_haps = []
+        pos = 0
+        pos_i = 0
+        M = haps.shape[0]
+        rate = 1. - (1. - missing)**M
+        while True:
+            pos = min(positions[pos_i], pos + np.random.geometric(rate))
+            if pos > L:
+                break
+            nb = np.random.binomial(M, missing)
+            while nb == 0:
+                nb = np.random.binomial(M, missing)
+            if pos == positions[pos_i]:
+                new_hap = haps[:, pos_i]
+                pos_i += 1
+            else:
+                new_hap = np.zeros(M, dtyp=np.int32)
+            new_hap[np.random.sample(nb)] = -1
+            new_positions.append(pos)
+            new_haps.append(new_hap)
+        ret = (L, new_positions, np.array(new_haps, dtype=np.int32).T) + ret[3:]
+    return ret
+
+def process_tmrca(args):
+    fn, trees = args
+    A = []
+    from psmcpp._newick import tmrca
+    last_d12 = None
+    sp = 0
+    for span, tree in trees:
+        d12 = tmrca(tree, "1", "2")
+        if last_d12 is None or d12 == last_d12:
+            sp += span
+        else:
+            A.append((sp, last_d12))
+            sp = span
+        last_d12 = d12
+    A.append((sp, last_d12))
+    np.savetxt(fn, A, fmt="%g")
 
 def savetxt(args):
     np.savetxt(*args, fmt="%i")
@@ -37,6 +86,7 @@ if __name__ == "__main__":
     parser.add_argument("--panel-size", type=int, default=None, help="Panel size (SMC++ only)")
     parser.add_argument("--N0", type=int, default=10000)
     parser.add_argument("--theta", type=float, default=1.25e-8, help="Unscaled mutation rate")
+    parser.add_argument("--trees", default=False, action="store_true")
     parser.add_argument("--rho", type=float, default=1.25e-8, help="Unscaled recombination rate")
     parser.add_argument("--missing", type=float, default=0., help="Missingness fraction for data")
     parser.add_argument("--switch-error", type=float, default=0.02, 
@@ -44,6 +94,7 @@ if __name__ == "__main__":
     parser.add_argument("--smcpp", action="store_true", default=True, help="Generate dataset for SMC++")
     parser.add_argument("--psmc", action="store_true", default=False, help="Generate dataset for PSMC")
     parser.add_argument("--msmc", action="store_true", default=False, help="Generate dataset for MSMC")
+    parser.add_argument("--msmc-sample-size", default=None, type=int, help="Use subset of size <k> for MSMC dataset")
     parser.add_argument("--dical", action="store_true",  default=False, help="Generate dataset for diCal")
     args = parser.parse_args()
     assert 0. <= args.missing < 1
@@ -82,9 +133,11 @@ if __name__ == "__main__":
 # Generate data set using scrm
     print("simulating")
 
-    pool = multiprocessing.Pool(args.C)
+    pool = multiprocessing.Pool(None)
     data_sets = list(pool.imap_unordered(perform_sim, 
-        [(args.panel_size, args.N0, args.theta, args.rho, args.L, demography, np.random.randint(0, 4000000000)) for _ in range(args.C)]))
+        [(args.panel_size, args.N0, args.theta, args.rho, args.L, 
+            demography, np.random.randint(0, 4000000000), args.trees,
+            args.missing) for _ in range(args.C)]))
     assert data_sets
 
     try:
@@ -98,13 +151,18 @@ if __name__ == "__main__":
     assert args.pairs <= args.n
     pairs = [(2 * k, 2 * k + 1) for k in range(args.pairs)]
 
+    if args.trees:
+        tree_dir = mk_outdir("trees")
+        pool.map(process_tmrca, [(os.path.join(tree_dir, "%i.txt.gz") % i, data[3]) for i, data in enumerate(data_sets)])
+
 # 1. Write smc++ format
     if args.smcpp:
         smcpp_outdir = mk_outdir("smc++")
-        obs = [psmcpp.lib.util.hmm_data_format(data, 2 * args.n, p, missing=args.missing) for data in data_sets for p in pairs]
+        obs = [psmcpp.lib.util.hmm_data_format(data, 2 * args.n, p) for data in data_sets for p in pairs]
         pool.map(savetxt, [(os.path.join(smcpp_outdir, "%i.txt.gz" % i), ob) for i, ob in enumerate(obs, 1)])
-        pool.close()
-        pool.join()
+
+    pool.close()
+    pool.join()
 
     if not(any([args.psmc, args.dical, args.msmc])): sys.exit(0)
 
@@ -127,6 +185,8 @@ if __name__ == "__main__":
 
 # 3. Write msmc / dical format
     if args.msmc:
+        if args.msmc_sample_size is None:
+            args.msmc_sample_size = args.n
         msmc_template = "seq{chrom}\t{pos}\t{dist}\t{gts}\n"
         msmc_bps = np.array(["A", "G"])
         msmc_outdir = os.path.join(args.outdir, "msmc")
@@ -151,17 +211,19 @@ if __name__ == "__main__":
     for c, data_set in enumerate(data_sets, 1):
         if args.msmc:
             msmc_txt = open(os.path.join(msmc_outdir, "seq{chrom}.txt".format(chrom=c)), "wt")
-        lpos = 0
-        phase = np.zeros(args.n, dtype=bool)
+        lpos = -1
+        # Assume phasing is correct initially
+        phase_error = np.zeros(args.msmc_sample_size, dtype=bool)
         for i, pos in enumerate(data_set[1]):
             rec = ["seq%i" % c, str(pos), ".", ".", ".", "70", "PASS", "."]
+            if data_set[2][:args.msmc_sample_size, i].sum() == 0:
+                continue
             dist = pos - lpos
             lpos = pos
-            gts = list(data_set[2][:, i])
+            gts = list(data_set[2][:args.msmc_sample_size, i])
             for i in range(len(gts) // 2):
-                if gts[i] + gts[i + 1] > 0:
-                    phase[i] != (random.random() < args.switch_error)
-                gts[i], gts[i + 1] = gts[i + phase[i]], gts[i + 1 - phase[i]]
+                phase_error[i] = phase_error[i] ^ (random.random() < args.switch_error)
+                gts[i], gts[i + 1] = gts[i + phase_error[i]], gts[i + 1 - phase_error[i]]
                 rec.append("%i|%i" % (gts[i], gts[i + 1]))
             if args.dical:
                 dical_vcf.write("\t".join(rec) + "\n")
