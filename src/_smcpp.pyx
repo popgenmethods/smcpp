@@ -21,9 +21,6 @@ init_logger_cb(logger_cb);
 # flat arrays
 aca = np.ascontiguousarray
 
-def do_progress(x):
-    doProgress(x)
-
 cdef vector[double*] make_mats(mats):
     cdef vector[double*] expM
     cdef double[:, :, ::1] mmats = aca(mats)
@@ -91,10 +88,10 @@ cdef class PyInferenceManager:
     def __dealloc__(self):
         del self._im
 
-    def getObservations(self):
+    def get_observations(self):
         return self._observations
 
-    def setParams(self, params, derivatives):
+    def set_params(self, params, derivatives):
         logger.debug("Updating params")
         if not np.all(np.array(params) > 0):
             raise ValueError("All parameters must be strictly positive")
@@ -116,24 +113,14 @@ cdef class PyInferenceManager:
                 self._im.setParams_d(p)
         logger.debug("Updating params finished.")
 
-    def setDebug(self, val):
-        self._im.debug = val
-
-    def Estep(self, forward_backward_only=False):
+    def E_step(self, forward_backward_only=False):
         logger.debug("Forward-backward algorithm...")
         cdef bool fbOnly = forward_backward_only
         with nogil:
             self._im.Estep(fbOnly)
         logger.debug("Forward-backward algorithm finished.")
 
-    # def random_times(self, params, fac, size):
-    #     cdef ParameterVector p = make_params(params)
-    #     cdef vector[double] ret
-    #     with nogil:
-    #         ret = self._im.randomCoalTimes(p, fac, size)
-    #     return ret
-
-    property spanCutoff:
+    property span_cutoff:
         def __get__(self):
             return self._im.spanCutoff
         def __set__(self, bint sc):
@@ -153,7 +140,7 @@ cdef class PyInferenceManager:
                 fill_jacobian(reg, &vjac[0])
                 return (toDouble(reg), jac)
 
-    property saveGamma:
+    property save_gamma:
         def __get__(self):
             return self._im.saveGamma
         def __set__(self, bint sg):

@@ -19,7 +19,6 @@ cdef extern from "common.h":
     void fill_jacobian(const adouble &, double*)
     void store_matrix[T](const Matrix[T]*, T*)
     void store_admatrix(const Matrix[adouble]&, int, double*, double*)
-    void doProgress(bool)
     const double T_MAX
 
 ctypedef Matrix[double]* pMatrixD
