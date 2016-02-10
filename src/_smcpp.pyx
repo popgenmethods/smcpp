@@ -11,9 +11,15 @@ import scipy.optimize
 init_eigen();
 logger = logging.getLogger(__name__)
 
+abort = False
 cdef void logger_cb(const char* name, const char* level, const char* message) with gil:
-    lvl = {"INFO": logging.INFO, "DEBUG": logging.DEBUG - 1, "WARNING": logging.WARNING}
-    logging.getLogger(name).log(lvl[level.upper()], message)
+    global abort
+    try:
+        lvl = {"INFO": logging.INFO, "DEBUG": logging.DEBUG - 1, "WARNING": logging.WARNING}
+        logging.getLogger(name).log(lvl[level.upper()], message)
+    except KeyboardInterrupt:
+        logging.getLogger(name).critical("Aborting")
+        abort = True
 
 init_logger_cb(logger_cb);
 
@@ -92,6 +98,10 @@ cdef class PyInferenceManager:
         return self._observations
 
     def set_params(self, params, derivatives):
+        global abort
+        if abort:
+            abort = False
+            raise KeyboardInterrupt
         logger.debug("Updating params")
         if not np.all(np.array(params) > 0):
             raise ValueError("All parameters must be strictly positive")

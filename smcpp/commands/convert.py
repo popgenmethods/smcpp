@@ -103,10 +103,3 @@ def main(args):
                     rw.write([span, -1, 0, 0])
                 rw.write([1] + abnb)
                 last_pos = pos
-
-class ConvertCommand:
-    def self.init_parser(klass, parser):
-        init_parser(parser)
-        parser.set_defaults(func=klass())
-    def __call__(self, args):
-        main(args)

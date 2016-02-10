@@ -21,17 +21,8 @@ def main(args):
             label = None
         if fn in ["human", "sawtooth"]:
             psfs[label] = getattr(util, fn)
-            psfs[label]['a'] *= 20000.
-            psfs[label]['b'] *= 20000.
             psfs[label]['s'] = np.cumsum(psfs[label]['s_gen'])
         else:
             psfs[label] = dict(zip("abs", np.loadtxt(fn).T))
         psfs[label]['s'] *= args.g
     plotting.save_pdf(plotting.plot_psfs(psfs, args.xlim, args.ylim), args.pdf)
-
-class PlotCommand:
-    def self.init_parser(klass, parser):
-        init_parser(parser)
-        parser.set_defaults(func=klass())
-    def __call__(self, args):
-        main(args)

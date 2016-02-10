@@ -10,7 +10,7 @@ from collections import Counter
 import sys
 import itertools as it
 
-from .. import _pypsmcpp, util
+from .. import _smcpp, util
 
 def init_parser(parser):
     parser.add_argument("--M", type=int, default=None, 
@@ -19,8 +19,8 @@ def init_parser(parser):
             "a uniform probability of coalescence under the model "
             "stationary distribution. If this argument is not specified, "
             "hidden states will be obtained from <model>.")
-    parser.add_argument("--start" type=int, help="base at which to begin posterior decode")
-    parser.add_argument("--end" type=int, help="base at which to end posterior decode")
+    parser.add_argument("--start", type=int, help="base at which to begin posterior decode")
+    parser.add_argument("--end", type=int, help="base at which to end posterior decode")
     parser.add_argument("--thinning", type=int, default=1, help="emit full SFS only every <k>th site", metavar="k")
     parser.add_argument("--width", type=int,
             help="number of columns in outputted posterior decoding matrix. If "
@@ -41,7 +41,7 @@ def main(args):
     if args.M is None:
         hidden_states = np.loadtxt(params['hidden states'])
     else:
-        hidden_states = _pypsmcpp.balance_hidden_states((a, b, s), args.M)
+        hidden_states = _smcpp.balance_hidden_states((a, b, s), args.M)
     M = len(hidden_states) - 1
 
     obs = data['obs'][0]
@@ -55,9 +55,9 @@ def main(args):
 
     # Perform thinning, if requested
     if args.thinning is not None:
-        obs = util.compress_repeated_obs(_pypsmcpp.thin_data(obs, args.thinning, 0))
+        obs = util.compress_repeated_obs(_smcpp.thin_data(obs, args.thinning, 0))
 
-    im = psmcpp._pypsmcpp.PyInferenceManager(data['n'], [obs], hidden_states, ctx.theta, ctx.rho)
+    im = _smcpp.PyInferenceManager(data['n'], [obs], hidden_states, ctx.theta, ctx.rho)
     im.save_gamma = True
     im.set_params((a, b, s), False)
     im.E_step(True)
@@ -67,7 +67,7 @@ def main(args):
         an = row[0]
         gamma[:, sp:(sp+an)] = col[:, None] / an
         sp += an
-    if args.width not None:
+    if args.width is not None:
         logging.info("Downscaling posterior decoding matrix")
         gamma = scipy.ndimage.zoom(gamma, (1.0, 1. * args.width / args.L))
     np.savetxt(args.output, gamma, fmt="%g")

@@ -225,11 +225,7 @@ struct Logger
 #define INFO(x) (Logger(__FILE__, "INFO") << x).flush()
 #define WARN(x) (Logger(__FILE__, "WARN") << x).flush()
 
-void doProgress(bool);
-extern std::mutex mtx;
-extern bool do_progress;
-#define PROGRESS(x) if (do_progress) { mtx.lock(); std::cout << __FILE__ << ":" << __func__ << x << "... " << std::flush; mtx.unlock(); }
-#define PROGRESS_DONE() if (do_progress) { mtx.lock(); std::cout << "done." << std::endl << std::flush; mtx.unlock(); }
-#else
+#define PROGRESS(x)
+#define PROGRESS_DONE()
 
 #endif

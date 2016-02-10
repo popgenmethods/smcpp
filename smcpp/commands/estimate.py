@@ -15,35 +15,36 @@ import os
 import traceback
 
 # Package imports
-from .. import _pypsmcpp, util, em_context as ctx
+from .. import _smcpp, util, em_context as ctx
 
 np.set_printoptions(linewidth=120)
 logger = logging.getLogger(__name__)
 
 def init_parser(parser):
     '''Configure parser and parse args.'''
-    pop_params = parser.add_argument_group('population parameters')
-    model = parser.add_argument_group('model')
-    hmm = parser.add_argument_group('HMM and fitting parameters')
-    parser.add_argument("-o", "--output-directory", help="output directory", default=".")
-    parser.add_argument('-v', '--verbose', action='store_true', help="output lots of debugging info")
-    pop_params.add_argument('--N0', type=float, help="reference effective (diploid) population size", required=True)
-    pop_params.add_argument('--mu', type=float, help="per-generation mutation rate", required=True)
-    pop_params.add_argument('--r', type=float, help="per-generation recombination rate", required=True)
-    model.add_argument('--pieces', type=str, help="span of model pieces", required=True, default="32*1")
-    model.add_argument('--t1', type=float, help="end-point of first piece, in generations", required=True, default=40.)
-    model.add_argument('--tK', type=float, help="end-point of last piece, in generations", required=True, default=40000.)
+    # FIXME: argument groups not supported in subparsers
+    pop_params = parser # parser.add_argument_group('population parameters')
+    model = parser # parser.add_argument_group('model')
+    hmm = parser # parser.add_argument_group('HMM and fitting parameters')
+    model.add_argument('--pieces', type=str, help="span of model pieces", default="32*1")
+    model.add_argument('--t1', type=float, help="end-point of first piece, in generations", default=400.)
+    model.add_argument('--tK', type=float, help="end-point of last piece, in generations", default=40000.)
     model.add_argument('--exponential-pieces', type=int, action="append", default=[], help="pieces which have exponential growth")
     hmm.add_argument('--thinning', help="emit full SFS every <k>th site", default=None, type=int, metavar="k")
     hmm.add_argument('--no-pretrain', help="do not pretrain model", action="store_true", default=False)
-    hmm.add_argument('--M', type=int, help="number of hidden states", required=True, default=32)
+    hmm.add_argument('--M', type=int, help="number of hidden states", default=32)
     hmm.add_argument('--em-iterations', type=float, help="number of EM steps to perform", default=20)
     hmm.add_argument('--lambda-penalty', type=float, help="regularization penalty", default=.01)
-    hmm.add_argument('--lbfgs-factor', type=float, help="stopping criterion for optimizer", default=1e10)
+    hmm.add_argument('--lbfgs-factor', type=float, help="stopping criterion for optimizer", default=1e9)
     hmm.add_argument('--Nmin', type=float, help="Lower bound on effective population size", default=500)
     hmm.add_argument('--Nmax', type=float, help="Upper bound on effective population size", default=100000)
     hmm.add_argument('--span-cutoff', help="treat spans > as missing", default=50000, type=int)
     hmm.add_argument('--length-cutoff', help="omit sequences < cutoff", default=1000000, type=int)
+    parser.add_argument("-o", "--output-directory", help="output directory", default="/tmp")
+    parser.add_argument('-v', '--verbose', action='store_true', help="generate tremendous amounts of output")
+    pop_params.add_argument('N0', type=float, help="reference effective (diploid) population size")
+    pop_params.add_argument('mu', type=float, help="per-generation mutation rate")
+    pop_params.add_argument('r', type=float, help="per-generation recombination rate")
     parser.add_argument('data', nargs="+", help="data file(s) in SMC++ format")
 
 def _obsfs_helper(args):
@@ -56,7 +57,7 @@ def _obsfs_helper(args):
     return obsfs
 
 def _thin_helper(args):
-    thinned = np.array(_pypsmcpp.thin_data(*args), dtype=np.int32)
+    thinned = np.array(_smcpp.thin_data(*args), dtype=np.int32)
     return util.compress_repeated_obs(thinned)
 
 def exp_quantiles(M, h_M):
@@ -98,9 +99,9 @@ def pretrain(args, obsfs):
             y[cc] = xx
         y[1, ctx.flat_pieces] = y[0, ctx.flat_pieces]
         print(y)
-        sfs, jac = _pypsmcpp.sfs(n, (y[0], y[1], ctx.s), 0., 49.0, ctx.theta, coords)
-        usfs = undistinguished_sfs(sfs)
-        ujac = undistinguished_sfs(jac)
+        sfs, jac = _smcpp.sfs(n, (y[0], y[1], ctx.s), 0., 49.0, ctx.theta, coords)
+        usfs = util.undistinguished_sfs(sfs)
+        ujac = util.undistinguished_sfs(jac)
         kl = -(uobsfs * np.log(usfs)).sum()
         dkl = -(uobsfs[:, None] * ujac / usfs[:, None]).sum(axis=0)
         ret = [kl, dkl]
@@ -141,7 +142,7 @@ def optimize(coords, factr):
             x0c[cc] = xx * ctx.precond[cc]
         aa, bb = x0c
         bb[ctx.flat_pieces] = aa[ctx.flat_pieces]
-        ctx.im.setParams((aa, bb, ctx.s), coords)
+        ctx.im.set_params((aa, bb, ctx.s), coords)
         res = ctx.im.Q()
         lls = np.array([ll for ll, jac in res])
         jacs = np.array([jac for ll, jac in res])
@@ -180,7 +181,7 @@ def optimize(coords, factr):
             x0c[cc] = xx
         aa, bb = x0c
         bb[ctx.flat_pieces] = aa[ctx.flat_pieces]
-        ctx.im.setParams((aa, bb, ctx.s), False)
+        ctx.im.set_params((aa, bb, ctx.s), False)
         res = ctx.im.Q()
         reg = ctx.im.regularizer
         reg *= ctx.lambda_penalty
@@ -195,7 +196,7 @@ def optimize(coords, factr):
         bb[ctx.flat_pieces] = aa[ctx.flat_pieces]
         logger.info("f2\n%s" % str(np.array([aa,bb])))
         try:
-            ctx.im.setParams((aa, bb, ctx.s), coords)
+            ctx.im.set_params((aa, bb, ctx.s), coords)
         except RuntimeError as e:
             if e.message == "SFS is not a probability distribution":
                 logger.warn("extreme parameter values led to numerical problems in SFS calculation")
@@ -252,7 +253,7 @@ def write_size_history(fn):
         out.write("# hidden states:%s" % " ".join("%g" % h for h in ctx.hidden_states))
         out.write("# a\tb\ts\n")
         ctx.s[-1] = np.inf
-        ret = np.array([ctx.a * 2 * ctx.N0, ctx.b * 2 * ctx.N0, np.cumsum(ctx.s) * 2 * ctx.N0]).T 
+        ret = np.array([ctx.a * ctx.N0, ctx.b * ctx.N0, np.cumsum(ctx.s) * 2 * ctx.N0]).T 
         np.savetxt(out, ret, fmt="%f", delimiter="\t")
     return ret
 
@@ -379,14 +380,14 @@ def main(args):
         ctx.a[:], ctx.b[:] = pretrain(args, obsfs)
 
     ## Compute hidden states
-    hs = _pypsmcpp.balance_hidden_states((ctx.a, ctx.b, ctx.s), args.M)
+    hs = _smcpp.balance_hidden_states((ctx.a, ctx.b, ctx.s), args.M)
     if hs[0] != 0:
         raise Exception("First hidden state interval must begin at 0")
     ctx.hidden_states = np.sort(np.unique(np.concatenate([np.cumsum(ctx.s), hs])))
     logger.info("hidden states:\n%s", str(ctx.hidden_states))
 
     ## Create inference object which will be used for all further calculations.
-    ctx.im = _pypsmcpp.PyInferenceManager(n - 2, ctx.obs_list, 
+    ctx.im = _smcpp.PyInferenceManager(n - 2, ctx.obs_list, 
             ctx.hidden_states, ctx.theta, ctx.rho)
     ctx.im.set_params([ctx.a, ctx.b, ctx.s], False)
     ctx.im.E_step()
@@ -414,7 +415,7 @@ def main(args):
         if ll < ctx.llold:
             logger.warn("Log-likelihood decreased")
         ctx.llold = ll
-        esfs = _pypsmcpp.sfs(n, (ctx.a, ctx.b, ctx.s), 0.0, 
+        esfs = _smcpp.sfs(n, (ctx.a, ctx.b, ctx.s), 0.0, 
                 ctx.hidden_states[-1], ctx.theta, False)
         write_size_history(os.path.join(args.output_directory, "size_history.%d.txt" % i))
         logger.info("model sfs:\n%s" % str(esfs))

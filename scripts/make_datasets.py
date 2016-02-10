@@ -49,6 +49,13 @@ def perform_sim(args):
         ret = (L, new_positions, np.array(new_haps, dtype=np.int32).T) + ret[3:]
     return ret
 
+def process_psmc(args):
+    data, n = args
+    obs = psmcpp.lib.util.hmm_data_format(data, n, (0, 1))
+    obsiter = ((x[0], x[1:]) for x in obs)
+    seqs = ("K" if np.sum(ob, axis=0)[0] > 0 else "T" for ob in psmcpp.lib.util.grouper(psmcpp.lib.util.unpack(obsiter), 100))
+    return "\n".join("".join(sq) for sq in psmcpp.lib.util.grouper(seqs, 60, ""))
+
 def process_tmrca(args):
     fn, trees = args
     A = []
@@ -111,15 +118,14 @@ if __name__ == "__main__":
 
     if args.sawtooth:
         st = psmcpp.lib.util.sawtooth
-        a0 = st['a']
-        b0 = st['b']
+        a0 = st['a'] / (2. * args.N0)
+        b0 = st['b'] / (2. * args.N0)
         s0 = st['s_gen'] / (2. * args.N0)
     elif args.human:
         hum = psmcpp.lib.util.human
-        a0 = hum['a']
-        b0 = hum['b']
+        a0 = hum['a'] / (2. * args.N0)
+        b0 = hum['b'] / (2. * args.N0)
         s0 = hum['s_gen'] / (2. * args.N0)
-# MSMC sample demography
     else:
         a0 = np.array(args.a)
         b0 = np.array(args.b)
@@ -161,9 +167,6 @@ if __name__ == "__main__":
         obs = [psmcpp.lib.util.hmm_data_format(data, 2 * args.n, p) for data in data_sets for p in pairs]
         pool.map(savetxt, [(os.path.join(smcpp_outdir, "%i.txt.gz" % i), ob) for i, ob in enumerate(obs, 1)])
 
-    pool.close()
-    pool.join()
-
     if not(any([args.psmc, args.dical, args.msmc])): sys.exit(0)
 
 # 2. Write psmc format
@@ -171,13 +174,8 @@ if __name__ == "__main__":
 # psmcfa format: N: missing, K: het, T: homo, block_len: 100, linewidth 60
         psmc_outdir = mk_outdir("psmc")
         with open(os.path.join(psmc_outdir, "psmc.psmcfa"), "wt") as f:
-            for i, data in enumerate(data_sets, 1):
-                obs = psmcpp.lib.util.hmm_data_format(data, args.n, (0, 1))
-                f.write(">seq{i}\n".format(i=i))
-                obsiter = ((x[0], x[1:]) for x in obs)
-                seqs = ["K" if np.sum(ob, axis=0)[0] > 0 else "T" for ob in psmcpp.lib.util.grouper(psmcpp.lib.util.unpack(obsiter), 100)]
-                f.writelines("".join(sq) + "\n" for sq in psmcpp.lib.util.grouper(seqs, 60, ""))
-
+            for i, seq in enumerate(pool.map(process_psmc, [(data, args.n) for data in data_sets])):
+                f.write(">seq{i}\n{seq}\n".format(i=i, seq=seq))
 
 # The next two methods require phased data. To model the effect of
 # computational phasing algorithms we create haplotypes with switch
@@ -186,9 +184,8 @@ if __name__ == "__main__":
 # 3. Write msmc / dical format
     if args.msmc:
         if args.msmc_sample_size is None:
-            args.msmc_sample_size = args.n
+            args.msmc_sample_size = 2 * args.n
         msmc_template = "seq{chrom}\t{pos}\t{dist}\t{gts}\n"
-        msmc_bps = np.array(["A", "G"])
         msmc_outdir = os.path.join(args.outdir, "msmc")
         try:
             os.makedirs(msmc_outdir)
@@ -222,11 +219,10 @@ if __name__ == "__main__":
             lpos = pos
             gts = list(data_set[2][:args.msmc_sample_size, i])
             for i in range(len(gts) // 2):
-                phase_error[i] = phase_error[i] ^ (random.random() < args.switch_error)
+                phase_error[i] = phase_error[i] ^ (np.random.random() < args.switch_error)
                 gts[i], gts[i + 1] = gts[i + phase_error[i]], gts[i + 1 - phase_error[i]]
                 rec.append("%i|%i" % (gts[i], gts[i + 1]))
             if args.dical:
                 dical_vcf.write("\t".join(rec) + "\n")
-            bps = msmc_bps[gts]
             if args.msmc:
-                msmc_txt.write(msmc_template.format(chrom=c, pos=pos, dist=dist, gts="".join(bps)))
+                msmc_txt.write(msmc_template.format(chrom=c, pos=pos, dist=dist, gts="".join(map(str, gts))))
