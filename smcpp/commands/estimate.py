@@ -9,7 +9,6 @@ import sys
 import itertools
 import sys
 import time
-import configargparse
 import logging
 import os
 import traceback
@@ -40,12 +39,13 @@ def init_parser(parser):
     hmm.add_argument('--Nmax', type=float, help="Upper bound on effective population size", default=100000)
     hmm.add_argument('--span-cutoff', help="treat spans > as missing", default=50000, type=int)
     hmm.add_argument('--length-cutoff', help="omit sequences < cutoff", default=1000000, type=int)
-    parser.add_argument("-o", "--output-directory", help="output directory", default="/tmp")
+    parser.add_argument("outdir", help="output directory", default="/tmp", widget="DirChooser")
     parser.add_argument('-v', '--verbose', action='store_true', help="generate tremendous amounts of output")
     pop_params.add_argument('N0', type=float, help="reference effective (diploid) population size")
     pop_params.add_argument('mu', type=float, help="per-generation mutation rate")
     pop_params.add_argument('r', type=float, help="per-generation recombination rate")
-    parser.add_argument('data', nargs="+", help="data file(s) in SMC++ format")
+    parser.add_argument('data', nargs="+", help="data file(s) in SMC++ format", 
+            widget="MultiFileChooser")
 
 def _obsfs_helper(args):
     ol, n = args
@@ -265,7 +265,7 @@ def main(args):
 
     ## Create output directory and dump all values for use later
     try:
-        os.makedirs(args.output_directory)
+        os.makedirs(args.outdir)
     except OSError:
         pass # directory exists
 
@@ -276,7 +276,7 @@ def main(args):
         logging.root.removeHandler(logging.root.handlers[-1])
     fmtstr = '%(asctime)s %(name)-12s %(levelname)-8s %(message)s'
     logging.basicConfig(level=logging.DEBUG, 
-            filename=os.path.join(args.output_directory, "debug.txt"),
+            filename=os.path.join(args.outdir, "debug.txt"),
             filemode='wt',
             format=fmtstr)
     sh = logging.StreamHandler()
@@ -417,8 +417,8 @@ def main(args):
         ctx.llold = ll
         esfs = _smcpp.sfs(n, (ctx.a, ctx.b, ctx.s), 0.0, 
                 ctx.hidden_states[-1], ctx.theta, False)
-        write_size_history(os.path.join(args.output_directory, "size_history.%d.txt" % i))
+        write_size_history(os.path.join(args.outdir, "size_history.%d.txt" % i))
         logger.info("model sfs:\n%s" % str(esfs))
         logger.info("observed sfs:\n%s" % str(obsfs))
         i += 1
-    write_size_history(os.path.join(args.output_directory, "size_history.final.txt"))
+    write_size_history(os.path.join(args.outdir, "size_history.final.txt"))

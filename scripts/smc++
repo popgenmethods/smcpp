@@ -1,11 +1,17 @@
 #!/usr/bin/env python2.7
 'Perform various inference and data management tasks using SMC++'
-import argparse
+from argparse import ArgumentParser
 import sys
 import os.path
-from gooey import Gooey, GooeyParser
 
 import smcpp.commands as commands
+
+# Simple wrapper class which ignores the widget option,
+# enabling us to degrade gracefully in the non-GUI case.
+class IgnorantArgumentParser(ArgumentParser):
+    def add_argument(self, *args, **kwargs):
+        kwargs.pop("widget", None)
+        ArgumentParser.add_argument(self, *args, **kwargs)
 
 def init_parser_class(parser_module, parser):
     parser_module.init_parser(parser)
@@ -13,7 +19,8 @@ def init_parser_class(parser_module, parser):
         parser_module.main(args)
     parser.set_defaults(func=main)
 
-def main(parser):
+def main():
+    parser = main.parser_cls()
     subparsers = parser.add_subparsers()
     # Initialize arguments. Each object is responsible for setting the
     # args.func, where the work takes place.
@@ -32,6 +39,9 @@ def main(parser):
 
 if __name__ == "__main__":
     if os.path.basename(sys.argv[0]) == "smc++-gui":
-        Gooey(main)(GooeyParser())
+        from gooey import Gooey, GooeyParser
+        main = Gooey(main)
+        main.parser_cls = GooeyParser
     else:
-        main(argparse.ArgumentParser())
+        main.parser_cls = IgnorantArgumentParser
+    main()
