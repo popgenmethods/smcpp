@@ -6,8 +6,8 @@ def init_parser(parser):
     parser.add_argument("-g", type=float, default=25.0, help="generation time")
     parser.add_argument("--xlim", type=str, default="100,1000000", help="xmin,xmax pair")
     parser.add_argument("--ylim", type=str, default=None, help="ymin,ymax pair")
-    parser.add_argument("pdf", type=str, help="output PDF")
-    parser.add_argument("out", type=str, help="<label:filename> pairs", nargs="+")
+    parser.add_argument("pdf", type=str, help="output PDF", widget="FileChooser")
+    parser.add_argument("out", type=str, help="label:filename pairs", nargs="+", widget="MultiFileChooser")
 
 def main(args):
     psfs = {}

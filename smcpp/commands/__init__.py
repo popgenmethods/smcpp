@@ -1,1 +1,1 @@
-import estimate, decode, plot, convert
+import estimate, plot, plot_posterior, convert
