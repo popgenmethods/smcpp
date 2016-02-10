@@ -293,7 +293,6 @@ MatrixCache& ConditionedSFSBase::cached_matrices(int n)
         // file << "X0\n" << ret.X0 << "\n\nX2\n" << ret.X2 << "\n\nM0\n" << ret.M0 << "\n\nM1\n" << ret.M1 << std::endl;
         // file.close();
         matrix_cache[n] = ret;
-        std::cout << "done" << std::endl;
     }
     return matrix_cache[n];
 }
