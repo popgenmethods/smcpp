@@ -1,3 +1,4 @@
+from __future__ import print_function
 import numpy as np
 from setuptools import setup, Extension, find_packages
 from Cython.Build import cythonize
@@ -15,8 +16,8 @@ extensions = [
             language="c++",
             include_dirs=["src", "/usr/include/eigen3", "/usr/local/include/eigen3", np.get_include(), "/export/home/terhorst/opt/lib"],
             # extra_compile_args=["-O0", "-ggdb3", "-std=c++11", "-Wfatal-errors", "-Wno-unused-variable", "-Wno-unused-function", "-D_GLIBCXX_DEBUG"],
-            extra_compile_args=["-O2", "-g", "-std=c++11", "-Wfatal-errors", "-Wno-unused-variable", "-Wno-unused-function", "-fopenmp"],
-            libraries=['stdc++', 'gmp', 'gmpxx', 'gsl', 'gslcblas'],
+            extra_compile_args=["-O2", "-std=c++11", "-Wfatal-errors", "-Wno-unused-variable", "-Wno-unused-function", "-fopenmp"],
+            libraries=['gmp', 'gmpxx', 'gsl', 'gslcblas'],
             extra_link_args=['-fopenmp']
             ),
         Extension(
@@ -24,8 +25,7 @@ extensions = [
             # sources=["src/_pypsmcpp.pyx", "src/conditioned_sfs.cpp", "src/hmm.cpp"],
             sources=["src/_newick.pyx"],
             language="c++",
-            extra_compile_args=["-O3", "-DNDEBUG", "-std=c++11", "-Wfatal-errors", "-Wno-unused-variable", "-Wno-unused-function"],
-            libraries=['stdc++'],
+            extra_compile_args=["-O2", "-std=c++11", "-Wfatal-errors", "-Wno-unused-variable", "-Wno-unused-function"],
             ),
         ]
 
@@ -39,10 +39,14 @@ setup(name='smcpp',
         url='https://github.com/terhorst/smc++',
         ext_modules=cythonize(extensions),
         packages=find_packages(),
-        scripts=["scripts/smc++", "scripts/smc++-gui"],
         install_requires=[
-            "cython>=0.21",
+            "cython>=0.23",
             "scipy>=0.16",
             "numpy>=1.9",
-            "gooey>=0.9"]
+            "matplotlib>=1.5"],
+        extras_require = {'gui': ["Gooey>=0.9"]},
+        entry_points = {
+            'console_scripts': ['smc++ = smcpp.frontend:console'],
+            'gui_scripts': ['smc++-gui = smcpp.frontend:gui [gui]']
+            }
     )

@@ -19,8 +19,8 @@ def init_parser_class(parser_module, parser):
         parser_module.main(args)
     parser.set_defaults(func=main)
 
-def main():
-    parser = main.parser_cls()
+def run(parser_cls):
+    parser = parser_cls()
     subparsers = parser.add_subparsers()
     # Initialize arguments. Each object is responsible for setting the
     # args.func, where the work takes place.
@@ -38,20 +38,9 @@ def main():
     args = parser.parse_args()
     args.func(args)
 
-if __name__ == "__main__":
-    if os.path.basename(sys.argv[0]) == "smc++-gui":
-        try:
-            import wx
-        except ImportError:
-            sys.exit("wx module not found. Please install wxPython "
-                     "(http://www.wxpython.org/download.php) in order to use the GUI.")
-        try:
-            from gooey import Gooey, GooeyParser
-        except ImportError:
-            sys.exit("gooey module not found. Please install gooey "
-                     "($ pip install gooey) in order to use the GUI.")
-        main = Gooey(main)
-        main.parser_cls = GooeyParser
-    else:
-        main.parser_cls = IgnorantArgumentParser
-    main()
+def console():
+    run(IgnorantArgumentParser)
+
+def gui():
+    run = Gooey(run)
+    run(GooeyParser)

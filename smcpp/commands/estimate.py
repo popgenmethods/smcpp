@@ -17,7 +17,7 @@ import traceback
 from .. import _smcpp, util, em_context as ctx
 from ..model import SMCModel
 
-np.set_printoptions(linewidth=120)
+np.set_printoptions(linewidth=120, suppress=True)
 logger = logging.getLogger(__name__)
 
 def init_parser(parser):
@@ -36,8 +36,8 @@ def init_parser(parser):
     hmm.add_argument('--em-iterations', type=float, help="number of EM steps to perform", default=20)
     hmm.add_argument('--lambda-penalty', type=float, help="regularization penalty", default=.01)
     hmm.add_argument('--lbfgs-factor', type=float, help="stopping criterion for optimizer", default=1e9)
-    hmm.add_argument('--Nmin', type=float, help="Lower bound on effective population size", default=500)
-    hmm.add_argument('--Nmax', type=float, help="Upper bound on effective population size", default=100000)
+    hmm.add_argument('--Nmin', type=float, help="Lower bound on effective population size", default=1000)
+    hmm.add_argument('--Nmax', type=float, help="Upper bound on effective population size", default=400000)
     hmm.add_argument('--span-cutoff', help="treat spans > as missing", default=50000, type=int)
     hmm.add_argument('--length-cutoff', help="omit sequences < cutoff", default=1000000, type=int)
     parser.add_argument("outdir", help="output directory", default="/tmp", widget="DirChooser")

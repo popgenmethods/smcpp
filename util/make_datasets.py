@@ -4,19 +4,21 @@
 import numpy as np
 import random
 import sys
+sys.path.append("util/")
 import multiprocessing
 import argparse
 import cPickle as pickle
 import os.path
 import vcf
 import cStringIO
-import psmcpp, psmcpp.lib.scrm, psmcpp.lib.util
 from collections import Counter
+
+import scrm, smcpp.util
 
 def perform_sim(args):
     n, N0, theta, rho, L, demography, seed, trees, missing = args
     np.random.seed(seed)
-    ret = psmcpp.lib.scrm.simulate(n, N0, theta, rho, L, demography, trees)
+    ret = scrm.simulate(n, N0, theta, rho, L, demography, trees)
     positions, haps = ret[1:3]
     c = Counter(haps.sum(axis=0))
     psfs = [0] * (n - 1)
@@ -51,15 +53,34 @@ def perform_sim(args):
 
 def process_psmc(args):
     data, n = args
-    obs = psmcpp.lib.util.hmm_data_format(data, n, (0, 1))
+    obs = smcpp.util.hmm_data_format(data, n, (0, 1))
     obsiter = ((x[0], x[1:]) for x in obs)
-    seqs = ("K" if np.sum(ob, axis=0)[0] > 0 else "T" for ob in psmcpp.lib.util.grouper(psmcpp.lib.util.unpack(obsiter), 100))
-    return "\n".join("".join(sq) for sq in psmcpp.lib.util.grouper(seqs, 60, ""))
+    seqs = ("K" if np.sum(ob, axis=0)[0] > 0 else "T" for ob in smcpp.util.grouper(smcpp.util.unpack(obsiter), 100))
+    return "\n".join("".join(sq) for sq in smcpp.util.grouper(seqs, 60, ""))
+
+def process_msmc(tup):
+    c, data_set, msmc_template, msmc_outdir, args = tup
+    msmc_txt = open(os.path.join(msmc_outdir, "seq{chrom}.txt".format(chrom=c)), "wt")
+    lpos = -1
+    # Assume phasing is correct initially
+    phase_error = np.zeros(args.msmc_sample_size, dtype=bool)
+    for i, pos in enumerate(data_set[1]):
+        rec = ["seq%i" % c, str(pos), ".", ".", ".", "70", "PASS", "."]
+        if data_set[2][:args.msmc_sample_size, i].sum() == 0:
+            continue
+        dist = pos - lpos
+        lpos = pos
+        gts = list(data_set[2][:args.msmc_sample_size, i])
+        for i in range(len(gts) // 2):
+            phase_error[i] = phase_error[i] ^ (np.random.random() < args.switch_error)
+            gts[i], gts[i + 1] = gts[i + phase_error[i]], gts[i + 1 - phase_error[i]]
+            rec.append("%i|%i" % (gts[i], gts[i + 1]))
+        msmc_txt.write(msmc_template.format(chrom=c, pos=pos, dist=dist, gts="".join(map(str, gts))))
 
 def process_tmrca(args):
     fn, trees = args
     A = []
-    from psmcpp._newick import tmrca
+    from smcpp._newick import tmrca
     last_d12 = None
     sp = 0
     for span, tree in trees:
@@ -102,7 +123,7 @@ if __name__ == "__main__":
     parser.add_argument("--psmc", action="store_true", default=False, help="Generate dataset for PSMC")
     parser.add_argument("--msmc", action="store_true", default=False, help="Generate dataset for MSMC")
     parser.add_argument("--msmc-sample-size", default=None, type=int, help="Use subset of size <k> for MSMC dataset")
-    parser.add_argument("--dical", action="store_true",  default=False, help="Generate dataset for diCal")
+    # parser.add_argument("--dical", action="store_true",  default=False, help="Generate dataset for diCal")
     args = parser.parse_args()
     assert 0. <= args.missing < 1
 
@@ -117,12 +138,12 @@ if __name__ == "__main__":
     np.random.seed(args.seed)
 
     if args.sawtooth:
-        st = psmcpp.lib.util.sawtooth
-        a0 = st['a'] / (2. * args.N0)
-        b0 = st['b'] / (2. * args.N0)
-        s0 = st['s_gen'] / (2. * args.N0)
+        st = smcpp.util.sawtooth
+        a0 = st['a']
+        b0 = st['b']
+        s0 = st['s']
     elif args.human:
-        hum = psmcpp.lib.util.human
+        hum = smcpp.util.human
         a0 = hum['a'] / (2. * args.N0)
         b0 = hum['b'] / (2. * args.N0)
         s0 = hum['s_gen'] / (2. * args.N0)
@@ -134,12 +155,12 @@ if __name__ == "__main__":
     if args.panel_size is None:
         args.panel_size = 2 * args.n
 
-    demography = psmcpp.lib.scrm.demography_from_params((a0, b0, s0 * 0.5))
+    demography = scrm.demography_from_params((a0, b0, s0 * 0.5))
 
 # Generate data set using scrm
     print("simulating")
 
-    pool = multiprocessing.Pool(None)
+    pool = multiprocessing.Pool(args.C)
     data_sets = list(pool.imap_unordered(perform_sim, 
         [(args.panel_size, args.N0, args.theta, args.rho, args.L, 
             demography, np.random.randint(0, 4000000000), args.trees,
@@ -164,10 +185,10 @@ if __name__ == "__main__":
 # 1. Write smc++ format
     if args.smcpp:
         smcpp_outdir = mk_outdir("smc++")
-        obs = [psmcpp.lib.util.hmm_data_format(data, 2 * args.n, p) for data in data_sets for p in pairs]
+        obs = [smcpp.util.hmm_data_format(data, 2 * args.n, p) for data in data_sets for p in pairs]
         pool.map(savetxt, [(os.path.join(smcpp_outdir, "%i.txt.gz" % i), ob) for i, ob in enumerate(obs, 1)])
 
-    if not(any([args.psmc, args.dical, args.msmc])): sys.exit(0)
+    if not(any([args.psmc, args.msmc])): sys.exit(0)
 
 # 2. Write psmc format
     if args.psmc:
@@ -191,38 +212,4 @@ if __name__ == "__main__":
             os.makedirs(msmc_outdir)
         except OSError:
             pass
-# Dical
-    if args.dical:
-        dical_dir = os.path.join(args.outdir, "dical")
-        try:
-            os.makedirs(dical_dir)
-        except OSError:
-            pass
-        dical_vcf = open(os.path.join(dical_dir, "dical.vcf"), "wt")
-        dical_vcf.write("#")
-        dical_vcf.write("\t".join("CHROM POS ID REF ALT QUAL FILTER INFO".split()))
-        dical_vcf.write("\t")
-        dical_vcf.write("\t".join(["IND%i" % k for k in range(1, args.n // 2 + 1)]))
-        dical_vcf.write("\n")
-
-    for c, data_set in enumerate(data_sets, 1):
-        if args.msmc:
-            msmc_txt = open(os.path.join(msmc_outdir, "seq{chrom}.txt".format(chrom=c)), "wt")
-        lpos = -1
-        # Assume phasing is correct initially
-        phase_error = np.zeros(args.msmc_sample_size, dtype=bool)
-        for i, pos in enumerate(data_set[1]):
-            rec = ["seq%i" % c, str(pos), ".", ".", ".", "70", "PASS", "."]
-            if data_set[2][:args.msmc_sample_size, i].sum() == 0:
-                continue
-            dist = pos - lpos
-            lpos = pos
-            gts = list(data_set[2][:args.msmc_sample_size, i])
-            for i in range(len(gts) // 2):
-                phase_error[i] = phase_error[i] ^ (np.random.random() < args.switch_error)
-                gts[i], gts[i + 1] = gts[i + phase_error[i]], gts[i + 1 - phase_error[i]]
-                rec.append("%i|%i" % (gts[i], gts[i + 1]))
-            if args.dical:
-                dical_vcf.write("\t".join(rec) + "\n")
-            if args.msmc:
-                msmc_txt.write(msmc_template.format(chrom=c, pos=pos, dist=dist, gts="".join(map(str, gts))))
+    pool.map(process_msmc, [(i, ds, msmc_template, msmc_outdir, args) for i, ds in enumerate(data_sets)])
