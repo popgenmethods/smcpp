@@ -13,8 +13,7 @@ from collections import Counter
 import re
 from cStringIO import StringIO
 
-import _newick
-import util
+import smcpp._newick, smcpp.util
 
 logger = logging.getLogger(__name__)
 scrm = sh.Command(os.environ['SCRM_PATH'])
@@ -30,7 +29,7 @@ def tree_obs_iter(l1, l2, trees):
 def true_hidden_states(trees, distinguished_lineages):
     tb = []
     M = len(hs) - 1
-    for block in util.grouper(tree_obs_iter(trees), block_size):
+    for block in smcpp.util.grouper(tree_obs_iter(trees), block_size):
         a = np.zeros([M, 1])
         c = Counter(block)
         s = sum(c.values())
@@ -123,9 +122,10 @@ def simulate(n, N0, theta, rho, L, demography=[], include_trees=False):
     seeds = np.random.randint(0, sys.maxint, size=3)
     r = 4 * N0 * rho * (L - 1)
     t = 4 * N0 * theta * L
-    args = [n, 1, '-l', 0, '-p', int(math.log10(L)) + 2, '-t', t, '-r', r, L, '-oSFS', '-seeds'] + list(seeds) + demography
+    args = [n, 1, '-p', int(math.log10(L)) + 2, '-t', t, '-r', r, L, '-oSFS', '-seeds'] + list(seeds) + demography
     if include_trees:
         args.append("-T")
+    print(args)
     output = scrm(*args, _iter=True)
     cmd_line, seed, _, _ = [line.strip() for line in itertools.islice(output, 4)]
     ret = parse_scrm(n, L, output, include_trees)
@@ -144,6 +144,7 @@ def distinguished_sfs(n, M, N0, theta, demography, t0=0.0, t1=np.inf):
     if t0 > 0.0 or t1 < np.inf:
         args.append("-T")
     cmd = os.environ['SCRM_PATH'] + " " + " ".join(map(str, args))
+    print(args)
     output = scrm(*args, _iter=True)
     avgsfs = np.zeros([3, n - 1], dtype=float)
     fs = frozenset([0, 1])

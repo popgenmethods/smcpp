@@ -1,12 +1,6 @@
 obs_list = None
-x = None
-a = None
-b = None
-s = None
+model = None
 precond = None
 lambda_penalty = None
 bounds = None
-K = None
 flat_pieces = None
-N0 = None
-theta = None

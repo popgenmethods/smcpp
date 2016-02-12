@@ -15,8 +15,9 @@ import traceback
 
 # Package imports
 from .. import _smcpp, util, em_context as ctx
+from ..model import SMCModel
 
-np.set_printoptions(linewidth=120)
+np.set_printoptions(linewidth=120, suppress=True)
 logger = logging.getLogger(__name__)
 
 def init_parser(parser):
@@ -35,8 +36,8 @@ def init_parser(parser):
     hmm.add_argument('--em-iterations', type=float, help="number of EM steps to perform", default=20)
     hmm.add_argument('--lambda-penalty', type=float, help="regularization penalty", default=.01)
     hmm.add_argument('--lbfgs-factor', type=float, help="stopping criterion for optimizer", default=1e9)
-    hmm.add_argument('--Nmin', type=float, help="Lower bound on effective population size", default=500)
-    hmm.add_argument('--Nmax', type=float, help="Upper bound on effective population size", default=100000)
+    hmm.add_argument('--Nmin', type=float, help="Lower bound on effective population size", default=1000)
+    hmm.add_argument('--Nmax', type=float, help="Upper bound on effective population size", default=400000)
     hmm.add_argument('--span-cutoff', help="treat spans > as missing", default=50000, type=int)
     hmm.add_argument('--length-cutoff', help="omit sequences < cutoff", default=1000000, type=int)
     parser.add_argument("outdir", help="output directory", default="/tmp", widget="DirChooser")
@@ -71,8 +72,8 @@ def regularizer(y, coords, cons):
     reg = 0
     dreg = np.zeros(len(coords))
     aa, bb = y
-    cs = np.cumsum(ctx.s)
-    for i in range(1, ctx.K):
+    cs = np.cumsum(ctx.model.s)
+    for i in range(1, ctx.model.K):
         x = bb[i - 1] - aa[i]
         _cons = cons
         # rr = (abs(x) - .25) if abs(x) >= 0.5 else x**2
@@ -88,9 +89,9 @@ def regularizer(y, coords, cons):
 
 def pretrain(args, obsfs):
     n = obsfs.shape[1] + 1
-    coords = [(u, v) for v in range(ctx.K) for u in ([0] if v in ctx.flat_pieces else [0, 1])]
-    a = np.ones(ctx.K)
-    b = np.ones(ctx.K)
+    coords = [(u, v) for v in range(ctx.model.K) for u in ([0] if v in ctx.flat_pieces else [0, 1])]
+    a = np.ones(ctx.model.K)
+    b = np.ones(ctx.model.K)
     uobsfs = util.undistinguished_sfs(obsfs)
     logger.info(uobsfs)
     def f(x):
@@ -99,7 +100,7 @@ def pretrain(args, obsfs):
             y[cc] = xx
         y[1, ctx.flat_pieces] = y[0, ctx.flat_pieces]
         print(y)
-        sfs, jac = _smcpp.sfs(n, (y[0], y[1], ctx.s), 0., 49.0, ctx.theta, coords)
+        sfs, jac = _smcpp.sfs(n, (y[0], y[1], ctx.model.s), 0., 49.0, ctx.model.theta, coords)
         usfs = util.undistinguished_sfs(sfs)
         ujac = util.undistinguished_sfs(jac)
         kl = -(uobsfs * np.log(usfs)).sum()
@@ -115,7 +116,7 @@ def pretrain(args, obsfs):
     x0 = np.ones(len(coords))
     res = scipy.optimize.fmin_l_bfgs_b(f, x0, None,
             bounds=[tuple(ctx.bounds[cc]) for cc in coords])
-    ret = np.ones([2, ctx.K])
+    ret = np.ones([2, ctx.model.K])
     for cc, xx in zip(coords, res[0]):
         ret[cc] = xx
     ret[1, ctx.flat_pieces] = ret[0, ctx.flat_pieces]
@@ -136,13 +137,13 @@ def extract_pieces(piece_str):
 
 def optimize(coords, factr):
     def fprime(x):
-        x0c = ctx.x.copy()
+        x0c = ctx.model.x.copy()
         # Preconditioner (sort of)
         for xx, cc in zip(x, coords):
             x0c[cc] = xx * ctx.precond[cc]
-        aa, bb = x0c
+        aa, bb, _ = x0c
         bb[ctx.flat_pieces] = aa[ctx.flat_pieces]
-        ctx.im.set_params((aa, bb, ctx.s), coords)
+        ctx.im.set_params((aa, bb, ctx.model.s), coords)
         res = ctx.im.Q()
         lls = np.array([ll for ll, jac in res])
         jacs = np.array([jac for ll, jac in res])
@@ -150,7 +151,7 @@ def optimize(coords, factr):
         reg, dreg = regularizer([aa, bb], coords, ctx.lambda_penalty)
         ret[0] += reg
         ret[1] += dreg
-        dary = np.zeros([2, ctx.K])
+        dary = np.zeros([2, ctx.model.K])
         for i, cc in enumerate(coords):
             ret[1][i] *= ctx.precond[cc]
             dary[cc] = ret[1][i]
@@ -167,102 +168,17 @@ def optimize(coords, factr):
     #     x0c[i] += 1e-8
     #     f1, _ = fprime(x0c)
     #     logger.debug((i, cc, f1, f0, (f1 - f0) / 1e-8, fp[i]))
-    res = scipy.optimize.fmin_l_bfgs_b(fprime, [ctx.x[cc] / ctx.precond[cc] for cc in coords], 
+    res = scipy.optimize.fmin_l_bfgs_b(fprime, [ctx.model.x[cc] / ctx.precond[cc] for cc in coords], 
             None, bounds=[tuple(ctx.bounds[cc] / ctx.precond[cc]) for cc in coords], 
             factr=factr)
     ret = np.array([x * ctx.precond[cc] for x, cc in zip(res[0], coords)])
     return ret
 
-    ## Ignore below here
-    def f2(x):
-        x0c = ctx.x.copy()
-        # Preconditioner (sort of)
-        for xx, cc in zip(x, coords):
-            x0c[cc] = xx
-        aa, bb = x0c
-        bb[ctx.flat_pieces] = aa[ctx.flat_pieces]
-        ctx.im.set_params((aa, bb, ctx.s), False)
-        res = ctx.im.Q()
-        reg = ctx.im.regularizer
-        reg *= ctx.lambda_penalty
-        logger.info("f2\n%s" % str(np.array([aa,bb])))
-        return -np.mean(res) + reg
-    def fprime2(x):
-        x0c = ctx.x.copy()
-        # Preconditioner (sort of)
-        for xx, cc in zip(x, coords):
-            x0c[cc] = xx
-        aa, bb = x0c
-        bb[ctx.flat_pieces] = aa[ctx.flat_pieces]
-        logger.info("f2\n%s" % str(np.array([aa,bb])))
-        try:
-            ctx.im.set_params((aa, bb, ctx.s), coords)
-        except RuntimeError as e:
-            if e.message == "SFS is not a probability distribution":
-                logger.warn("extreme parameter values led to numerical problems in SFS calculation")
-                return (np.inf, None)
-            else:
-                raise
-        res = ctx.im.Q()
-        lls = np.array([ll for ll, jac in res])
-        jacs = np.array([jac for ll, jac in res])
-        ret = [-np.mean(lls, axis=0), -np.mean(jacs, axis=0)]
-        # reg, jac = ctx.im.regularizer
-        # reg *= ctx.lambda_penalty
-        # jac *= ctx.lambda_penalty
-        # ret[0] += reg
-        # ret[1] += jac
-        reg = 0
-        dreg = np.zeros(jac.shape)
-        for i in range(1, ctx.K - 1):
-            x = bb[i - 1] - aa[i]
-            sx = np.sign(x)
-            reg += ctx.lambda_penalty * abs(x)
-            for c in [(1, i - 1), (0, i)]:
-                try:
-                    i = coords.index((0, i))
-                    dreg[i] += ctx.lambda_penalty * sx 
-                except ValueError:
-                    pass
-                sx *= sx
-        logger.info("f'2\n%s" % str(ret[1]))
-        logger.info("reg\n%s %s" % (str(reg), str(dreg)))
-        ret[0] += reg
-        ret[1] += dreg
-        return ret
-    logger.debug("gradient check")
-    xx0 = [ctx.x[cc] for cc in coords]
-    f0, fp = fprime2(xx0)
-    for i, cc in enumerate(coords):
-        x0c = xx0.copy()
-        x0c[i] += 1e-8
-        f1, _ = fprime2(x0c)
-        logger.debug((i, cc, f1, f0, (f1 - f0) / 1e-8, fp[i]))
-    res = scipy.optimize.fmin_tnc(fprime2, 
-            [ctx.x[cc] for cc in coords], None,
-            bounds=[tuple(ctx.bounds[cc]) for cc in coords],
-            disp=5, xtol=.0001, scale=[ctx.precond[cc] for cc in coords])
-    logger.debug(res)
-    return res[0]
-
-def write_size_history(fn):
-    with open(fn, "wt") as out:
-        out.write("# SMC++ model\n")
-        for x in "N0 theta rho".split():
-            out.write("# %s:%g\n" % (x, getattr(ctx, x)))
-        out.write("# hidden states:%s" % " ".join("%g" % h for h in ctx.hidden_states))
-        out.write("# a\tb\ts\n")
-        ctx.s[-1] = np.inf
-        ret = np.array([ctx.a * ctx.N0, ctx.b * ctx.N0, np.cumsum(ctx.s) * 2 * ctx.N0]).T 
-        np.savetxt(out, ret, fmt="%f", delimiter="\t")
-    return ret
+def write_model(fn):
+    open(fn, "wt").write(ctx.model.to_json())
 
 def main(args):
     'Main control loop for EM algorithm'
-    ctx.N0 = args.N0
-    ctx.theta = 2 * args.N0 * args.mu
-    ctx.rho = 2 * args.N0 * args.r
-
     ## Create output directory and dump all values for use later
     try:
         os.makedirs(args.outdir)
@@ -356,69 +272,71 @@ def main(args):
         sp[i] = s[count:(count+p)].sum()
         count += p
     s = sp
-    ctx.s = s
+
+    ctx.model = SMCModel()
+    ctx.model.x = np.ones([3, len(s)])
+    ctx.model.s = s
+    ctx.model.N0 = args.N0
+    ctx.model.theta = 2 * args.N0 * args.mu
+    ctx.model.rho = 2 * args.N0 * args.r
+
     ctx.lambda_penalty = args.lambda_penalty
     logger.info("time points in coalescent scaling:\n%s", str(s))
 
     ## Initialize model values
-    ctx.K = len(ctx.s)
-    ctx.x = np.ones([2, ctx.K])
-    ctx.a = ctx.x[0]
-    ctx.b = ctx.x[1]
-    ctx.flat_pieces = [i for i in range(ctx.K) if i not in args.exponential_pieces]
-    ctx.b[:] = ctx.a + 0.1
-    ctx.b[ctx.flat_pieces] = ctx.a[ctx.flat_pieces]
+    ctx.flat_pieces = [i for i in range(ctx.model.K) if i not in args.exponential_pieces]
+    ctx.model.b = ctx.model.a + 0.1
+    ctx.model.b[ctx.flat_pieces] = ctx.model.a[ctx.flat_pieces]
 
     args.Nmin /= 2 * args.N0
     args.Nmax /= 2 * args.N0
-    ctx.bounds = np.array([[args.Nmin, args.Nmax]] * ctx.K + 
-            [[1.01 * args.Nmin, 0.99 * args.Nmax]] * ctx.K).reshape([2, ctx.K, 2])
+    ctx.bounds = np.array([[args.Nmin, args.Nmax]] * ctx.model.K + 
+            [[1.01 * args.Nmin, 0.99 * args.Nmax]] * ctx.model.K).reshape([2, ctx.model.K, 2])
 
     ## Pre-train based on observed SFS
     if not args.no_pretrain:
         logger.info("Pre-training model")
-        ctx.a[:], ctx.b[:] = pretrain(args, obsfs)
+        ctx.model.a, ctx.model.b = pretrain(args, obsfs)
 
     ## Compute hidden states
-    hs = _smcpp.balance_hidden_states((ctx.a, ctx.b, ctx.s), args.M)
+    hs = _smcpp.balance_hidden_states(ctx.model.x, args.M)
     if hs[0] != 0:
         raise Exception("First hidden state interval must begin at 0")
-    ctx.hidden_states = np.sort(np.unique(np.concatenate([np.cumsum(ctx.s), hs])))
-    logger.info("hidden states:\n%s", str(ctx.hidden_states))
+    ctx.model.hidden_states = np.sort(np.unique(np.concatenate([np.cumsum(ctx.model.s), hs])))
+    logger.info("hidden states:\n%s", str(ctx.model.hidden_states))
 
     ## Create inference object which will be used for all further calculations.
     ctx.im = _smcpp.PyInferenceManager(n - 2, ctx.obs_list, 
-            ctx.hidden_states, ctx.theta, ctx.rho)
-    ctx.im.set_params([ctx.a, ctx.b, ctx.s], False)
+            ctx.model.hidden_states, ctx.model.theta, ctx.model.rho)
+    ctx.im.set_params(ctx.model.x, False)
     ctx.im.E_step()
     ctx.llold = -np.inf
 
     ## Optimization stuff 
     i = 0
-    coords = [(aa, j) for j in range(ctx.K) for aa in ((0,) if j in ctx.flat_pieces else (0, 1))]
+    coords = [(aa, j) for j in range(ctx.model.K) for aa in ((0,) if j in ctx.flat_pieces else (0, 1))]
     # Vector of "preconditioners" helps with optimization
-    ctx.precond = {coord: 1. / ctx.s[coord[1]] for coord in coords}
+    ctx.precond = {coord: 1. / ctx.model.s[coord[1]] for coord in coords}
     # ctx.precond = {coord: 1. for coord in coords}
-    if (ctx.K - 1, 0) in coords:
-        ctx.precond[(ctx.K - 1, 0)] = 1. / (15.0 - np.sum(ctx.s))
+    if (ctx.model.K - 1, 0) in coords:
+        ctx.precond[(ctx.model.K - 1, 0)] = 1. / (15.0 - np.sum(ctx.model.s))
     while i < args.em_iterations:
         ret = optimize(coords, args.lbfgs_factor)
         for xx, cc in zip(ret, coords):
-            ctx.x[cc] = xx
-        ctx.b[ctx.flat_pieces] = ctx.a[ctx.flat_pieces]
+            ctx.model.x[cc] = xx
+        ctx.model.b[ctx.flat_pieces] = ctx.model.a[ctx.flat_pieces]
         logger.info("************** EM ITERATION %d ***************" % i)
-        logger.info("Current model:\n%s", str(ctx.x))
-        ctx.im.set_params((ctx.a, ctx.b, ctx.s), False)
+        logger.info("Current model:\n%s", str(ctx.model.x))
+        ctx.im.set_params(ctx.model.x, False)
         ctx.im.E_step()
         ll = np.sum(ctx.im.loglik())
         logger.info("New/old loglik: %f/%f" % (ll, ctx.llold))
         if ll < ctx.llold:
             logger.warn("Log-likelihood decreased")
         ctx.llold = ll
-        esfs = _smcpp.sfs(n, (ctx.a, ctx.b, ctx.s), 0.0, 
-                ctx.hidden_states[-1], ctx.theta, False)
-        write_size_history(os.path.join(args.outdir, "size_history.%d.txt" % i))
+        esfs = _smcpp.sfs(n, ctx.model.x, 0.0, ctx.model.hidden_states[-1], ctx.model.theta, False)
+        write_model(os.path.join(args.outdir, "model.%d.txt" % i))
         logger.info("model sfs:\n%s" % str(esfs))
         logger.info("observed sfs:\n%s" % str(obsfs))
         i += 1
-    write_size_history(os.path.join(args.outdir, "size_history.final.txt"))
+    write_model(os.path.join(args.outdir, "model.final.txt"))

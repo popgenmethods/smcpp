@@ -19,29 +19,28 @@ def init_parser_class(parser_module, parser):
         parser_module.main(args)
     parser.set_defaults(func=main)
 
-def main():
-    parser = main.parser_cls()
+def run(parser_cls):
+    parser = parser_cls()
     subparsers = parser.add_subparsers()
     # Initialize arguments. Each object is responsible for setting the
     # args.func, where the work takes place.
-    estimate_p = subparsers.add_parser('estimate', help='Fit SMC++ to data')
-    init_parser_class(commands.estimate, estimate_p)
-    decode_p = subparsers.add_parser('decode', help='Perform posterior decoding')
-    init_parser_class(commands.decode, decode_p)
-    convert_p = subparsers.add_parser('convert', help='Convert VCF to SMC++ input format')
-    init_parser_class(commands.convert, convert_p)
-    plot_p = subparsers.add_parser('plot', help='Plot estimated size histories')
-    init_parser_class(commands.plot, plot_p)
+    cmds = [
+            ('estimate', commands.estimate, 'Fit SMC++ to data'),
+            ('plot', commands.plot, 'Plot estimated size history'),
+            ('plot_posterior', commands.plot_posterior, 'Plot posterior decoding for a region'),
+            ('convert', commands.convert, 'Convert VCF to SMC++ format')
+            ]
+    for kwd, module, help in cmds:
+        p = subparsers.add_parser(kwd, help=help)
+        init_parser_class(module, p)
 
     # Go.
     args = parser.parse_args()
     args.func(args)
 
-if __name__ == "__main__":
-    if os.path.basename(sys.argv[0]) == "smc++-gui":
-        from gooey import Gooey, GooeyParser
-        main = Gooey(main)
-        main.parser_cls = GooeyParser
-    else:
-        main.parser_cls = IgnorantArgumentParser
-    main()
+def console():
+    run(IgnorantArgumentParser)
+
+def gui():
+    run = Gooey(run)
+    run(GooeyParser)

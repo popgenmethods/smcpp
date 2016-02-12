@@ -6,16 +6,36 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-sawtooth = {
-        'a': np.array([7.1, 7.1, 0.9, 7.1, 0.9, 7.1, 0.9]) * 20000.,
-        'b': np.array([7.1, 0.9, 7.1, 0.9, 7.1, 0.9, 0.9]) * 20000.,
-        's_gen': np.array([1000.0, 4000.0 - 1000., 10500. - 4000., 65000. - 10500., 115000. - 65000., 1e6 - 115000, 1.0]) / 25.0
-        }
+# Section 7. of MSMC supplemental
+def build_sawtooth():
+    sawtooth = {'a': [5.], 'b': [], 's': []}
+    g_last = t_last = 0.
+    sawtooth_events = [
+            (.000582262, 1318.18),
+            (.00232905, -329.546),
+            (.00931919, 82.3865),
+            (.0372648, -20.5966),
+            (.149059, 5.14916),
+            (0.596236, 0.)]
+    for t, g in sawtooth_events:
+        sawtooth['b'].append(sawtooth['a'][-1] * np.exp(g_last * (t_last - t)))
+        sawtooth['a'].append(sawtooth['b'][-1])
+        sawtooth['s'].append(t - t_last)
+        g_last = g
+        t_last = t
+    sawtooth['b'].append(sawtooth_events[-1][0])
+    sawtooth['s'].append(.1)
+    sawtooth = {k: np.array(v) for k, v in sawtooth.items()}
+    sawtooth['s'] *= 2.
+    sawtooth['N0'] = 14312
+    return sawtooth
+
+sawtooth = build_sawtooth()
 
 human = {
     'a': np.array([10.0, 0.5, 1.0, 4.0]) * 20000.,
     'b': np.array([1.0, 0.5, 1.0, 4.0]) * 20000.,
-    's_gen': np.array([10000., 70000. - 10000., 200000. - 70000., 1.0]) / 25.0
+    's': np.array([10000., 70000. - 10000., 200000. - 70000., 1.0])
     }
 
 def undistinguished_sfs(sfs):
@@ -77,12 +97,13 @@ def dataset_from_panel(dataset, n, distinguished_rows, random=True):
         N, K = panel.shape
         h2 = np.zeros([n, K], dtype=np.int8)
         h2[:2] = haps[dr]
-        for i in range(K):
-            inds = [j for j in range(N) if j not in dr and panel[j, i] != -1]
-            if random:
-                inds = np.random.permutation(inds)
-            assert len(inds) >= n - 2
-            h2[2:, i] = panel[:, i][inds[:(n - 2)]]
+        if n > 2:
+            for i in range(K):
+                inds = [j for j in range(N) if j not in dr and panel[j, i] != -1]
+                if random:
+                    inds = np.random.permutation(inds)
+                assert len(inds) >= n - 2
+                h2[2:, i] = panel[:, i][inds[:(n - 2)]]
         haps = h2
     else:
         perm = np.arange(n)
