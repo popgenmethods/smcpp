@@ -1,16 +1,45 @@
+SMC++ is a program for estimating the size history of a population from
+whole genome sequence data.
+
+=================
+Quick Start Guide
+=================
+Follow these steps to get up and running as quickly as possible:
+  0. Make sure you have the requirements installed. (See section
+     "Requirements" below.)
+  1. Install SMC++ via `pip` (this will change once we upload to PyPI)::
+
+       $ pip install git+https://github.com/terhorst/pmscpp.git
+
+     Depending on your platform, `pip` will either download a pre-compiled
+     binary, or compile SMC++ from scratch.
+  2. Convert your VCF file to the `smc++` format::
+
+       $ smc++ vcf2smc example.vcf chr1 example.chr1.smc.gz
+
+     Repeat as many times an needed for different chromosomes.
+
+
 ============
 Requirements
 ============
-
 SMC++ requires the following external dependencies to build:
 
-  - A compiler which supports C++11 (e.g. GCC 4.8 or later).
+  - Python 2.7 or greater. SMC++ is compatible with Python 3, but only
+    in console mode.
+  - A compiler which supports C++11 (e.g. GCC 4.8 or later) *and*
+    OpenMP. Note that versions of Clang shipping with Mac OS X do not
+    currently support OpenMP. For this reason it is recommended that you
+    use gcc instead.
+  - Eigen <http://eigen.tuxfamily.org/>, a C++ linear algebra library.
   - gmp <https://gmplib.org/> for some rational field computations.
   - gsl, the GNU Scientific Library.
-  - Eigen <http://eigen.tuxfamily.org/>, a C++ linear algebra library.
 
-If your compiler supports it (most do), SMC++ will run in multi-threaded
-mode using OpenMP.
+Experimental pre-built binaries are available for Unix and Mac OS X
+systems. They will download automatically using `pip` (see above)
+if available for your system. Note that you will still need to have
+`libgmp` and `libgsl` accessible on your system in order for
+
 
 ==================
 Build Instructions

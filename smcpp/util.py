@@ -1,8 +1,8 @@
 import numpy as np
 import functools
-import itertools
 import multiprocessing
 import logging
+from future.moves.itertools import zip_longest
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +25,7 @@ def build_sawtooth():
         t_last = t
     sawtooth['b'].append(sawtooth_events[-1][0])
     sawtooth['s'].append(.1)
-    sawtooth = {k: np.array(v) for k, v in sawtooth.items()}
+    sawtooth = {k: np.array(sawtooth[k]) for k in sawtooth}
     sawtooth['s'] *= 2.
     sawtooth['N0'] = 14312
     return sawtooth
@@ -52,7 +52,7 @@ def grouper(iterable, n, fillvalue=None):
     "Collect data into fixed-length chunks or blocks"
     # grouper('ABCDEFG', 3, 'x') --> ABC DEF Gxx
     args = [iter(iterable)] * n
-    return itertools.izip_longest(fillvalue=fillvalue, *args)
+    return zip_longest(fillvalue=fillvalue, *args)
 
 def unpack(iterable):
     for span, x in iterable:

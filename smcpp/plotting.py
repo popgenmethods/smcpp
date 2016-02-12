@@ -88,7 +88,7 @@ def plot_output(psfs, fname, **kwargs):
     save_pdf(plot_psfs(psfs, **kwargs), fname)
 
 def plot_matrices():
-    from cStringIO import StringIO
+    from io import StringIO
     mats = {}
     with open("matrices.txt", "rt") as mfile:
         try:

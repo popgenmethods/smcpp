@@ -29,18 +29,19 @@ class RepeatingWriter:
     def __enter__(self):
         return self
     def __exit__(self, type, value, traceback):
-        print("Wrote %d observations" % self.i)
+        print(("Wrote %d observations" % self.i))
         self._write_last_ob()
 
 
 def init_parser(parser):
-    fileio = parser.add_argument_group("file IO", ".gz extension indicates (de)compression will be used")
-    fileio.add_argument("vcf", metavar="vcf[.gz]", help="input VCF file")
-    fileio.add_argument("out", metavar="out[.gz]", help="output SMC++ file")
     parser.add_argument("--ignore-missing", default=False, action="store_true", 
             help="ignore samples which are missing in the data")
     parser.add_argument("--missing-cutoff", metavar="c", type=int, default=10000, 
             help="treat gaps in data longer than <c> base pairs as missing")
+    parser.add_argument("-s", "--start", type=int, help="starting base pair for conversion")
+    parser.add_argument("-e", "--end", type=int, help="ending base pair for conversion")
+    parser.add_argument("vcf", metavar="vcf[.gz]", help="input VCF file", widget="FileChooser")
+    parser.add_argument("out", metavar="out[.gz]", help="output SMC++ file", widget="FileChooser")
     parser.add_argument("chrom", help="chromosome to parse")
     parser.add_argument("dist", help="Distinguished sample ID")
     parser.add_argument("undist", nargs="+", help="undistinguished sample ID(s)")
@@ -81,7 +82,10 @@ def main(args):
             raise RuntimeError("VCF file doesn't seem to have a valid header")
         chrom_filter = (line for line in strip_and_ignore if line.startswith(args.chrom))
         splitted = (line.split() for line in chrom_filter)
-        snps_only = (tup for tup in splitted if all([x in "ACTG" for x in tup[3:5]]) and tup[6] == "PASS")
+        start = args.start if args.start else 0
+        end = args.end if args.end else np.inf
+        in_region = (tup for tup in splitted if start <= int(tup[1]) <= end)
+        snps_only = (tup for tup in in_region if all([x in "ACTG" for x in tup[3:5]]) and tup[6] == "PASS")
         with RepeatingWriter(out) as rw:
             tup = next(snps_only)
             last_pos = int(tup[1])
@@ -93,8 +97,6 @@ def main(args):
                     warnings.warn("Error %s when attempting to parse:\n%s" % (e.message, str(tup)))
                     continue
                 pos = int(tup[1])
-                # if not args.start <= pos <= args.end:
-                #     continue
                 span = pos - last_pos - 1
                 if 1 <= span <= args.missing_cutoff:
                     rw.write([span, 0, 0, nb])

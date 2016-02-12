@@ -19,9 +19,9 @@ def init_parser_class(parser_module, parser):
         parser_module.main(args)
     parser.set_defaults(func=main)
 
-def run(parser_cls):
-    parser = parser_cls()
-    subparsers = parser.add_subparsers()
+def run(parser, subparser_cls=None):
+    subparsers = parser.add_subparsers(dest="subcommand", parser_class=subparser_cls)
+    subparsers.required = True
     # Initialize arguments. Each object is responsible for setting the
     # args.func, where the work takes place.
     cmds = [
@@ -38,8 +38,8 @@ def run(parser_cls):
     args.func(args)
 
 def console():
-    run(IgnorantArgumentParser)
+    run(ArgumentParser(), IgnorantArgumentParser)
 
 def gui():
     run = Gooey(run)
-    run(GooeyParser)
+    run(GooeyParser())

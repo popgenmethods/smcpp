@@ -1,1 +1,1 @@
-import estimate, plot_model, plot_posterior, vcf2smc
+from . import estimate, plot_model, plot_posterior, vcf2smc
