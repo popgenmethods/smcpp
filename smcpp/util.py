@@ -203,3 +203,8 @@ def compress_repeated_obs(dataset):
     csw = np.cumsum(dataset[:, 0])[np.where(nonreps)]
     newob[:-1, 0] = csw[1:] - csw[:-1]
     return newob
+
+def exp_quantiles(M):
+    hs = -np.log(1. - np.linspace(0, _smcpp.T_MAX, M, False) / _smcpp.T_MAX)
+    hs[0] = 0.
+    return hs

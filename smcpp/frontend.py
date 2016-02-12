@@ -26,14 +26,13 @@ def run(parser_cls):
     # args.func, where the work takes place.
     cmds = [
             ('estimate', commands.estimate, 'Fit SMC++ to data'),
-            ('plot', commands.plot, 'Plot estimated size history'),
+            ('plot_model', commands.plot_model, 'Plot size history from fitted model'),
             ('plot_posterior', commands.plot_posterior, 'Plot posterior decoding for a region'),
-            ('convert', commands.convert, 'Convert VCF to SMC++ format')
+            ('vcf2smc', commands.vcf2smc, 'Convert VCF to SMC++ format')
             ]
     for kwd, module, help in cmds:
         p = subparsers.add_parser(kwd, help=help)
         init_parser_class(module, p)
-
     # Go.
     args = parser.parse_args()
     args.func(args)

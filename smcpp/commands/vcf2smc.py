@@ -39,10 +39,9 @@ def init_parser(parser):
     fileio.add_argument("out", metavar="out[.gz]", help="output SMC++ file")
     parser.add_argument("--ignore-missing", default=False, action="store_true", 
             help="ignore samples which are missing in the data")
-    parser.add_argument("--missing-cutoff", type=int, default=10000, help="treat gaps in data longer than this many base pairs as missing")
-    parser.add_argument("chrom", help="restrict to chromosome")
-    # parser.add_argument("start", help="starting position", type=int)
-    # parser.add_argument("end", help="ending position", type=int)
+    parser.add_argument("--missing-cutoff", metavar="c", type=int, default=10000, 
+            help="treat gaps in data longer than <c> base pairs as missing")
+    parser.add_argument("chrom", help="chromosome to parse")
     parser.add_argument("dist", help="Distinguished sample ID")
     parser.add_argument("undist", nargs="+", help="undistinguished sample ID(s)")
 

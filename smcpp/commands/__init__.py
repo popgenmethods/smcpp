@@ -1,1 +1,1 @@
-import estimate, plot, plot_posterior, convert
+import estimate, plot_model, plot_posterior, vcf2smc

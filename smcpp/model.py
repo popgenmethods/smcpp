@@ -55,7 +55,7 @@ class SMCModel(object):
 
     def to_json(self):
         return json.dumps({
-            'size_history': [list(self.a), list(self.b), list(self.s)],
+            'x': [list(self.a), list(self.b), list(self.s)],
             'hidden_states': list(self.hidden_states),
             'N0': self.N0,
             'theta': self.theta,
@@ -66,9 +66,6 @@ class SMCModel(object):
     def from_file(klass, fn):
         obj = json.load(open(fn, "rt"))
         ret = klass()
-        ret.x = obj['size_history']
-        ret.hidden_states = obj['hidden_states']
-        ret.N0 = obj['N0']
-        ret.theta = obj['theta']
-        ret.rho = obj['rho']
+        for attr in "x hidden_states N0 theta rho".split():
+            setattr(ret, attr, obj[attr])
         return ret

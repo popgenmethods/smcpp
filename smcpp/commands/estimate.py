@@ -30,7 +30,7 @@ def init_parser(parser):
     model.add_argument('--t1', type=float, help="end-point of first piece, in generations", default=400.)
     model.add_argument('--tK', type=float, help="end-point of last piece, in generations", default=40000.)
     model.add_argument('--exponential-pieces', type=int, action="append", default=[], help="pieces which have exponential growth")
-    hmm.add_argument('--thinning', help="emit full SFS every <k>th site", default=None, type=int, metavar="k")
+    hmm.add_argument('--thinning', help="emit full SFS every <k>th site", default=10000, type=int, metavar="k")
     hmm.add_argument('--no-pretrain', help="do not pretrain model", action="store_true", default=False)
     hmm.add_argument('--M', type=int, help="number of hidden states", default=32)
     hmm.add_argument('--em-iterations', type=float, help="number of EM steps to perform", default=20)
@@ -42,11 +42,10 @@ def init_parser(parser):
     hmm.add_argument('--length-cutoff', help="omit sequences < cutoff", default=1000000, type=int)
     parser.add_argument("outdir", help="output directory", default="/tmp", widget="DirChooser")
     parser.add_argument('-v', '--verbose', action='store_true', help="generate tremendous amounts of output")
-    pop_params.add_argument('N0', type=float, help="reference effective (diploid) population size")
+    pop_params.add_argument('--N0', default=1e4, type=float, help="reference effective (diploid) population size to scale output.")
     pop_params.add_argument('mu', type=float, help="per-generation mutation rate")
     pop_params.add_argument('r', type=float, help="per-generation recombination rate")
-    parser.add_argument('data', nargs="+", help="data file(s) in SMC++ format", 
-            widget="MultiFileChooser")
+    parser.add_argument('data', nargs="+", help="data file(s) in SMC++ format", widget="MultiFileChooser")
 
 def _obsfs_helper(args):
     ol, n = args
@@ -60,12 +59,6 @@ def _obsfs_helper(args):
 def _thin_helper(args):
     thinned = np.array(_smcpp.thin_data(*args), dtype=np.int32)
     return util.compress_repeated_obs(thinned)
-
-def exp_quantiles(M, h_M):
-    hs = -np.log(1. - np.linspace(0, h_M, M, False) / h_M)
-    hs = np.append(hs, h_M)
-    hs[0] = 0
-    return hs
 
 def regularizer(y, coords, cons):
     ## Regularizer
@@ -114,7 +107,7 @@ def pretrain(args, obsfs):
         logger.info("regularizer: %s" % str((reg, dreg)))
         return ret
     x0 = np.ones(len(coords))
-    res = scipy.optimize.fmin_l_bfgs_b(f, x0, None,
+    res = scipy.optimize.fmin_tnc(f, x0, None,
             bounds=[tuple(ctx.bounds[cc]) for cc in coords])
     ret = np.ones([2, ctx.model.K])
     for cc, xx in zip(coords, res[0]):
@@ -264,8 +257,8 @@ def main(args):
     # Construct time intervals from pieces
     args.t1 /= 2 * args.N0
     args.tK /= 2 * args.N0
-    s = np.logspace(np.log10(args.t1), np.log10(args.tK), sum(pieces))
-    s = np.concatenate(([args.t1], s[1:] - s[:-1]))
+    s = np.concatenate([[0.], np.logspace(np.log10(args.t1), np.log10(args.tK), sum(pieces))])
+    s = s[1:] - s[:-1]
     sp = np.zeros(len(pieces))
     count = 0
     for i, p in enumerate(pieces):
@@ -302,7 +295,7 @@ def main(args):
     hs = _smcpp.balance_hidden_states(ctx.model.x, args.M)
     if hs[0] != 0:
         raise Exception("First hidden state interval must begin at 0")
-    ctx.model.hidden_states = np.sort(np.unique(np.concatenate([np.cumsum(ctx.model.s), hs])))
+    ctx.model.hidden_states = hs
     logger.info("hidden states:\n%s", str(ctx.model.hidden_states))
 
     ## Create inference object which will be used for all further calculations.
