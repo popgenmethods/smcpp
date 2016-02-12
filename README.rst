@@ -5,6 +5,7 @@ whole genome sequence data.
 Quick Start Guide
 =================
 Follow these steps to get up and running as quickly as possible:
+
   0. Make sure you have the requirements installed. (See section
      "Requirements" below.)
   1. Install SMC++ via `pip` (this will change once we upload to PyPI)::
@@ -15,9 +16,27 @@ Follow these steps to get up and running as quickly as possible:
      binary, or compile SMC++ from scratch.
   2. Convert your VCF file to the `smc++` format::
 
-       $ smc++ vcf2smc example.vcf chr1 example.chr1.smc.gz
+       $ smc++ vcf2smc example.vcf chr1 data/example.chr1.smc.gz
 
      Repeat as many times an needed for different chromosomes.
+  3. Fit the model::
+
+       $ smc++ estimate results/ 1.2e-8 3e-9 data/example.chr*.smc.gz
+
+     Depending on sample size and your machine, the fitting procedure
+     should take between a few minutes and a few hours. The fitted model
+     will be stored in JSON format in `results/model.final.json`. For details
+     on the format, see below.
+  4. Visualize the results::
+
+       $ smc++ plot_model results/model.final.json results/fit.pdf
+
+There is also a graphical user interface to each of these commands, which
+is accessed by running::
+
+       $ smc++-gui
+
+(Currently, this only works for Python 2.x.)
 
 
 ============
@@ -38,34 +57,13 @@ SMC++ requires the following external dependencies to build:
 Experimental pre-built binaries are available for Unix and Mac OS X
 systems. They will download automatically using `pip` (see above)
 if available for your system. Note that you will still need to have
-`libgmp` and `libgsl` accessible on your system in order for
+`libgmp` and `libgsl` accessible on your system in order to run SMC++.
 
-
-==================
-Build Instructions
-==================
-The easiest way is to check out the git repo and build with distutils
-using make.::
-    $ git clone https://github.com/terhorst/psmcpp.git
-    $ cd psmcpp
-    $ git checkout current
-    $ make
-
-(Eventually)::
-    $ pip install --user git+https://github.com/terhorst/smc++.git
-
-=====
-Usage
-=====
-Model estimation is accomplished using `scripts/em.py`. The first
-required argument is a text-based configuration file. Following that,
-one or more data files must be passed in. Each data file is assumed
-to represent an independent sequence of observed bases (i.e., a
-chromosome). An example configuration file and dataset may be found
-in the `example/` directory.
-
-Data Format
------------
+=================
+Input Data Format
+=================
+In case the provided tool `smc++ vcf2smc` is insufficient for your
+purposes, here is a description of the input format used by SMC++.
 The data files should be ASCII text and can optionally be gzipped. The
 format of each line of the data file is as follows:::
 
@@ -106,8 +104,9 @@ The SMC++ format for this input file is::
     2   0   0   0
     1   2   1   4
 
-Output
-------
+=============
+Output Format
+=============
 Upon completion, SMC++ will output a tab-delimeted table containing
 the estimation results. The three columns `a`, `b`, and `s` define a
 piecewise population model such that the estimated effective population
