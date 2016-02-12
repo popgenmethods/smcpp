@@ -23,7 +23,7 @@ using make.::
     $ make
 
 (Eventually)::
-    $ pip install --user git+https://github.com/terhorst/psmcpp.git@current
+    $ pip install --user git+https://github.com/terhorst/smc++.git
 
 =====
 Usage
@@ -49,28 +49,32 @@ a stretch of nonsegregating sites. The second column gives the genotype
 the distinguished individual is not known, this should be set to -1.
 The final columns give the total number of derived alleles found in the
 remainder of the (undistinguished) sample, as well as the *haploid*
-sample size (number of non-missing observations) in that sample. 
+sample size (number of non-missing observations) in that sample.
 
 For example, consider the following set of genotypes at a set of 10
 contiguous bases on three diploid individuals::
 
     dist.   ..1..N...2
             .....N...1
-            2N........
+            2N....+...
 
 The distinguished individual is row one. A `.` indicates that the
 individual is homozygous for the ancestral allele, while an integer
 indicates that that individual possesses `(1,2)` copies of the derived
-allele. Finally, an `N` indicates a missing genotype at that position.
+allele. An `N` indicates a missing genotype at that position. Finally,
+the `+` in column seven indicates that individual three possessed the
+dominant allele on one chromosome, and had a missing observation on the
+other chromosome (this would be indicated as `0/.` in a VCF).
 
 The SMC++ format for this input file is::
 
     1   0   2   4
     1   0   0   2
     1   1   0   4
-    2   0   0   0
+    2   0   0   4
     1   -1  0   2
-    3   0   0   0
+    1   0   0   3
+    2   0   0   0
     1   2   1   4
 
 Output
@@ -82,4 +86,6 @@ size `s` generations in the past, `eta(s)`, is:::
 
     eta(s) = a[i] * exp(log(b[i]/a[i])/(s[i] - s[i-1]) * (s - s[i-1])), s[i-1] <= s < s[i],
 
-where we define `s[0] = 0` by convention. 
+where we define `s[0] = 0` by convention. Note that the population      
+sizes `a` and `b` are the *diploid* effective population size at each   
+corresponding time interval.                                            
