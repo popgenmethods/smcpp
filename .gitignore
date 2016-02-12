@@ -2,8 +2,8 @@
 __pycache__
 *.swp
 archive
-_pypsmcpp.so
-_pypsmcpp.cpp
+_smcpp.so
+_smcpp.cpp
 test_sfs
 test_sfs_dbg
 build/
@@ -11,11 +11,9 @@ build/
 *.so
 build/
 src/_expm.cpp
-.moran.dat
 src/*.o
 valgrind-python.supp
 environ.sh
 .nfs*
-.moran_model.dat
 .ipynb_checkpoints/
 ccache.log

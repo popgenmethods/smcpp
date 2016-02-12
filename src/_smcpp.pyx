@@ -8,6 +8,8 @@ import logging
 import collections
 import scipy.optimize
 
+T_MAX = C_T_MAX
+
 init_eigen();
 logger = logging.getLogger(__name__)
 
