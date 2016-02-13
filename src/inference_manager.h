@@ -55,7 +55,7 @@ class InferenceManager
     std::vector<Eigen::Matrix<int, Eigen::Dynamic, 4, Eigen::RowMajor> > map_obs(const std::vector<int*>&, const std::vector<int>&);
     std::set<std::pair<int, block_key> > fill_targets();
     std::vector<int> fill_nbs();
-    Matrix<double>& subEmissionCoefs(int);
+    std::map<int, Matrix<double> > fill_subemissions();
     void populate_emission_probs();
     template <typename T>
     void recompute_emission_probs(const PiecewiseExponentialRateFunction<T> &);
@@ -76,7 +76,7 @@ class InferenceManager
     ConditionedSFS<adouble> csfs_ad;
     std::vector<block_key> bpm_keys;
     const std::vector<int> nbs;
-    std::map<int, Matrix<double> > subEmissionCoefs_memo;
+    const std::map<int, Matrix<double> > subEmissionCoeffs;
     const std::set<std::pair<int, block_key> > targets;
     TransitionBundle tb;
 

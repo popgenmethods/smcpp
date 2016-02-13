@@ -34,6 +34,7 @@ InferenceManager::InferenceManager(
     M(hidden_states.size() - 1), 
     csfs_d(n, M), csfs_ad(n, M),
     nbs(fill_nbs()),
+    subEmissionCoeffs(fill_subemissions()),
     targets(fill_targets()),
     tb(targets, &emission_probs),
     spanCutoff(M / 2),
@@ -111,9 +112,10 @@ void InferenceManager::populate_emission_probs()
         }
 }
 
-Matrix<double>& InferenceManager::subEmissionCoefs(int m)
+std::map<int, Matrix<double> > InferenceManager::fill_subemissions()
 {
-    if (subEmissionCoefs_memo.count(m) == 0)
+    std::map<int, Matrix<double> > ret;
+    for (int m : nbs)
     {
         // FIXME: this direct sum representation is pretty wasteful
         Matrix<double> M(3 * (n + 1), 3 * (m + 1));
@@ -123,9 +125,9 @@ Matrix<double>& InferenceManager::subEmissionCoefs(int m)
                 M(i, j) = gsl_ran_hypergeometric_pdf(j, i, n - i, m);
         M.block(n + 1, m + 1, n + 1, m + 1) = M.block(0, 0, n + 1, m + 1);
         M.block(2 * (n + 1), 2 * (m + 1), n + 1, m + 1) = M.block(0, 0, n + 1, m + 1);
-        subEmissionCoefs_memo[m] = M;
+        ret.insert({m, M});
     }
-    return subEmissionCoefs_memo[m];
+    return ret;
 }
 
 template <typename T>
@@ -138,7 +140,7 @@ void InferenceManager::recompute_emission_probs(const PiecewiseExponentialRateFu
     for (auto it = nbs.begin(); it < nbs.end(); ++it)
     {
         int nb = *it;
-        Matrix<adouble> M = emission.lazyProduct(subEmissionCoefs(nb));
+        Matrix<adouble> M = emission.lazyProduct(subEmissionCoeffs.at(nb));
         M.col(0) += M.rightCols(1);
         M.rightCols(1).fill(eta.zero);
 #pragma omp critical(subemissions)
