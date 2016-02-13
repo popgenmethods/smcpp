@@ -32,7 +32,7 @@ extensions = [
 
 print(find_packages())
 setup(name='smcpp',
-        version='0.01',
+        version='0.1.0',
         description='SMC++',
         author='Jonathan Terhorst, Jack Kamm, Yun S. Song',
         author_email='terhorst@stat.berkeley.edu',
@@ -47,7 +47,7 @@ setup(name='smcpp',
             "future"],
         extras_require = {'gui': ["Gooey>=0.9"]},
         entry_points = {
-            'console_scripts': ['smc++ = smcpp.frontend:console'],
-            'gui_scripts': ['smc++-gui = smcpp.frontend:gui [gui]']
+            'console_scripts': ['smcpp = smcpp.frontend:console'],
+            'gui_scripts': ['smcpp-gui = smcpp.frontend:gui [gui]']
             }
     )
