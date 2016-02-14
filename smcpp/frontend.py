@@ -19,7 +19,7 @@ def init_parser_class(parser_module, parser):
         parser_module.main(args)
     parser.set_defaults(func=main)
 
-def run(parser, subparser_cls=None):
+def setup_parser(parser, subparser_cls=None):
     subparsers = parser.add_subparsers(dest="subcommand", parser_class=subparser_cls)
     subparsers.required = True
     # Initialize arguments. Each object is responsible for setting the
@@ -33,13 +33,24 @@ def run(parser, subparser_cls=None):
     for kwd, module, help in cmds:
         p = subparsers.add_parser(kwd, help=help)
         init_parser_class(module, p)
-    # Go.
-    args = parser.parse_args()
-    args.func(args)
 
 def console():
-    run(ArgumentParser(), IgnorantArgumentParser)
+    parser = ArgumentParser()
+    setup_parser(parser, IgnorantArgumentParser)
+    args = parser.parse_args()
+    run(args)
 
 def gui():
-    run = Gooey(run)
-    run(GooeyParser())
+    parser = GooeyParser()
+    setup_parser(parser)
+    args = parser.parse_args()
+    kwargs = {}
+    if args.subcommand == "estimate":
+        kwargs['progress_regex'] = r"EM iteration (\d+)/(\d+)$"
+        kwargs['progress_expr'] = "100. * x[0] / x[1]"
+        kwargs['disable_progress_bar_animation'] = True
+    run = Gooey(run, **kwargs)
+    run(args)
+
+def run(args):
+    args.func(args)
