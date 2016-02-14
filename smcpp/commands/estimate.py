@@ -40,7 +40,7 @@ def init_parser(parser):
     hmm.add_argument('--Nmax', type=float, help="Upper bound on effective population size", default=400000)
     hmm.add_argument('--span-cutoff', help="treat spans > as missing", default=50000, type=int)
     hmm.add_argument('--length-cutoff', help="omit sequences < cutoff", default=1000000, type=int)
-    parser.add_argument("outdir", help="output directory", default="/tmp", widget="DirChooser")
+    parser.add_argument("-o", "--outdir", help="output directory", default=".", widget="DirChooser")
     parser.add_argument('-v', '--verbose', action='store_true', help="generate tremendous amounts of output")
     pop_params.add_argument('--N0', default=1e4, type=float, help="reference effective (diploid) population size to scale output.")
     pop_params.add_argument('mu', type=float, help="per-generation mutation rate")
@@ -86,7 +86,7 @@ def pretrain(args, obsfs):
     a = np.ones(ctx.model.K)
     b = np.ones(ctx.model.K)
     uobsfs = util.undistinguished_sfs(obsfs)
-    logger.info(uobsfs)
+    logger.debug(uobsfs)
     def f(x):
         y = np.array([a, b])
         for cc, xx in zip(coords, x):
@@ -102,9 +102,9 @@ def pretrain(args, obsfs):
         reg, dreg = regularizer(y, coords, ctx.lambda_penalty * 1e-3)
         ret[0] += reg
         ret[1] += dreg
-        logger.info(ret[0])
-        logger.info(ret[1])
-        logger.info("regularizer: %s" % str((reg, dreg)))
+        logger.debug(ret[0])
+        logger.debug(ret[1])
+        logger.debug("regularizer: %s" % str((reg, dreg)))
         return ret
     x0 = np.ones(len(coords))
     res = scipy.optimize.fmin_tnc(f, x0, None,
@@ -113,7 +113,7 @@ def pretrain(args, obsfs):
     for cc, xx in zip(coords, res[0]):
         ret[cc] = xx
     ret[1, ctx.flat_pieces] = ret[0, ctx.flat_pieces]
-    logger.info("pretraining results: %s" % str(ret))
+    logger.debug("pretraining results: %s" % str(ret))
     return ret
 
 def extract_pieces(piece_str):
@@ -148,10 +148,10 @@ def optimize(coords, factr):
         for i, cc in enumerate(coords):
             ret[1][i] *= ctx.precond[cc]
             dary[cc] = ret[1][i]
-        logger.info(x0c)
-        logger.info(dary)
-        logger.info(ret[0])
-        logger.info("regularizer: %s" % str((reg, dreg)))
+        logger.debug(x0c)
+        logger.debug(dary)
+        logger.debug(ret[0])
+        logger.debug("regularizer: %s" % str((reg, dreg)))
         return ret
     # logger.debug("gradient check")
     # xx0 = np.array([ctx.x[cc] / ctx.precond[cc] for cc in coords])
@@ -183,13 +183,16 @@ def main(args):
     logging.addLevelName(logging.DEBUG-1, 'DEBUG1')
     while len(logging.root.handlers) > 0:
         logging.root.removeHandler(logging.root.handlers[-1])
-    fmtstr = '%(asctime)s %(name)-12s %(levelname)-8s %(message)s'
+    fmtstr = '%(relativeCreated)d %(name)-12s %(levelname)-8s %(message)s'
     logging.basicConfig(level=logging.DEBUG, 
             filename=os.path.join(args.outdir, "debug.txt"),
             filemode='wt',
             format=fmtstr)
     sh = logging.StreamHandler()
-    sh.setLevel(logging.INFO)
+    if args.verbose:
+        sh.setLevel(logging.DEBUG)
+    else:
+        sh.setLevel(logging.INFO)
     sh.setFormatter(logging.Formatter(fmtstr))
     logging.getLogger().addHandler(sh)
 
@@ -205,7 +208,7 @@ def main(args):
     osfs = list(pool.map(_obsfs_helper, [(ob, n) for ob in smcpp_data['obs']]))
     obsfs = np.sum(osfs, axis=0)
     obsfs /= obsfs.sum()
-    logger.info("Observed SFS:\n%s", str(obsfs))
+    logger.debug("Observed SFS:\n%s", str(obsfs))
 
     if args.thinning is not None:
         smcpp_data['obs'] = pool.map(_thin_helper, [(ob, args.thinning, i) for i, ob in enumerate(smcpp_data['obs'])])
@@ -245,11 +248,11 @@ def main(args):
             logger.warn("omitting sequence length < %d as less than length cutoff" % s)
 
     ## Sanity check
-    logging.info("Average hetorozygosity (derived / total bases) by data set:")
+    logging.debug("Average hetorozygosity (derived / total bases) by data set:")
     for fn in sorted(obs_attributes):
-        logging.info(fn + ":")
+        logging.debug(fn + ":")
         for attr in obs_attributes[fn]:
-            logging.info("%15d%15d%15d%12g%12g" % attr)
+            logging.debug("%15d%15d%15d%12g%12g" % attr)
 
     ## Extract pieces from piece string
     pieces = extract_pieces(args.pieces)
@@ -274,7 +277,7 @@ def main(args):
     ctx.model.rho = 2 * args.N0 * args.r
 
     ctx.lambda_penalty = args.lambda_penalty
-    logger.info("time points in coalescent scaling:\n%s", str(s))
+    logger.debug("time points in coalescent scaling:\n%s", str(s))
 
     ## Initialize model values
     ctx.flat_pieces = [i for i in range(ctx.model.K) if i not in args.exponential_pieces]
@@ -288,15 +291,18 @@ def main(args):
 
     ## Pre-train based on observed SFS
     if not args.no_pretrain:
-        logger.info("Pre-training model")
+        logger.info("Initializing model")
         ctx.model.a, ctx.model.b = pretrain(args, obsfs)
 
     ## Compute hidden states
     hs = _smcpp.balance_hidden_states(ctx.model.x, args.M)
     if hs[0] != 0:
         raise Exception("First hidden state interval must begin at 0")
+    cs = np.cumsum(ctx.model.s)
+    cs = cs[cs <= hs[1]]
+    hs = np.sort(np.unique(np.concatenate([cs, hs])))
     ctx.model.hidden_states = hs
-    logger.info("hidden states:\n%s", str(ctx.model.hidden_states))
+    logger.debug("hidden states:\n%s", str(ctx.model.hidden_states))
 
     ## Create inference object which will be used for all further calculations.
     ctx.im = _smcpp.PyInferenceManager(n - 2, ctx.obs_list, 
@@ -314,22 +320,24 @@ def main(args):
     if (ctx.model.K - 1, 0) in coords:
         ctx.precond[(ctx.model.K - 1, 0)] = 1. / (15.0 - np.sum(ctx.model.s))
     while i < args.em_iterations:
+        logger.info("EM iteration %d (%d%%)" % (i, int(100. * i / args.em_iterations)))
+        logger.info("\tM-step...")
         ret = optimize(coords, args.lbfgs_factor)
         for xx, cc in zip(ret, coords):
             ctx.model.x[cc] = xx
         ctx.model.b[ctx.flat_pieces] = ctx.model.a[ctx.flat_pieces]
-        logger.info("************** EM ITERATION %d ***************" % i)
-        logger.info("Current model:\n%s", str(ctx.model.x))
+        logger.debug("Current model:\n%s", str(ctx.model.x))
         ctx.im.set_params(ctx.model.x, False)
+        logger.info("\tE-step...")
         ctx.im.E_step()
         ll = np.sum(ctx.im.loglik())
-        logger.info("New/old loglik: %f/%f" % (ll, ctx.llold))
+        logger.info("\tNew/old loglik: %f/%f\t(%g%% improvement)" % (ll, ctx.llold, 100. * (ll - ctx.llold) / ctx.llold))
         if ll < ctx.llold:
             logger.warn("Log-likelihood decreased")
         ctx.llold = ll
         esfs = _smcpp.sfs(n, ctx.model.x, 0.0, ctx.model.hidden_states[-1], ctx.model.theta, False)
         write_model(os.path.join(args.outdir, "model.%d.txt" % i))
-        logger.info("model sfs:\n%s" % str(esfs))
-        logger.info("observed sfs:\n%s" % str(obsfs))
+        logger.debug("model sfs:\n%s" % str(esfs))
+        logger.debug("observed sfs:\n%s" % str(obsfs))
         i += 1
     write_model(os.path.join(args.outdir, "model.final.txt"))
