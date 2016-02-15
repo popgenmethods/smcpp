@@ -40,7 +40,7 @@ def init_parser(parser):
     hmm.add_argument('--Nmax', type=float, help="Upper bound on effective population size", default=400000)
     hmm.add_argument('--span-cutoff', help="treat spans > as missing", default=50000, type=int)
     hmm.add_argument('--length-cutoff', help="omit sequences < cutoff", default=1000000, type=int)
-    parser.add_argument("-o", "--outdir", help="output directory", default=".", widget="DirChooser")
+    parser.add_argument("-o", "--outdir", help="output directory", default="/tmp", widget="DirChooser")
     parser.add_argument('-v', '--verbose', action='store_true', help="generate tremendous amounts of output")
     pop_params.add_argument('--N0', default=1e4, type=float, help="reference effective (diploid) population size to scale output.")
     pop_params.add_argument('mu', type=float, help="per-generation mutation rate")
@@ -92,7 +92,6 @@ def pretrain(args, obsfs):
         for cc, xx in zip(coords, x):
             y[cc] = xx
         y[1, ctx.flat_pieces] = y[0, ctx.flat_pieces]
-        print(y)
         sfs, jac = _smcpp.sfs(n, (y[0], y[1], ctx.model.s), 0., 49.0, ctx.model.theta, coords)
         usfs = util.undistinguished_sfs(sfs)
         ujac = util.undistinguished_sfs(jac)
@@ -108,7 +107,7 @@ def pretrain(args, obsfs):
         return ret
     x0 = np.ones(len(coords))
     res = scipy.optimize.fmin_tnc(f, x0, None,
-            bounds=[tuple(ctx.bounds[cc]) for cc in coords])
+            bounds=[tuple(ctx.bounds[cc]) for cc in coords], disp=False)
     ret = np.ones([2, ctx.model.K])
     for cc, xx in zip(coords, res[0]):
         ret[cc] = xx
@@ -305,6 +304,7 @@ def main(args):
     logger.debug("hidden states:\n%s", str(ctx.model.hidden_states))
 
     ## Create inference object which will be used for all further calculations.
+    logger.info("Performing initial E step")
     ctx.im = _smcpp.PyInferenceManager(n - 2, ctx.obs_list, 
             ctx.model.hidden_states, ctx.model.theta, ctx.model.rho)
     ctx.im.set_params(ctx.model.x, False)
@@ -320,7 +320,7 @@ def main(args):
     if (ctx.model.K - 1, 0) in coords:
         ctx.precond[(ctx.model.K - 1, 0)] = 1. / (15.0 - np.sum(ctx.model.s))
     while i < args.em_iterations:
-        logger.info("EM iteration %d (%d%%)" % (i, int(100. * i / args.em_iterations)))
+        logger.info("EM iteration %d/%d" % (i + 1, args.em_iterations))
         logger.info("\tM-step...")
         ret = optimize(coords, args.lbfgs_factor)
         for xx, cc in zip(ret, coords):
@@ -331,7 +331,8 @@ def main(args):
         logger.info("\tE-step...")
         ctx.im.E_step()
         ll = np.sum(ctx.im.loglik())
-        logger.info("\tNew/old loglik: %f/%f\t(%g%% improvement)" % (ll, ctx.llold, 100. * (ll - ctx.llold) / ctx.llold))
+        if i > 0:
+            logger.info("\tNew/old loglik: %f/%f\t(%g%% improvement)" % (ll, ctx.llold, 100. * (ll - ctx.llold) / ctx.llold))
         if ll < ctx.llold:
             logger.warn("Log-likelihood decreased")
         ctx.llold = ll
