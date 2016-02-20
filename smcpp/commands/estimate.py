@@ -320,7 +320,7 @@ def main(args):
     if (ctx.model.K - 1, 0) in coords:
         ctx.precond[(ctx.model.K - 1, 0)] = 1. / (15.0 - np.sum(ctx.model.s))
     while i < args.em_iterations:
-        logger.info("EM iteration %d (%d%%)" % (i, int(100. * i / args.em_iterations)))
+        logger.info("EM iteration %d/%d" % (i, args.em_iterations))
         logger.info("\tM-step...")
         ret = optimize(coords, args.lbfgs_factor)
         for xx, cc in zip(ret, coords):

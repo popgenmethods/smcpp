@@ -23,19 +23,19 @@ def save_pdf(plt, filename):
     plt.savefig(pp, format='pdf')
     pp.close()
 
-def plot_psfs(psfs, xlim, ylim, xlabel, order=None):
+def plot_psfs(psfs, xlim, ylim, xlabel, order=None, logy=False):
     fig, ax = pretty_plot()
     xmax = ymax = 0.
     labels = []
     if order is None:
         order = sorted(psfs)
     for label in order:
-        if label == "coal_times": continue
-        a = psfs[label]['a']
-        b = psfs[label]['b']
-        s = psfs[label]['s']
-        s = np.concatenate([[0.], s])
-        s = s[1:] - s[:-1]
+        if label == "coal_times": 
+            continue
+        N0 = psfs[label]['N0']
+        a = N0 * psfs[label]['a']
+        b = N0 * psfs[label]['b']
+        s = 2. * N0 * psfs[label]['s']
         slope = np.log(a/b) / s
         cum = 0.
         x = []
@@ -66,7 +66,8 @@ def plot_psfs(psfs, xlim, ylim, xlabel, order=None):
         ax.plot(x, y, color="grey", linestyle="--")
     first_legend = ax.legend(handles=labels, loc=1)
     ax.set_xscale('log')
-    ax.set_yscale('log')
+    if logy:
+        ax.set_yscale('log')
     ax.set_xlabel(xlabel)
     ax.set_ylabel(r'$N_e \times 10^3$')
     if not xlim:
