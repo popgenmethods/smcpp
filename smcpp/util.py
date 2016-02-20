@@ -33,10 +33,11 @@ def build_sawtooth():
 sawtooth = build_sawtooth()
 
 human = {
-    'a': np.array([10.0, 0.5, 1.0, 4.0]) * 20000.,
-    'b': np.array([1.0, 0.5, 1.0, 4.0]) * 20000.,
-    's': np.array([10000., 70000. - 10000., 200000. - 70000., 1.0])
-    }
+        'a': np.array([10.0, 0.5, 1.0, 4.0]),
+        'b': np.array([1.0, 0.5, 1.0, 4.0]),
+        's': np.array([10000., 70000. - 10000., 200000. - 70000., 1.0]) / 20000. / 25.0,
+        'N0': 10000.
+        }
 
 def undistinguished_sfs(sfs):
     n = sfs.shape[1] - 1

@@ -6,6 +6,7 @@ from ..model import SMCModel
 
 def init_parser(parser):
     parser.add_argument("-g", type=float, help="Plot x-axis in years assuming a generation time of g")
+    parser.add_argument("--logy", action="store_true", help="ploy y on log axis")
     parser.add_argument("-x", "--xlim", type=float, nargs=2, default=(1000, 1000000), help="x-axis limits")
     parser.add_argument("-y", "--ylim", type=float, nargs=2, default=None, help="y-axis limits")
     parser.add_argument("-l", "--labels", type=str, help="labels for each plotted function", nargs="+")
@@ -19,18 +20,12 @@ def main(args):
             label = None
         if fn in ["human", "sawtooth"]:
             p = getattr(util, fn)
-            psfs[label] = {k: p[k] * p['N0'] for k in "abs"}
-            psfs[label]['s'] *= 2.0
+            psfs[label] = {k: p[k] for k in "abs"}
+            psfs[label]['N0'] = p['N0']
         else:
-            try:
-                m = SMCModel.from_file(fn)
-                # Plot size history in diploid Ne => do not scale a,b by 2
-                psfs[label] = {'a': m.a * m.N0, 'b': m.b * m.N0, 's': 2. * m.N0 * np.cumsum(m.s)}
-            except ValueError:
-                # Try old csv format. Here everything should have correct scaling
-                m = np.array([[float(x) for x in line.strip().split(",")] for line in open(fn, "rt")]).T
-                psfs[label] = dict(zip('abs', m))
+            m = SMCModel.from_file(fn)
+            psfs[label] = {k: getattr(m, k) for k in "a b s N0".split()}
         if args.g is not None:
             psfs[label]['s'] *= args.g
     plotting.save_pdf(plotting.plot_psfs(psfs, xlim=args.xlim, ylim=args.ylim, 
-        xlabel="Generations" if args.g is None else "Years"), args.pdf)
+        xlabel="Generations" if args.g is None else "Years", logy=args.logy), args.pdf)

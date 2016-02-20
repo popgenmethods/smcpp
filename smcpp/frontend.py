@@ -26,8 +26,8 @@ def run(parser, subparser_cls=None):
     # args.func, where the work takes place.
     cmds = [
             ('estimate', commands.estimate, 'Fit SMC++ to data'),
-            ('plot_model', commands.plot_model, 'Plot size history from fitted model'),
-            ('plot_posterior', commands.plot_posterior, 'Plot posterior decoding for a region'),
+            ('plot', commands.plot, 'Plot size history from fitted model'),
+            ('posterior', commands.posterior, 'Posterior decoding for a region'),
             ('vcf2smc', commands.vcf2smc, 'Convert VCF to SMC++ format')
             ]
     for kwd, module, help in cmds:
