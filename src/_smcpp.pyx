@@ -8,7 +8,7 @@ import logging
 import collections
 import scipy.optimize
 
-T_MAX = C_T_MAX
+T_MAX = C_T_MAX - 0.1
 
 init_eigen();
 logger = logging.getLogger(__name__)
@@ -263,6 +263,7 @@ cdef class PyInferenceManager:
         return self._call_inference_func("loglik")
 
 def balance_hidden_states(params, int M):
+    M -= 1
     cdef ParameterVector p = make_params(params)
     cdef vector[double] v = []
     cdef PiecewiseExponentialRateFunction[double] *eta = new PiecewiseExponentialRateFunction[double](p, v)
@@ -273,12 +274,12 @@ def balance_hidden_states(params, int M):
             def f(double t):
                 cdef double Rt = eta.R(t)
                 return np.exp(-Rt) - 1.0 * (M - m) / M
-            res = scipy.optimize.brentq(f, ret[-1], T_MAX - .001)
+            res = scipy.optimize.brentq(f, ret[-1], T_MAX)
             ret.append(res)
     finally:
         del eta
-    if ret[-1] < T_MAX - .1:
-        ret.append(T_MAX - .1)
+    if ret[-1] < T_MAX:
+        ret.append(T_MAX)
     return np.array(ret)
 
 def sfs(int n, params, double t1, double t2, double theta, jacobian=False):
