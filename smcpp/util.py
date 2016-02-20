@@ -189,8 +189,7 @@ def parse_text_datasets(datasets):
     p.close()
     p.terminate()
     p = None
-    n = 2 + max([ob[:,-1].max() for ob in obs])
-    return {'n': n, 'obs': obs}
+    return obs
 
 def config2dict(cp):
     return {sec: dict(cp.items(sec)) for sec in cp.sections()}

@@ -2,8 +2,15 @@ import numpy as np
 import json
 
 class SMCModel(object):
-    def __init__(self):
-        self._x = self._hidden_states = self.N0 = self.theta = self.rho = None
+    def __init__(self, s, exponential_pieces):
+        self._x = np.ones([3, len(s)])
+        self.s = s
+        self._flat_pieces = [i for i in range(self.K) if i not in exponential_pieces]
+        self.b = self.a + 0.1
+        self.flatten()
+
+    def flatten(self):
+        self._b[self._flat_pieces] = self._a[self._flat_pieces]
 
     @property
     def x(self):
