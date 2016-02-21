@@ -1,6 +1,8 @@
 import numpy as np
 import json
 
+from . import _smcpp, estimation_tools
+
 class SMCModel(object):
     def __init__(self, s, exponential_pieces):
         self._x = np.ones([3, len(s)])
@@ -9,8 +11,26 @@ class SMCModel(object):
         self.b = self.a + 0.1
         self.flatten()
 
+    @property
+    def coords(self):
+        return [(aa, j) for j in range(self.K) for aa in ((0,) if j in self.flat_pieces else (0, 1))]
+
+    @property
+    def precond(self):
+        ret = {coord: 1. / self.s[coord[1]] for coord in self.coords}
+        if (self.K - 1, 0) in self.coords:
+            ret[(self.K - 1, 0)] = 1. / (_smcpp.T_MAX - np.sum(self.s))
+        return ret
+
+    def regularizer(self, penalty):
+        return estimation_tools.regularizer(self, penalty)
+
     def flatten(self):
-        self._b[self._flat_pieces] = self._a[self._flat_pieces]
+        self.b[self.flat_pieces] = self.a[self.flat_pieces]
+
+    @property
+    def flat_pieces(self):
+        return self._flat_pieces
 
     @property
     def x(self):

@@ -80,7 +80,7 @@ cdef class PyInferenceManager:
         Ls = []
         ## Validate hidden states
         if any([not np.all(np.sort(hidden_states) == hidden_states),
-            hidden_states[0] != 0., hidden_states[-1] >= T_MAX]):
+            hidden_states[0] != 0., hidden_states[-1] > T_MAX]):
             raise RuntimeError("Hidden states must be in ascending order with hs[0]=0 and hs[-1] < %g" % T_MAX)
         for ob in observations:
             validate_observation(ob)
@@ -99,19 +99,15 @@ cdef class PyInferenceManager:
     def get_observations(self):
         return self._observations
 
-    def set_params(self, params, derivatives):
+    def set_params(self, model, derivatives):
         global abort
         if abort:
             abort = False
             raise KeyboardInterrupt
         logger.debug("Updating params")
-        if not np.all(np.array(params) > 0):
+        if not np.all(model.x > 0):
             raise ValueError("All parameters must be strictly positive")
-        if not all(len(pp) == len(params[0]) for pp in params):
-            raise ValueError("All parameters must have same sizes")
-        cdef ParameterVector p = make_params(params)
-        if derivatives is True:
-            derivatives = [(a, b) for a in range(len(params)) for b in range(len(params[0]))]
+        cdef ParameterVector p = make_params(model.x)
         cdef vector[pair[int, int]] _derivatives
         if derivatives:
             # It should be pairs of tuples in this case

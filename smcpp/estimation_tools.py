@@ -4,6 +4,7 @@ import numpy as np
 import logging
 logger = logging.getLogger(__name__)
 import scipy.optimize
+import multiprocessing
 
 from . import _smcpp, util
 
@@ -19,10 +20,10 @@ def extract_pieces(piece_str):
         pieces += [span] * num
     return pieces
 
-def regularizer(model, coords, penalty):
+def regularizer(model, penalty):
     ## Regularizer
     reg = 0
-    dreg = np.zeros(len(coords))
+    dreg = np.zeros(len(model.coords))
     cs = np.cumsum(model.s)
     for i in range(1, model.K):
         x = model.b[i - 1] - model.a[i]
@@ -32,20 +33,18 @@ def regularizer(model, coords, penalty):
         for c in [(0 if i - 1 in model.flat_pieces else 1, i - 1), (0, i)]:
             dx = 1 if c[1] == i - 1 else -1
             try:
-                i = coords.index(c)
+                i = model.coords.index(c)
                 dreg[i] += cons * 2 * x * dx
             except ValueError:
                 pass
     return reg, dreg
 
-def compute_empirical_sfs(obs_list, n):
-    ol = pop.obs_list
-    n = pop.n
+def empirical_sfs(obs, n):
     ret = np.zeros([3, n - 1])
-    olsub = ol[np.logical_and(ol[:, 1:3].min(axis=1) != -1, ol[:, -1] == n - 2)]
+    sub = obs[np.logical_and(obs[:, 1:3].min(axis=1) != -1, obs[:, -1] == n - 2)]
     for a in [0, 1, 2]:
         for b in range(n - 1):
-            ret[a, b] = olsub[np.logical_and(olsub[:, 1] == a, olsub[:, 2] == b)][:, 0].sum()
+            ret[a, b] = sub[np.logical_and(sub[:, 1] == a, sub[:, 2] == b)][:, 0].sum()
     return ret
 
 def _thin_helper(args):
@@ -55,33 +54,32 @@ def _thin_helper(args):
 def thin_dataset(dataset, thinning):
     return multiprocessing.Pool().map(_thin_helper, [(chrom, thinning, i) for i, chrom in enumerate(dataset)])
     
-def pretrain(model, obsfs, bounds, penalty):
+def pretrain(model, obsfs, bounds, theta, penalty):
+    '''Pre-train model by fitting to observed SFS. Changes model in place!'''
     n = obsfs.shape[1] + 1
     fp = model.flat_pieces
     K = model.K
     coords = [(u, v) for v in range(K) for u in ([0] if v in fp else [0, 1])]
-    y = np.ones([2, K])
     uobsfs = util.undistinguished_sfs(obsfs)
     def f(x):
         for cc, xx in zip(coords, x):
-            y[cc] = xx
-        y[1, fp] = y[0, fp]
-        sfs, jac = _smcpp.sfs(n, (y[0], y[1], model.s), 0., _smcpp.T_MAX, self._model.theta, coords)
+            model.x[cc] = xx
+        model.flatten()
+        sfs, jac = _smcpp.sfs(n, model.x, 0., _smcpp.T_MAX, theta, coords)
         usfs = util.undistinguished_sfs(sfs)
         ujac = util.undistinguished_sfs(jac)
         kl = -(uobsfs * np.log(usfs)).sum()
         dkl = -(uobsfs[:, None] * ujac / usfs[:, None]).sum(axis=0)
         ret = [kl, dkl]
-        reg, dreg = regularizer(y, coords, penalty)
+        reg, dreg = model.regularizer(penalty)
         ret[0] += reg
         ret[1] += dreg
         return ret
     res = scipy.optimize.fmin_l_bfgs_b(f, np.ones(len(coords)), None,
             bounds=[tuple(bounds[cc]) for cc in coords], disp=False)
     for cc, xx in zip(coords, res[0]):
-        y[cc] = xx
-    y[1, fp] = ret[0, fp]
-    return y
+        model.x[cc] = xx 
+    model.flatten()
 
 def break_long_spans(dataset, span_cutoff, length_cutoff):
     obs_list = []
@@ -89,7 +87,7 @@ def break_long_spans(dataset, span_cutoff, length_cutoff):
     for fn, obs in enumerate(dataset):
         long_spans = np.where(obs[:, 0] >= span_cutoff)[0]
         cob = 0
-        logging.debug("Long spans: %s" % str(long_spans))
+        logger.debug("Long spans: %s" % str(long_spans))
         positions = np.insert(np.cumsum(obs[:, 0]), 0, 0)
         for x in long_spans:
             if not np.all(obs[x, 1:] == [-1, 0, 0]):
@@ -104,10 +102,10 @@ def break_long_spans(dataset, span_cutoff, length_cutoff):
                 logger.info("omitting sequence length < %d as less than length cutoff" % s)
             cob = x + 1
         s = obs[cob:, 0].sum()
-        if s > args.length_cutoff:
-            ctx.obs_list.append(np.insert(obs[cob:], 0, [1, -1, 0, 0], 0))
-            sums = ctx.obs_list[-1].sum(axis=0)
-            s2 = ctx.obs_list[-1][:,1][ctx.obs_list[-1][:,1]>=0].sum()
+        if s > length_cutoff:
+            obs_list.append(np.insert(obs[cob:], 0, [1, -1, 0, 0], 0))
+            sums = obs_list[-1].sum(axis=0)
+            s2 = obs_list[-1][:,1][obs_list[-1][:,1]>=0].sum()
             obs_attributes.setdefault(fn, []).append((positions[cob], positions[-1], sums[0], 1. * s2 / sums[0], 1. * sums[2] / sums[0]))
         else:
             logger.info("omitting sequence length < %d as less than length cutoff" % s)
