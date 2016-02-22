@@ -44,8 +44,7 @@ setup(name='smcpp',
             "scipy>=0.16",
             "numpy>=1.9",
             "matplotlib>=1.5",
-            "future",
-            "setuptools"],
+            "future"]
         extras_require = {'gui': ["Gooey>=0.9"]},
         entry_points = {
             'console_scripts': ['smc++ = smcpp.frontend.console:main'],
