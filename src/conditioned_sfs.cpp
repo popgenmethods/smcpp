@@ -1,7 +1,5 @@
 #include "conditioned_sfs.h"
 
-const Eigen::IOFormat fmt(Eigen::FullPrecision);
-
 std::map<int, below_coeff> below_coeffs_memo;
 below_coeff compute_below_coeffs(int n)
 {
