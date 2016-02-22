@@ -1,15 +1,45 @@
 import numpy as np
 import scipy.optimize
 import logging
+import os.path
+
 logger = logging.getLogger(__name__)
 
 class _optimizer(object):
-    def __init__(self, iserv, bounds, penalty):
+    def __init__(self, iserv, bounds, cmdargs):
         self._iserv = iserv
         self._bounds = bounds
-        self._penalty = penalty
+        self._cmdargs = cmdargs
         self._coords = iserv.coords
         self._precond = iserv.precond
+
+    def run(self, niter):
+        iserv = self._iserv
+        logger.debug("Initializing model(s)")
+        models = iserv.model
+        iserv.set_params(models, False)
+        logger.debug("Performing initial E step")
+        iserv.E_step()
+        llold = sum(sum(ll) for ll in iserv.loglik())
+        logger.debug("Starting loglik: %g" % llold)
+        for i in range(niter):
+            logger.info("EM iteration %d/%d" % (i + 1, niter))
+            logger.info("\tM-step...")
+            self._optimize(models)
+            logger.info("Current model(s):")
+            for j, m in enumerate(models, 1):
+                logger.info("Pop %d:\n%s" % (j, str(m.x[:2])))
+            iserv.set_params(models, False)
+            logger.info("\tE-step...")
+            iserv.E_step()
+            ll = sum(sum(ll) for ll in iserv.loglik())
+            logger.info("\tNew/old loglik: %f/%f" % (ll, llold))
+            if ll < llold:
+                logger.warn("Log-likelihood decreased")
+            llold = ll
+            iserv.dump([os.path.join(self._cmdargs.outdir, ".pop%d.iter%d" % (j, i)) for j in range(len(models))])
+        ## Optimization concluded
+        iserv.dump([os.path.join(self._cmdargs.outdir, ".pop%d.final" % j) for j in range(len(models))])
 
     def _f(self, xs):
         models = self._iserv.model
@@ -19,67 +49,43 @@ class _optimizer(object):
             for xxx, cc in zip(xx, coords):
                 m.x[cc] = xxx * precond[cc]
             m.flatten()
-            regs.append(m.regularizer(self._penalty))
-        self._iserv.set_params([(m, c) for m, c in zip(models, self._coords)])
-        lls, jacs = zip(*[zip(*r) for r in self._iserv.Q()])
-        ret = [-np.mean(lls, axis=0), -np.mean(jacs, axis=0)]
-        reg, dreg = regularizer([aa, bb], coords, ctx.lambda_penalty)
-        ret[0] += reg
-        ret[1] += dreg
-        dary = np.zeros([2, ctx.model.K])
-        for i, cc in enumerate(coords):
-            ret[1][i] *= ctx.precond[cc]
-            dary[cc] = ret[1][i]
-        logger.debug(x0c)
-        logger.debug(dary)
-        logger.debug(ret[0])
-        logger.debug("regularizer: %s" % str((reg, dreg)))
-        return ret
+            regs.append(m.regularizer(self._cmdargs.lambda_penalty))
+        self._iserv.set_params(models, self._coords)
+        ret = []
+        for q, reg, coords, precond in zip(self._iserv.Q(), regs, self._coords, self._precond):
+            lls, jacs = zip(*q)
+            tmp = [-np.mean(lls), -np.mean(jacs, axis=0)]
+            tmp[0] += reg[0]
+            tmp[1] += reg[1]
+            for i, cc in enumerate(coords):
+                tmp[1][i] *= precond[cc]
+            ret.append(tmp)
+        return list(map(sum, zip(*ret)))
 
 class SinglePopulationOptimizer(_optimizer):
     def _f(self, xs):
-        return _optimizer._f(self, [xs])
+        ret = _optimizer._f(self, [xs])
+        return ret
 
-    def _optimize(self, model):
+    def _optimize(self, models):
         logger.debug("Performing a round of optimization")
+        assert len(models) == 1
+        model = models[0]
+        # logger.info("gradient check")
+        # xx0 = np.array([model.x[cc] / model.precond[cc] for cc in model.coords])
+        # f0, fp = self._f(xx0)
+        # for i, cc in enumerate(model.coords):
+        #     x0c = xx0.copy()
+        #     x0c[i] += 1e-8
+        #     f1, _ = self._f(x0c)
+        #     logger.info((i, cc, f1, f0, (f1 - f0) / 1e-8, fp[i]))
+        # aoeu
         res = scipy.optimize.fmin_l_bfgs_b(self._f, [model.x[cc] / model.precond[cc] for cc in model.coords], 
                 None, bounds=[tuple(self._bounds[cc] / model.precond[cc]) for cc in model.coords], 
                 factr=1e9)
-        ret = np.array([x * model.precond[cc] for x, cc in zip(res[0], model.coords)])
-        return ret
-
-    def run(self, niter):
-        logger.debug("Initializing model(s)")
-        model = self._iserv.model[0]
-        self._iserv.set_params([[model, False]])
-        logger.debug("Performing initial E step")
-        self._iserv.E_step(False)
-        llold = sum(self._iserv.loglik()[0])
-        logger.debug("Starting loglik: %g" % llold)
-        for i in range(niter):
-            logger.info("EM iteration %d/%d" % (i + 1, niter))
-            logger.info("\tM-step...")
-            ret = self._optimize(model)
-            for xx, cc in zip(ret, model.coords):
-                model.x[cc] = xx
-            model.flatten()
-            logger.debug("Current model:\n%s", str(ctx.model.x))
-            iserv.set_params([(model, False)])
-            logger.info("\tE-step...")
-            iserv.E_step()
-            ll = np.sum(iserv.loglik())
-            if i > 0:
-                logger.info("\tNew/old loglik: %f/%f" % (ll, llold))
-            if ll < llold:
-                logger.warn("Log-likelihood decreased")
-            llold = ll
-            pop0 = iserv.populations[0]
-            esfs = _smcpp.sfs(n, model.x, 0.0, _smcpp.T_MAX, pop0.theta, False)
-            model.dump(os.path.join(args.outdir, ".model.%d" % i))
-            logger.debug("model sfs:\n%s" % str(esfs))
-            logger.debug("observed sfs:\n%s" % str(pop0.obsfs))
-            i += 1
-        model.dump(os.path.join(args.outdir, "model.final" % i))
+        for xx, cc in zip(res[0], model.coords):
+            model.x[cc] = xx * model.precond[cc]
+        model.flatten()
 
 class TwoPopulationOptimizer(object):
     def __init__(self, iserv):

@@ -1,5 +1,6 @@
 import multiprocessing
 import logging
+import signal
 logger = logging.getLogger(__name__)
 
 from . import _smcpp
@@ -12,10 +13,10 @@ class Worker(multiprocessing.Process):
         self._population = population
 
     def run(self):
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
         self._population = Population(*self._population)
         while True:
             task, args = self._pipe.recv()
-            logger.debug("received message: %s" % ((task, args),))
             if task == "exit":
                 logger.debug("exiting")
                 self._pipe.send(True)
@@ -43,7 +44,6 @@ class InferenceService(object):
     def _send_message(self, message, args=None):
         if args is None:
             args = [None] * self._npop
-        logger.debug("send message: %s" % ((message, args),))
         for p, a in zip(self._parent_pipes, args):
             p.send((message, a))
         return [p.recv() for p in self._parent_pipes]
@@ -58,17 +58,26 @@ class InferenceService(object):
     def E_step(self, fbonly=False):
         return self._send_message("E_step", [[fbonly]] * self._npop)
 
-    def set_params(self, args):
+    def set_params(self, models, coords):
         logger.debug("Setting parameters")
-        return self._send_message("set_params", args)
+        if coords is False:
+            coords = [False] * len(models)
+        return self._send_message("set_params", zip(models, coords))
 
     def loglik(self):
         logger.debug("Getting log-likelihood")
         return self._send_message("loglik")
 
+    def dump(self, file):
+        logger.debug("dumping population state")
+
     @property
     def coords(self):
         return self._send_message("coords")
+
+    @property
+    def obsfs(self):
+        return self._send_message("obsfs")
 
     @property
     def precond(self):
@@ -78,3 +87,6 @@ class InferenceService(object):
     def model(self):
         return self._send_message("model")
 
+    @property
+    def theta(self):
+        return self._send_message("theta")

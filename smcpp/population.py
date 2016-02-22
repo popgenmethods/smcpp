@@ -39,9 +39,16 @@ class Population(object):
         cs = np.cumsum(self._model.s)
         cs = cs[cs <= hs[1]]
         self._hidden_states = np.sort(np.unique(np.concatenate([cs, hs])))
+        logging.info("hidden states:\n%s" % str(self._hidden_states))
 
     def _pretrain(self, penalty):
         estimation_tools.pretrain(self._model, self._obsfs, self._bounds, self._theta, penalty)
+
+    def theta(self):
+        return self._theta
+
+    def obsfs(self):
+        return self._obsfs
 
     def Q(self):
         return self._im.Q()
@@ -63,3 +70,8 @@ class Population(object):
 
     def model(self):
         return self._model
+
+    def dump(self, fn):
+        d = {s: getattr(self, "_%s" % s) for s in 'time_points exponential_pieces theta rho hidden_states'.split()}
+        d['model'] = self.model.to_dict()
+        json.dump(d, fn)

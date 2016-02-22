@@ -80,6 +80,7 @@ def pretrain(model, obsfs, bounds, theta, penalty):
     for cc, xx in zip(coords, res[0]):
         model.x[cc] = xx 
     model.flatten()
+    logging.info("pretrained-model:\n%s" % str(model.x))
 
 def break_long_spans(dataset, span_cutoff, length_cutoff):
     obs_list = []

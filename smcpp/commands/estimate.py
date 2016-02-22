@@ -134,7 +134,7 @@ def main(args):
 
     npop = len(populations)
     if npop == 1:
-        opt = SinglePopulationOptimizer(iserv, bounds, args.lambda_penalty)
+        opt = SinglePopulationOptimizer(iserv, bounds, args)
     elif npop == 2:
         opt = TwoPopulationOptimizer(iserv)
     else:

@@ -1,10 +1,13 @@
 import numpy as np
 import json
+import logging
+logger = logging.getLogger(__name__)
 
 from . import _smcpp, estimation_tools
 
 class SMCModel(object):
     def __init__(self, s, exponential_pieces):
+        self._exponential_pieces = exponential_pieces
         self._x = np.ones([3, len(s)])
         self.s = s
         self._flat_pieces = [i for i in range(self.K) if i not in exponential_pieces]
@@ -41,14 +44,6 @@ class SMCModel(object):
         self._x = np.array(_x)
 
     @property
-    def hidden_states(self):
-        return self._hidden_states
-
-    @hidden_states.setter
-    def hidden_states(self, _hs):
-        self._hidden_states = np.array(_hs)
-
-    @property
     def a(self):
         return self.x[0]
 
@@ -76,23 +71,5 @@ class SMCModel(object):
     def K(self):
         return self.x.shape[1]
 
-    @property
-    def M(self):
-        return self._hidden_states.shape[0] - 1
-
-    def to_json(self):
-        return json.dumps({
-            'x': [list(self.a), list(self.b), list(self.s)],
-            'hidden_states': list(self.hidden_states),
-            'N0': self.N0,
-            'theta': self.theta,
-            'rho': self.rho
-            }, indent=4, sort_keys=True)
-
-    @classmethod
-    def from_file(klass, fn):
-        obj = json.load(open(fn, "rt"))
-        ret = klass()
-        for attr in "x hidden_states N0 theta rho".split():
-            setattr(ret, attr, obj[attr])
-        return ret
+    def to_dict(self):
+        return {'x': list(map(list, self.x)), 'exponential_pieces': self._exponential_pieces}
