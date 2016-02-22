@@ -40,6 +40,7 @@ setup(name='smcpp',
         ext_modules=cythonize(extensions),
         packages=find_packages(),
         install_requires=[
+            "setuptools>=19.6",
             "cython>=0.23",
             "scipy>=0.16",
             "numpy>=1.9",
