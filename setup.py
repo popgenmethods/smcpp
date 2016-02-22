@@ -47,7 +47,7 @@ setup(name='smcpp',
             "future"],
         extras_require = {'gui': ["Gooey>=0.9"]},
         entry_points = {
-            'console_scripts': ['smc++ = smcpp.frontend:console'],
-            'gui_scripts': ['smc++-gui = smcpp.frontend:gui [gui]']
+            'console_scripts': ['smc++ = smcpp.frontend.console:main'],
+            'gui_scripts': ['smc++-gui = smcpp.frontend.gui:main [gui]']
             }
     )
