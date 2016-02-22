@@ -52,7 +52,12 @@ def _thin_helper(args):
     return util.compress_repeated_obs(thinned)
 
 def thin_dataset(dataset, thinning):
-    return multiprocessing.Pool().map(_thin_helper, [(chrom, thinning, i) for i, chrom in enumerate(dataset)])
+    p = multiprocessing.Pool()
+    ret = p.map(_thin_helper, [(chrom, thinning, i) for i, chrom in enumerate(dataset)])
+    p.close()
+    p.join()
+    p.terminate()
+    return ret
     
 def pretrain(model, obsfs, bounds, theta, penalty):
     '''Pre-train model by fitting to observed SFS. Changes model in place!'''

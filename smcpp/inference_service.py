@@ -42,15 +42,23 @@ class InferenceService(object):
         logger.debug("finished initializing workers")
 
     def _send_message(self, message, args=None):
-        if args is None:
-            args = [None] * self._npop
-        for p, a in zip(self._parent_pipes, args):
-            p.send((message, a))
-        return [p.recv() for p in self._parent_pipes]
+        try:
+            if args is None:
+                args = [None] * self._npop
+            for p, a in zip(self._parent_pipes, args):
+                p.send((message, a))
+            return [p.recv() for p in self._parent_pipes]
+        except KeyboardInterrupt:
+            self.close()
+            raise
+
+    def __del__(self):
+        self.close()
 
     def close(self):
         for p in self._parent_pipes:
             p.send(("exit", None))
+        self._parent_pipes = []
 
     def Q(self):
         return self._send_message("Q")
