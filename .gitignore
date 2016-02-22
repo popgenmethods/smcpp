@@ -17,3 +17,4 @@ environ.sh
 .nfs*
 .ipynb_checkpoints/
 ccache.log
+dist/
