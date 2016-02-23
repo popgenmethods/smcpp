@@ -5,6 +5,7 @@ import logging
 logger = logging.getLogger(__name__)
 import scipy.optimize
 import multiprocessing
+import ad.admath
 
 from . import _smcpp, util
 
@@ -23,21 +24,13 @@ def extract_pieces(piece_str):
 def regularizer(model, penalty):
     ## Regularizer
     reg = 0
-    dreg = np.zeros(len(model.coords))
     cs = np.cumsum(model.s)
     for i in range(1, model.K):
         x = model.b[i - 1] - model.a[i]
         cons = penalty
         # rr = (abs(x) - .25) if abs(x) >= 0.5 else x**2
         reg += cons * x**2
-        for c in [(0 if i - 1 in model.flat_pieces else 1, i - 1), (0, i)]:
-            dx = 1 if c[1] == i - 1 else -1
-            try:
-                i = model.coords.index(c)
-                dreg[i] += cons * 2 * x * dx
-            except ValueError:
-                pass
-    return reg, dreg
+    return reg
 
 def empirical_sfs(obs, n):
     ret = np.zeros([3, n - 1])
@@ -61,6 +54,7 @@ def thin_dataset(dataset, thinning):
     
 def pretrain(model, obsfs, bounds, theta, penalty):
     '''Pre-train model by fitting to observed SFS. Changes model in place!'''
+    logging.debug("pretraining")
     n = obsfs.shape[1] + 1
     fp = model.flat_pieces
     K = model.K
@@ -68,23 +62,19 @@ def pretrain(model, obsfs, bounds, theta, penalty):
     uobsfs = util.undistinguished_sfs(obsfs)
     def f(x):
         for cc, xx in zip(coords, x):
-            model.x[cc] = xx
-        model.flatten()
-        sfs, jac = _smcpp.sfs(n, model.x, 0., _smcpp.T_MAX, theta, coords)
+            model[cc] = xx
+        sfs = _smcpp.sfs(n, model, 0., _smcpp.T_MAX, theta, True)
+        logging.debug(n)
         usfs = util.undistinguished_sfs(sfs)
-        ujac = util.undistinguished_sfs(jac)
-        kl = -(uobsfs * np.log(usfs)).sum()
-        dkl = -(uobsfs[:, None] * ujac / usfs[:, None]).sum(axis=0)
-        ret = [kl, dkl]
-        reg, dreg = model.regularizer(penalty)
-        ret[0] += reg
-        ret[1] += dreg
+        kl = -(uobsfs * ad.admath.log(usfs)).sum()
+        kl += model.regularizer(penalty)
+        ret = (kl.x, np.array([kl.d(model[cc]) for cc in coords]))
+        print(ret)
         return ret
     res = scipy.optimize.fmin_l_bfgs_b(f, np.ones(len(coords)), None,
             bounds=[tuple(bounds[cc]) for cc in coords], disp=False)
     for cc, xx in zip(coords, res[0]):
-        model.x[cc] = xx 
-    model.flatten()
+        model[cc] = xx 
     logging.info("pretrained-model:\n%s" % str(model.x))
 
 def break_long_spans(dataset, span_cutoff, length_cutoff):

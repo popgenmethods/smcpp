@@ -134,11 +134,12 @@ def main(args):
 
     npop = len(populations)
     if npop == 1:
-        opt = SinglePopulationOptimizer(iserv, bounds, args)
+        opt_klass = SinglePopulationOptimizer
     elif npop == 2:
-        opt = TwoPopulationOptimizer(iserv)
+        opt_klass = TwoPopulationOptimizer
     else:
         raise RuntimeError("> 2 populations not currently supported")
+    opt = opt_klass(iserv, bounds, args)
 
     # Run the optimizer
     opt.run(args.em_iterations)

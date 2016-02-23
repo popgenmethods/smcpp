@@ -42,11 +42,11 @@ human = {
 def undistinguished_sfs(sfs):
     n = sfs.shape[1] - 1
     new_shape = [n + 2] + list(sfs.shape[2:])
-    usfs = np.zeros(new_shape)
+    usfs = np.zeros(new_shape, dtype=sfs.dtype)
     for i in range(3):
         for j in range(n + 1):
             if 0 <= i + j < n + 2:
-                usfs[i + j] += sfs[i][j]
+                usfs[i + j] = usfs[i + j] + sfs[i, j]
     return usfs
 
 def grouper(iterable, n, fillvalue=None):

@@ -35,6 +35,7 @@ class Population(object):
                 self._hidden_states, self._theta, self._rho)
 
     def _balance_hidden_states(self):
+        logging.debug("balancing hidden states")
         hs = _smcpp.balance_hidden_states(self._model.x, self._M)
         cs = np.cumsum(self._model.s)
         cs = cs[cs <= hs[1]]
@@ -42,6 +43,7 @@ class Population(object):
         logging.info("hidden states:\n%s" % str(self._hidden_states))
 
     def _pretrain(self, penalty):
+        logging.debug("pretraining")
         estimation_tools.pretrain(self._model, self._obsfs, self._bounds, self._theta, penalty)
 
     def theta(self):

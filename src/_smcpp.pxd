@@ -52,8 +52,8 @@ cdef extern from "inference_manager.h":
         Matrix[adouble]& getTransition()
         Matrix[adouble]& getEmission()
         map[block_key, Vector[adouble] ]& getEmissionProbs()
-    Matrix[T] sfs_cython[T](int, const ParameterVector&, double, double, double)
-    Matrix[T] sfs_cython[T](int, const ParameterVector&, double, double, double, vector[pair[int, int]])
+    Matrix[T] sfs_cython[T](int, const ParameterVector&, double, double, double) nogil
+    Matrix[T] sfs_cython[T](int, const ParameterVector&, double, double, double, vector[pair[int, int]]) nogil
 
 
 cdef extern from "piecewise_exponential_rate_function.h":

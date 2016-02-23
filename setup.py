@@ -16,7 +16,7 @@ extensions = [
             language="c++",
             include_dirs=["src", "/usr/include/eigen3", "/usr/local/include/eigen3", np.get_include(), "/export/home/terhorst/opt/lib"],
             # extra_compile_args=["-O0", "-ggdb3", "-std=c++11", "-Wfatal-errors", "-Wno-unused-variable", "-Wno-unused-function", "-D_GLIBCXX_DEBUG"],
-            extra_compile_args=["-O2", "-std=c++11", "-Wfatal-errors", "-Wno-unused-variable", "-Wno-unused-function", "-fopenmp"],
+            extra_compile_args=["-O2", "-g", "-std=c++11", "-Wfatal-errors", "-Wno-unused-variable", "-Wno-unused-function", "-fopenmp"],
             libraries=['gmp', 'gmpxx', 'gsl', 'gslcblas'],
             extra_link_args=['-fopenmp']
             ),
@@ -41,6 +41,7 @@ setup(name='smcpp',
         packages=find_packages(),
         install_requires=[
             "setuptools>=19.6",
+            "ad>=1.2.2",
             "cython>=0.23",
             "scipy>=0.16",
             "numpy>=1.9",

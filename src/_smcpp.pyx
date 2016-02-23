@@ -7,6 +7,7 @@ import numpy as np
 import logging
 import collections
 import scipy.optimize
+from ad import adnumber
 
 T_MAX = C_T_MAX - 0.1
 
@@ -37,10 +38,22 @@ cdef vector[double*] make_mats(mats):
         expM.push_back(&mmats[i, 0, 0])
     return expM
 
-cdef ParameterVector make_params(params):
-    cdef vector[vector[double]] ret
-    for p in params:
-        ret.push_back(p)
+cdef struct ParameterBundle:
+    vector[vector[double]] vals
+    vector[pair[int, int]] derivs
+
+cdef ParameterBundle make_params(model):
+    cdef ParameterBundle ret
+    d = []
+    for i in range(2):
+        r = []
+        for j in range(model.K):
+            entry = model[(i, j)]
+            r.append(entry.x)
+            if entry.tag is not None:
+                d.append(entry.tag)
+        ret.vals.push_back(r)
+    ret.derivs = sorted(set(d))
     return ret
 
 cdef _make_em_matrix(vector[pMatrixD] mats):
@@ -64,9 +77,9 @@ def validate_observation(ob):
 
 cdef class PyInferenceManager:
     cdef InferenceManager *_im
-    cdef int _n, _nder
+    cdef int _n
     cdef int _num_hmms
-    cdef object _observations
+    cdef object _observations, _derivatives, _model
     cdef public long long seed
 
     def __cinit__(self, int n, observations, hidden_states, double theta, double rho):
@@ -107,18 +120,16 @@ cdef class PyInferenceManager:
         logger.debug("Updating params")
         if not np.all(model.x > 0):
             raise ValueError("All parameters must be strictly positive")
-        cdef ParameterVector p = make_params(model.x)
-        cdef vector[pair[int, int]] _derivatives
+        cdef ParameterBundle pb = make_params(model)
+        self._model = model
         if derivatives:
-            # It should be pairs of tuples in this case
-            self._nder = len(derivatives)
-            _derivatives = derivatives
+            self._derivatives = list(pb.derivs)
             with nogil:
-                self._im.setParams_ad(p, _derivatives)
+                self._im.setParams_ad(pb.vals, pb.derivs)
         else:
-            self._nder = 0
+            self._derivatives = None
             with nogil:
-                self._im.setParams_d(p)
+                self._im.setParams_d(pb.vals)
         logger.debug("Updating params finished.")
 
     def E_step(self, forward_backward_only=False):
@@ -133,20 +144,6 @@ cdef class PyInferenceManager:
             return self._im.spanCutoff
         def __set__(self, bint sc):
             self._im.spanCutoff = sc
-
-    property regularizer:
-        def __get__(self):
-            cdef adouble reg
-            cdef double[::1] vjac
-            with nogil:
-                reg = self._im.getRegularizer()
-            if self._nder == 0:
-                return toDouble(reg)
-            else:
-                jac = np.zeros(self._nder)
-                vjac = jac
-                fill_jacobian(reg, &vjac[0])
-                return (toDouble(reg), jac)
 
     property save_gamma:
         def __get__(self):
@@ -173,7 +170,7 @@ cdef class PyInferenceManager:
                     key[i] = p.first[i]
                 M = p.second.size()
                 v = np.zeros(M)
-                if self._nder > 0:
+                if self._derivatives is not None:
                     dv = np.zeros([M, self._nder])
                 for i in range(M):
                     v[i] = p.second(i).value()
@@ -243,13 +240,12 @@ cdef class PyInferenceManager:
         ret = []
         cdef double[::1] vjac
         for i in range(self._num_hmms):
-            if (self._nder > 0):
-                jac = aca(np.zeros([self._nder]))
+            ret.append(adnumber(toDouble(ad_rets[i])))
+            if self._derivatives is not None:
+                jac = aca(np.zeros([len(self._derivatives)]))
                 vjac = jac
                 fill_jacobian(ad_rets[i], &vjac[0])
-                ret.append((toDouble(ad_rets[i]), jac))
-            else:
-                ret.append(toDouble(ad_rets[i]))
+                ret[-1].d().update({self._model[i, j]: jac[k] for k, (i, j) in enumerate(self._derivatives, jac)})
         return ret
 
     def Q(self):
@@ -258,11 +254,11 @@ cdef class PyInferenceManager:
     def loglik(self):
         return self._call_inference_func("loglik")
 
-def balance_hidden_states(params, int M):
+def balance_hidden_states(model, int M):
     M -= 1
-    cdef ParameterVector p = make_params(params)
+    cdef ParameterBundle pb = make_params(model)
     cdef vector[double] v = []
-    cdef PiecewiseExponentialRateFunction[double] *eta = new PiecewiseExponentialRateFunction[double](p, v)
+    cdef PiecewiseExponentialRateFunction[double] *eta = new PiecewiseExponentialRateFunction[double](pb.vals, v)
     try:
         ret = [0.0]
         t = 0
@@ -278,21 +274,31 @@ def balance_hidden_states(params, int M):
         ret.append(T_MAX)
     return np.array(ret)
 
-def sfs(int n, params, double t1, double t2, double theta, jacobian=False):
-    cdef ParameterVector p = make_params(params)
+def sfs(int n, model, double t1, double t2, double theta, jacobian=False):
+    logging.debug("calculating sfs: %d/%g/%g/%g/%d" % (n, t1, t2, theta, jacobian))
+    cdef ParameterBundle pb = make_params(model)
+    logging.debug(pb.vals)
+    logging.debug(pb.derivs)
     cdef Matrix[double] sfs
     cdef Matrix[adouble] dsfs
     ret = aca(np.zeros([3, n - 1]))
     cdef double[:, ::1] vret = ret
     if not jacobian:
-        sfs = sfs_cython[double](n, p, t1, t2, theta)
+        with nogil:
+            sfs = sfs_cython[double](n, pb.vals, t1, t2, theta)
         store_matrix(&sfs, &vret[0, 0])
         return ret
-    J = len(jacobian)
-    jac = aca(np.zeros([3, n - 1, J]))
-    cdef double[:, :, ::1] vjac = jac
-    dsfs = sfs_cython[adouble](n, p, t1, t2, theta, jacobian)
-    return _store_admatrix_helper(dsfs, J)
+    with nogil:
+        dsfs = sfs_cython[adouble](n, pb.vals, t1, t2, theta, pb.derivs)
+    J = pb.derivs.size()
+    ret, jac = _store_admatrix_helper(dsfs, J)
+    ret = adnumber(ret)
+    derivs = list(pb.derivs)
+    for i in range(3):
+        for j in range(n - 1):
+            for k, p in enumerate(derivs):
+                ret[i, j].d()[model[p]] = jac[i, j, k]
+    return ret
 
 cdef _store_admatrix_helper(Matrix[adouble] &mat, int nder):
     cdef double[:, ::1] v

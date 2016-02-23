@@ -17,6 +17,7 @@ class Worker(multiprocessing.Process):
         self._population = Population(*self._population)
         while True:
             task, args = self._pipe.recv()
+            logger.debug((task, args))
             if task == "exit":
                 logger.debug("exiting")
                 self._pipe.send(True)
