@@ -26,7 +26,7 @@ def regularizer(model, penalty):
     reg = 0
     cs = np.cumsum(model.s)
     for i in range(1, model.K):
-        x = model.b[i - 1] - model.a[i]
+        x = model[1, i - 1] - model[0, i]
         cons = penalty
         # rr = (abs(x) - .25) if abs(x) >= 0.5 else x**2
         reg += cons * x**2
@@ -61,17 +61,17 @@ def pretrain(model, obsfs, bounds, theta, penalty):
     coords = [(u, v) for v in range(K) for u in ([0] if v in fp else [0, 1])]
     uobsfs = util.undistinguished_sfs(obsfs)
     def f(x):
+        x = ad.adnumber(x)
         for cc, xx in zip(coords, x):
             model[cc] = xx
         sfs = _smcpp.sfs(n, model, 0., _smcpp.T_MAX, theta, True)
         usfs = util.undistinguished_sfs(sfs)
         kl = -(uobsfs * ad.admath.log(usfs)).sum()
         kl += model.regularizer(penalty)
-        ret = (kl.x, np.array([kl.d(model[cc]) for cc in coords]))
-        return ret
+        return (kl.x, np.array(list(map(kl.d, x))))
     res = scipy.optimize.fmin_l_bfgs_b(f, 
             [float(model[cc]) for cc in model.coords], None,
-            bounds=[tuple(bounds[cc]) for cc in coords], disp=True, factr=1e4)
+            bounds=[tuple(bounds[cc]) for cc in coords])
     for cc, xx in zip(coords, res[0]):
         model[cc] = xx 
     logging.info("pretrained-model:\n%s" % str(model.x))

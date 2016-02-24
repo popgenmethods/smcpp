@@ -41,24 +41,14 @@ class SMCModel(object):
         return self._x[c]
 
     def __setitem__(self, c, y):
-        y = adnumber(y, c)
         self._x[c] = y
         if c[1] in self._flat_pieces:
             self._x[1, c[1]] = y
-        assert isinstance(self._x[0, 0], type(adnumber(1.)))
 
     @property
     def flat_pieces(self):
         return self._flat_pieces
     
-    @property
-    def a(self):
-        return self.x[0]
-
-    @property
-    def b(self):
-        return self._x[1]
-
     @property
     def s(self):
         return self._x[2]

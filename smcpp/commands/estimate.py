@@ -19,7 +19,7 @@ from .. import _smcpp, util, estimation_tools
 from ..model import SMCModel
 from ..population import Population
 from ..inference_service import DumbInferenceService as InferenceService
-from ..optimizer import SinglePopulationOptimizer, TwoPopulationOptimizer
+from ..optimizer import PopulationOptimizer, TwoPopulationOptimizer
 
 np.set_printoptions(linewidth=120, suppress=True)
 
@@ -134,7 +134,7 @@ def main(args):
 
     npop = len(populations)
     if npop == 1:
-        opt_klass = SinglePopulationOptimizer
+        opt_klass = PopulationOptimizer
     elif npop == 2:
         opt_klass = TwoPopulationOptimizer
     else:

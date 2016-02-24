@@ -48,15 +48,13 @@ cdef ParameterBundle make_params(model):
     for i in range(3):
         r = []
         for j in range(model.K):
-            entry = model[(i, j)]
+            entry = model[i, j]
             r.append(float(entry))
-            try:
-                if entry.tag is not None:
-                    d.append(entry.tag)
-            except AttributeError:
-                pass
         ret.vals.push_back(r)
-    ret.derivs = sorted(set(d))
+    for b in range(model.K):
+        ret.derivs.push_back((0, b))
+        if b not in model.flat_pieces:
+            ret.derivs.push_back((1, b))
     return ret
 
 cdef _make_em_matrix(vector[pMatrixD] mats):
@@ -243,12 +241,18 @@ cdef class PyInferenceManager:
         ret = []
         cdef double[::1] vjac
         for i in range(self._num_hmms):
-            ret.append(adnumber(toDouble(ad_rets[i])))
+            r = toDouble(ad_rets[i])
             if self._derivatives is not None:
                 jac = aca(np.zeros([len(self._derivatives)]))
                 vjac = jac
                 fill_jacobian(ad_rets[i], &vjac[0])
-                ret[-1].d().update({self._model[i, j]: jac[k] for k, (i, j) in enumerate(self._derivatives)})
+                d = {}
+                for k, (i, j) in enumerate(self._derivatives):
+                    for var in self._model[i, j].d():
+                        d[var] = d.get(var, 0) + self._model[i, j].d(var) * jac[k]
+                r = adnumber(toDouble(ad_rets[i]))
+                r.d().update(d)
+            ret.append(r)
         return ret
 
     def Q(self):
@@ -298,7 +302,8 @@ def sfs(int n, model, double t1, double t2, double theta, jacobian=False):
     for i in range(3):
         for j in range(n - 1):
             for k, p in enumerate(derivs):
-                ret[i, j].d()[model[p]] = jac[i, j, k]
+                for v in model[p].d():
+                    ret[i, j].d()[v] = ret[i, j].d().get(v, 0.) + model[p].d(v) * jac[i, j, k]
     return ret
 
 cdef _store_admatrix_helper(Matrix[adouble] &mat, int nder):

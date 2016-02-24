@@ -18,3 +18,4 @@ environ.sh
 .ipynb_checkpoints/
 ccache.log
 dist/
+.Rhistory
