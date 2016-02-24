@@ -64,15 +64,14 @@ def pretrain(model, obsfs, bounds, theta, penalty):
         for cc, xx in zip(coords, x):
             model[cc] = xx
         sfs = _smcpp.sfs(n, model, 0., _smcpp.T_MAX, theta, True)
-        logging.debug(n)
         usfs = util.undistinguished_sfs(sfs)
         kl = -(uobsfs * ad.admath.log(usfs)).sum()
         kl += model.regularizer(penalty)
         ret = (kl.x, np.array([kl.d(model[cc]) for cc in coords]))
-        print(ret)
         return ret
-    res = scipy.optimize.fmin_l_bfgs_b(f, np.ones(len(coords)), None,
-            bounds=[tuple(bounds[cc]) for cc in coords], disp=False)
+    res = scipy.optimize.fmin_l_bfgs_b(f, 
+            [float(model[cc]) for cc in model.coords], None,
+            bounds=[tuple(bounds[cc]) for cc in coords], disp=True, factr=1e4)
     for cc, xx in zip(coords, res[0]):
         model[cc] = xx 
     logging.info("pretrained-model:\n%s" % str(model.x))

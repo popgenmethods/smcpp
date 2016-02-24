@@ -18,7 +18,7 @@ import traceback
 from .. import _smcpp, util, estimation_tools
 from ..model import SMCModel
 from ..population import Population
-from ..inference_service import InferenceService
+from ..inference_service import DumbInferenceService as InferenceService
 from ..optimizer import SinglePopulationOptimizer, TwoPopulationOptimizer
 
 np.set_printoptions(linewidth=120, suppress=True)
@@ -37,7 +37,7 @@ def init_parser(parser):
     hmm.add_argument('--no-pretrain', help="do not pretrain model", action="store_true", default=False)
     hmm.add_argument('--M', type=int, help="number of hidden states", default=32)
     hmm.add_argument('--em-iterations', type=float, help="number of EM steps to perform", default=20)
-    hmm.add_argument('--lambda-penalty', type=float, help="regularization penalty", default=.01)
+    hmm.add_argument('--regularization-penalty', type=float, help="regularization penalty", default=.01)
     hmm.add_argument('--lbfgs-factor', type=float, help="stopping criterion for optimizer", default=1e9)
     hmm.add_argument('--Nmin', type=float, help="Lower bound on effective population size", default=1000)
     hmm.add_argument('--Nmax', type=float, help="Upper bound on effective population size", default=400000)

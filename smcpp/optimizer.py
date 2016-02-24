@@ -3,6 +3,8 @@ import scipy.optimize
 import logging
 import os.path
 
+from . import estimation_tools
+
 logger = logging.getLogger(__name__)
 
 class _optimizer(object):
@@ -10,7 +12,6 @@ class _optimizer(object):
         self._iserv = iserv
         self._bounds = bounds
         self._cmdargs = cmdargs
-        self._coords = iserv.coords
         self._precond = iserv.precond
         self._K = self._iserv.model[0].K
         for m in self._iserv.model:
@@ -47,40 +48,30 @@ class _optimizer(object):
         return llold
 
     def _f(self, xs):
-
-        for xxs in xs:
-            xs
-        models = self._iserv.model
-        regs = []
-        for m, xx, coords, precond in zip(models, xs, self._coords, self._precond):
-            for cc in coords:
-                m.x[cc] = xx[cc] * precond[cc]
-            m.flatten()
-            regs.append(m.regularizer(self._cmdargs.lambda_penalty))
-        self._iserv.set_params(models, self._coords)
-        ret = []
-        qq = self._iserv.Q()
-        for q, reg, coords, precond in zip(qq, regs, self._coords, self._precond):
-            lls, jacs = zip(*q)
-            tmp = [-np.mean(lls), -np.mean(jacs, axis=0)]
-            tmp[0] += reg[0]
-            tmp[1] += reg[1]
-            for i, cc in enumerate(coords):
-                tmp[1][i] *= precond[cc]
-            ret.append(tmp)
+        self._pre_Q(xs)
+        q = self._iserv.Q()
+        ret = self._post_Q(q)
+        logging.debug(ret)
         return ret
 
 class SinglePopulationOptimizer(_optimizer):
-    def _f(self, xs):
-        new_x = np.zeros([1, 2, self._K])
-        coords = self._coords[0]
-        new_x.__setitem__([0] + list(zip(*coords)), xs)
-        return _optimizer._f(self, new_x)[0]
+    def _pre_Q(self, xs):
+        for cc, xx in zip(self._model.coords, xs):
+            self._model[cc] = xx * self._model.precond[cc]
+        self._iserv.set_params([self._model], True)
+
+    def _post_Q(self, Qret):
+        ll = -np.mean(Qret[0])
+        ll += estimation_tools.regularizer(self._model, self._cmdargs.regularization_penalty)
+        ret = [ll.x, np.array([ll.d(self._model[cc]) for cc in self._model.coords])]
+        for i, cc in enumerate(self._model.coords):
+            ret[1][i] *= self._model.precond[cc]
+        return ret
 
     def _optimize(self, models):
         logger.debug("Performing a round of optimization")
         assert len(models) == 1
-        model = models[0]
+        self._model = model = models[0]
         # logger.info("gradient check")
         # xx0 = np.array([model.x[cc] / model.precond[cc] for cc in model.coords])
         # f0, fp = self._f(xx0)
@@ -90,7 +81,8 @@ class SinglePopulationOptimizer(_optimizer):
         #     f1, _ = self._f(x0c)
         #     logger.info((i, cc, f1, f0, (f1 - f0) / 1e-8, fp[i]))
         # aoeu
-        res = scipy.optimize.fmin_l_bfgs_b(self._f, [model.x[cc] / model.precond[cc] for cc in model.coords], 
+        res = scipy.optimize.fmin_l_bfgs_b(self._f, 
+                [model.x[cc].x / model.precond[cc] for cc in model.coords],
                 None, bounds=[tuple(self._bounds[cc] / model.precond[cc]) for cc in model.coords], 
                 factr=1e9)
         for xx, cc in zip(res[0], model.coords):

@@ -9,28 +9,32 @@ from . import _smcpp, estimation_tools
 class SMCModel(object):
     def __init__(self, s, exponential_pieces):
         self._exponential_pieces = exponential_pieces
-        self._x = np.ones([3, len(s)])
+        self._x = np.ones([3, len(s)], dtype=object)
         self._x[2] = s
         self._flat_pieces = [i for i in range(self.K) if i not in exponential_pieces]
         self._x[1] += 0.1
         self._add_derivatives()
+        self._coords = [(a, b) for b in range(self.K) for a in ([0, 1] if b in self._exponential_pieces else [0])]
+        pc = 1. / self.s
+        pc[-1] = 1. / (_smcpp.T_MAX - np.sum(self.s))
+        self._precond = {c: float(pc[c[1]]) for c in self._coords}
+
+    @property
+    def coords(self):
+        return self._coords
 
     @property
     def precond(self):
-        ret = {coord: 1. / self.s[coord[1]] for coord in self.coords}
-        if (self.K - 1, 0) in self.coords:
-            ret[(self.K - 1, 0)] = 1. / (_smcpp.T_MAX - np.sum(self.s))
-        return ret
+        return self._precond
 
     def regularizer(self, penalty):
         return estimation_tools.regularizer(self, penalty)
 
     def _add_derivatives(self):
-        self._x = adnumber(self._x)
         for i in range(2):
             for j in range(self.K):
                 c = (i, j)
-                self._x[c] = adnumber(self._x[c].x, c)
+                self._x[c] = adnumber(float(self._x[c]), c)
         self._x[1, self.flat_pieces] = self._x[0, self.flat_pieces]
 
     def __getitem__(self, c):
@@ -39,6 +43,9 @@ class SMCModel(object):
     def __setitem__(self, c, y):
         y = adnumber(y, c)
         self._x[c] = y
+        if c[1] in self._flat_pieces:
+            self._x[1, c[1]] = y
+        assert isinstance(self._x[0, 0], type(adnumber(1.)))
 
     @property
     def flat_pieces(self):

@@ -36,7 +36,7 @@ class Population(object):
 
     def _balance_hidden_states(self):
         logging.debug("balancing hidden states")
-        hs = _smcpp.balance_hidden_states(self._model.x, self._M)
+        hs = _smcpp.balance_hidden_states(self._model, self._M)
         cs = np.cumsum(self._model.s)
         cs = cs[cs <= hs[1]]
         self._hidden_states = np.sort(np.unique(np.concatenate([cs, hs])))
@@ -58,14 +58,11 @@ class Population(object):
     def E_step(self, fbonly):
         return self._im.E_step(fbonly)
 
-    def set_params(self, params, deriv):
-        return self._im.set_params(params, deriv)
+    def set_params(self, model, deriv):
+        return self._im.set_params(model, deriv)
 
     def loglik(self):
         return self._im.loglik()
-
-    def coords(self):
-        return self.model().coords
 
     def precond(self):
         return self.model().precond

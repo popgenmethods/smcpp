@@ -45,13 +45,16 @@ cdef struct ParameterBundle:
 cdef ParameterBundle make_params(model):
     cdef ParameterBundle ret
     d = []
-    for i in range(2):
+    for i in range(3):
         r = []
         for j in range(model.K):
             entry = model[(i, j)]
-            r.append(entry.x)
-            if entry.tag is not None:
-                d.append(entry.tag)
+            r.append(float(entry))
+            try:
+                if entry.tag is not None:
+                    d.append(entry.tag)
+            except AttributeError:
+                pass
         ret.vals.push_back(r)
     ret.derivs = sorted(set(d))
     return ret
@@ -118,7 +121,7 @@ cdef class PyInferenceManager:
             abort = False
             raise KeyboardInterrupt
         logger.debug("Updating params")
-        if not np.all(model.x > 0):
+        if not np.all(np.array(model.x) > 0):
             raise ValueError("All parameters must be strictly positive")
         cdef ParameterBundle pb = make_params(model)
         self._model = model
@@ -245,7 +248,7 @@ cdef class PyInferenceManager:
                 jac = aca(np.zeros([len(self._derivatives)]))
                 vjac = jac
                 fill_jacobian(ad_rets[i], &vjac[0])
-                ret[-1].d().update({self._model[i, j]: jac[k] for k, (i, j) in enumerate(self._derivatives, jac)})
+                ret[-1].d().update({self._model[i, j]: jac[k] for k, (i, j) in enumerate(self._derivatives)})
         return ret
 
     def Q(self):
@@ -277,8 +280,6 @@ def balance_hidden_states(model, int M):
 def sfs(int n, model, double t1, double t2, double theta, jacobian=False):
     logging.debug("calculating sfs: %d/%g/%g/%g/%d" % (n, t1, t2, theta, jacobian))
     cdef ParameterBundle pb = make_params(model)
-    logging.debug(pb.vals)
-    logging.debug(pb.derivs)
     cdef Matrix[double] sfs
     cdef Matrix[adouble] dsfs
     ret = aca(np.zeros([3, n - 1]))

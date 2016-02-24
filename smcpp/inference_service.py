@@ -1,6 +1,7 @@
 import multiprocessing
 import logging
 import signal
+import collections
 logger = logging.getLogger(__name__)
 
 from . import _smcpp
@@ -24,10 +25,7 @@ class Worker(multiprocessing.Process):
                 self._pipe.close()
                 break
             f = getattr(self._population, task)
-            if args is None:
-                self._pipe.send(f())
-            else:
-                self._pipe.send(f(*args))
+            self._pipe.send(f(*args))
 
 class InferenceService(object):
     def __init__(self, populations):
@@ -45,7 +43,7 @@ class InferenceService(object):
     def _send_message(self, message, args=None):
         try:
             if args is None:
-                args = [None] * self._npop
+                args = [[]] * self._npop
             for p, a in zip(self._parent_pipes, args):
                 p.send((message, a))
             return [p.recv() for p in self._parent_pipes]
@@ -69,8 +67,7 @@ class InferenceService(object):
 
     def set_params(self, models, coords):
         logger.debug("Setting parameters")
-        if coords is False:
-            coords = [False] * len(models)
+        coords = [coords] * len(models)
         return self._send_message("set_params", zip(models, coords))
 
     def loglik(self):
@@ -79,6 +76,7 @@ class InferenceService(object):
 
     def dump(self, file):
         logger.debug("dumping population state")
+        aoeu
 
     @property
     def coords(self):
@@ -99,3 +97,19 @@ class InferenceService(object):
     @property
     def theta(self):
         return self._send_message("theta")
+
+class DumbInferenceService(InferenceService):
+    def __init__(self, populations):
+        '''Initialize the inference service with a sequence of populations. 
+        Each population consists of group of data sets.'''
+        # Initialize workers
+        self._populations = [Population(*pop) for pop in populations]
+        self._npop = len(populations)
+
+    def _send_message(self, message, args=None):
+        if args is None:
+            args = [[]] * self._npop
+        return [getattr(p, message)(*a) for p, a in zip(self._populations, args)]
+
+    def close(self):
+        pass
