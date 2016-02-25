@@ -144,9 +144,9 @@ if __name__ == "__main__":
         s0 = st['s']
     elif args.human:
         hum = smcpp.util.human
-        a0 = hum['a'] / (2. * args.N0)
-        b0 = hum['b'] / (2. * args.N0)
-        s0 = hum['s_gen'] / (2. * args.N0)
+        a0 = hum['a']
+        b0 = hum['b']
+        s0 = hum['s']
     else:
         a0 = np.array(args.a)
         b0 = np.array(args.b)

@@ -11,7 +11,7 @@ class Population(object):
     def __init__(self, dataset, time_points, exponential_pieces, theta, rho, M, bounds, pretrain):
         self._dataset = dataset
         self._n = 2 + max([obs[:, -1].max() for obs in dataset])
-        self._time_point = time_points
+        self._time_points = time_points
         self._exponential_pieces = exponential_pieces
         self._theta = theta
         self._rho = rho
