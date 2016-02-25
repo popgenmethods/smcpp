@@ -1,5 +1,6 @@
 import numpy as np
 import logging
+import jsonpickle
 logger = logging.getLogger(__name__)
 
 from . import estimation_tools, _smcpp
@@ -35,7 +36,6 @@ class Population(object):
                 self._hidden_states, self._theta, self._rho)
 
     def _balance_hidden_states(self):
-        logging.debug("balancing hidden states")
         hs = _smcpp.balance_hidden_states(self._model, self._M)
         cs = np.cumsum(self._model.s)
         cs = cs[cs <= hs[1]]
@@ -43,7 +43,6 @@ class Population(object):
         logging.info("hidden states:\n%s" % str(self._hidden_states))
 
     def _pretrain(self, penalty):
-        logging.debug("pretraining")
         estimation_tools.pretrain(self._model, self._obsfs, self._bounds, self._theta, penalty)
 
     def theta(self):
@@ -71,6 +70,7 @@ class Population(object):
         return self._model
 
     def dump(self, fn):
-        d = {s: getattr(self, "_%s" % s) for s in 'time_points exponential_pieces theta rho hidden_states'.split()}
-        d['model'] = self.model.to_dict()
-        json.dump(d, fn)
+        open(fn, "wt").write(jsonpickle.encode(self))
+
+    def __getstate__(self):
+        return {s: getattr(self, "_%s" % s) for s in 'time_points obsfs bounds exponential_pieces theta rho model hidden_states'.split()}

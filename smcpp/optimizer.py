@@ -15,6 +15,7 @@ class PopulationOptimizer(object):
         self._cmdargs = cmdargs
         self._precond = iserv.precond
         self._K = self._iserv.model[0].K
+        self._coords = [(i, cc) for i, m in enumerate(self._iserv.model) for cc in m.coords]
         for m in self._iserv.model:
             if m.K != self._K:
                 raise RuntimeError("models need to have same time periods and change points")
@@ -23,7 +24,6 @@ class PopulationOptimizer(object):
         iserv = self._iserv
         logger.debug("Initializing model(s)")
         models = iserv.model
-        self._coords = [(i, cc) for i, m in enumerate(iserv.model) for cc in m.coords]
         iserv.set_params(models, False)
         logger.debug("Performing initial E step")
         iserv.E_step()
@@ -44,9 +44,9 @@ class PopulationOptimizer(object):
             if ll < llold:
                 logger.warn("Log-likelihood decreased")
             llold = ll
-            iserv.dump([os.path.join(self._cmdargs.outdir, ".pop%d.iter%d" % (j, i)) for j in range(len(models))])
+            iserv.dump([[os.path.join(self._cmdargs.outdir, ".pop%d.iter%d" % (j, i))] for j in range(len(models))])
         ## Optimization concluded
-        iserv.dump([os.path.join(self._cmdargs.outdir, ".pop%d.final" % j) for j in range(len(models))])
+        iserv.dump([[os.path.join(self._cmdargs.outdir, ".pop%d.final" % j)] for j in range(len(models))])
         return llold
 
     def _f(self, xs, models):
@@ -104,20 +104,22 @@ class TwoPopulationOptimizer(PopulationOptimizer):
         i = 1
         models = self._iserv.model
         while True:
-            logger.info("Outer iteration %d" % i)
+            logger.info("Outer iteration %d / split point %d" % (i, self._split))
             self._coords = [(0, cc) for cc in models[0].coords]
             self._coords += [(1, cc) for cc in models[1].coords if cc[1] < self._split]
             ll = PopulationOptimizer.run(self, niter)
             aic = 2 * (len(self._coords) - ll)
+            logger.info((len(self._coords), ll, aic))
             logger.info("AIC old/new: %g/%g" % (self._old_aic, aic))
             if aic < self._old_aic:
                 upper = self._split
             else:
                 lower = self._split
-            self._split = int(0.5 * (upper - lower))
             self._old_aic = aic
-            if i >= 20:
+            new_split = int(0.5 * (upper - lower))
+            if new_split == self._split:
                 break
+            self._split = new_split
             i += 1
-        pass
-
+        logger.info("split chosen to be: " % self._split)
+    

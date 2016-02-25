@@ -41,6 +41,7 @@ setup(name='smcpp',
         packages=find_packages(),
         install_requires=[
             "setuptools>=19.6",
+            "jsonpickle>=0.9.2",
             "ad>=1.2.2",
             "cython>=0.23",
             "scipy>=0.16",

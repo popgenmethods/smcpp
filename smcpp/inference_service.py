@@ -66,17 +66,14 @@ class InferenceService(object):
         return self._send_message("E_step", [[fbonly]] * self._npop)
 
     def set_params(self, models, coords):
-        logger.debug("Setting parameters")
         coords = [coords] * len(models)
         return self._send_message("set_params", zip(models, coords))
 
     def loglik(self):
-        logger.debug("Getting log-likelihood")
         return self._send_message("loglik")
 
     def dump(self, file):
-        logger.debug("dumping population state")
-        aoeu
+        self._send_message("dump", file)
 
     @property
     def coords(self):
@@ -98,6 +95,7 @@ class InferenceService(object):
     def theta(self):
         return self._send_message("theta")
 
+# Used for debugging, does not fork()
 class DumbInferenceService(InferenceService):
     def __init__(self, populations):
         '''Initialize the inference service with a sequence of populations. 
