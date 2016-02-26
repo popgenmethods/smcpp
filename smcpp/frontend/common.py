@@ -1,9 +1,7 @@
-#!/usr/bin/env python2.7
-'Perform various inference and data management tasks using SMC++'
 import sys
 import os.path
 
-import smcpp.commands as commands
+from .. import commands
 
 def init_parser_class(parser_module, parser):
     parser_module.init_parser(parser)

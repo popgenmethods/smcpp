@@ -93,8 +93,8 @@ def main(args):
         datasets = [estimation_tools.thin_dataset(ds, args.thinning) for ds in datasets]
     
     ## break up long spans
-    datasets, attrs = zip(*[estimation_tools.break_long_spans(
-        ds, args.span_cutoff, args.length_cutoff) for ds in datasets])
+    datasets, attrs = list(zip(*[estimation_tools.break_long_spans(
+        ds, args.span_cutoff, args.length_cutoff) for ds in datasets]))
 
     ## Sanity check
     for i, ds in enumerate(datasets):

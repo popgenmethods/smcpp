@@ -32,7 +32,7 @@ class InferenceService(object):
         '''Initialize the inference service with a sequence of populations. 
         Each population consists of group of data sets.'''
         # Initialize workers
-        self._parent_pipes, self._child_pipes = zip(*[multiprocessing.Pipe() for _ in populations])
+        self._parent_pipes, self._child_pipes = list(zip(*[multiprocessing.Pipe() for _ in populations]))
         self._workers = [Worker(pipe, pop) for pipe, pop in zip(self._child_pipes, populations)]
         self._npop = len(populations)
         logger.debug("starting workers")
@@ -67,7 +67,7 @@ class InferenceService(object):
 
     def set_params(self, models, coords):
         coords = [coords] * len(models)
-        return self._send_message("set_params", zip(models, coords))
+        return self._send_message("set_params", list(zip(models, coords)))
 
     def loglik(self):
         return self._send_message("loglik")
