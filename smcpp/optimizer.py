@@ -46,7 +46,7 @@ class PopulationOptimizer(object):
             llold = ll
             iserv.dump([[os.path.join(self._cmdargs.outdir, ".pop%d.iter%d" % (j, i))] for j in range(len(models))])
         ## Optimization concluded
-        iserv.dump([[os.path.join(self._cmdargs.outdir, ".pop%d.final" % j)] for j in range(len(models))])
+        iserv.dump([[os.path.join(self._cmdargs.outdir, "pop%d.final" % j)] for j in range(len(models))])
         return llold
 
     def _f(self, xs, models):

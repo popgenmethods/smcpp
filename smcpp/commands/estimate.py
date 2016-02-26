@@ -52,9 +52,6 @@ def init_parser(parser):
     pop_params.add_argument('r', type=float, help="per-generation recombination rate")
     parser.add_argument('data', nargs="+", help="data file(s) in SMC++ format", widget="MultiFileChooser")
 
-def write_model(fn):
-    open(fn, "wt").write(ctx.model.to_json())
-
 def main(args):
     'Main control loop for EM algorithm'
     ## Create output directory and dump all values for use later
@@ -124,7 +121,7 @@ def main(args):
 
     ## Construct populations
     populations = [
-            (ds, time_points, args.exponential_pieces, 
+            (ds, time_points, args.exponential_pieces, args.N0,
                 2 * args.mu * args.N0, 2 * args.r * args.N0, args.M, bounds, not args.no_pretrain)
         for ds in datasets
         ]

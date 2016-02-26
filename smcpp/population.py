@@ -4,15 +4,17 @@ import jsonpickle
 logger = logging.getLogger(__name__)
 
 from . import estimation_tools, _smcpp
+from .estimation_result import EstimationResult
 from .model import SMCModel
 
 class Population(object):
     '''Class representing a population + model for estimation.'''
-    def __init__(self, dataset, time_points, exponential_pieces, theta, rho, M, bounds, pretrain):
+    def __init__(self, dataset, time_points, exponential_pieces, N0, theta, rho, M, bounds, pretrain):
         self._dataset = dataset
         self._n = 2 + max([obs[:, -1].max() for obs in dataset])
         self._time_points = time_points
         self._exponential_pieces = exponential_pieces
+        self._N0 = N0
         self._theta = theta
         self._rho = rho
         self._M = M
@@ -70,7 +72,7 @@ class Population(object):
         return self._model
 
     def dump(self, fn):
-        open(fn, "wt").write(jsonpickle.encode(self))
-
-    def __getstate__(self):
-        return {s: getattr(self, "_%s" % s) for s in 'time_points obsfs bounds exponential_pieces theta rho model hidden_states'.split()}
+        er = EstimationResult()
+        for attr in ['model', 'theta', 'rho', 'N0']:
+            setattr(er, attr, getattr(self, "_" + attr))
+        er.dump(fn)
