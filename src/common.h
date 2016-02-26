@@ -115,12 +115,12 @@ EIGEN_AUTODIFF_DECLARE_GLOBAL_UNARY(log1p,
 };
 
 template <typename T, typename U>
-inline int insertion_point(const T x, const std::vector<U>& ary, int first, int last)
+inline unsigned int insertion_point(const T x, const std::vector<U>& ary, unsigned int first, unsigned int last)
 {
-    int mid;
+    unsigned int mid;
     while(first + 1 < last)
     {
-        mid = (int)((first + last) / 2);
+        mid = (unsigned int)((first + last) / 2);
         if (ary[mid] > x)
             last = mid;
         else    

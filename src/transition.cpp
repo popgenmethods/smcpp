@@ -57,7 +57,7 @@ void HJTransition<T>::compute(void)
                 p_coal = exp(-(myeta.R(eta->hidden_states[k - 1]) - myeta.R(rtimes[q])));
                 if (k < this->M - 1)
                     p_coal *= -expm1(-(myeta.R(eta->hidden_states[k]) - myeta.R(eta->hidden_states[k - 1])));
-                int ip = insertion_point(rtimes[q], times, 0, times.size());
+                unsigned int ip = insertion_point(rtimes[q], times, 0, times.size());
                 if (ip >= times.size())
                     throw std::runtime_error("erroneous insertion point");
                 // this copy is to avoid some race condition that is resulting

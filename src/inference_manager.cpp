@@ -215,7 +215,6 @@ std::vector<double> InferenceManager::randomCoalTimes(const ParameterVector para
 template <typename T>
 void InferenceManager::setParams(const ParameterVector params, const std::vector<std::pair<int, int>> derivatives)
 {
-    int ps = params[0].size();
     for (auto &pp : params)
         if (pp.size() != params[0].size())
             throw std::runtime_error("params must have matching sizes");
@@ -274,7 +273,7 @@ std::vector<T> InferenceManager::parallel_select(std::function<T(hmmptr &)> lamb
 {
     std::vector<T> ret(hmms.size());
 #pragma omp parallel for
-    for (int i = 0; i < hmms.size(); ++i)
+    for (unsigned int i = 0; i < hmms.size(); ++i)
         ret[i] = lambda(hmms[i]);
     return ret;
     /*

@@ -60,7 +60,6 @@ PiecewiseExponentialRateFunction<T>::PiecewiseExponentialRateFunction(
         if (pp.size() != params[0].size())
             throw std::runtime_error("all params must have same size");
     // Final piece is required to be flat.
-    T adatmp;
     ts[0] = zero;
     Rrng[0] = zero;
     // These constant values need to have compatible derivative shape
@@ -156,7 +155,6 @@ inline T _double_integral_below_helper(const int rate, const T &tsm, const T &ts
     T _adadiff = _ada * diff;
     if (rate == 0)
     {
-        T e1 = exp(-_adadiff);
         if (tsm1 == INFINITY)
             return exp(-_Rrng) / _ada;
         else
@@ -222,7 +220,7 @@ T PiecewiseExponentialRateFunction<T>::R_integral(const double a, const double b
     T Ta = one * a, Tb = one * b;
     int ip_a = insertion_point(Ta, ts, 0, ts.size());
     int ip_b = insertion_point(Tb, ts, 0, ts.size());
-    T ret = zero, tmp, r;
+    T ret = zero, r;
     for (int i = ip_a; i < ip_b + 1; ++i)
     {
         T left = dmax(Ta, ts[i]);
@@ -345,7 +343,7 @@ void PiecewiseExponentialRateFunction<T>::tjj_double_integral_above(const int n,
     Matrix<T> ts_integrals(K, n);
     ts_integrals.fill(zero);
     std::vector<T> single_integrals;
-    T e1, e2;
+    T e1;
     for (int m = 0; m < K; ++m)
     {
         e1 = exp(-Rrng[m]);
@@ -364,7 +362,7 @@ void PiecewiseExponentialRateFunction<T>::tjj_double_integral_above(const int n,
             else
                 ts_integrals(m, j - 2) = _double_integral_above_helper_ei<T>(rate, lam, ts[m], ts[m + 1], ada[m], adb[m], Rrng[m]);
             check_nan(ts_integrals(m, j - 2));
-            T tmp = zero, log_coef = zero, fac;
+            T log_coef = zero, fac;
             long rp = lam + 1 - rate;
             if (rp == 0)
                 fac = Rrng[m + 1] - Rrng[m];
@@ -409,26 +407,14 @@ void PiecewiseExponentialRateFunction<T>::tjj_double_integral_above(const int n,
                 ts_integrals(m, j - 2) += _single_integral(rate, ts[k], ts[k + 1], ada[k], adb[k], Rrng[k], log_coef) * fac;
                 check_nan(ts_integrals(m, j - 2));
             }
-            /*
-                tmp += _single_integral(rate, ts[k], ts[k + 1], ada[k], adb[k], Rrng[k], zero);
-            if (m + 1 < K)
-            {
-                long rp = lam + 1 - rate;
-                if (rp == 0)
-                    ts_integrals(m, j - 2) += (Rrng[m + 1] - Rrng[m]) * tmp; 
-                else
-                    ts_integrals(m, j - 2) += (exp(-rp * Rrng[m]) - exp(-rp * Rrng[m + 1])) * tmp / rp;
-            }
-            */
             check_nan(ts_integrals(m, j - 2));
             check_negative(ts_integrals(m, j - 2));
         }
     }
     // Now calculate with hidden state integration limits
-    size_t H = hidden_states.size();
     Matrix<T> last = ts_integrals.topRows(hs_indices[0]).colwise().sum(), next;
     last *= one;
-    for (int h = 1; h < hs_indices.size(); ++h)
+    for (unsigned int h = 1; h < hs_indices.size(); ++h)
     {
         next = ts_integrals.topRows(hs_indices[h]).colwise().sum();
         C[h - 1].row(jj - 2) = next - last;

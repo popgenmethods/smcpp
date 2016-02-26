@@ -139,7 +139,7 @@ inline T doubly_compensated_summation(const std::vector<T> &x)
     T s = x[0];
     T c = 0.0;
     T y, u, v, t, z;
-    for (int i = 1; i < x.size(); ++i)
+    for (unsigned int i = 1; i < x.size(); ++i)
     {
         y = c + x[i];
         u = x[i] - (y - c);
@@ -167,9 +167,7 @@ void ConditionedSFS<T>::compute_above(const PiecewiseExponentialRateFunction<T> 
         csfs_above[h].fill(eta.zero);
         Matrix<T> C0 = C_above[h].transpose(), C2 = C_above[h].colwise().reverse().transpose();
         Vector<T> tmp0(mcache.X0.cols()), tmp2(mcache.X2.cols());
-        T y, t, c;
         tmp0.fill(eta.zero);
-        c = eta.zero;
         for (int j = 0; j < mcache.X0.cols(); ++j)
         {
             std::vector<T> v;
@@ -180,7 +178,6 @@ void ConditionedSFS<T>::compute_above(const PiecewiseExponentialRateFunction<T> 
         }
         csfs_above[h].block(0, 1, 1, n) = tmp0.transpose().lazyProduct(Uinv_mp0);
         tmp2.fill(eta.zero);
-        c = eta.zero;
         for (int j = 0; j < mcache.X2.cols(); ++j)
         {
             std::vector<T> v;

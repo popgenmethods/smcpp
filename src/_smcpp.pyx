@@ -30,14 +30,6 @@ init_logger_cb(logger_cb);
 # flat arrays
 aca = np.ascontiguousarray
 
-cdef vector[double*] make_mats(mats):
-    cdef vector[double*] expM
-    cdef double[:, :, ::1] mmats = aca(mats)
-    cdef int i
-    for i in range(mats.shape[0]):
-        expM.push_back(&mmats[i, 0, 0])
-    return expM
-
 cdef struct ParameterBundle:
     vector[vector[double]] vals
     vector[pair[int, int]] derivs
