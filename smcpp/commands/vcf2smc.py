@@ -3,6 +3,11 @@ import argparse
 import warnings
 import gzip
 import itertools as it
+from logging import getLogger
+import numpy as np
+logger = getLogger(__name__)
+
+from ..util import init_logging
 
 @contextmanager
 def optional_gzip(f, mode):
@@ -43,18 +48,22 @@ def init_parser(parser):
     parser.add_argument("vcf", metavar="vcf[.gz]", help="input VCF file", widget="FileChooser")
     parser.add_argument("out", metavar="out[.gz]", help="output SMC++ file", widget="FileChooser")
     parser.add_argument("chrom", help="chromosome to parse")
-    parser.add_argument("dist", help="Distinguished sample ID")
-    parser.add_argument("undist", nargs="+", help="undistinguished sample ID(s)")
+    parser.add_argument("sample_ids", nargs="+", help="Columns to pull from the VCF. First column will be the 'distinguished' individual.")
 
 def main(args):
+    init_logging(".", False)
+    dist = args.sample_ids[0]
+    undist = args.sample_ids[1:]
+    logger.info("Distinguished sample: " + dist)
+    logger.info("Undistinguished samples: " + ",".join(undist))
     with optional_gzip(args.vcf, "rt") as vcf, optional_gzip(args.out, "wt") as out:
         strip_and_ignore = (line.rstrip() for line in vcf if line[:2] != "##")
         header = next(strip_and_ignore).strip().split()
         samples = header[9:]
-        dist_ind = samples.index(args.dist)
+        dist_ind = samples.index(dist)
         undist_ind = []
         missing = []
-        for u in args.undist:
+        for u in undist:
             try:
                 undist_ind.append(samples.index(u))
             except ValueError:
@@ -62,7 +71,7 @@ def main(args):
         if missing:
             msg = "The following samples were not found in the data: %s" % ", ".join(missing)
             if args.ignore_missing:
-                warnings.warn(msg)
+                logger.warn(msg)
             else:
                 raise RuntimeError(msg)
         nb = 2 * len(undist_ind)
@@ -94,7 +103,7 @@ def main(args):
                 try:
                     abnb = row2gt(tup)
                 except ValueError as e:
-                    warnings.warn("Error %s when attempting to parse:\n%s" % (e.message, str(tup)))
+                    logger.warn("Error %s when attempting to parse:\n%s" % (e.message, str(tup)))
                     continue
                 pos = int(tup[1])
                 span = pos - last_pos - 1

@@ -2,9 +2,26 @@ import numpy as np
 import functools
 import multiprocessing
 import logging
+import os
 from future.moves.itertools import zip_longest
 
 logger = logging.getLogger(__name__)
+
+def init_logging(outdir, verbose, debug_log=os.devnull):
+    logging.addLevelName(logging.DEBUG-1, 'DEBUG1')
+    while len(logging.root.handlers) > 0:
+        logging.root.removeHandler(logging.root.handlers[-1])
+    fmtstr = '%(relativeCreated)d %(name)-12s %(levelname)-8s %(message)s'
+    logging.basicConfig(level=logging.DEBUG, 
+            filename=debug_log,
+            filemode='wt',
+            format=fmtstr)
+    sh = logging.StreamHandler()
+    if verbose:
+        sh.setLevel(logging.DEBUG)
+    else:
+        sh.setLevel(logging.INFO)
+    logging.getLogger().addHandler(sh)
 
 # Section 7. of MSMC supplemental
 def build_sawtooth():

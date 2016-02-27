@@ -20,6 +20,7 @@ from ..model import SMCModel
 from ..population import Population
 from ..inference_service import DumbInferenceService as InferenceService
 from ..optimizer import PopulationOptimizer, TwoPopulationOptimizer
+from ..util import init_logging
 
 np.set_printoptions(linewidth=120, suppress=True)
 
@@ -59,24 +60,10 @@ def main(args):
         os.makedirs(args.outdir)
     except OSError:
         pass # directory exists
-    ## Initialize the logger
-    # fmt = logging.Formatter('%(asctime)s %(name)-12s %(levelname)-8s %(message)s')
-    logging.addLevelName(logging.DEBUG-1, 'DEBUG1')
-    while len(logging.root.handlers) > 0:
-        logging.root.removeHandler(logging.root.handlers[-1])
-    fmtstr = '%(relativeCreated)d %(name)-12s %(levelname)-8s %(message)s'
-    logging.basicConfig(level=logging.DEBUG, 
-            filename=os.path.join(args.outdir, "debug.txt"),
-            filemode='wt',
-            format=fmtstr)
-    sh = logging.StreamHandler()
-    if args.verbose:
-        sh.setLevel(logging.DEBUG)
-    else:
-        sh.setLevel(logging.INFO)
-    sh.setFormatter(logging.Formatter(fmtstr))
-    logging.getLogger().addHandler(sh)
 
+    ## Initialize the logger
+    init_logging(args.outdir, args.verbose, ".debug.txt")
+    
     ## Begin main script
     ## Step 1: load data and clean up a bit
     logger.info("Loading data...")
