@@ -35,7 +35,7 @@ class PopulationOptimizer(object):
             self._optimize(models)
             logger.info("Current model(s):")
             for j, m in enumerate(models, 1):
-                logger.info("Pop %d:\n%s" % (j, str(m.x[:2])))
+                logger.info("Pop %d:\n%s" % (j, np.array_str(m.x[:2], precision=2)))
             iserv.set_params(models, False)
             logger.info("\tE-step...")
             iserv.E_step()

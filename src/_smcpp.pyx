@@ -271,6 +271,11 @@ def balance_hidden_states(model, int M):
     return np.array(ret)
 
 def sfs(int n, model, double t1, double t2, double theta, jacobian=False):
+    if isinstance(model, (np.ndarray, list)):
+        from .model import SMCModel
+        m = SMCModel(model[2], np.where(model[0] != model[1])[0])
+        m.x[:2] = model[:2]
+        model = m
     cdef ParameterBundle pb = make_params(model)
     cdef Matrix[double] sfs
     cdef Matrix[adouble] dsfs
