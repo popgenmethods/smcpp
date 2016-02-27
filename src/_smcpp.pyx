@@ -36,7 +36,6 @@ cdef struct ParameterBundle:
 
 cdef ParameterBundle make_params(model):
     cdef ParameterBundle ret
-    d = []
     for i in range(3):
         r = []
         for j in range(model.K):
@@ -110,7 +109,6 @@ cdef class PyInferenceManager:
         if abort:
             abort = False
             raise KeyboardInterrupt
-        logger.debug("Updating params")
         if not np.all(np.array(model.x) > 0):
             raise ValueError("All parameters must be strictly positive")
         cdef ParameterBundle pb = make_params(model)
@@ -123,7 +121,6 @@ cdef class PyInferenceManager:
             self._derivatives = None
             with nogil:
                 self._im.setParams_d(pb.vals)
-        logger.debug("Updating params finished.")
 
     def E_step(self, forward_backward_only=False):
         logger.debug("Forward-backward algorithm...")
@@ -235,14 +232,14 @@ cdef class PyInferenceManager:
         for i in range(self._num_hmms):
             r = toDouble(ad_rets[i])
             if self._derivatives is not None:
+                r = adnumber(r)
                 jac = aca(np.zeros([len(self._derivatives)]))
                 vjac = jac
                 fill_jacobian(ad_rets[i], &vjac[0])
                 d = {}
-                for k, (i, j) in enumerate(self._derivatives):
-                    for var in self._model[i, j].d():
-                        d[var] = d.get(var, 0) + self._model[i, j].d(var) * jac[k]
-                r = adnumber(toDouble(ad_rets[i]))
+                for k, cc in enumerate(self._derivatives):
+                    for var in self._model[cc].d():
+                        d[var] = d.get(var, 0) + self._model[cc].d(var) * jac[k]
                 r.d().update(d)
             ret.append(r)
         return ret
@@ -274,7 +271,6 @@ def balance_hidden_states(model, int M):
     return np.array(ret)
 
 def sfs(int n, model, double t1, double t2, double theta, jacobian=False):
-    logging.debug("calculating sfs: %d/%g/%g/%g/%d" % (n, t1, t2, theta, jacobian))
     cdef ParameterBundle pb = make_params(model)
     cdef Matrix[double] sfs
     cdef Matrix[adouble] dsfs

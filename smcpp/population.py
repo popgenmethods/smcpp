@@ -1,7 +1,7 @@
 import numpy as np
-import logging
+from logging import getLogger
 import jsonpickle
-logger = logging.getLogger(__name__)
+logger = getLogger(__name__)
 
 from . import estimation_tools, _smcpp
 from .estimation_result import EstimationResult
@@ -21,15 +21,14 @@ class Population(object):
         self._bounds = bounds
 
         # Prepare empirical SFS for later use. This is cheap to compute
-        self._obsfs = sum([estimation_tools.empirical_sfs(obs, self._n) for obs in dataset])
-        self._obsfs /= self._obsfs.sum()
+        self._sfs = np.mean([estimation_tools.empirical_sfs(obs, self._n) for obs in dataset], axis=0)
 
         ## Initialize model
         self._model = SMCModel(time_points, exponential_pieces)
 
         # pretrain if requested
         if pretrain:
-            self._pretrain(0.)
+            self._pretrain(0.001)
 
         self._balance_hidden_states()
 
@@ -42,22 +41,22 @@ class Population(object):
         cs = np.cumsum(self._model.s)
         cs = cs[cs <= hs[1]]
         self._hidden_states = np.sort(np.unique(np.concatenate([cs, hs])))
-        logging.info("hidden states:\n%s" % str(self._hidden_states))
+        logger.info("hidden states:\n%s" % str(self._hidden_states))
 
     def _pretrain(self, penalty):
-        estimation_tools.pretrain(self._model, self._obsfs, self._bounds, self._theta, penalty)
+        estimation_tools.pretrain(self._model, self._sfs, self._bounds, self._theta, penalty)
 
     def theta(self):
         return self._theta
 
-    def obsfs(self):
-        return self._obsfs
+    def sfs(self):
+        return self._sfs
 
     def Q(self):
         return self._im.Q()
 
-    def E_step(self, fbonly):
-        return self._im.E_step(fbonly)
+    def E_step(self):
+        return self._im.E_step()
 
     def set_params(self, model, deriv):
         return self._im.set_params(model, deriv)

@@ -18,7 +18,7 @@ import traceback
 from .. import _smcpp, util, estimation_tools
 from ..model import SMCModel
 from ..population import Population
-from ..inference_service import InferenceService as InferenceService
+from ..inference_service import DumbInferenceService as InferenceService
 from ..optimizer import PopulationOptimizer, TwoPopulationOptimizer
 
 np.set_printoptions(linewidth=120, suppress=True)

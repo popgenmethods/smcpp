@@ -1,8 +1,8 @@
 'Miscellaneous estimation and data-massaging functions.'
 
 import numpy as np
-import logging
-logger = logging.getLogger(__name__)
+from logging import getLogger
+logger = getLogger(__name__)
 import scipy.optimize
 import multiprocessing
 import ad.admath
@@ -52,29 +52,35 @@ def thin_dataset(dataset, thinning):
     p.terminate()
     return ret
     
-def pretrain(model, obsfs, bounds, theta, penalty):
+def pretrain(model, sample_csfs, bounds, theta, penalty):
     '''Pre-train model by fitting to observed SFS. Changes model in place!'''
-    logging.debug("pretraining")
-    n = obsfs.shape[1] + 1
+    logger.debug("pretraining")
+    n = sample_csfs.shape[1] + 1
+    sample_sfs = util.undistinguished_sfs(sample_csfs)
     fp = model.flat_pieces
     K = model.K
     coords = [(u, v) for v in range(K) for u in ([0] if v in fp else [0, 1])]
-    uobsfs = util.undistinguished_sfs(obsfs)
     def f(x):
         x = ad.adnumber(x)
         for cc, xx in zip(coords, x):
             model[cc] = xx
+        logger.debug("requesting sfs")
         sfs = _smcpp.sfs(n, model, 0., _smcpp.T_MAX, theta, True)
+        logger.debug("done")
         usfs = util.undistinguished_sfs(sfs)
-        kl = -(uobsfs * ad.admath.log(usfs)).sum()
+        kl = -(sample_sfs * ad.admath.log(usfs)).sum()
         kl += model.regularizer(penalty)
-        return (kl.x, np.array(list(map(kl.d, x))))
-    res = scipy.optimize.fmin_l_bfgs_b(f, 
+        ret = (kl.x, np.array(list(map(kl.d, x))))
+        logger.debug("\n%s" % np.array_str(np.array([[float(y) for y in row] for row in model._x]), precision=3))
+        logger.debug(ret)
+        return ret
+    res = scipy.optimize.fmin_tnc(f, 
             [float(model[cc]) for cc in model.coords], None,
-            bounds=[tuple(bounds[cc]) for cc in coords])
+            bounds=[tuple(bounds[cc]) for cc in coords],
+            xtol=.01)
     for cc, xx in zip(coords, res[0]):
         model[cc] = xx 
-    logging.info("pretrained-model:\n%s" % str(model.x))
+    logger.info("pretrained-model:\n%s" % str(model.x))
 
 def break_long_spans(dataset, span_cutoff, length_cutoff):
     obs_list = []
