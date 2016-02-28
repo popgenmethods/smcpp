@@ -43,17 +43,24 @@ def init_parser(parser):
             help="ignore samples which are missing in the data")
     parser.add_argument("--missing-cutoff", metavar="c", type=int, default=10000, 
             help="treat gaps in data longer than <c> base pairs as missing")
+    parser.add_argument("-i", "--distinguished_index", type=int, default=0, help="index of distinguished lineage in sample ids (default: 0)")
     parser.add_argument("-s", "--start", type=int, help="starting base pair for conversion")
     parser.add_argument("-e", "--end", type=int, help="ending base pair for conversion")
     parser.add_argument("vcf", metavar="vcf[.gz]", help="input VCF file", widget="FileChooser")
     parser.add_argument("out", metavar="out[.gz]", help="output SMC++ file", widget="FileChooser")
     parser.add_argument("chrom", help="chromosome to parse")
-    parser.add_argument("sample_ids", nargs="+", help="Columns to pull from the VCF. First column will be the 'distinguished' individual.")
+    parser.add_argument("sample_ids", nargs="+", help="Columns to pull from the VCF, or file(s) containing the same.")
 
 def main(args):
     init_logging(".", False)
-    dist = args.sample_ids[0]
-    undist = args.sample_ids[1:]
+    if len(args.sample_ids) == 1:
+        try:
+            with open(args.sample_ids[0], "rt") as f:
+                args.sample_ids = [line.strip() for line in f]
+        except IOError:
+            pass
+    dist = args.sample_ids[args.distinguished_index]
+    undist = [sid for j, sid in enumerate(args.sample_ids) if j != args.distinguished_index]
     logger.info("Distinguished sample: " + dist)
     logger.info("Undistinguished samples: " + ",".join(undist))
     with optional_gzip(args.vcf, "rt") as vcf, optional_gzip(args.out, "wt") as out:
@@ -69,7 +76,8 @@ def main(args):
             except ValueError:
                 missing.append(u)
         if missing:
-            msg = "The following samples were not found in the data: %s" % ", ".join(missing)
+            msg = "The following samples were not found in the data: %s. " % ", ".join(missing)
+            msg += "If you want to continue without these samples, use --ignore-missing."
             if args.ignore_missing:
                 logger.warn(msg)
             else:
@@ -81,8 +89,8 @@ def main(args):
             if "." in row[dist_ind]:
                 a = -1
             else:
-                a = sum(int(x) for x in row[dist_ind][::2])
-            bs = [int(x) for u in undist_ind for x in row[u][::2] if x != "."]
+                a = sum(int(x) for x in row[dist_ind][:3:2])
+            bs = [int(x) for u in undist_ind for x in row[u][:3:2] if x != "."]
             b = sum(bs)
             nb = len(bs)
             return [a, b, nb]
@@ -104,7 +112,7 @@ def main(args):
                     abnb = row2gt(tup)
                 except ValueError as e:
                     logger.warn("Error %s when attempting to parse:\n%s" % (e.message, str(tup)))
-                    continue
+                    raise
                 pos = int(tup[1])
                 span = pos - last_pos - 1
                 if 1 <= span <= args.missing_cutoff:
