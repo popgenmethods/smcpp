@@ -57,10 +57,8 @@ class PopulationOptimizer(object):
         self._iserv.set_params(models, True)
         q = self._iserv.Q()
         ll = -np.mean(q)
-        for m in models:
-            reg = estimation_tools.regularizer(m, self._cmdargs.regularization_penalty)
-            logger.debug((reg, ll))
-            ll += reg
+        reg = np.mean(self._iserv.penalize(models))
+        ll += reg
         return [ll.x, np.array(list(map(ll.d, xs)))]
 
     def _optimize(self, models):

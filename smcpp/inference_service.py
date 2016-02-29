@@ -65,6 +65,9 @@ class InferenceService(object):
     def E_step(self):
         return self._send_message("E_step")
 
+    def penalize(self, models):
+        return self._send_message("penalize", [models])
+
     def set_params(self, models, coords):
         coords = [coords] * len(models)
         return self._send_message("set_params", list(zip(models, coords)))

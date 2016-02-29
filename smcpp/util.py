@@ -9,19 +9,22 @@ logger = logging.getLogger(__name__)
 
 def init_logging(outdir, verbose, debug_log=os.devnull):
     logging.addLevelName(logging.DEBUG-1, 'DEBUG1')
-    while len(logging.root.handlers) > 0:
-        logging.root.removeHandler(logging.root.handlers[-1])
-    fmtstr = '%(relativeCreated)d %(name)-12s %(levelname)-8s %(message)s'
-    logging.basicConfig(level=logging.DEBUG, 
-            filename=debug_log,
-            filemode='wt',
-            format=fmtstr)
+    root = logging.getLogger()
+    while len(root.handlers) > 0:
+        root.removeHandler(logging.root.handlers[-1])
+    fmt = logging.Formatter('%(relativeCreated)d %(name)-12s %(levelname)-8s %(message)s')
     sh = logging.StreamHandler()
+    sh.setFormatter(fmt)
     if verbose:
         sh.setLevel(logging.DEBUG)
     else:
         sh.setLevel(logging.INFO)
-    logging.getLogger().addHandler(sh)
+    root.addHandler(sh)
+    fh = logging.FileHandler(debug_log, "wt")
+    fh.setLevel(logging.DEBUG)
+    fh.setFormatter(fmt)
+    root.addHandler(fh)
+    root.setLevel(logging.NOTSET)
 
 # Section 7. of MSMC supplemental
 def build_sawtooth():
