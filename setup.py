@@ -10,9 +10,17 @@ cpps = [f for f in glob.glob("src/*.cpp") if
         not os.path.basename(f).startswith("_") 
         and not os.path.basename(f).startswith("test") ]
 
-include_dirs = [path.strip() for path in 
-        subprocess.check_output(['pkg-config', 'gsl', 'eigen3', '--cflags-only-I']).decode('ascii').split("-I")
-        if path.strip()]
+try:
+    include_dirs = [path.strip() for path in 
+            subprocess.check_output(['pkg-config', 'gsl', 'eigen3', '--cflags-only-I']).decode('ascii').split("-I")
+            if path.strip()]
+except subprocess.CalledProcessError:
+    print("""
+Could not use pkg-config to locate the header files for the gsl and/or
+Eigen libraries. SMC++ will not compile without these libraries. Please
+verify that they are installed on your system.
+""")
+    raise
 
 extensions = [
         Extension(
@@ -43,7 +51,10 @@ setup(name='smcpp',
         url='https://github.com/terhorst/smc++',
         ext_modules=cythonize(extensions),
         packages=find_packages(),
+        setup_requires=['pytest-runner'],
+        tests_require=['pytest'],
         install_requires=[
+            "wrapt>=1.10",
             "setuptools>=19.6",
             "jsonpickle>=0.9.2",
             "ad>=1.2.2",
