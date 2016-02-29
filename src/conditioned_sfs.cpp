@@ -136,6 +136,8 @@ void ConditionedSFS<T>::compute_below(const PiecewiseExponentialRateFunction<T> 
 template <typename T>
 inline T doubly_compensated_summation(const std::vector<T> &x)
 {
+    if (x.size() == 0)
+        return 0.0;
     T s = x[0];
     T c = 0.0;
     T y, u, v, t, z;
