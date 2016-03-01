@@ -11,8 +11,8 @@ class SMCModel(object):
         self._exponential_pieces = exponential_pieces
         self._x = np.ones([3, len(s)], dtype=object)
         self._x[2] = s
-        self._flat_pieces = [i for i in range(self.K) if i not in exponential_pieces]
         self._x[1] += 0.1
+        self._flat_pieces = [i for i in range(self.K) if i not in exponential_pieces]
         self._add_derivatives()
         self._coords = [(a, b) for b in range(self.K) for a in ([0, 1] if b in self._exponential_pieces else [0])]
         pc = 1. / self.s

@@ -1,10 +1,31 @@
 import numpy as np
 import functools
 import multiprocessing
-import logging
+from logging import getLogger
+import os
 from future.moves.itertools import zip_longest
 
-logger = logging.getLogger(__name__)
+logger = getLogger(__name__)
+
+def init_logging(outdir, verbose, debug_log=os.devnull):
+    import logging
+    logging.addLevelName(logging.DEBUG-1, 'DEBUG1')
+    root = logging.getLogger()
+    while len(root.handlers) > 0:
+        root.removeHandler(logging.root.handlers[-1])
+    fmt = logging.Formatter('%(relativeCreated)d %(name)-12s %(levelname)-8s %(message)s')
+    sh = logging.StreamHandler()
+    sh.setFormatter(fmt)
+    if verbose:
+        sh.setLevel(logging.DEBUG)
+    else:
+        sh.setLevel(logging.INFO)
+    root.addHandler(sh)
+    fh = logging.FileHandler(debug_log, "wt")
+    fh.setLevel(logging.DEBUG)
+    fh.setFormatter(fmt)
+    root.addHandler(fh)
+    root.setLevel(logging.NOTSET)
 
 # Section 7. of MSMC supplemental
 def build_sawtooth():
@@ -191,6 +212,23 @@ def parse_text_datasets(datasets):
     p.terminate()
     p = None
     return obs
+
+def _empirical_sfs(args):
+    obs, n = args
+    ret = np.zeros([3, n - 1])
+    sub = obs[np.logical_and(obs[:, 1:3].min(axis=1) != -1, obs[:, -1] == n - 2)]
+    for a in [0, 1, 2]:
+        for b in range(n - 1):
+            ret[a, b] = sub[np.logical_and(sub[:, 1] == a, sub[:, 2] == b)][:, 0].sum()
+    return ret
+
+def compute_esfs(dataset, n):
+    p = multiprocessing.Pool(None)
+    esfs = list(p.map(_empirical_sfs, [(obs, n) for obs in dataset]))
+    p.close()
+    p.terminate()
+    p = None
+    return esfs
 
 def config2dict(cp):
     return {sec: dict(cp.items(sec)) for sec in cp.sections()}

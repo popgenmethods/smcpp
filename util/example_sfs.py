@@ -17,6 +17,6 @@ t0, t1 = (0., T_MAX) # think of T_MAX as infinity. :)
 
 # False at last parameter indicates that gradient information should not
 # be returned.
-table = sfs(n, model, t0, t1, theta, False) 
+table = sfs(model, n, t0, t1, theta, False) 
 
 print(table)

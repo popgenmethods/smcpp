@@ -7,6 +7,8 @@ import numpy as np
 import logging
 import collections
 import scipy.optimize
+import collections
+import wrapt
 from ad import adnumber
 
 T_MAX = C_T_MAX - 0.1
@@ -67,6 +69,17 @@ def validate_observation(ob):
         raise RuntimeError("Error: data set contains sites where every individual is homozygous recessive. "
                            "Please encode / fold these as non-segregating (homozygous dominant).")
 
+@wrapt.decorator
+def modelify(wrapped, instance, args, kwargs):
+    model = args[0]
+    if isinstance(model, (np.ndarray, collections.Sequence)):
+        from .model import SMCModel
+        m = SMCModel(model[2], np.where(model[0] != model[1])[0])
+        m.x[:2] = model[:2]
+        model = m
+    new_args = (model,) + args[1:]
+    return wrapped(*new_args, **kwargs)
+
 cdef class PyInferenceManager:
     cdef InferenceManager *_im
     cdef int _n
@@ -104,6 +117,7 @@ cdef class PyInferenceManager:
     def get_observations(self):
         return self._observations
 
+    @modelify
     def set_params(self, model, derivatives):
         global abort
         if abort:
@@ -250,6 +264,7 @@ cdef class PyInferenceManager:
     def loglik(self):
         return self._call_inference_func("loglik")
 
+@modelify
 def balance_hidden_states(model, int M):
     M -= 1
     cdef ParameterBundle pb = make_params(model)
@@ -270,12 +285,8 @@ def balance_hidden_states(model, int M):
         ret.append(T_MAX)
     return np.array(ret)
 
-def sfs(int n, model, double t1, double t2, double theta, jacobian=False):
-    if isinstance(model, (np.ndarray, list)):
-        from .model import SMCModel
-        m = SMCModel(model[2], np.where(model[0] != model[1])[0])
-        m.x[:2] = model[:2]
-        model = m
+@modelify
+def sfs(model, int n, double t1, double t2, double theta, jacobian=False):
     cdef ParameterBundle pb = make_params(model)
     cdef Matrix[double] sfs
     cdef Matrix[adouble] dsfs

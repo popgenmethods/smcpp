@@ -23,19 +23,15 @@ def save_pdf(plt, filename):
     plt.savefig(pp, format='pdf')
     pp.close()
 
-def plot_psfs(psfs, xlim, ylim, xlabel, order=None, logy=False):
+def plot_psfs(psfs, xlim, ylim, xlabel, logy=False):
     fig, ax = pretty_plot()
     xmax = ymax = 0.
     labels = []
-    if order is None:
-        order = sorted(psfs)
-    for label in order:
-        if label == "coal_times": 
-            continue
-        N0 = psfs[label]['N0']
-        a = N0 * psfs[label]['a']
-        b = N0 * psfs[label]['b']
-        s = 2. * N0 * psfs[label]['s']
+    for label, d in psfs:
+        N0 = d['N0']
+        a = N0 * d['a']
+        b = N0 * d['b']
+        s = 2. * N0 * d['s']
         slope = np.log(a/b) / s
         cum = 0.
         x = []
@@ -52,19 +48,10 @@ def plot_psfs(psfs, xlim, ylim, xlabel, order=None, logy=False):
             ax.plot(x, y, linewidth=2, color="black")
         else:
             labels += ax.plot(x, y, label=label)
-        # ax.step(cs, a, where='post')
         ymax = max(ymax, np.max(y))
         xmax = max(xmax, np.max(x))
-    if 'coal_times' in psfs:
-        from scipy.stats import gaussian_kde
-        ct = psfs['coal_times']
-        del psfs['coal_times']
-        kde = gaussian_kde(ct)
-        x = np.arange(xlim[0], xlim[1], 5000)
-        y = kde.evaluate(x)
-        y *= 10. / max(y)
-        ax.plot(x, y, color="grey", linestyle="--")
-    first_legend = ax.legend(handles=labels, loc=1)
+    if labels:
+        first_legend = ax.legend(handles=labels, loc=1)
     ax.set_xscale('log')
     if logy:
         ax.set_yscale('log')
