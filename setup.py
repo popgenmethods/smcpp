@@ -1,8 +1,5 @@
 from __future__ import print_function
-import numpy as np
-from setuptools import setup, Extension, find_packages
-from Cython.Build import cythonize
-import subprocess
+from setuptools import setup, Extension, find_packages, dist
 import os.path
 import glob
 
@@ -10,30 +7,40 @@ cpps = [f for f in glob.glob("src/*.cpp") if
         not os.path.basename(f).startswith("_") 
         and not os.path.basename(f).startswith("test") ]
 
-include_dirs = [path.strip() for path in 
-        subprocess.check_output(['pkg-config', 'gsl', 'eigen3', '--cflags-only-I']).decode('ascii').split("-I")
-        if path.strip()]
+## This depends on boost and is only used for testing purposes
+# Extension(
+#     "smcpp._newick",
+#     # sources=["src/_pypsmcpp.pyx", "src/conditioned_sfs.cpp", "src/hmm.cpp"],
+#     sources=["src/_newick.pyx"],
+#     language="c++",
+#     extra_compile_args=["-O2", "-std=c++11", "-Wfatal-errors", "-Wno-unused-variable", "-Wno-unused-function"],
+#     ),
 
-extensions = [
-        Extension(
-            "smcpp._smcpp",
-            sources=["src/_smcpp.pyx"] + cpps,
-            language="c++",
-            include_dirs=["src", np.get_include()] + include_dirs,
-            # extra_compile_args=["-O0", "-ggdb3", "-std=c++11", "-Wfatal-errors", "-Wno-unused-variable", "-Wno-unused-function", "-D_GLIBCXX_DEBUG"],
-            extra_compile_args=["-O2", "-g", "-std=c++11", "-Wno-deprecated-declarations", "-Wfatal-errors", "-fopenmp"],
-            libraries=['gmp', 'gmpxx', 'gsl', 'gslcblas'],
-            extra_link_args=['-fopenmp'],
-            ),
-        ## This depends on boost and is only used for testing purposes
-        # Extension(
-        #     "smcpp._newick",
-        #     # sources=["src/_pypsmcpp.pyx", "src/conditioned_sfs.cpp", "src/hmm.cpp"],
-        #     sources=["src/_newick.pyx"],
-        #     language="c++",
-        #     extra_compile_args=["-O2", "-std=c++11", "-Wfatal-errors", "-Wno-unused-variable", "-Wno-unused-function"],
-        #     ),
-        ]
+def lazy_extensions():
+    # Lazy evaluation allows us to use setup_requires without have to import at
+    # top level
+    from Cython.Build import cythonize
+    import numpy as np
+    import pkgconfig
+    include_dirs = []
+    for dep in ['gsl', 'eigen3']:
+        include_dirs += [path.strip() for path in pkgconfig.cflags(dep).split("-I") if path.strip()]
+    extensions = [
+            Extension(
+                "smcpp._smcpp",
+                sources=["src/_smcpp.pyx"] + cpps,
+                language="c++",
+                include_dirs=["src", np.get_include()] + include_dirs,
+                # extra_compile_args=["-O0", "-ggdb3", "-std=c++11", "-Wfatal-errors", "-Wno-unused-variable", "-Wno-unused-function", "-D_GLIBCXX_DEBUG"],
+                extra_compile_args=["-O2", "-g", "-std=c++11", "-Wno-deprecated-declarations", "-Wfatal-errors", "-fopenmp"],
+                libraries=['gmp', 'gmpxx', 'gsl', 'gslcblas'],
+                extra_link_args=['-fopenmp'],
+                )]
+    return cythonize(extensions)
+
+## Create a dummy distro in order to get setup_requires without
+## having to have already installed these modules
+dist.Distribution({'setup_requires': ['numpy', 'pkgconfig', 'cython']})
 
 setup(name='smcpp',
         version='0.1.0',
@@ -41,8 +48,9 @@ setup(name='smcpp',
         author='Jonathan Terhorst, Jack Kamm, Yun S. Song',
         author_email='terhorst@stat.berkeley.edu',
         url='https://github.com/terhorst/smc++',
-        ext_modules=cythonize(extensions),
+        ext_modules=lazy_extensions(), # cythonize(extensions),
         packages=find_packages(),
+	setup_requires=['numpy', 'pkgconfig', 'cython'],
         install_requires=[
             "setuptools>=19.6",
             "jsonpickle>=0.9.2",
