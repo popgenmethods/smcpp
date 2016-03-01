@@ -85,7 +85,7 @@ def main(args):
 
         # function to convert a VCF row to our format <span, dist gt, undist gt, # undist>
         def row2gt(row):
-            if "." in row[dist_ind]:
+            if "." in row[dist_ind][:3:2]:
                 a = -1
             else:
                 a = sum(int(x) for x in row[dist_ind][:3:2])
