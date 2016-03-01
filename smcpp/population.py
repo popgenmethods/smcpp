@@ -62,7 +62,7 @@ class Population(object):
                 logger.debug("%15d%15d%15d%12g%12g" % attr)
 
         ## Create inference object which will be used for all further calculations.
-        logging.debug("Creating inference manager...")
+        logger.debug("Creating inference manager...")
         self._im = _smcpp.PyInferenceManager(self._n - 2, self._dataset,
                 self._hidden_states, self._theta, self._rho)
 
