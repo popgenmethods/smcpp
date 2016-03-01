@@ -9,10 +9,11 @@ import sys
 import itertools
 import sys
 import time
-import logging
-logger = logging.getLogger(__name__)
+from logging import getLogger
 import os
 import traceback
+
+logger = getLogger(__name__)
 
 # Package imports
 from .. import _smcpp, util, estimation_tools
@@ -33,7 +34,7 @@ def init_parser(parser):
     model.add_argument('--pieces', type=str, help="span of model pieces", default="32*1")
     model.add_argument('--t1', type=float, help="end-point of first piece, in generations", default=400.)
     model.add_argument('--tK', type=float, help="end-point of last piece, in generations", default=40000.)
-    model.add_argument('--exponential-pieces', type=int, action="append", default=[], help="pieces which have exponential growth")
+    model.add_argument('--exponential-pieces', type=int, nargs="+", help="piece(s) which have exponential growth")
     hmm.add_argument('--thinning', help="emit full SFS every <k>th site", default=10000, type=int, metavar="k")
     hmm.add_argument('--no-pretrain', help="do not pretrain model", action="store_true", default=False)
     hmm.add_argument('--M', type=int, help="number of hidden states", default=32)
@@ -78,6 +79,7 @@ def main(args):
     pieces = estimation_tools.extract_pieces(args.pieces)
     time_points = estimation_tools.construct_time_points(t1, tK, pieces)
     logger.debug("time points in coalescent scaling:\n%s", str(time_points))
+    logger.debug("cumulative time point:\n%s", str(time_points * 2 * args.N0 * 25))
     K = len(time_points)
 
     ## Construct bounds
@@ -86,7 +88,7 @@ def main(args):
     bounds = np.array([[Nmin, Nmax]] * K + 
             [[1.01 * Nmin, 0.99 * Nmax]] * K).reshape([2, K, 2])
 
-
+    ep = args.exponential_pieces if args.exponential_pieces is not None else []
     ## Construct populations
     populations = [
             (dsf, time_points, args.exponential_pieces, args.N0,

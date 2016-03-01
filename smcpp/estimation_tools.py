@@ -9,6 +9,9 @@ import ad.admath
 
 from . import _smcpp, util
 
+## 
+## Construct time intervals stuff
+## 
 def extract_pieces(piece_str):
     '''Convert PSMC-style piece string to model representation.'''
     pieces = []
@@ -21,6 +24,20 @@ def extract_pieces(piece_str):
         pieces += [span] * num
     return pieces
 
+def construct_time_points(t1, tK, pieces):
+    logger.debug((t1, tK, pieces))
+    s = np.logspace(np.log10(t1), np.log10(tK), sum(pieces) + 1)
+    s = s[1:] - s[:-1]
+    time_points = np.zeros(len(pieces))
+    count = 0
+    for i, p in enumerate(pieces):
+        time_points[i] = s[count:(count+p)].sum()
+        count += p
+    return np.insert(time_points, 0, t1)
+
+##
+## Regularization
+##
 def regularizer(model, penalty, f):
     ## Regularizer
     reg = 0
@@ -31,6 +48,7 @@ def regularizer(model, penalty, f):
         # rr = (abs(x) - .25) if abs(x) >= 0.5 else x**2
         reg += cons * regularizer._regs[f](x)
     return reg
+
 def _diffabs(x):
     K = 1.
     return 2. / K * ad.admath.log1p(ad.admath.exp(K * x)) - x - 2. / K * ad.admath.log(2)
@@ -38,14 +56,6 @@ regularizer._regs = {
         'abs': _diffabs,
         'quadratic': lambda x: x**2
         }
-
-def empirical_sfs(obs, n):
-    ret = np.zeros([3, n - 1])
-    sub = obs[np.logical_and(obs[:, 1:3].min(axis=1) != -1, obs[:, -1] == n - 2)]
-    for a in [0, 1, 2]:
-        for b in range(n - 1):
-            ret[a, b] = sub[np.logical_and(sub[:, 1] == a, sub[:, 2] == b)][:, 0].sum()
-    return ret
 
 ## TODO: move this to util
 def _thin_helper(args):
@@ -121,13 +131,3 @@ def break_long_spans(dataset, span_cutoff, length_cutoff):
         else:
             logger.info("omitting sequence length < %d as less than length cutoff" % s)
     return obs_list, obs_attributes
-
-def construct_time_points(t1, tK, pieces):
-    s = np.concatenate([[0.], np.logspace(np.log10(t1), np.log10(tK), sum(pieces))])
-    s = s[1:] - s[:-1]
-    time_points = np.zeros(len(pieces))
-    count = 0
-    for i, p in enumerate(pieces):
-        time_points[i] = s[count:(count+p)].sum()
-        count += p
-    return time_points

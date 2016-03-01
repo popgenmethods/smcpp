@@ -2,6 +2,7 @@ import numpy as np
 from logging import getLogger
 import jsonpickle
 import functools
+import multiprocessing
 logger = getLogger(__name__)
 
 from . import estimation_tools, _smcpp, util
@@ -26,7 +27,8 @@ class Population(object):
         ## At this point, data have not been thinned or anything. 
 
         # Prepare empirical SFS for later use. This is cheap to compute
-        self._sfs = np.mean([estimation_tools.empirical_sfs(obs, self._n) for obs in dataset], axis=0)
+        esfs = util.compute_esfs(dataset, self._n)
+        self._sfs = np.mean(esfs, axis=0)
 
         ## Initialize model
         self._model = SMCModel(time_points, exponential_pieces)
@@ -36,14 +38,17 @@ class Population(object):
                 penalty=cmd_args.regularization_penalty,
                 f=cmd_args.regularizer)
         if not cmd_args.no_pretrain:
+            logger.info("Pretraining")
             self._pretrain()
 
         ## choose hidden states based on prior model
+        logger.info("Balancing hidden states...")
         self._balance_hidden_states()
 
         ## After (potentially) doing pretraining, normalize and thin the data set
         ## Optionally thin each dataset
         if cmd_args.thinning is not None:
+            logger.info("Thinning...")
             dataset = estimation_tools.thin_dataset(dataset, cmd_args.thinning)
         
         ## break up long spans
@@ -57,6 +62,7 @@ class Population(object):
                 logger.debug("%15d%15d%15d%12g%12g" % attr)
 
         ## Create inference object which will be used for all further calculations.
+        logging.debug("Creating inference manager...")
         self._im = _smcpp.PyInferenceManager(self._n - 2, self._dataset,
                 self._hidden_states, self._theta, self._rho)
 
