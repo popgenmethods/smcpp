@@ -106,8 +106,8 @@ def break_long_spans(dataset, span_cutoff, length_cutoff):
             s = obs[cob:x, 0].sum()
             if s > length_cutoff:
                 obs_list.append(np.insert(obs[cob:x], 0, [1, -1, 0, 0], 0))
-                sums = ctx.obs_list[-1].sum(axis=0)
-                s2 = ctx.obs_list[-1][:,1][ctx.obs_list[-1][:,1]>=0].sum()
+                sums = obs_list[-1].sum(axis=0)
+                s2 = obs_list[-1][:,1][obs_list[-1][:,1]>=0].sum()
                 obs_attributes.setdefault(fn, []).append((positions[cob], positions[x], sums[0], 1. * s2 / sums[0], 1. * sums[2] / sums[0]))
             else:
                 logger.info("omitting sequence length < %d as less than length cutoff" % s)
