@@ -66,21 +66,20 @@ def main(args):
     with optional_gzip(args.vcf, "rt") as vcf, optional_gzip(args.out, "wt") as out:
         strip_and_ignore = (line.rstrip() for line in vcf if line[:2] != "##")
         header = next(strip_and_ignore).strip().split()
-        samples = header[9:]
-        dist_ind = samples.index(dist)
+        dist_ind = header.index(dist)
         undist_ind = []
         missing = []
         for u in undist:
             try:
-                undist_ind.append(samples.index(u))
+                undist_ind.append(header.index(u))
             except ValueError:
                 missing.append(u)
         if missing:
             msg = "The following samples were not found in the data: %s. " % ", ".join(missing)
-            msg += "If you want to continue without these samples, use --ignore-missing."
             if args.ignore_missing:
                 logger.warn(msg)
             else:
+                msg += "If you want to continue without these samples, use --ignore-missing."
                 raise RuntimeError(msg)
         nb = 2 * len(undist_ind)
 
