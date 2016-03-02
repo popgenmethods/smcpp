@@ -74,6 +74,8 @@ def main(args):
         datasets_files.append(args.second_population)
     
     ## Build time intervals
+    if args.exponential_pieces is None:
+        args.exponential_pieces = []
     t1 = args.t1 / (2 * args.N0)
     tK = args.tK / (2 * args.N0)
     pieces = estimation_tools.extract_pieces(args.pieces)
@@ -88,7 +90,6 @@ def main(args):
     bounds = np.array([[Nmin, Nmax]] * K + 
             [[1.01 * Nmin, 0.99 * Nmax]] * K).reshape([2, K, 2])
 
-    ep = args.exponential_pieces if args.exponential_pieces is not None else []
     ## Construct populations
     populations = [
             (dsf, time_points, args.exponential_pieces, args.N0,
