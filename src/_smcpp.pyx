@@ -7,6 +7,8 @@ import numpy as np
 import logging
 import collections
 import scipy.optimize
+import collections
+import wrapt
 from ad import adnumber
 
 T_MAX = C_T_MAX - 0.1
@@ -36,7 +38,6 @@ cdef struct ParameterBundle:
 
 cdef ParameterBundle make_params(model):
     cdef ParameterBundle ret
-    d = []
     for i in range(3):
         r = []
         for j in range(model.K):
@@ -67,6 +68,17 @@ def validate_observation(ob):
     if np.any(np.logical_and(ob[:, 1] == 2, ob[:, 2] == ob[:, 3])):
         raise RuntimeError("Error: data set contains sites where every individual is homozygous recessive. "
                            "Please encode / fold these as non-segregating (homozygous dominant).")
+
+@wrapt.decorator
+def modelify(wrapped, instance, args, kwargs):
+    model = args[0]
+    if isinstance(model, (np.ndarray, collections.Sequence)):
+        from .model import SMCModel
+        m = SMCModel(model[2], np.where(model[0] != model[1])[0])
+        m.x[:2] = model[:2]
+        model = m
+    new_args = (model,) + args[1:]
+    return wrapped(*new_args, **kwargs)
 
 cdef class PyInferenceManager:
     cdef InferenceManager *_im
@@ -105,12 +117,12 @@ cdef class PyInferenceManager:
     def get_observations(self):
         return self._observations
 
+    @modelify
     def set_params(self, model, derivatives):
         global abort
         if abort:
             abort = False
             raise KeyboardInterrupt
-        logger.debug("Updating params")
         if not np.all(np.array(model.x) > 0):
             raise ValueError("All parameters must be strictly positive")
         cdef ParameterBundle pb = make_params(model)
@@ -123,7 +135,6 @@ cdef class PyInferenceManager:
             self._derivatives = None
             with nogil:
                 self._im.setParams_d(pb.vals)
-        logger.debug("Updating params finished.")
 
     def E_step(self, forward_backward_only=False):
         logger.debug("Forward-backward algorithm...")
@@ -235,14 +246,14 @@ cdef class PyInferenceManager:
         for i in range(self._num_hmms):
             r = toDouble(ad_rets[i])
             if self._derivatives is not None:
+                r = adnumber(r)
                 jac = aca(np.zeros([len(self._derivatives)]))
                 vjac = jac
                 fill_jacobian(ad_rets[i], &vjac[0])
                 d = {}
-                for k, (i, j) in enumerate(self._derivatives):
-                    for var in self._model[i, j].d():
-                        d[var] = d.get(var, 0) + self._model[i, j].d(var) * jac[k]
-                r = adnumber(toDouble(ad_rets[i]))
+                for k, cc in enumerate(self._derivatives):
+                    for var in self._model[cc].d():
+                        d[var] = d.get(var, 0) + self._model[cc].d(var) * jac[k]
                 r.d().update(d)
             ret.append(r)
         return ret
@@ -253,6 +264,7 @@ cdef class PyInferenceManager:
     def loglik(self):
         return self._call_inference_func("loglik")
 
+@modelify
 def balance_hidden_states(model, int M):
     M -= 1
     cdef ParameterBundle pb = make_params(model)
@@ -273,8 +285,8 @@ def balance_hidden_states(model, int M):
         ret.append(T_MAX)
     return np.array(ret)
 
-def sfs(int n, model, double t1, double t2, double theta, jacobian=False):
-    logging.debug("calculating sfs: %d/%g/%g/%g/%d" % (n, t1, t2, theta, jacobian))
+@modelify
+def sfs(model, int n, double t1, double t2, double theta, jacobian=False):
     cdef ParameterBundle pb = make_params(model)
     cdef Matrix[double] sfs
     cdef Matrix[adouble] dsfs

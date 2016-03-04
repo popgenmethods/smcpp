@@ -18,9 +18,9 @@ class Worker(multiprocessing.Process):
         self._population = Population(*self._population)
         while True:
             task, args = self._pipe.recv()
-            logger.debug((task, args))
+            # logger.debug((task, args))
             if task == "exit":
-                logger.debug("exiting")
+                # logger.debug("exiting")
                 self._pipe.send(True)
                 self._pipe.close()
                 break
@@ -62,8 +62,11 @@ class InferenceService(object):
     def Q(self):
         return self._send_message("Q")
 
-    def E_step(self, fbonly=False):
-        return self._send_message("E_step", [[fbonly]] * self._npop)
+    def E_step(self):
+        return self._send_message("E_step")
+
+    def penalize(self, models):
+        return self._send_message("penalize", [models])
 
     def set_params(self, models, coords):
         coords = [coords] * len(models)
@@ -80,8 +83,8 @@ class InferenceService(object):
         return self._send_message("coords")
 
     @property
-    def obsfs(self):
-        return self._send_message("obsfs")
+    def sfs(self):
+        return self._send_message("sfs")
 
     @property
     def precond(self):
