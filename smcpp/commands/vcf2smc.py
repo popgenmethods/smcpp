@@ -4,16 +4,19 @@ import warnings
 import gzip
 import itertools as it
 
+
 @contextmanager
 def optional_gzip(f, mode):
     with gzip.GzipFile(f, mode) if f.endswith(".gz") else open(f, mode) as o:
         yield o
+
 
 class RepeatingWriter:
     def __init__(self, f):
         self.f = f
         self.last_ob = None
         self.i = 0
+
     def write(self, ob):
         if self.last_ob is None:
             self.last_ob = ob
@@ -23,21 +26,24 @@ class RepeatingWriter:
         else:
             self._write_last_ob()
             self.last_ob = ob
+
     def _write_last_ob(self):
         self.f.write("%d %d %d %d\n" % tuple(self.last_ob))
         self.i += 1
+
     def __enter__(self):
         return self
+
     def __exit__(self, type, value, traceback):
         print(("Wrote %d observations" % self.i))
         self._write_last_ob()
 
 
 def init_parser(parser):
-    parser.add_argument("--ignore-missing", default=False, action="store_true", 
-            help="ignore samples which are missing in the data")
-    parser.add_argument("--missing-cutoff", metavar="c", type=int, default=10000, 
-            help="treat gaps in data longer than <c> base pairs as missing")
+    parser.add_argument("--ignore-missing", default=False, action="store_true",
+                        help="ignore samples which are missing in the data")
+    parser.add_argument("--missing-cutoff", metavar="c", type=int, default=10000,
+                        help="treat gaps in data longer than <c> base pairs as missing")
     parser.add_argument("-s", "--start", type=int, help="starting base pair for conversion")
     parser.add_argument("-e", "--end", type=int, help="ending base pair for conversion")
     parser.add_argument("vcf", metavar="vcf[.gz]", help="input VCF file", widget="FileChooser")
@@ -45,6 +51,7 @@ def init_parser(parser):
     parser.add_argument("chrom", help="chromosome to parse")
     parser.add_argument("dist", help="Distinguished sample ID")
     parser.add_argument("undist", nargs="+", help="undistinguished sample ID(s)")
+
 
 def main(args):
     with optional_gzip(args.vcf, "rt") as vcf, optional_gzip(args.out, "wt") as out:
@@ -85,7 +92,8 @@ def main(args):
         start = args.start if args.start else 0
         end = args.end if args.end else np.inf
         in_region = (tup for tup in splitted if start <= int(tup[1]) <= end)
-        snps_only = (tup for tup in in_region if all([x in "ACTG" for x in tup[3:5]]) and tup[6] == "PASS")
+        snps_only = (tup for tup in in_region if 
+                     all([x in "ACTG" for x in tup[3:5]]) and tup[6] == "PASS")
         with RepeatingWriter(out) as rw:
             tup = next(snps_only)
             last_pos = int(tup[1])
