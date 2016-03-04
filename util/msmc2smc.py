@@ -4,7 +4,7 @@
 from __future__ import print_function
 import sys
 import numpy as np
-import cStringIO
+import json
 
 # Borrowed from Stefan's msmc-scripts/plot_utils.py
 class MSMCresult:
@@ -57,6 +57,5 @@ if __name__ == "__main__":
     mu = float(sys.argv[1])
     print("Mutation rate: %g" % mu, file=sys.stderr)
     x, y = popSizeStepPlot(sys.argv[2], mu, 1.0)
-    C = np.array([y, y, np.array(x)]).T
-    buf = cStringIO.StringIO()
-    print("\n".join(",".join(map(str, row)) for row in C))
+    C = np.array([y, y, np.array(x)]).tolist()
+    print(json.dumps({'_model': C}))
