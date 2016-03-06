@@ -13,7 +13,8 @@ CMDS = [
         ('estimate', commands.estimate, 'Fit SMC++ to data'),
         ('plot', commands.plot, 'Plot size history from fitted model'),
         ('posterior', commands.posterior, 'Plot posterior decoding for a region'),
-        ('vcf2smc', commands.vcf2smc, 'Convert VCF to SMC++ format')
+        ('vcf2smc', commands.vcf2smc, 'Convert VCF to SMC++ format'),
+        ('selectexp', commands.selectexp, 'Choose exponential pieces via model selection'),
         ]
 
 def init_subparsers(subparsers_obj):
