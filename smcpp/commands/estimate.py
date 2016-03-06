@@ -19,7 +19,8 @@ logger = getLogger(__name__)
 from .. import _smcpp, util, estimation_tools
 from ..model import SMCModel
 from ..population import Population
-from ..inference_service import DumbInferenceService as InferenceService
+# from ..inference_service import DumbInferenceService as InferenceService
+from ..inference_service import InferenceService
 from ..optimizer import PopulationOptimizer, TwoPopulationOptimizer
 from ..util import init_logging
 

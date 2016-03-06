@@ -1,11 +1,43 @@
 import multiprocessing
-import logging
+from logging import getLogger
 import signal
 import collections
-logger = logging.getLogger(__name__)
-
+import wrapt
+import ad
+logger = getLogger(__name__)
+# Package imports
 from . import _smcpp
 from .population import Population
+
+
+@wrapt.decorator
+def _fix_derivatives(wrapped, instance, args, kwargs):
+    # Here we must patch up derivatives. Because they are being
+    # serialized the objects will not be equal so calls to
+    # x.d(v) will not produce the correct answers.
+    models = args[0]
+    tds = []
+    for m in models:
+        tds.append({})
+        for x in m.x.flat:
+            if isinstance(x, ad.ADF):
+                for d in x.d():
+                    if hasattr(d, 'tag') and d.tag is not None:
+                        tds[-1][d.tag] = d
+    ret = wrapped(*args, **kwargs)
+    for r, td in zip(ret, tds):
+        if isinstance(r, ad.ADF):
+            r = [r]
+        for rr in r:
+            dr = rr.d()
+            keys = list(dr)
+            for k in keys:
+                new_k = td.get(k.tag, dr[k])
+                val = dr[k]
+                del dr[k]
+                dr[new_k] = val
+    return ret
+
 
 class Worker(multiprocessing.Process):
     def __init__(self, pipe, population):
@@ -59,14 +91,17 @@ class InferenceService(object):
             p.send(("exit", None))
         self._parent_pipes = []
 
-    def Q(self):
+    @_fix_derivatives
+    def Q(self, models, coords):
+        self.set_params(models, coords)
         return self._send_message("Q")
 
     def E_step(self):
         return self._send_message("E_step")
 
+    @_fix_derivatives
     def penalize(self, models):
-        return self._send_message("penalize", [models])
+        return self._send_message("penalize", [[m] for m in models])
 
     def set_params(self, models, coords):
         coords = [coords] * len(models)
@@ -91,12 +126,12 @@ class InferenceService(object):
         return self._send_message("precond")
 
     @property
-    def model(self):
-        return self._send_message("model")
-
-    @property
     def theta(self):
         return self._send_message("theta")
+
+    @property
+    def model(self):
+        return self._send_message("model")
 
 # Used for debugging, does not fork()
 class DumbInferenceService(InferenceService):

@@ -51,34 +51,35 @@ class PopulationOptimizer(object):
 
     def _f(self, xs, models):
         xs = ad.adnumber(xs)
+        for i, xx in enumerate(xs):
+            xx.tag = i
         for i, (a, cc) in enumerate(self._coords):
             models[a][cc] = xs[i] * models[a].precond[cc]
         self._pre_Q(models)
-        self._iserv.set_params(models, True)
-        q = self._iserv.Q()
-        ll = -np.mean(q)
+        q = self._iserv.Q(models, True)
         reg = np.mean(self._iserv.penalize(models))
+        ll = -np.mean(q)
         ll += reg
-        return [ll.x, np.array(list(map(ll.d, xs)))]
+        ret = [ll.x, np.array(list(map(ll.d, xs)))]
+        return ret
 
     def _optimize(self, models):
         logger.debug("Performing a round of optimization")
+        x0 = np.array([models[i][cc] / models[i].precond[cc] for i, cc in self._coords])
         # logger.info("gradient check")
-        # model = models[0]
-        # xx0 = np.array([model[cc] / model.precond[cc] for cc in model.coords])
-        # f0, fp = self._f(xx0, models)
-        # for i, cc in enumerate(model.coords):
-        #     x0c = xx0.copy()
+        # f0, fp = self._f(x0, models)
+        # for i in range(len(x0)):
+        #     x0c = x0.copy()
         #     x0c[i] += 1e-8
         #     f1, _ = self._f(x0c, models)
         #     logger.info((i, cc, f1, f0, (f1 - f0) / 1e-8, fp[i]))
-        res = scipy.optimize.fmin_l_bfgs_b(self._f, 
-                [models[i][cc] / models[i].precond[cc] for i, cc in self._coords],
-                None,
-                args=[models], bounds=[tuple(self._bounds[cc] / models[i].precond[cc]) for i, cc in self._coords],
+        # logger.info(scipy.optimize.check_grad(lambda x: self._f(x, models)[0], lambda x: self._f(x, models)[1], x0))
+        res = scipy.optimize.fmin_l_bfgs_b(self._f, x0, None, args=[models], 
+                bounds=[tuple(self._bounds[cc] / models[i].precond[cc]) for i, cc in self._coords],
                 factr=1e9)
         for xx, (i, cc) in zip(res[0], self._coords):
             models[i][cc] = xx * models[i].precond[cc]
+        logger.debug(models)
         self._post_optimize(models)
 
     def _pre_Q(self, models):
