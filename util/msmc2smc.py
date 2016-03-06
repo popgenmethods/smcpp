@@ -57,5 +57,8 @@ if __name__ == "__main__":
     mu = float(sys.argv[1])
     print("Mutation rate: %g" % mu, file=sys.stderr)
     x, y = popSizeStepPlot(sys.argv[2], mu, 1.0)
-    C = np.array([y, y, np.array(x)]).tolist()
-    print(json.dumps({'_model': C}))
+    x = np.array(x)
+    x = x[1:] - x[:-1]
+    x = np.concatenate([x, [1.0]])
+    C = np.array([y, y, x / 2.]).tolist()
+    print(json.dumps({'N0': 1.0, '_model': C}))
