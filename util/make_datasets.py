@@ -16,9 +16,11 @@ from collections import Counter
 import scrm, smcpp.util
 
 def perform_sim(args):
-    n, N0, theta, rho, L, demography, seed, trees, missing = args
+    n, N0, theta, rho, L, seed, trees, missing, scrm_args = args
+    if scrm_args is None:
+        scrm_args = []
     np.random.seed(seed)
-    ret = scrm.simulate(n, N0, theta, rho, L, demography, trees)
+    ret = scrm.simulate(n, N0, theta, rho, L, trees, scrm_args)
     positions, haps = ret[1:3]
     c = Counter(haps.sum(axis=0))
     psfs = [0] * (n - 1)
@@ -65,16 +67,16 @@ def process_msmc(tup):
     # Assume phasing is correct initially
     phase_error = np.zeros(args.msmc_sample_size, dtype=bool)
     for i, pos in enumerate(data_set[1]):
-        rec = ["seq%i" % c, str(pos), ".", ".", ".", "70", "PASS", "."]
+        # rec = ["seq%i" % c, str(pos), ".", ".", ".", "70", "PASS", "."]
         if data_set[2][:args.msmc_sample_size, i].sum() == 0:
             continue
         dist = pos - lpos
         lpos = pos
         gts = list(data_set[2][:args.msmc_sample_size, i])
-        for i in range(len(gts) // 2):
-            phase_error[i] = phase_error[i] ^ (np.random.random() < args.switch_error)
-            gts[i], gts[i + 1] = gts[i + phase_error[i]], gts[i + 1 - phase_error[i]]
-            rec.append("%i|%i" % (gts[i], gts[i + 1]))
+        for j in range(len(gts) // 2):
+            phase_error[j] = phase_error[j] ^ (np.random.random() < args.switch_error)
+            gts[j], gts[j + 1] = gts[j + phase_error[j]], gts[j + 1 - phase_error[j]]
+            # rec.append("%i|%i" % (gts[j], gts[j + 1]))
         msmc_txt.write(msmc_template.format(chrom=c, pos=pos, dist=dist, gts="".join(map(str, gts))))
 
 def process_tmrca(args):
@@ -119,21 +121,16 @@ if __name__ == "__main__":
     parser.add_argument("--missing", type=float, default=0., help="Missingness fraction for data")
     parser.add_argument("--switch-error", type=float, default=0.02, 
             help="Probability of switch error for simulating phasing.")
-    parser.add_argument("--smcpp", action="store_true", default=True, help="Generate dataset for SMC++")
+    parser.add_argument("--smcpp", action="store_true", default=False, help="Generate dataset for SMC++")
     parser.add_argument("--psmc", action="store_true", default=False, help="Generate dataset for PSMC")
     parser.add_argument("--msmc", action="store_true", default=False, help="Generate dataset for MSMC")
     parser.add_argument("--msmc-sample-size", default=None, type=int, help="Use subset of size <k> for MSMC dataset")
+    parser.add_argument("--pops", type=int, default=1)
+    parser.add_argument("--scrm-args", type=str, help="additional options to pass so scrm")
+
     # parser.add_argument("--dical", action="store_true",  default=False, help="Generate dataset for diCal")
     args = parser.parse_args()
     assert 0. <= args.missing < 1
-
-    def mk_outdir(prog):
-        ret = os.path.join(args.outdir, prog)
-        try:
-            os.makedirs(ret)
-        except OSError:
-            pass
-        return ret
 
     np.random.seed(args.seed)
 
@@ -153,9 +150,12 @@ if __name__ == "__main__":
         s0 = np.array(args.s)
 
     if args.panel_size is None:
-        args.panel_size = 2 * args.n
+        args.panel_size = 2 * args.n * args.pops
 
-    demography = scrm.demography_from_params((a0, b0, s0 * 0.5))
+    if args.scrm_args is None:
+        args.scrm_args = scrm.demography_from_params((a0, b0, s0 * 0.5))
+    else:
+        args.scrm_args = args.scrm_args.split()
 
 # Generate data set using scrm
     print("simulating")
@@ -163,8 +163,8 @@ if __name__ == "__main__":
     pool = multiprocessing.Pool(args.C)
     data_sets = list(pool.imap_unordered(perform_sim, 
         [(args.panel_size, args.N0, args.theta, args.rho, args.L, 
-            demography, np.random.randint(0, 4000000000), args.trees,
-            args.missing) for _ in range(args.C)]))
+            np.random.randint(0, 4000000000), args.trees,
+            args.missing, args.scrm_args) for _ in range(args.C)]))
     assert data_sets
 
     try:
@@ -172,44 +172,57 @@ if __name__ == "__main__":
     except OSError:
         pass
     open(os.path.join(args.outdir, "meta.txt"), "wt").write(
-            "{argv0} created this dataset. The command line was:\n\t{cmd_line}\nThe args object looks like:\n{args}\nThe ms demography was\n\t{demo}\n".format(
-            argv0=sys.argv[0], args=args, cmd_line=" ".join(sys.argv), demo=demography))
-
-    assert args.pairs <= args.n
-    pairs = [(2 * k, 2 * k + 1) for k in range(args.pairs)]
+            "{argv0} created this dataset. The command line was:\n\t{cmd_line}\nThe args object looks like:\n{args}\nThe ms args were\n\t{scrm_args}\n".format(
+            argv0=sys.argv[0], args=args, cmd_line=" ".join(sys.argv), scrm_args=args.scrm_args))
 
     if args.trees:
-        tree_dir = mk_outdir("trees")
+        tree_dir = os.path.join(args.outdir, "trees")
         pool.map(process_tmrca, [(os.path.join(tree_dir, "%i.txt.gz") % i, data[3]) for i, data in enumerate(data_sets)])
 
-# 1. Write smc++ format
-    if args.smcpp:
-        smcpp_outdir = mk_outdir("smc++")
-        obs = [smcpp.util.hmm_data_format(data, 2 * args.n, p) for data in data_sets for p in pairs]
-        pool.map(savetxt, [(os.path.join(smcpp_outdir, "%i.txt.gz" % i), ob) for i, ob in enumerate(obs, 1)])
+    overall_data_sets = data_sets
 
-    if not(any([args.psmc, args.msmc])): sys.exit(0)
+    for pop in range(args.pops):
+        print("processing pop %i" % pop) 
+        data_sets = []
+        for ds in overall_data_sets:
+            haps = ds[2][(2 * args.n * pop):(2 * args.n * (pop + 1))]
+            nseg = np.logical_not((np.all(haps == 0, axis=0) | np.all(haps==1, axis=0)))
+            data_sets.append((ds[0], ds[1][nseg], haps[:, nseg]))
+        def mk_outdir(prog):
+            ret = os.path.join(args.outdir, prog, "pop%d" % pop)
+            try:
+                os.makedirs(ret)
+            except OSError:
+                pass
+            return ret
+        assert args.pairs <= args.n
+        pairs = [(2 * k, 2 * k + 1) for k in range(args.pairs)]
+        # 1. Write smc++ format
+        if args.smcpp:
+            smcpp_outdir = mk_outdir("smc++")
+            obs = [smcpp.util.hmm_data_format(data, 2 * args.n, p) for data in data_sets for p in pairs]
+            pool.map(savetxt, [(os.path.join(smcpp_outdir, "%i.txt.gz" % i), ob) for i, ob in enumerate(obs, 1)])
 
-# 2. Write psmc format
-    if args.psmc:
-# psmcfa format: N: missing, K: het, T: homo, block_len: 100, linewidth 60
-        psmc_outdir = mk_outdir("psmc")
-        with open(os.path.join(psmc_outdir, "psmc.psmcfa"), "wt") as f:
-            for i, seq in enumerate(pool.map(process_psmc, [(data, args.n) for data in data_sets])):
-                f.write(">seq{i}\n{seq}\n".format(i=i, seq=seq))
+        # 2. Write psmc format
+        if args.psmc:
+        # psmcfa format: N: missing, K: het, T: homo, block_len: 100, linewidth 60
+            psmc_outdir = mk_outdir("psmc")
+            with open(os.path.join(psmc_outdir, "psmc.psmcfa"), "wt") as f:
+                for i, seq in enumerate(pool.map(process_psmc, [(data, args.n) for data in data_sets])):
+                    f.write(">seq{i}\n{seq}\n".format(i=i, seq=seq))
 
-# The next two methods require phased data. To model the effect of
-# computational phasing algorithms we create haplotypes with switch
-# error.
+        # The next two methods require phased data. To model the effect of
+        # computational phasing algorithms we create haplotypes with switch
+        # error.
 
-# 3. Write msmc / dical format
-    if args.msmc:
-        if args.msmc_sample_size is None:
-            args.msmc_sample_size = 2 * args.n
-        msmc_template = "seq{chrom}\t{pos}\t{dist}\t{gts}\n"
-        msmc_outdir = os.path.join(args.outdir, "msmc")
-        try:
-            os.makedirs(msmc_outdir)
-        except OSError:
-            pass
-    pool.map(process_msmc, [(i, ds, msmc_template, msmc_outdir, args) for i, ds in enumerate(data_sets)])
+        # 3. Write msmc / dical format
+        if args.msmc:
+            if args.msmc_sample_size is None:
+                args.msmc_sample_size = 2 * args.n
+            msmc_template = "seq{chrom}\t{pos}\t{dist}\t{gts}\n"
+            msmc_outdir = os.path.join(args.outdir, "msmc")
+            try:
+                os.makedirs(msmc_outdir)
+            except OSError:
+                pass
+            pool.map(process_msmc, [(i, ds, msmc_template, msmc_outdir, args) for i, ds in enumerate(data_sets)])

@@ -19,8 +19,8 @@ logger = getLogger(__name__)
 from .. import _smcpp, util, estimation_tools
 from ..model import SMCModel
 from ..population import Population
-# from ..inference_service import DumbInferenceService as InferenceService
-from ..inference_service import InferenceService
+from ..inference_service import DumbInferenceService as InferenceService
+# from ..inference_service import InferenceService
 from ..optimizer import PopulationOptimizer, TwoPopulationOptimizer
 from ..util import init_logging
 
@@ -65,7 +65,10 @@ def main(args):
         pass # directory exists
 
     ## Initialize the logger
-    init_logging(args.outdir, args.verbose, ".debug.txt")
+    init_logging(args.outdir, args.verbose, os.path.join(args.outdir, ".debug.txt"))
+    ## Save all the command line args and stuff
+    logger.debug(sys.argv)
+    logger.debug(args)
     
     ## Begin main script
     ## Step 1: load data and clean up a bit

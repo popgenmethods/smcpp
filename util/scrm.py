@@ -117,12 +117,12 @@ def parse_scrm(n, L, output, include_trees):
         return ret
     return None
 
-def simulate(n, N0, theta, rho, L, demography=[], include_trees=False):
+def simulate(n, N0, theta, rho, L, include_trees=False, scrm_args=[]):
     # scrm will emit positions in [0, L] (inclusive).
     seeds = np.random.randint(0, sys.maxint, size=3)
     r = 4 * N0 * rho * (L - 1)
     t = 4 * N0 * theta * L
-    args = [n, 1, '-p', int(math.log10(L)) + 2, '-t', t, '-r', r, L, '-oSFS', '-seeds'] + list(seeds) + demography
+    args = [n, 1, '-p', int(math.log10(L)) + 2, '-t', t, '-r', r, L, '-oSFS', '-seeds'] + list(seeds) + scrm_args
     if include_trees:
         args.append("-T")
     print(args)
