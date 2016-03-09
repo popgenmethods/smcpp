@@ -26,12 +26,18 @@ class Population(object):
         self._n = 2 + max([obs[:, -1].max() for obs in dataset])
         ## At this point, data have not been thinned or anything. 
 
+        ## Initialize model
+        self._model = SMCModel(time_points, exponential_pieces)
+
+        ## After (potentially) doing pretraining, normalize and thin the data set
+        ## Optionally thin each dataset
+        if cmd_args.thinning is not None:
+            logger.info("Thinning...")
+            dataset = estimation_tools.thin_dataset(dataset, cmd_args.thinning)
+        
         # Prepare empirical SFS for later use. This is cheap to compute
         esfs = util.compute_esfs(dataset, self._n)
         self._sfs = np.mean(esfs, axis=0)
-
-        ## Initialize model
-        self._model = SMCModel(time_points, exponential_pieces)
 
         # pretrain if requested
         self._penalizer = functools.partial(estimation_tools.regularizer, 
@@ -45,12 +51,6 @@ class Population(object):
         logger.info("Balancing hidden states...")
         self._balance_hidden_states()
 
-        ## After (potentially) doing pretraining, normalize and thin the data set
-        ## Optionally thin each dataset
-        if cmd_args.thinning is not None:
-            logger.info("Thinning...")
-            dataset = estimation_tools.thin_dataset(dataset, cmd_args.thinning)
-        
         ## break up long spans
         self._dataset, attrs = estimation_tools.break_long_spans(dataset, 
                 cmd_args.span_cutoff, cmd_args.length_cutoff)
