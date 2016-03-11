@@ -33,8 +33,9 @@ cdef extern from "inference_manager.h":
         InferenceManager(const int, const vector[int],
                 const vector[int*], const vector[double],
                 const double, const double) except +
-        void setParams_d(const ParameterVector)
-        void setParams_ad(const ParameterVector, vector[pair[int, int]] derivatives) 
+        void setParams_d(const ParameterVector, const double, const double, bool)
+        void setParams_ad(const ParameterVector, const double, const double, 
+                vector[pair[int, int]] derivatives, bool)
         void Estep(bool)
         vector[double] loglik()
         vector[adouble] Q()

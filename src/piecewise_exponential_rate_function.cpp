@@ -139,7 +139,8 @@ void PiecewiseExponentialRateFunction<adouble>::initialize_derivatives(void)
     std::vector<adouble>* dl[3] = {&ada, &adb, &ads};
     int d = 0;
     for (auto p : derivatives)
-        (*dl[p.first])[p.second].derivatives() = I.col(d++);
+        if (p.first < 3)
+            (*dl[p.first])[p.second].derivatives() = I.col(d++);
     ts[0].derivatives() = z;
     Rrng[0].derivatives() = z;
 }
