@@ -97,10 +97,10 @@ def pretrain(model, sample_csfs, bounds, theta, penalizer):
     res = scipy.optimize.fmin_tnc(f, 
             [float(model[cc]) for cc in model.coords], None,
             bounds=[tuple(bounds[cc]) for cc in coords],
-            xtol=.01)
+            xtol=.01, disp=False)
     for cc, xx in zip(coords, res[0]):
         model[cc] = xx 
-    logger.info("pretrained-model:\n%s" % str(model.x))
+    logger.info("pre-trained model:\n%s" % np.array_str(model.x, precision=2))
 
 def break_long_spans(dataset, span_cutoff, length_cutoff):
     obs_list = []

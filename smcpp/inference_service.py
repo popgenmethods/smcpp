@@ -129,6 +129,9 @@ class InferenceService(object):
     def theta(self):
         return self._send_message("theta")
 
+    def reset(self):
+        return self._send_message("reset")
+
     @property
     def model(self):
         return self._send_message("model")

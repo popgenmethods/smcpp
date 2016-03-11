@@ -108,6 +108,8 @@ class TwoPopulationOptimizer(PopulationOptimizer):
             logger.info("Outer iteration %d / split point %d" % (i, self._split))
             self._coords = [(0, cc) for cc in models[0].coords]
             self._coords += [(1, cc) for cc in models[1].coords if cc[1] < self._split]
+            # reset models
+            self._iserv.reset()
             ll = PopulationOptimizer.run(self, niter)
             aic = 2 * (len(self._coords) - ll)
             logger.info((len(self._coords), ll, aic))
@@ -117,8 +119,8 @@ class TwoPopulationOptimizer(PopulationOptimizer):
             else:
                 lower = self._split
             self._old_aic = aic
-            new_split = int(0.5 * (upper - lower))
-            if new_split == self._split:
+            new_split = int(0.5 * (upper + lower))
+            if abs(new_split - self._split) == 1:
                 break
             self._split = new_split
             i += 1

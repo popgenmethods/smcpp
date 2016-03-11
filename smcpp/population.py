@@ -47,6 +47,8 @@ class Population(object):
             logger.info("Pretraining")
             self._pretrain()
 
+        self._init_model_x = self._model.x.copy()
+
         ## choose hidden states based on prior model
         logger.info("Balancing hidden states...")
         self._balance_hidden_states()
@@ -72,6 +74,9 @@ class Population(object):
         cs = cs[cs <= hs[1]]
         self._hidden_states = np.sort(np.unique(np.concatenate([cs, hs])))
         logger.info("hidden states:\n%s" % str(self._hidden_states))
+
+    def reset(self):
+        self._model.x[:] = self._init_model_x[:]
 
     def penalize(self, model):
         return self._penalizer(model)
