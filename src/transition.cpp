@@ -87,4 +87,4 @@ Matrix<T> compute_transition(const PiecewiseExponentialRateFunction<T> &eta, con
 }
 
 template Matrix<double> compute_transition(const PiecewiseExponentialRateFunction<double> &eta, const double rho);
-template Matrix<adouble> compute_transition(const PiecewiseExponentialRateFunction<adouble> &eta, const T rho);
+template Matrix<adouble> compute_transition(const PiecewiseExponentialRateFunction<adouble> &eta, const adouble rho);

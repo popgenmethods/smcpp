@@ -194,7 +194,7 @@ void ConditionedSFS<T>::compute_above(const PiecewiseExponentialRateFunction<T> 
 }
 
 template <typename T>
-std::vector<Matrix<T> >& ConditionedSFS<T>::compute(const PiecewiseExponentialRateFunction<T> &eta, double theta)
+std::vector<Matrix<T> >& ConditionedSFS<T>::compute(const PiecewiseExponentialRateFunction<T> &eta)
 {
     DEBUG("compute called");
     compute_above(eta);
@@ -210,8 +210,19 @@ std::vector<Matrix<T> >& ConditionedSFS<T>::compute(const PiecewiseExponentialRa
         }
         else
             d = exp(-h1);
-        csfs[i] /= d;
         check_nan(d);
+        csfs[i] /= d;
+    }
+    DEBUG("compute finished");
+    return csfs;
+}
+    
+template <typename T>
+std::vector<Matrix<T> > incorporate_theta(const std::vector<Matrix<T> > &csfs, T theta)
+{
+    std::vector<Matrix<T> > ret(csfs.size());
+    for (unsigned int i = 0; i < csfs.size(); ++i)
+    {
         T tauh = csfs[i].sum();
         if (toDouble(tauh) > 1.0 / theta)
             throw improper_sfs_exception();
@@ -220,33 +231,34 @@ std::vector<Matrix<T> >& ConditionedSFS<T>::compute(const PiecewiseExponentialRa
             check_nan(tauh);
         } catch (std::runtime_error)
         {
-            std::cout << d << std::endl;
             std::cout << tauh << std::endl;
             std::cout << i << std::endl << csfs[i].template cast<double>() << std::endl;
             throw;
         }
-        csfs[i] *= -expm1(-theta * tauh) / tauh;
-        check_nan(csfs[i]);
-        T tiny = eta.one * 1e-20;
-        csfs[i] = csfs[i].unaryExpr([=](const T x) { if (x < 1e-20) return tiny; if (x < -1e-8) throw std::domain_error("very negative sfs"); return x; });
-        check_nan(csfs[i]);
-        tauh = csfs[i].sum();
-        csfs[i](0, 0) = 1. - tauh;
-        try { check_nan(csfs[i]); }
+        ret[i] = csfs[i] * -expm1(-theta * tauh) / tauh;
+        check_nan(ret[i]);
+        T tiny = tauh - tauh + 1e-20;
+        ret[i] = ret[i].unaryExpr([=](const T x) { if (x < 1e-20) return tiny; if (x < -1e-8) throw std::domain_error("very negative sfs"); return x; });
+        check_nan(ret[i]);
+        tauh = ret[i].sum();
+        ret[i](0, 0) = 1. - tauh;
+        try { check_nan(ret[i]); }
         catch (std::runtime_error)
         {
-            std::cout << i << "\n" << csfs[i].template cast<double>() << std::endl;
+            std::cout << i << "\n" << ret[i].template cast<double>() << std::endl;
             throw;
         }
-        if (csfs[i].template cast<double>().minCoeff() < 0 or csfs[i].template cast<double>().maxCoeff() > 1)
+        if (ret[i].template cast<double>().minCoeff() < 0 or ret[i].template cast<double>().maxCoeff() > 1)
         {
             std::cout << i << std::endl << csfs[i].template cast<double>() << std::endl;
             throw std::runtime_error("csfs is not a probability distribution");
         }
     }
-    DEBUG("compute finished");
-    return csfs;
+    return ret;
 }
+
+template std::vector<Matrix<double> > incorporate_theta(const std::vector<Matrix<double> > &csfs, double theta);
+template std::vector<Matrix<adouble> > incorporate_theta(const std::vector<Matrix<adouble> > &csfs, adouble theta);
 
 std::map<int, MatrixCache> ConditionedSFSBase::matrix_cache;
 MatrixCache& ConditionedSFSBase::cached_matrices(int n)

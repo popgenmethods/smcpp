@@ -11,12 +11,11 @@ from .model import SMCModel
 
 class Population(object):
     '''Class representing a population + model for estimation.'''
-    def __init__(self, dataset_files, time_points, exponential_pieces, N0, theta, rho, M, bounds, cmd_args):
+    def __init__(self, dataset_files, time_points, exponential_pieces, N0, mu, M, bounds, cmd_args):
         self._time_points = time_points
         self._exponential_pieces = exponential_pieces
         self._N0 = N0
-        self._theta = theta
-        self._rho = rho
+        self._mu = mu
         self._M = M
         self._bounds = bounds
 
@@ -45,7 +44,7 @@ class Population(object):
                 f=cmd_args.regularizer)
         if not cmd_args.no_pretrain:
             logger.info("Pretraining")
-            self._pretrain()
+            self._theta_hat = self._pretrain()
 
         self._init_model_x = self._model.x.copy()
 
@@ -65,8 +64,7 @@ class Population(object):
 
         ## Create inference object which will be used for all further calculations.
         logger.debug("Creating inference manager...")
-        self._im = _smcpp.PyInferenceManager(self._n - 2, self._dataset,
-                self._hidden_states, self._theta, self._rho)
+        self._im = _smcpp.PyInferenceManager(self._n - 2, self._dataset, self._hidden_states)
 
     def _balance_hidden_states(self):
         hs = _smcpp.balance_hidden_states(self._model, self._M)
@@ -82,10 +80,10 @@ class Population(object):
         return self._penalizer(model)
 
     def _pretrain(self):
-        estimation_tools.pretrain(self._model, self._sfs, self._bounds, self._theta, self.penalize)
-
-    def theta(self):
-        return self._theta
+        mu_hat = estimation_tools.pretrain(self._model, self._sfs, self._bounds, 
+                2. * self._N0 * 1e-8, self.penalize)
+        if self._mu is None:
+            self._mu = mu_hat
 
     def sfs(self):
         return self._sfs
@@ -96,20 +94,23 @@ class Population(object):
     def E_step(self):
         return self._im.E_step()
 
-    def set_params(self, model, deriv):
-        return self._im.set_params(model, deriv)
-
     def loglik(self):
         return self._im.loglik()
 
     def precond(self):
-        return self.model().precond
+        return self.model.precond
 
+    @property
     def model(self):
         return self._model
 
+    @model.setter
+    def model(self, model):
+        self._model = model
+        self._im.model = model
+
     def dump(self, fn):
         er = EstimationResult()
-        for attr in ['model', 'theta', 'rho', 'N0']:
+        for attr in ['model', 'N0']:
             setattr(er, attr, getattr(self, "_" + attr))
         er.dump(fn)

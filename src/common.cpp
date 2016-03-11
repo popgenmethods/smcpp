@@ -4,16 +4,28 @@ std::mutex mtx;
 bool do_progress;
 void doProgress(bool x) { do_progress = x; }
 
-void store_admatrix(const Matrix<adouble> &M, int nd, double* out, double* outjac)
+void store_matrix(const Matrix<double> &M, double* out)
 {
-    Matrix<double> M1 = M.cast<double>();
-    store_matrix(&M1, out);
+    Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>::Map(out, M.rows(), M.cols()) = M;
+}
+
+void store_matrix(const Matrix<adouble> &M, double* out)
+{
+    Matrix<double> Md = M.cast<double>();
+    store_matrix(Md, out);
+}
+
+void store_matrix(const Matrix<adouble> &M, double *out, double *outjac)
+{
+    Matrix<double> Md = M.cast<double>();
+    store_matrix(Md, out);
     Eigen::VectorXd d;
     unsigned long int m = 0;
     for (int i = 0; i < M.rows(); ++i)
         for (int j = 0; j < M.cols(); ++j)
         {
             d = M(i, j).derivatives();
+            int nd = d.size();
             for (int k = 0; k < nd; ++k)
                 outjac[m++] = d(k);
         }

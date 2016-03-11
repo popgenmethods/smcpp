@@ -1,26 +1,5 @@
 #include "inference_manager.h"
 
-template <typename T>
-Vector<T> compute_initial_distribution(const PiecewiseExponentialRateFunction<T> &eta)
-{
-    auto R = eta.getR();
-    int M = eta.hidden_states.size() - 1;
-    Vector<T> pi(M);
-    T minval = eta.zero + 1e-20;
-    for (int m = 0; m < M - 1; ++m)
-    {
-        pi(m) = exp(-(*R)(eta.hidden_states[m])) - exp(-(*R)(eta.hidden_states[m + 1]));
-        if (pi(m) < minval) pi(m) = minval;
-        assert(pi(m) > 0.0); 
-        assert(pi(m) < 1.0); 
-    }
-    pi(M - 1) = exp(-(*R)(eta.hidden_states[M - 1]));
-    if (pi(M - 1) < minval) pi(M - 1) = minval;
-    pi /= pi.sum();
-    check_nan(pi);
-    return pi;
-}
-
 InferenceManager::InferenceManager(
             const int n, const std::vector<int> obs_lengths,
             const std::vector<int*> observations,
@@ -30,13 +9,15 @@ InferenceManager::InferenceManager(
     n(n), 
     obs(map_obs(observations, obs_lengths)),
     M(hidden_states.size() - 1), 
-    csfs_d(n, M), csfs_ad(n, M),
+    csfs(n, M),
+    pi(M),
     nbs(fill_nbs()),
     subEmissionCoeffs(fill_subemissions()),
     targets(fill_targets()),
     tb(targets, &emission_probs),
     spanCutoff(M / 2),
-    ib{&pi, &tb, &emission_probs, &saveGamma, &spanCutoff}
+    ib{&pi, &tb, &emission_probs, &saveGamma, &spanCutoff},
+    dirty({true, true, true})
 {
     if (*std::min_element(hidden_states.begin(), hidden_states.end()) != 0.)
         throw std::runtime_error("first hidden interval should be [0, <something>)");
@@ -94,6 +75,25 @@ std::vector<int> InferenceManager::fill_nbs()
     return std::vector<int>(s.begin(), s.end());
 }
 
+void InferenceManager::recompute_initial_distribution()
+{
+    const PiecewiseExponentialRateFunction<adouble> eta = getEta();
+    auto R = eta.getR();
+    int M = eta.hidden_states.size() - 1;
+    adouble minval = zero + 1e-20;
+    for (int m = 0; m < M - 1; ++m)
+    {
+        pi(m) = exp(-(*R)(hidden_states[m])) - exp(-(*R)(hidden_states[m + 1]));
+        if (pi(m) < minval) pi(m) = minval;
+        assert(pi(m) > 0.0); 
+        assert(pi(m) < 1.0); 
+    }
+    pi(M - 1) = exp(-(*R)(hidden_states[M - 1]));
+    if (pi(M - 1) < minval) pi(M - 1) = minval;
+    pi /= pi.sum();
+    check_nan(pi);
+}
+
 void InferenceManager::populate_emission_probs()
 {
     Vector<adouble> tmp;
@@ -128,9 +128,16 @@ std::map<int, Matrix<double> > InferenceManager::fill_subemissions()
     return ret;
 }
 
-template <typename T>
-void InferenceManager::recompute_emission_probs(const PiecewiseExponentialRateFunction<T> &eta, const double theta)
+void InferenceManager::recompute_emission_probs()
 {
+    Eigen::Matrix<adouble, 3, Eigen::Dynamic, Eigen::RowMajor> em_tmp(3, n + 1);
+    std::vector<Matrix<adouble> > new_sfss = incorporate_theta(sfss, theta);
+    for (int m = 0; m < M; ++m)
+    {
+        check_nan(new_sfss[m]);
+        em_tmp = new_sfss[m];
+        emission.row(m) = Matrix<adouble>::Map(em_tmp.data(), 1, 3 * (n + 1));
+    }
     DEBUG("recompute B");
     std::map<int, Matrix<adouble> > subemissions;
     DEBUG("subemissions");
@@ -140,7 +147,7 @@ void InferenceManager::recompute_emission_probs(const PiecewiseExponentialRateFu
         int nb = *it;
         Matrix<adouble> M = emission.lazyProduct(subEmissionCoeffs.at(nb));
         M.col(0) += M.rightCols(1);
-        M.rightCols(1).fill(eta.zero);
+        M.rightCols(1).fill(zero);
 #pragma omp critical(subemissions)
         {
             subemissions[nb] = M;
@@ -151,10 +158,11 @@ void InferenceManager::recompute_emission_probs(const PiecewiseExponentialRateFu
     // std::cerr << "old sub[0]\n" << subemissions[0].template cast<double>() << std::endl;
     DEBUG("done subemissions");
     subemissions[0] = Matrix<adouble>::Zero(M, 2);
+    PiecewiseExponentialRateFunction<adouble> eta = getEta();
     for (int m = 0; m < M; ++m)
     {
-        double hsm = eta.hidden_states[m], hsm1 = eta.hidden_states[m + 1];
-        T Rhsm1 = exp(-eta.R(hsm1)), Rhsm = exp(-eta.R(hsm));
+        double hsm = hidden_states[m], hsm1 = hidden_states[m + 1];
+        adouble Rhsm1 = exp(-eta.R(hsm1)), Rhsm = exp(-eta.R(hsm));
         subemissions[0](m, 1) = eta.R_integral(hsm, hsm1);
         subemissions[0](m, 1) += hsm * Rhsm;
         subemissions[0](m, 1) -= hsm1 * Rhsm1;
@@ -210,70 +218,41 @@ std::vector<double> InferenceManager::randomCoalTimes(const ParameterVector para
     return ret;
 }
 
-template <typename T>
-void initialize_rho(T &rho, const std::vector<std::pair<int, int> > derivatives) {}
-
-template <>
-void initialize_rho(adouble &rho, const std::vector<std::pair<int, int> > derivatives)
+PiecewiseExponentialRateFunction<adouble> InferenceManager::getEta()
 {
-    unsigned int ds = derivatives.size();
-    for (unsigned int i = 0; i < ds; ++i)
-        if (derivatives[i] == {3, 0})
-        {
-            rho.derivatives() = Vector<double>::Zero(ds);
-            rho.derivatives()(i) = 1.;
-        }
+    return PiecewiseExponentialRateFunction<adouble>(params, derivatives, hidden_states);
 }
 
-template <typename T>
-void InferenceManager::setParams(const ParameterVector params, 
-        double theta, double rho, 
-        const std::vector<std::pair<int, int> > derivatives,
-        bool skipEmission)
+void InferenceManager::setParams(const ParameterVector params)
 {
     for (auto &pp : params)
         if (pp.size() != params[0].size())
             throw std::runtime_error("params must have matching sizes");
-    PiecewiseExponentialRateFunction<T> eta(params, derivatives, hidden_states);
-    regularizer = adouble(eta.regularizer());
-    pi = compute_initial_distribution<T>(eta).template cast<adouble>();
-    T rho;
-    initialize_rho(rho, derivatives);
-    transition = compute_transition<T>(eta, rho).template cast<adouble>();
-    check_nan(transition);
-    if (not skipEmission)
-    {
-        std::vector<Matrix<T> > sfss = sfs<T>(eta);
-        Eigen::Matrix<T, 3, Eigen::Dynamic, Eigen::RowMajor> em_tmp(3, n + 1);
-        for (int m = 0; m < M; ++m)
-        {
-            check_nan(sfss[m]);
-            em_tmp = sfss[m];
-            emission.row(m) = Matrix<T>::Map(em_tmp.data(), 1, 3 * (n + 1)).template cast<adouble>();
-        }
-        recompute_emission_probs(eta, theta);
-    }
-    // Important: this must be called after updating B since it depends on B!
-    tb.update(transition);
+    this->params = params;
+    dirty.params = true;
 }
-template void InferenceManager::setParams<double>(const ParameterVector, const std::vector<std::pair<int, int>>);
-template void InferenceManager::setParams<adouble>(const ParameterVector, const std::vector<std::pair<int, int>>);
 
-template <>
-ConditionedSFS<double>& InferenceManager::getCsfs() { return csfs_d; }
-template <>
-ConditionedSFS<adouble>& InferenceManager::getCsfs() { return csfs_ad; }
-
-template <typename T>
-std::vector<Matrix<T> > InferenceManager::sfs(const PiecewiseExponentialRateFunction<T> &eta)
+void InferenceManager::setRho(const double rho)
 {
-    PROGRESS("sfs");
-    return getCsfs<T>().compute(eta, theta);
-    PROGRESS("sfs done");
+    this->rho = rho;
+    dirty.rho = true;
 }
 
-template std::vector<Matrix<double> > InferenceManager::sfs(const PiecewiseExponentialRateFunction<double> &);
-template std::vector<Matrix<adouble> > InferenceManager::sfs(const PiecewiseExponentialRateFunction<adouble> &);
+void InferenceManager::setTheta(const double theta)
+{
+    this->theta = theta;
+    dirty.theta = true;
+}
+
+void InferenceManager::setDerivatives(const std::vector<std::pair<int, int> > derivatives)
+{
+    this->derivatives = derivatives;
+    zero = 0.;
+    zero.derivatives() = Vector<double>::Zero(derivatives.size());
+    dirty.params = true;
+    dirty.theta = true;
+    dirty.rho = true;
+}
 
 void InferenceManager::parallel_do(std::function<void(hmmptr&)> lambda)
 {
@@ -316,9 +295,42 @@ void InferenceManager::Estep(bool fbonly)
     parallel_do([fbonly] (hmmptr &hmm) { hmm->Estep(fbonly); });
 }
 
+void InferenceManager::do_dirty_work()
+{
+    // First set derivatives correctly. PiecewiseExponentialRateFunction
+    // will already do this for all the params.
+    PiecewiseExponentialRateFunction<adouble> eta = getEta();
+    unsigned int ds = derivatives.size();
+    theta.derivatives() = Vector<double>::Zero(ds);
+    rho.derivatives() = Vector<double>::Zero(ds);
+    for (unsigned int i = 0; i < ds; ++i)
+    {
+        if (derivatives[i] == std::make_pair(3, -1)) 
+            theta.derivatives()(i) = 1.;
+        if (derivatives[i] == std::make_pair(4, -1)) 
+            rho.derivatives()(i) = 1.;
+    }
+    // Next figure out what changed and recompute accordingly.
+    if (dirty.params)
+    {
+        regularizer = adouble(eta.regularizer());
+        recompute_initial_distribution();
+        sfss = csfs.compute(eta);
+    }
+    if (dirty.theta or dirty.params)
+        recompute_emission_probs();
+    if (dirty.params or dirty.rho)
+        transition = compute_transition(eta, rho);
+    if (dirty.theta or dirty.params or dirty.rho)
+        tb.update(transition);
+    // restore pristine status
+    dirty = {false, false, false};
+}
+
 std::vector<adouble> InferenceManager::Q(void)
 {
     DEBUG("InferenceManager::Q");
+    do_dirty_work();
     return parallel_select<adouble>([] (hmmptr &hmm) { return hmm->Q(); });
 }
 
@@ -379,21 +391,6 @@ std::vector<double> InferenceManager::loglik(void)
     return parallel_select<double>([] (hmmptr &hmm) { return hmm->loglik(); });
 }
 
-void InferenceManager::setParams_d(const ParameterVector params, 
-        const double theta, const double rho, bool skipEmission)
-{ 
-    std::vector<std::pair<int, int>> d;
-    setParams<double>(params, theta, rho, d, skipEmission);
-}
-
-void InferenceManager::setParams_ad(const ParameterVector params, 
-        const double theta, const double rho,
-        const std::vector<std::pair<int, int>> derivatives,
-        bool skipEmission)
-{  
-    setParams<adouble>(params, theta, rho, derivatives, skipEmission);
-}
-
 double InferenceManager::R(const ParameterVector params, double t)
 {
     PiecewiseExponentialRateFunction<double> eta(params, std::vector<std::pair<int, int> >(), std::vector<double>());
@@ -402,6 +399,14 @@ double InferenceManager::R(const ParameterVector params, double t)
 
 adouble InferenceManager::getRegularizer() { return regularizer; }
 
+Matrix<adouble> sfs_cython(int n, const ParameterVector &p, double t1, double t2,
+        std::vector<std::pair<int, int> > deriv) 
+{ 
+    PiecewiseExponentialRateFunction<adouble> eta(p, deriv, {t1, t2});
+    ConditionedSFS<adouble> csfs(n - 2, 1);
+    std::vector<Matrix<adouble> > v = csfs.compute(eta);
+    return v[0];
+}
 /*
 int main(int argc, char** argv)
 {

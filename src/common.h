@@ -140,12 +140,9 @@ inline void fill_jacobian(const adouble &ll, double* outjac)
     _jac = d;
 }
 
-template <typename T>
-void store_matrix(Matrix<T> *M, T* out)
-{
-    Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>::Map(out, M->rows(), M->cols()) = *M;
-}
-void store_admatrix(const Matrix<adouble> &M, int nd, double* out, double* outjac);
+void store_matrix(const Matrix<double> &M, double* out);
+void store_matrix(const Matrix<adouble> &M, double* out);
+void store_matrix(const Matrix<adouble> &M, double *out, double *jac);
 
 template <typename T>
 inline T dmin(const T a, const T b) { if (a > b) return b; return a; }

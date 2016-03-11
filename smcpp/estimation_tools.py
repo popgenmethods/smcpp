@@ -71,7 +71,7 @@ def thin_dataset(dataset, thinning):
     p.terminate()
     return ret
     
-def pretrain(model, sample_csfs, bounds, theta, penalizer):
+def pretrain(model, sample_csfs, bounds, theta0, penalizer):
     '''Pre-train model by fitting to observed SFS. Changes model in place!'''
     logger.debug("pretraining")
     n = sample_csfs.shape[1] + 1
@@ -81,10 +81,15 @@ def pretrain(model, sample_csfs, bounds, theta, penalizer):
     coords = [(u, v) for v in range(K) for u in ([0] if v in fp else [0, 1])]
     def f(x):
         x = ad.adnumber(x)
-        for cc, xx in zip(coords, x):
+        assert len(coords) == len(x) - 1
+        for cc, xx in zip(coords, x[:-1]):
             model[cc] = xx
+        logtheta = x[-1]
         logger.debug("requesting sfs")
-        sfs = _smcpp.sfs(model, n, 0., _smcpp.T_MAX, theta, True)
+        sfs = _smcpp.raw_sfs(model, n, 0., _smcpp.T_MAX, True)
+        sfs[0, 0] = 0
+        sfs *= ad.admath.exp(logtheta)
+        sfs[0, 0] = 1. - sfs.sum()
         logger.debug("done")
         usfs = util.undistinguished_sfs(sfs)
         kl = -(sample_sfs * ad.admath.log(usfs)).sum()
@@ -94,13 +99,17 @@ def pretrain(model, sample_csfs, bounds, theta, penalizer):
         logger.debug("\n%s" % np.array_str(np.array([[float(y) for y in row] for row in model._x]), precision=3))
         logger.debug(ret)
         return ret
+    x0 = [float(model[cc]) for cc in model.coords] + [np.log(theta0)]
     res = scipy.optimize.fmin_tnc(f, 
-            [float(model[cc]) for cc in model.coords], None,
-            bounds=[tuple(bounds[cc]) for cc in coords],
+            x0,
+            None,
+            bounds=[tuple(bounds[cc]) for cc in coords] + [(-8, -2)],
             xtol=.01, disp=False)
     for cc, xx in zip(coords, res[0]):
         model[cc] = xx 
     logger.info("pre-trained model:\n%s" % np.array_str(model.x, precision=2))
+    logger.info("inferred mutation rate: exp(%g)" % res[0][-1])
+    return np.exp(res[0][-1])
 
 def break_long_spans(dataset, span_cutoff, length_cutoff):
     obs_list = []

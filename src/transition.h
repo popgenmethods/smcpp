@@ -12,7 +12,7 @@ template <typename T>
 class Transition
 {
     public:
-    Transition(const PiecewiseExponentialRateFunction<T> &eta, const double rho) : 
+    Transition(const PiecewiseExponentialRateFunction<T> &eta, const T rho) : 
         eta(&eta), M(eta.hidden_states.size()), Phi(M - 1, M - 1), rho(rho) {}
     Matrix<T>& matrix(void) { return Phi; }
 
@@ -21,14 +21,14 @@ class Transition
     const PiecewiseExponentialRateFunction<T> *eta;
     const int M;
     Matrix<T> Phi;
-    const double rho;
+    const T rho;
 };
 
 template <typename T>
 class HJTransition : public Transition<T>
 {
     public:
-    HJTransition(const PiecewiseExponentialRateFunction<T> &eta, const double rho) : Transition<T>(eta, rho) 
+    HJTransition(const PiecewiseExponentialRateFunction<T> &eta, const T rho) : Transition<T>(eta, rho) 
     { 
         compute(); 
     }

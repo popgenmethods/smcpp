@@ -40,7 +40,7 @@ class ConditionedSFS : public ConditionedSFSBase
 {
     public:
     ConditionedSFS(int, int);
-    std::vector<Matrix<T> >& compute(const PiecewiseExponentialRateFunction<T> &, double);
+    std::vector<Matrix<T> >& compute(const PiecewiseExponentialRateFunction<T> &);
 
     // private:
     // Methods
@@ -56,5 +56,8 @@ class ConditionedSFS : public ConditionedSFSBase
     std::vector<Matrix<T> > csfs, csfs_below, csfs_above, C_above;
     const Matrix<double> Uinv_mp0, Uinv_mp2;
 };
+
+template <typename T>
+std::vector<Matrix<T> > incorporate_theta(const std::vector<Matrix<T> > &, const T);
 
 #endif

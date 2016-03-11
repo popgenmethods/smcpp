@@ -46,14 +46,16 @@ def init_parser(parser):
     hmm.add_argument('--Nmin', type=float, help="Lower bound on effective population size", default=1000)
     hmm.add_argument('--Nmax', type=float, help="Upper bound on effective population size", default=400000)
     hmm.add_argument('--span-cutoff', help="treat spans > as missing", default=50000, type=int)
+    pop_params.add_argument('--N0', default=1e4, type=float, help="reference effective (diploid) population size to scale output.")
+    pop_params.add_argument('--mu', type=float, 
+            help="per-generation mutation rate. If not specified, it will be inferred from data.")
+    pop_params.add_argument('--r', type=float, 
+            help="per-generation recombination rate. If not specified, it will be inferred from data.")
     hmm.add_argument('--length-cutoff', help="omit sequences < cutoff", default=1000000, type=int)
     parser.add_argument("-p", "--second-population", nargs="+", widget="MultiFileChooser", 
             help="Estimate divergence time using data set(s) from a second subpopulation")
     parser.add_argument("-o", "--outdir", help="output directory", default="/tmp", widget="DirChooser")
     parser.add_argument('-v', '--verbose', action='store_true', help="generate tremendous amounts of output")
-    pop_params.add_argument('--N0', default=1e4, type=float, help="reference effective (diploid) population size to scale output.")
-    pop_params.add_argument('mu', type=float, help="per-generation mutation rate")
-    pop_params.add_argument('r', type=float, help="per-generation recombination rate")
     parser.add_argument('data', nargs="+", help="data file(s) in SMC++ format", widget="MultiFileChooser")
 
 def main(args):
@@ -96,8 +98,7 @@ def main(args):
 
     ## Construct populations
     populations = [
-            (dsf, time_points, args.exponential_pieces, args.N0,
-                2 * args.mu * args.N0, 2 * args.r * args.N0, args.M, bounds, args)
+            (dsf, time_points, args.exponential_pieces, args.N0, args.mu, args.M, bounds, args)
             for dsf in datasets_files
             ]
 

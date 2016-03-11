@@ -24,7 +24,7 @@ class PopulationOptimizer(object):
         iserv = self._iserv
         logger.debug("Initializing model(s)")
         models = iserv.model
-        iserv.set_params(models, False)
+        iserv.model = models
         logger.debug("Performing initial E step")
         iserv.E_step()
         llold = np.mean([x for loglik in iserv.loglik() for x in loglik])
@@ -56,7 +56,8 @@ class PopulationOptimizer(object):
         for i, (a, cc) in enumerate(self._coords):
             models[a][cc] = xs[i] * models[a].precond[cc]
         self._pre_Q(models)
-        q = self._iserv.Q(models, True)
+        self._iserv.set_params(models)
+        q = self._iserv.Q()
         reg = np.mean(self._iserv.penalize(models))
         ll = -np.mean(q)
         ll += reg

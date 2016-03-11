@@ -32,22 +32,14 @@ init_logger_cb(logger_cb);
 # flat arrays
 aca = np.ascontiguousarray
 
-cdef struct ParameterBundle:
-    vector[vector[double]] vals
-    vector[pair[int, int]] derivs
-
-cdef ParameterBundle make_params(model):
-    cdef ParameterBundle ret
+cdef ParameterVector make_params(model):
+    cdef ParameterVector ret
     for i in range(3):
         r = []
         for j in range(model.K):
             entry = model[i, j]
             r.append(float(entry))
-        ret.vals.push_back(r)
-    for b in range(model.K):
-        ret.derivs.push_back((0, b))
-        if b not in model.flat_pieces:
-            ret.derivs.push_back((1, b))
+        ret.push_back(r)
     return ret
 
 cdef _make_em_matrix(vector[pMatrixD] mats):
@@ -58,7 +50,7 @@ cdef _make_em_matrix(vector[pMatrixD] mats):
         n = mats[i][0].cols()
         ary = aca(np.zeros([m, n]))
         v = ary
-        store_matrix[double](mats[i], &v[0, 0])
+        store_matrix(mats[i][0], &v[0, 0])
         ret.append(ary)
     return ret
 
@@ -72,22 +64,25 @@ def validate_observation(ob):
 @wrapt.decorator
 def modelify(wrapped, instance, args, kwargs):
     model = args[0]
+    new_args = (make_model(model),) + args[1:]
+    return wrapped(*new_args, **kwargs)
+
+def make_model(model):
     if isinstance(model, (np.ndarray, collections.Sequence)):
         from .model import SMCModel
         m = SMCModel(model[2], np.where(model[0] != model[1])[0])
         m.x[:2] = model[:2]
         model = m
-    new_args = (model,) + args[1:]
-    return wrapped(*new_args, **kwargs)
+    return model
 
 cdef class PyInferenceManager:
     cdef InferenceManager *_im
     cdef int _n
     cdef int _num_hmms
-    cdef object _observations, _derivatives, _model
+    cdef object _observations, _derivatives, _model, _theta, _rho
     cdef public long long seed
 
-    def __cinit__(self, int n, observations, hidden_states, double theta, double rho):
+    def __cinit__(self, int n, observations, hidden_states):
         self.seed = 1
         self._n = n
         cdef int[:, ::1] vob
@@ -109,39 +104,48 @@ cdef class PyInferenceManager:
         cdef vector[double] hs = hidden_states
         cdef vector[int] _Ls = Ls
         with nogil:
-            self._im = new InferenceManager(n, _Ls, obs, hs, theta, rho)
+            self._im = new InferenceManager(n, _Ls, obs, hs)
 
     def __dealloc__(self):
         del self._im
 
-    def get_observations(self):
-        return self._observations
+    property observations:
+        def __get__(self):
+            return self._observations
 
-    @modelify
-    def set_params(self, model, theta, rho, dmodel, dtheta, drho, skip_emission=False):
-        global abort
-        if abort:
-            abort = False
-            raise KeyboardInterrupt
-        if not np.all(np.array(model.x) > 0):
-            raise ValueError("All parameters must be strictly positive")
-        cdef ParameterBundle pb = make_params(model)
-        self._model = model
-        self._derivatives = []
-        if dmodel:
-            self._derivatives += list(pb.derivs)
-        if drho:
-            self._derivatives += [(3,0)]
-        if dtheta:
-            self._derivatives += [(4,0)]
-        vector[pair[int, int]] d = self._derivatives
-        if self._derivatives:
-            with nogil:
-                self._im.setParams_ad(pb.vals, theta, rho, d, skip_emission)
-        else:
-            with nogil:
-                self._im.setParams_d(pb.vals, theta, rho, skip_emission)
+    property derivatives:
+        def __get__(self):
+            return self._derivatives
 
+        def __set__(self, derivatives):
+            self._derivatives = derivatives
+            self._im.setDerivatives(derivatives)
+
+    property theta:
+        def __get__(self):
+            return self._theta
+
+        def __set__(self, theta):
+            self._theta = adnumber(theta)
+            self._im.setTheta(theta)
+
+    property rho:
+        def __get__(self):
+            return self._rho
+
+        def __set__(self, rho):
+            self._rho = adnumber(rho)
+            self._im.setRho(rho)
+
+    property model:
+        def __get__(self):
+            return self._model
+
+        def __set__(self, model):
+            self._model = model
+            cdef ParameterVector params = make_params(model)
+            self._im.setParams(params)
+    
     def E_step(self, forward_backward_only=False):
         logger.debug("Forward-backward algorithm...")
         cdef bool fbOnly = forward_backward_only
@@ -237,12 +241,7 @@ cdef class PyInferenceManager:
         def __get__(self):
             return _store_admatrix_helper(self._im.getEmission(), self._nder)
 
-    def _call_inference_func(self, func):
-        cdef vector[double] llret
-        if func == "loglik":
-            with nogil:
-                llret = self._im.loglik()
-            return llret
+    def Q(self):
         cdef vector[adouble] ad_rets 
         with nogil:
             ad_rets = self._im.Q()
@@ -258,24 +257,32 @@ cdef class PyInferenceManager:
                 fill_jacobian(ad_rets[i], &vjac[0])
                 d = {}
                 for k, cc in enumerate(self._derivatives):
-                    for var in self._model[cc].d():
-                        d[var] = d.get(var, 0) + self._model[cc].d(var) * jac[k]
+                    if cc[0] == 3:
+                        assert cc[1] == -1
+                        obj = self._theta
+                    elif cc[0] == 4:
+                        assert cc[1] == -1
+                        obj = self._rho
+                    else:
+                        obj = self._model[cc]
+                    for x in obj.d():
+                        d[x] = d.get(x, 0) + obj.d(x) * jac[k]
                 r.d().update(d)
             ret.append(r)
         return ret
 
-    def Q(self):
-        return self._call_inference_func("Q")
-
     def loglik(self):
-        return self._call_inference_func("loglik")
+        cdef vector[double] llret
+        with nogil:
+            llret = self._im.loglik()
+        return llret
 
 @modelify
 def balance_hidden_states(model, int M):
     M -= 1
-    cdef ParameterBundle pb = make_params(model)
+    cdef ParameterVector pv = make_params(model)
     cdef vector[double] v = []
-    cdef PiecewiseExponentialRateFunction[double] *eta = new PiecewiseExponentialRateFunction[double](pb.vals, v)
+    cdef PiecewiseExponentialRateFunction[double] *eta = new PiecewiseExponentialRateFunction[double](pv, v)
     try:
         ret = [0.0]
         t = 0
@@ -292,28 +299,29 @@ def balance_hidden_states(model, int M):
     return np.array(ret)
 
 @modelify
-def sfs(model, int n, double t1, double t2, double theta, jacobian=False):
-    cdef ParameterBundle pb = make_params(model)
-    cdef Matrix[double] sfs
+def raw_sfs(model, int n, double t1, double t2, jacobian=False):
+    cdef ParameterVector pv = make_params(model)
     cdef Matrix[adouble] dsfs
+    cdef Matrix[double] sfs
     ret = aca(np.zeros([3, n - 1]))
     cdef double[:, ::1] vret = ret
+    cdef vector[pair[int, int]] derivs
     if not jacobian:
         with nogil:
-            sfs = sfs_cython[double](n, pb.vals, t1, t2, theta)
-        store_matrix(&sfs, &vret[0, 0])
+            dsfs = sfs_cython(n, pv, t1, t2, derivs)
+        store_matrix(dsfs, &vret[0, 0])
         return ret
+    derivs = [(i, j) for i in range(2) for j in range(model.x.shape[1])]
     with nogil:
-        dsfs = sfs_cython[adouble](n, pb.vals, t1, t2, theta, pb.derivs)
-    J = pb.derivs.size()
+        dsfs = sfs_cython(n, pv, t1, t2, derivs)
+    J = derivs.size()
     ret, jac = _store_admatrix_helper(dsfs, J)
     ret = adnumber(ret)
-    derivs = list(pb.derivs)
     for i in range(3):
         for j in range(n - 1):
             for k, p in enumerate(derivs):
-                for v in model[p].d():
-                    ret[i, j].d()[v] = ret[i, j].d().get(v, 0.) + model[p].d(v) * jac[i, j, k]
+                for x in model[p].d():
+                    ret[i, j].d()[x] = ret[i, j].d().get(x, 0) + model[p].d(x) * jac[i, j, k]
     return ret
 
 cdef _store_admatrix_helper(Matrix[adouble] &mat, int nder):
@@ -324,12 +332,12 @@ cdef _store_admatrix_helper(Matrix[adouble] &mat, int nder):
     ary = aca(np.zeros([m, n]))
     v = ary
     if (nder == 0):
-        store_admatrix(mat, nder, &v[0, 0], NULL)
+        store_matrix(mat, &v[0, 0])
         return ary
     else:
         jac = aca(np.zeros([m, n, nder]))
         av = jac
-        store_admatrix(mat, nder, &v[0, 0], &av[0, 0, 0])
+        store_matrix(mat, &v[0, 0], &av[0, 0, 0])
         return ary, jac
 
 def thin_data(data, int thinning, int offset=0):

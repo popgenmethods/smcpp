@@ -21,8 +21,10 @@ class InferenceManager
             const int, const std::vector<int>, const std::vector<int*>,
             const std::vector<double>);
 
-    template <typename T>
-    void setParams(const ParameterVector, double, double, const std::vector<std::pair<int, int> >, bool);
+    void setDerivatives(const std::vector<std::pair<int, int> >);
+    void setRho(const double);
+    void setTheta(const double);
+    void setParams(const ParameterVector);
 
     void Estep(bool);
     std::vector<adouble> Q();
@@ -32,9 +34,6 @@ class InferenceManager
     std::vector<Matrix<T> > sfs(const PiecewiseExponentialRateFunction<T>&);
 
     // Unfortunately these are necessary to work around a bug in Cython
-    void setParams_d(const ParameterVector params, const double, const double, bool);
-    void setParams_ad(const ParameterVector params, const double, const double, 
-            const std::vector<std::pair<int, int>> derivatives, bool)
     double R(const ParameterVector params, double t);
     adouble getRegularizer();
     bool debug, saveGamma;
@@ -50,18 +49,18 @@ class InferenceManager
     std::map<block_key, Vector<adouble> >& getEmissionProbs();
 
     private:
-    template <typename T> 
-    ConditionedSFS<T>& getCsfs();
+    ParameterVector params;
+    std::vector<std::pair<int, int> > derivatives;
+    adouble theta, rho;
+
     std::vector<Eigen::Matrix<int, Eigen::Dynamic, 4, Eigen::RowMajor> > 
         map_obs(const std::vector<int*>&, const std::vector<int>&);
     std::set<std::pair<int, block_key> > fill_targets();
     std::vector<int> fill_nbs();
     std::map<int, Matrix<double> > fill_subemissions();
     void populate_emission_probs();
-
-    template <typename T>
-    void recompute_emission_probs(const PiecewiseExponentialRateFunction<T> &, const double theta);
-
+    void recompute_initial_distribution();
+    void recompute_emission_probs();
     typedef std::unique_ptr<HMM> hmmptr;
 
     // Passed-in parameters
@@ -69,45 +68,35 @@ class InferenceManager
     const int n;
     std::vector<Eigen::Matrix<int, Eigen::Dynamic, 4, Eigen::RowMajor> > obs;
     const int M;
-    adouble regularizer;
+    adouble regularizer, zero;
+    ConditionedSFS<adouble> csfs;
 
     std::vector<hmmptr> hmms;
     Vector<adouble> pi;
     Matrix<adouble> transition, emission;
-    ConditionedSFS<double> csfs_d;
-    ConditionedSFS<adouble> csfs_ad;
     std::vector<block_key> bpm_keys;
     const std::vector<int> nbs;
     const std::map<int, Matrix<double> > subEmissionCoeffs;
     const std::set<std::pair<int, block_key> > targets;
     TransitionBundle tb;
+    std::vector<Matrix<adouble> > sfss;
 
     public:
     int spanCutoff;
 
     private:
     InferenceBundle ib;
+    struct { bool theta, rho, params; } dirty;
 
     // Methods
     void parallel_do(std::function<void(hmmptr &)>);
     template <typename T>
     std::vector<T> parallel_select(std::function<T(hmmptr &)>);
+    void do_dirty_work();
+    PiecewiseExponentialRateFunction<adouble> getEta();
 };
 
-template <typename T>
-Matrix<T> sfs_cython(int n, const ParameterVector &p, double t1, double t2, double theta) 
-{ 
-    PiecewiseExponentialRateFunction<T> eta(p, {t1, t2});
-    ConditionedSFS<T> csfs(n - 2, 1);
-    return csfs.compute(eta, theta)[0];
-}
-
-template <typename T>
-Matrix<T> sfs_cython(int n, const ParameterVector &p, double t1, double t2, double theta, std::vector<std::pair<int, int> > deriv) 
-{ 
-    PiecewiseExponentialRateFunction<T> eta(p, deriv, {t1, t2});
-    ConditionedSFS<T> csfs(n - 2, 1);
-    return csfs.compute(eta, theta)[0];
-}
+Matrix<adouble> sfs_cython(int n, const ParameterVector &p, double t1, double t2,
+        std::vector<std::pair<int, int> > deriv);
 
 #endif

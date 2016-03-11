@@ -91,7 +91,6 @@ class InferenceService(object):
             p.send(("exit", None))
         self._parent_pipes = []
 
-    @_fix_derivatives
     def Q(self, models, coords):
         self.set_params(models, coords)
         return self._send_message("Q")
@@ -99,7 +98,6 @@ class InferenceService(object):
     def E_step(self):
         return self._send_message("E_step")
 
-    @_fix_derivatives
     def penalize(self, models):
         return self._send_message("penalize", [[m] for m in models])
 
@@ -149,6 +147,15 @@ class DumbInferenceService(InferenceService):
         if args is None:
             args = [[]] * self._npop
         return [getattr(p, message)(*a) for p, a in zip(self._populations, args)]
+
+    @property
+    def model(self):
+        return [p.model for p in self._populations]
+
+    @model.setter
+    def model(self, models):
+        for p, m in zip(self._populations, models):
+            p.model = m
 
     def close(self):
         pass

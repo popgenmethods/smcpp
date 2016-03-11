@@ -22,6 +22,8 @@ def lazy_extensions():
     from Cython.Build import cythonize
     import numpy as np
     import pkgconfig
+    if not pkgconfig.installed('eigen3', '>= 3.2.8'):
+        raise RuntimeError("eigen3 version 3.2.8 or later required.")
     include_dirs = []
     for dep in ['gsl', 'eigen3']:
         include_dirs += [path.strip() for path in pkgconfig.cflags(dep).split("-I") if path.strip()]
@@ -32,7 +34,7 @@ def lazy_extensions():
                 language="c++",
                 include_dirs=["src", np.get_include()] + include_dirs,
                 # extra_compile_args=["-O0", "-ggdb3", "-std=c++11", "-Wfatal-errors", "-Wno-unused-variable", "-Wno-unused-function", "-D_GLIBCXX_DEBUG"],
-                extra_compile_args=["-O2", "-g", "-std=c++11", "-Wno-deprecated-declarations", "-Wfatal-errors", "-fopenmp"],
+                extra_compile_args=["-O0", "-g", "-std=c++11", "-Wno-deprecated-declarations", "-Wfatal-errors", "-fopenmp"],
                 libraries=['gmp', 'gmpxx', 'gsl', 'gslcblas'],
                 extra_link_args=['-fopenmp'],
                 )]
