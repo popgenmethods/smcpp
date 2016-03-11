@@ -14,8 +14,8 @@ def test_d(fake_obs, constant_demo_1):
     N0 = 10000.
     theta = 1.25e-8
     rho = theta / 4.
-    obs_list = [fake_obs[:10]]
     n = 26
+    obs_list = [np.array([[1, 0, 10, n - 2], [10, 0, 0, n - 2], [1, 2, 2, n - 5]], dtype=np.int32)]
     hidden_states = np.array([  0.        ,   0.0557381 ,   0.10195686,   0.12346455,
          0.13234427,   0.14137324,   0.28881064,   0.45318096,
          0.54786669,   0.62940343,   0.70119707,   0.77310611,
@@ -39,7 +39,7 @@ def test_d(fake_obs, constant_demo_1):
     em[1] = 1
     print(obs_list)
     im = _pypsmcpp.PyInferenceManager(n - 2, obs_list, hidden_states, 
-            4.0 * N0 * theta, 4.0 * N0 * rho, 50, n, [0], em)
+            4.0 * N0 * theta, 4.0 * N0 * rho)
     a = np.ones(10)
     b = a
     s = np.logspace(np.log10(.01), np.log10(3.), 10)
@@ -47,29 +47,27 @@ def test_d(fake_obs, constant_demo_1):
     print('cumsum(s)', np.cumsum(s))
     K = len(a)
     eps = 1e-8
-    for hj in [True, False]:
-        im.hj = hj
-        print((a,b,s))
-        coords = [(x, y) for x in [0] for y in range(K)]
-        im.setParams((a,b,s), coords)
-        trans1, jac = im.transition
-        print(hj, trans1)
-        jac.shape = (M, M, 1, K)
-        I = np.eye(K)
-        M = trans1.shape[0]
-        for ind in (0,):
-            for k in range(K):
-                args = [a, b, s]
-                args[ind] = args[ind] + eps * I[k]
-                im.setParams(args, False)
-                trans2 = im.transition
-                for i in range(M):
-                    for j in range(M):
-                        jaca = jac[i, j, ind, k]
-                        j1 = trans2[i, j]
-                        j2 = trans1[i, j] + eps * jaca
-                        print(ind, k, i, j, jaca, (trans2[i,j] - trans1[i,j]) / eps)
-                        # assert abs(j1 - j2) < eps
+    print((a,b,s))
+    d_to_test = (0, 1, 2)
+    coords = [(x, y) for x in d_to_test for y in range(K)]
+    im.setParams((a,b,s), coords)
+    trans1, jac = im.transition
+    jac.shape = (M, M, len(d_to_test), K)
+    I = np.eye(K)
+    M = trans1.shape[0]
+    for ind in d_to_test:
+        for k in range(K):
+            args = [a, b, s]
+            args[ind] = args[ind] + eps * I[k]
+            im.setParams(args, False)
+            trans2 = im.transition
+            for i in range(M):
+                for j in range(M):
+                    jaca = jac[i, j, ind, k]
+                    j1 = trans2[i, j]
+                    j2 = trans1[i, j] + eps * jaca
+                    print(ind, k, i, j, jaca, (trans2[i,j] - trans1[i,j]) / eps)
+                    # assert abs(j1 - j2) < eps
     assert False
 
 def test_equal_jac_nojac(constant_demo_1, hs):
