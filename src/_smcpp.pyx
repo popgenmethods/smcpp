@@ -118,7 +118,7 @@ cdef class PyInferenceManager:
         return self._observations
 
     @modelify
-    def set_params(self, model, derivatives):
+    def set_params(self, model, theta, rho, dmodel, dtheta, drho, skip_emission=False):
         global abort
         if abort:
             abort = False
@@ -127,14 +127,20 @@ cdef class PyInferenceManager:
             raise ValueError("All parameters must be strictly positive")
         cdef ParameterBundle pb = make_params(model)
         self._model = model
-        if derivatives:
-            self._derivatives = list(pb.derivs)
+        self._derivatives = []
+        if dmodel:
+            self._derivatives += list(pb.derivs)
+        if drho:
+            self._derivatives += [(3,0)]
+        if dtheta:
+            self._derivatives += [(4,0)]
+        vector[pair[int, int]] d = self._derivatives
+        if self._derivatives:
             with nogil:
-                self._im.setParams_ad(pb.vals, pb.derivs)
+                self._im.setParams_ad(pb.vals, theta, rho, d, skip_emission)
         else:
-            self._derivatives = None
             with nogil:
-                self._im.setParams_d(pb.vals)
+                self._im.setParams_d(pb.vals, theta, rho, skip_emission)
 
     def E_step(self, forward_backward_only=False):
         logger.debug("Forward-backward algorithm...")
@@ -174,7 +180,7 @@ cdef class PyInferenceManager:
                     key[i] = p.first[i]
                 M = p.second.size()
                 v = np.zeros(M)
-                if self._derivatives is not None:
+                if self._derivatives:
                     dv = np.zeros([M, self._nder])
                 for i in range(M):
                     v[i] = p.second(i).value()
@@ -245,7 +251,7 @@ cdef class PyInferenceManager:
         cdef double[::1] vjac
         for i in range(self._num_hmms):
             r = toDouble(ad_rets[i])
-            if self._derivatives is not None:
+            if self._derivatives:
                 r = adnumber(r)
                 jac = aca(np.zeros([len(self._derivatives)]))
                 vjac = jac

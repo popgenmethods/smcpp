@@ -18,12 +18,11 @@ class InferenceManager
 {
     public:
     InferenceManager(
-            const int, const std::vector<int>,
-            const std::vector<int*>,
-            const std::vector<double>,
-            const double theta, const double rho);
+            const int, const std::vector<int>, const std::vector<int*>,
+            const std::vector<double>);
+
     template <typename T>
-    void setParams(const ParameterVector, const std::vector<std::pair<int, int> >);
+    void setParams(const ParameterVector, double, double, const std::vector<std::pair<int, int> >, bool);
 
     void Estep(bool);
     std::vector<adouble> Q();
@@ -33,8 +32,9 @@ class InferenceManager
     std::vector<Matrix<T> > sfs(const PiecewiseExponentialRateFunction<T>&);
 
     // Unfortunately these are necessary to work around a bug in Cython
-    void setParams_d(const ParameterVector params);
-    void setParams_ad(const ParameterVector params, const std::vector<std::pair<int, int>> derivatives);
+    void setParams_d(const ParameterVector params, const double, const double, bool);
+    void setParams_ad(const ParameterVector params, const double, const double, 
+            const std::vector<std::pair<int, int>> derivatives, bool)
     double R(const ParameterVector params, double t);
     adouble getRegularizer();
     bool debug, saveGamma;
@@ -52,20 +52,22 @@ class InferenceManager
     private:
     template <typename T> 
     ConditionedSFS<T>& getCsfs();
-    std::vector<Eigen::Matrix<int, Eigen::Dynamic, 4, Eigen::RowMajor> > map_obs(const std::vector<int*>&, const std::vector<int>&);
+    std::vector<Eigen::Matrix<int, Eigen::Dynamic, 4, Eigen::RowMajor> > 
+        map_obs(const std::vector<int*>&, const std::vector<int>&);
     std::set<std::pair<int, block_key> > fill_targets();
     std::vector<int> fill_nbs();
     std::map<int, Matrix<double> > fill_subemissions();
     void populate_emission_probs();
+
     template <typename T>
-    void recompute_emission_probs(const PiecewiseExponentialRateFunction<T> &);
+    void recompute_emission_probs(const PiecewiseExponentialRateFunction<T> &, const double theta);
+
     typedef std::unique_ptr<HMM> hmmptr;
 
     // Passed-in parameters
     std::mt19937 gen;
     const int n;
     std::vector<Eigen::Matrix<int, Eigen::Dynamic, 4, Eigen::RowMajor> > obs;
-    double theta, rho;
     const int M;
     adouble regularizer;
 

@@ -78,7 +78,7 @@ void HJTransition<T>::compute(void)
 }
 
 template <typename T>
-Matrix<T> compute_transition(const PiecewiseExponentialRateFunction<T> &eta, const double rho)
+Matrix<T> compute_transition(const PiecewiseExponentialRateFunction<T> &eta, const T rho)
 {
     DEBUG("computing transition");
     Matrix<T> ret = HJTransition<T>(eta, rho).matrix();
@@ -87,4 +87,4 @@ Matrix<T> compute_transition(const PiecewiseExponentialRateFunction<T> &eta, con
 }
 
 template Matrix<double> compute_transition(const PiecewiseExponentialRateFunction<double> &eta, const double rho);
-template Matrix<adouble> compute_transition(const PiecewiseExponentialRateFunction<adouble> &eta, const double rho);
+template Matrix<adouble> compute_transition(const PiecewiseExponentialRateFunction<adouble> &eta, const T rho);
