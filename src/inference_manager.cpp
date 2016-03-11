@@ -24,11 +24,13 @@ Vector<T> compute_initial_distribution(const PiecewiseExponentialRateFunction<T>
 InferenceManager::InferenceManager(
             const int n, const std::vector<int> obs_lengths,
             const std::vector<int*> observations,
-            const std::vector<double> hidden_states) :
+            const std::vector<double> hidden_states,
+            const double theta, const double rho) : 
     debug(false), saveGamma(false),
     hidden_states(hidden_states),
     n(n), 
     obs(map_obs(observations, obs_lengths)),
+    theta(theta), rho(rho),
     M(hidden_states.size() - 1), 
     csfs_d(n, M), csfs_ad(n, M),
     nbs(fill_nbs()),
@@ -129,7 +131,7 @@ std::map<int, Matrix<double> > InferenceManager::fill_subemissions()
 }
 
 template <typename T>
-void InferenceManager::recompute_emission_probs(const PiecewiseExponentialRateFunction<T> &eta, const double theta)
+void InferenceManager::recompute_emission_probs(const PiecewiseExponentialRateFunction<T> &eta)
 {
     DEBUG("recompute B");
     std::map<int, Matrix<adouble> > subemissions;
@@ -211,25 +213,7 @@ std::vector<double> InferenceManager::randomCoalTimes(const ParameterVector para
 }
 
 template <typename T>
-void initialize_rho(T &rho, const std::vector<std::pair<int, int> > derivatives) {}
-
-template <>
-void initialize_rho(adouble &rho, const std::vector<std::pair<int, int> > derivatives)
-{
-    unsigned int ds = derivatives.size();
-    for (unsigned int i = 0; i < ds; ++i)
-        if (derivatives[i] == {3, 0})
-        {
-            rho.derivatives() = Vector<double>::Zero(ds);
-            rho.derivatives()(i) = 1.;
-        }
-}
-
-template <typename T>
-void InferenceManager::setParams(const ParameterVector params, 
-        double theta, double rho, 
-        const std::vector<std::pair<int, int> > derivatives,
-        bool skipEmission)
+void InferenceManager::setParams(const ParameterVector params, const std::vector<std::pair<int, int>> derivatives)
 {
     for (auto &pp : params)
         if (pp.size() != params[0].size())
@@ -237,22 +221,17 @@ void InferenceManager::setParams(const ParameterVector params,
     PiecewiseExponentialRateFunction<T> eta(params, derivatives, hidden_states);
     regularizer = adouble(eta.regularizer());
     pi = compute_initial_distribution<T>(eta).template cast<adouble>();
-    T rho;
-    initialize_rho(rho, derivatives);
     transition = compute_transition<T>(eta, rho).template cast<adouble>();
     check_nan(transition);
-    if (not skipEmission)
+    std::vector<Matrix<T> > sfss = sfs<T>(eta);
+    Eigen::Matrix<T, 3, Eigen::Dynamic, Eigen::RowMajor> em_tmp(3, n + 1);
+    for (int m = 0; m < M; ++m)
     {
-        std::vector<Matrix<T> > sfss = sfs<T>(eta);
-        Eigen::Matrix<T, 3, Eigen::Dynamic, Eigen::RowMajor> em_tmp(3, n + 1);
-        for (int m = 0; m < M; ++m)
-        {
-            check_nan(sfss[m]);
-            em_tmp = sfss[m];
-            emission.row(m) = Matrix<T>::Map(em_tmp.data(), 1, 3 * (n + 1)).template cast<adouble>();
-        }
-        recompute_emission_probs(eta, theta);
+        check_nan(sfss[m]);
+        em_tmp = sfss[m];
+        emission.row(m) = Matrix<T>::Map(em_tmp.data(), 1, 3 * (n + 1)).template cast<adouble>();
     }
+    recompute_emission_probs(eta);
     // Important: this must be called after updating B since it depends on B!
     tb.update(transition);
 }
@@ -379,19 +358,16 @@ std::vector<double> InferenceManager::loglik(void)
     return parallel_select<double>([] (hmmptr &hmm) { return hmm->loglik(); });
 }
 
-void InferenceManager::setParams_d(const ParameterVector params, 
-        const double theta, const double rho, bool skipEmission)
+void InferenceManager::setParams_d(const ParameterVector params) 
 { 
     std::vector<std::pair<int, int>> d;
-    setParams<double>(params, theta, rho, d, skipEmission);
+    setParams<double>(params, d);
 }
 
 void InferenceManager::setParams_ad(const ParameterVector params, 
-        const double theta, const double rho,
-        const std::vector<std::pair<int, int>> derivatives,
-        bool skipEmission)
+        const std::vector<std::pair<int, int>> derivatives) 
 {  
-    setParams<adouble>(params, theta, rho, derivatives, skipEmission);
+    setParams<adouble>(params, derivatives);
 }
 
 double InferenceManager::R(const ParameterVector params, double t)
