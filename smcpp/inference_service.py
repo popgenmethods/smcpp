@@ -157,5 +157,25 @@ class DumbInferenceService(InferenceService):
         for p, m in zip(self._populations, models):
             p.model = m
 
+    @property
+    def theta(self):
+        return self._theta
+
+    @theta.setter
+    def theta(self, theta):
+        self._theta = theta
+        for p in self._populations:
+            p.theta = theta
+
+    @property
+    def rho(self):
+        return self._rho
+
+    @rho.setter
+    def rho(self, rho):
+        self._rho = rho
+        for p in self._populations:
+            p.rho = rho
+
     def close(self):
         pass

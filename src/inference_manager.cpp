@@ -292,6 +292,7 @@ template std::vector<adouble> InferenceManager::parallel_select(std::function<ad
 void InferenceManager::Estep(bool fbonly)
 {
     DEBUG("E step");
+    do_dirty_work();
     parallel_do([fbonly] (hmmptr &hmm) { hmm->Estep(fbonly); });
 }
 

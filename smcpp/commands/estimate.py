@@ -50,7 +50,9 @@ def init_parser(parser):
     pop_params.add_argument('--mu', type=float, 
             help="per-generation mutation rate. If not specified, it will be inferred from data.")
     pop_params.add_argument('--r', type=float, 
-            help="per-generation recombination rate. If not specified, it will be inferred from data.")
+            help="per-generation recombination rate. default: mu / 4")
+    pop_params.add_argument("--fix-r", default=False, action="store_true", 
+            help="do not estimate recombination rate from data")
     hmm.add_argument('--length-cutoff', help="omit sequences < cutoff", default=1000000, type=int)
     parser.add_argument("-p", "--second-population", nargs="+", widget="MultiFileChooser", 
             help="Estimate divergence time using data set(s) from a second subpopulation")
@@ -98,7 +100,7 @@ def main(args):
 
     ## Construct populations
     populations = [
-            (dsf, time_points, args.exponential_pieces, args.N0, args.mu, args.M, bounds, args)
+            (dsf, time_points, args.exponential_pieces, args.N0, args.mu, args.r, args.M, bounds, args)
             for dsf in datasets_files
             ]
 

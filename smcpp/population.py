@@ -11,11 +11,12 @@ from .model import SMCModel
 
 class Population(object):
     '''Class representing a population + model for estimation.'''
-    def __init__(self, dataset_files, time_points, exponential_pieces, N0, mu, M, bounds, cmd_args):
+    def __init__(self, dataset_files, time_points, exponential_pieces, N0, mu, r, M, bounds, cmd_args):
         self._time_points = time_points
         self._exponential_pieces = exponential_pieces
         self._N0 = N0
         self._mu = mu
+        self._r = r
         self._M = M
         self._bounds = bounds
 
@@ -42,11 +43,15 @@ class Population(object):
         self._penalizer = functools.partial(estimation_tools.regularizer, 
                 penalty=cmd_args.regularization_penalty,
                 f=cmd_args.regularizer)
+
+        theta_hat = 2. * N0 * 1e-8
         if not cmd_args.no_pretrain:
             logger.info("Pretraining")
-            self._theta_hat = self._pretrain()
-
-        self._init_model_x = self._model.x.copy()
+            theta_hat = self._pretrain()
+            logger.debug("inferred theta_hat: %g" % theta_hat)
+    
+        # We remember the initialized model for use in split estimated
+        self._init_model_x = self.model.x.copy()
 
         ## choose hidden states based on prior model
         logger.info("Balancing hidden states...")
@@ -66,6 +71,23 @@ class Population(object):
         logger.debug("Creating inference manager...")
         self._im = _smcpp.PyInferenceManager(self._n - 2, self._dataset, self._hidden_states)
 
+        # Finally set parameters so they get propagated to the _im
+        # Set theta once and for all
+        if mu is None:
+            self.theta = theta_hat
+        else:
+            self.theta = 2. * N0 * mu
+        logger.debug("theta: %g" % self.theta)
+
+        if r is None:
+            r = self.theta / 4.
+        # Initialize rho
+        self.rho = 2 * N0 * r
+        logger.debug("rho: %g" % self.rho)
+
+        # Propagate changes to the inference manager
+        self._im.model = self.model
+
     def _balance_hidden_states(self):
         hs = _smcpp.balance_hidden_states(self._model, self._M)
         cs = np.cumsum(self._model.s)
@@ -80,10 +102,9 @@ class Population(object):
         return self._penalizer(model)
 
     def _pretrain(self):
-        mu_hat = estimation_tools.pretrain(self._model, self._sfs, self._bounds, 
-                2. * self._N0 * 1e-8, self.penalize)
-        if self._mu is None:
-            self._mu = mu_hat
+        theta_hat = estimation_tools.pretrain(self._model, self._sfs, 
+                self._bounds, 2. * self._N0 * 1e-8, self.penalize)
+        return theta_hat
 
     def sfs(self):
         return self._sfs
@@ -108,6 +129,24 @@ class Population(object):
     def model(self, model):
         self._model = model
         self._im.model = model
+
+    @property
+    def mu(self):
+        return self._mu
+
+    @mu.setter
+    def mu(self, mu):
+        self._mu = mu
+        self._im.mu = mu
+
+    @property
+    def rho(self):
+        return self._rho
+
+    @rho.setter
+    def rho(self, rho):
+        self._rho = rho
+        self._im.rho = rho
 
     def dump(self, fn):
         er = EstimationResult()
