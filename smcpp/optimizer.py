@@ -36,7 +36,7 @@ class PopulationOptimizer(object):
             logger.info("Current model(s):")
             for j, m in enumerate(models, 1):
                 logger.info("Pop %d:\n%s" % (j, np.array_str(np.array(m.x[:2]).astype(float), precision=2)))
-            iserv.set_params(models, False)
+            iserv.model = models
             logger.info("\tE-step...")
             iserv.E_step()
             ll = np.mean([x for loglik in iserv.loglik() for x in loglik])
@@ -56,12 +56,14 @@ class PopulationOptimizer(object):
         for i, (a, cc) in enumerate(self._coords):
             models[a][cc] = xs[i] * models[a].precond[cc]
         self._pre_Q(models)
-        self._iserv.set_params(models)
+        self._iserv.model = models
         q = self._iserv.Q()
         reg = np.mean(self._iserv.penalize(models))
         ll = -np.mean(q)
         ll += reg
         ret = [ll.x, np.array(list(map(ll.d, xs)))]
+        logger.debug(xs)
+        logger.debug(ret)
         return ret
 
     def _optimize(self, models):

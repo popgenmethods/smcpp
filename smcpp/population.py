@@ -29,6 +29,14 @@ class Population(object):
         ## Initialize model
         self._model = SMCModel(time_points, exponential_pieces)
 
+        L = sum([obs[:,0].sum() for obs in dataset])
+        Lseg = 0
+        for obs in dataset:
+            conds = (obs[:, 1:3].sum(axis=1) > 0) & (obs[:, 3] == self._n - 2) & (obs[:, 1] > -1)
+            Lseg += conds.sum()
+        self._watterson_theta = Lseg / (1. / np.arange(1, self._n)).sum() / L / 2.
+        logger.debug("watterson's theta: %f" % self._watterson_theta)
+
         ## After (potentially) doing pretraining, normalize and thin the data set
         ## Optionally thin each dataset
         if cmd_args.thinning is not None:
@@ -44,7 +52,7 @@ class Population(object):
                 penalty=cmd_args.regularization_penalty,
                 f=cmd_args.regularizer)
 
-        theta_hat = 2. * N0 * 1e-8
+        theta_hat = self._watterson_theta
         if not cmd_args.no_pretrain:
             logger.info("Pretraining")
             theta_hat = self._pretrain()
@@ -79,10 +87,11 @@ class Population(object):
             self.theta = 2. * N0 * mu
         logger.debug("theta: %g" % self.theta)
 
-        if r is None:
-            r = self.theta / 4.
         # Initialize rho
-        self.rho = 2 * N0 * r
+        if r is None:
+            self.rho = self.theta / 4.
+        else:
+            self.rho = 2 * N0 * r
         logger.debug("rho: %g" % self.rho)
 
         # Propagate changes to the inference manager
@@ -102,8 +111,7 @@ class Population(object):
         return self._penalizer(model)
 
     def _pretrain(self):
-        theta_hat = estimation_tools.pretrain(self._model, self._sfs, 
-                self._bounds, 2. * self._N0 * 1e-8, self.penalize)
+        theta_hat = estimation_tools.pretrain(self._model, self._sfs, self._bounds, self._watterson_theta, self.penalize)
         return theta_hat
 
     def sfs(self):
@@ -131,13 +139,13 @@ class Population(object):
         self._im.model = model
 
     @property
-    def mu(self):
-        return self._mu
+    def theta(self):
+        return self._theta
 
-    @mu.setter
-    def mu(self, mu):
-        self._mu = mu
-        self._im.mu = mu
+    @theta.setter
+    def theta(self, theta):
+        self._theta = theta
+        self._im.theta = theta
 
     @property
     def rho(self):

@@ -7,6 +7,7 @@ HMM::HMM(const int hmm_num, const Matrix<int> &obs, const InferenceBundle* ib) :
 double HMM::loglik()
 {
     double ret = c.array().log().sum();
+    check_nan(ret);
     return ret;
 }
 

@@ -91,8 +91,7 @@ class InferenceService(object):
             p.send(("exit", None))
         self._parent_pipes = []
 
-    def Q(self, models, coords):
-        self.set_params(models, coords)
+    def Q(self):
         return self._send_message("Q")
 
     def E_step(self):
