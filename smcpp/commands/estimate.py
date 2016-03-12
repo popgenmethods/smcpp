@@ -47,10 +47,10 @@ def init_parser(parser):
     hmm.add_argument('--Nmax', type=float, help="Upper bound on effective population size", default=400000)
     hmm.add_argument('--span-cutoff', help="treat spans > as missing", default=50000, type=int)
     pop_params.add_argument('--N0', default=1e4, type=float, help="reference effective (diploid) population size to scale output.")
-    pop_params.add_argument('--mu', type=float, 
-            help="per-generation mutation rate. If not specified, it will be inferred from data.")
-    pop_params.add_argument('--r', type=float, 
-            help="per-generation recombination rate. default: mu / 4")
+    pop_params.add_argument('--theta', type=float, 
+            help="population-scaled mutation rate. default: watterson's estimator.")
+    pop_params.add_argument('--rho', type=float, 
+            help="population-scaled mutation rate. default: theta.")
     pop_params.add_argument("--fix-r", default=False, action="store_true", 
             help="do not estimate recombination rate from data")
     hmm.add_argument('--length-cutoff', help="omit sequences < cutoff", default=1000000, type=int)
@@ -100,7 +100,7 @@ def main(args):
 
     ## Construct populations
     populations = [
-            (dsf, time_points, args.exponential_pieces, args.N0, args.mu, args.r, args.M, bounds, args)
+            (dsf, time_points, args.exponential_pieces, args.N0, args.theta, args.rho, args.M, bounds, args)
             for dsf in datasets_files
             ]
 

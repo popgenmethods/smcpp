@@ -9,14 +9,22 @@ from . import estimation_tools, _smcpp, util
 from .estimation_result import EstimationResult
 from .model import SMCModel
 
+
+def _tied_property(attr):
+    def getx(self):
+        return getattr(self, "_" + attr)
+    def setx(self, x):
+        setattr(self, "_" + attr, x)
+        setattr(self._im, attr, x)
+    return property(getx, setx)
+        
+
 class Population(object):
     '''Class representing a population + model for estimation.'''
-    def __init__(self, dataset_files, time_points, exponential_pieces, N0, mu, r, M, bounds, cmd_args):
+    def __init__(self, dataset_files, time_points, exponential_pieces, N0, theta, rho, M, bounds, cmd_args):
         self._time_points = time_points
         self._exponential_pieces = exponential_pieces
         self._N0 = N0
-        self._mu = mu
-        self._r = r
         self._M = M
         self._bounds = bounds
 
@@ -29,13 +37,22 @@ class Population(object):
         ## Initialize model
         self._model = SMCModel(time_points, exponential_pieces)
 
-        L = sum([obs[:,0].sum() for obs in dataset])
-        Lseg = 0
-        for obs in dataset:
-            conds = (obs[:, 1:3].sum(axis=1) > 0) & (obs[:, 3] == self._n - 2) & (obs[:, 1] > -1)
-            Lseg += conds.sum()
-        self._watterson_theta = Lseg / (1. / np.arange(1, self._n)).sum() / L / 2.
-        logger.debug("watterson's theta: %f" % self._watterson_theta)
+        ## Set theta and rho to their default parameters
+        if theta is not None:
+            self._theta = theta
+        else:
+            L = sum([obs[:,0].sum() for obs in dataset])
+            Lseg = 0
+            for obs in dataset:
+                conds = (obs[:, 1:3].sum(axis=1) > 0) & (obs[:, 3] == self._n - 2) & (obs[:, 1] > -1)
+                Lseg += conds.sum()
+            segfrac = 1. * Lseg / L
+            self._theta = segfrac / (1. / np.arange(1, self._n)).sum()
+            logger.info("watterson's theta: %f" % self._theta)
+        if rho is not None:
+            self._rho = rho
+        else:
+            self._rho = self._theta / 4.
 
         ## After (potentially) doing pretraining, normalize and thin the data set
         ## Optionally thin each dataset
@@ -52,11 +69,9 @@ class Population(object):
                 penalty=cmd_args.regularization_penalty,
                 f=cmd_args.regularizer)
 
-        theta_hat = self._watterson_theta
         if not cmd_args.no_pretrain:
             logger.info("Pretraining")
-            theta_hat = self._pretrain()
-            logger.debug("inferred theta_hat: %g" % theta_hat)
+            self._pretrain(self.theta)
     
         # We remember the initialized model for use in split estimated
         self._init_model_x = self.model.x.copy()
@@ -78,24 +93,9 @@ class Population(object):
         ## Create inference object which will be used for all further calculations.
         logger.debug("Creating inference manager...")
         self._im = _smcpp.PyInferenceManager(self._n - 2, self._dataset, self._hidden_states)
-
-        # Finally set parameters so they get propagated to the _im
-        # Set theta once and for all
-        if mu is None:
-            self.theta = theta_hat
-        else:
-            self.theta = 2. * N0 * mu
-        logger.debug("theta: %g" % self.theta)
-
-        # Initialize rho
-        if r is None:
-            self.rho = self.theta / 4.
-        else:
-            self.rho = 2 * N0 * r
-        logger.debug("rho: %g" % self.rho)
-
-        # Propagate changes to the inference manager
         self._im.model = self.model
+        self._im.theta = self.theta
+        self._im.rho = self.rho
 
     def _balance_hidden_states(self):
         hs = _smcpp.balance_hidden_states(self._model, self._M)
@@ -110,9 +110,8 @@ class Population(object):
     def penalize(self, model):
         return self._penalizer(model)
 
-    def _pretrain(self):
-        theta_hat = estimation_tools.pretrain(self._model, self._sfs, self._bounds, self._watterson_theta, self.penalize)
-        return theta_hat
+    def _pretrain(self, theta):
+        estimation_tools.pretrain(self._model, self._sfs, self._bounds, theta, self.penalize)
 
     def sfs(self):
         return self._sfs
@@ -129,32 +128,10 @@ class Population(object):
     def precond(self):
         return self.model.precond
 
-    @property
-    def model(self):
-        return self._model
-
-    @model.setter
-    def model(self, model):
-        self._model = model
-        self._im.model = model
-
-    @property
-    def theta(self):
-        return self._theta
-
-    @theta.setter
-    def theta(self, theta):
-        self._theta = theta
-        self._im.theta = theta
-
-    @property
-    def rho(self):
-        return self._rho
-
-    @rho.setter
-    def rho(self, rho):
-        self._rho = rho
-        self._im.rho = rho
+    model = _tied_property("model")
+    theta = _tied_property("theta")
+    rho = _tied_property("rho")
+    derivatives = _tied_property("derivatives")
 
     def dump(self, fn):
         er = EstimationResult()

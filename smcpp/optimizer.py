@@ -49,6 +49,11 @@ class PopulationOptimizer(object):
         iserv.dump([[os.path.join(self._cmdargs.outdir, "pop%d.final" % j)] for j in range(len(models))])
         return llold
 
+    def _f_param(self, x, param):
+        setattr(self._iserv, param)
+        q = self._iserv.Q()
+        return (q.x, q.d(getattr(self._iserv, param)))
+
     def _f(self, xs, models):
         xs = ad.adnumber(xs)
         for i, xx in enumerate(xs):
@@ -58,6 +63,7 @@ class PopulationOptimizer(object):
         self._pre_Q(models)
         self._iserv.model = models
         q = self._iserv.Q()
+        aoeu
         reg = np.mean(self._iserv.penalize(models))
         ll = -np.mean(q)
         ll += reg
@@ -66,17 +72,35 @@ class PopulationOptimizer(object):
         logger.debug(ret)
         return ret
 
+    def _optimize_param(self, param):
+        logger.debug("Updating %s" % param)
+        if param == "theta":
+            d = (3, -1)
+        elif param == "rho":
+            d = (4, -1)
+        else:
+            raise RuntimeError("unrecognized param")
+        self._iserv.derivatives = [d]
+        x0 = getattr(self._iserv, param)
+        bounds = [(1e-6, -2)] * len(x0)
+        res = scipy.optimize.fmin_l_bfgs_b(self._f_param, x0, None, args=(param,), bounds=bounds, factr=1e9)
+
     def _optimize(self, models):
         logger.debug("Performing a round of optimization")
         x0 = np.array([models[i][cc] / models[i].precond[cc] for i, cc in self._coords])
-        # logger.info("gradient check")
-        # f0, fp = self._f(x0, models)
-        # for i in range(len(x0)):
-        #     x0c = x0.copy()
-        #     x0c[i] += 1e-8
-        #     f1, _ = self._f(x0c, models)
-        #     logger.info((i, cc, f1, f0, (f1 - f0) / 1e-8, fp[i]))
-        # logger.info(scipy.optimize.check_grad(lambda x: self._f(x, models)[0], lambda x: self._f(x, models)[1], x0))
+        d = [[],[]]
+        for i, cc in self._coords:
+            d[i].append(cc)
+        self._iserv.derivatives = d
+        logger.info("gradient check")
+        f0, fp = self._f(x0, models)
+        for i in range(len(x0)):
+            x0c = x0.copy()
+            x0c[i] += 1e-8
+            f1, _ = self._f(x0c, models)
+            logger.info((i, cc, f1, f0, (f1 - f0) / 1e-8, fp[i]))
+        aoeu
+        logger.info(scipy.optimize.check_grad(lambda x: self._f(x, models)[0], lambda x: self._f(x, models)[1], x0))
         res = scipy.optimize.fmin_l_bfgs_b(self._f, x0, None, args=[models], 
                 bounds=[tuple(self._bounds[cc] / models[i].precond[cc]) for i, cc in self._coords],
                 factr=1e9)

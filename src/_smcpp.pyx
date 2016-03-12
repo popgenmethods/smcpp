@@ -26,6 +26,10 @@ cdef void logger_cb(const char* name, const char* level, const char* message) wi
         logging.getLogger(name).critical("Aborting")
         abort = True
 
+def _check_abort():
+    if abort:
+        raise KeyboardInterrupt()
+
 init_logger_cb(logger_cb);
 
 # Everything needs to be C-order contiguous to pass in as
@@ -105,6 +109,7 @@ cdef class PyInferenceManager:
         cdef vector[int] _Ls = Ls
         with nogil:
             self._im = new InferenceManager(n, _Ls, obs, hs)
+        _check_abort()
 
     def __dealloc__(self):
         del self._im
@@ -151,6 +156,7 @@ cdef class PyInferenceManager:
         cdef bool fbOnly = forward_backward_only
         with nogil:
             self._im.Estep(fbOnly)
+        _check_abort()
         logger.debug("Forward-backward algorithm finished.")
 
     property span_cutoff:
@@ -245,6 +251,7 @@ cdef class PyInferenceManager:
         cdef vector[adouble] ad_rets 
         with nogil:
             ad_rets = self._im.Q()
+        _check_abort()
         cdef int K = ad_rets.size()
         ret = []
         cdef double[::1] vjac
@@ -275,6 +282,7 @@ cdef class PyInferenceManager:
         cdef vector[double] llret
         with nogil:
             llret = self._im.loglik()
+        _check_abort()
         return llret
 
 @modelify
@@ -309,11 +317,13 @@ def raw_sfs(model, int n, double t1, double t2, jacobian=False):
     if not jacobian:
         with nogil:
             dsfs = sfs_cython(n, pv, t1, t2, derivs)
+        _check_abort()
         store_matrix(dsfs, &vret[0, 0])
         return ret
     derivs = [(i, j) for i in range(2) for j in range(model.x.shape[1])]
     with nogil:
         dsfs = sfs_cython(n, pv, t1, t2, derivs)
+    _check_abort()
     J = derivs.size()
     ret, jac = _store_admatrix_helper(dsfs, J)
     ret = adnumber(ret)

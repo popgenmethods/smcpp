@@ -106,7 +106,7 @@ def pretrain(model, sample_csfs, bounds, theta0, penalizer):
     for cc, xx in zip(coords, res[0]):
         model[cc] = xx 
     logger.info("pre-trained model:\n%s" % np.array_str(model.x, precision=2))
-    logger.info("inferred mutation rate: exp(%g)" % res[0][-1])
+    return _smcpp.raw_sfs(model, n, 0., _smcpp.T_MAX, False)
 
 def break_long_spans(dataset, span_cutoff, length_cutoff):
     obs_list = []

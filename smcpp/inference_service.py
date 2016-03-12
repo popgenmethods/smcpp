@@ -134,6 +134,14 @@ class InferenceService(object):
         return self._send_message("model")
 
 # Used for debugging, does not fork()
+def _property_factory(attr):
+    def getx(self):
+        return [getattr(p, attr) for p in self._populations]
+    def setx(self, x):
+        for p, xx in zip(self._populations, x):
+            setattr(p, attr, xx)
+    return property(getx, setx)
+
 class DumbInferenceService(InferenceService):
     def __init__(self, populations):
         '''Initialize the inference service with a sequence of populations. 
@@ -147,34 +155,10 @@ class DumbInferenceService(InferenceService):
             args = [[]] * self._npop
         return [getattr(p, message)(*a) for p, a in zip(self._populations, args)]
 
-    @property
-    def model(self):
-        return [p.model for p in self._populations]
-
-    @model.setter
-    def model(self, models):
-        for p, m in zip(self._populations, models):
-            p.model = m
-
-    @property
-    def theta(self):
-        return self._theta
-
-    @theta.setter
-    def theta(self, theta):
-        self._theta = theta
-        for p in self._populations:
-            p.theta = theta
-
-    @property
-    def rho(self):
-        return self._rho
-
-    @rho.setter
-    def rho(self, rho):
-        self._rho = rho
-        for p in self._populations:
-            p.rho = rho
+    model = _property_factory('model')
+    theta = _property_factory('theta')
+    rho = _property_factory('rho')
+    derivatives = _property_factory('derivatives')
 
     def close(self):
         pass

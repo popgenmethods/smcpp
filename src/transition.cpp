@@ -9,6 +9,7 @@ Matrix<T> HJTransition<T>::matrix_exp(T c_rho, T c_eta)
         this->eta->zero, exp(-2 * c_eta), this->eta->one - exp(-2 * c_eta),
         this->eta->zero, this->eta->zero, this->eta->one;
     Q(0, 2) = this->eta->one - Q(0, 0) - Q(0, 1);
+    check_nan(Q);
     return Q;
 }
 
@@ -16,7 +17,7 @@ template <typename T>
 void HJTransition<T>::compute(void)
 {
     const PiecewiseExponentialRateFunction<T> *eta = this->eta;
-    std::vector<T> times;
+    std::vector<double> times;
     std::vector<Matrix<T> > expms;
     expms.push_back(Matrix<T>::Identity(3, 3));
     for (double t = 0.0; t < eta->tmax; t += delta)
@@ -49,7 +50,9 @@ void HJTransition<T>::compute(void)
             // Sample coalescence times in this interval
             rtimes.push_back(myeta.random_time(myeta.hidden_states[j - 1], myeta.hidden_states[j], gen));
         for (int k = 1; k < j; ++k)
+        {
             this->Phi(j - 1, k - 1) = 0.5 * (expms_hs[k](0, 2) - expms_hs[k - 1](0, 2));
+        }
         for (int k = j + 1; k < this->M; ++k)
         {
             for (int q = 0; q < Q; ++q)
