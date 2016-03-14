@@ -134,10 +134,14 @@ class InferenceService(object):
         return self._send_message("model")
 
 # Used for debugging, does not fork()
-def _property_factory(attr):
+def _property_factory(attr, shared=False):
     def getx(self):
+        if shared:
+            return getattr(self._populations[0], attr)
         return [getattr(p, attr) for p in self._populations]
     def setx(self, x):
+        if shared:
+            x = [x] * len(self._populations)
         for p, xx in zip(self._populations, x):
             setattr(p, attr, xx)
     return property(getx, setx)
@@ -155,10 +159,10 @@ class DumbInferenceService(InferenceService):
             args = [[]] * self._npop
         return [getattr(p, message)(*a) for p, a in zip(self._populations, args)]
 
-    model = _property_factory('model')
-    theta = _property_factory('theta')
-    rho = _property_factory('rho')
-    derivatives = _property_factory('derivatives')
+    model = _property_factory('model', shared=False)
+    theta = _property_factory('theta', shared=True)
+    rho = _property_factory('rho', shared=True)
+    derivatives = _property_factory('derivatives', shared=False)
 
     def close(self):
         pass

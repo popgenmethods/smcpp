@@ -9,6 +9,7 @@ from . import estimation_tools
 logger = logging.getLogger(__name__)
 
 class PopulationOptimizer(object):
+    _npop = 1
     def __init__(self, iserv, bounds, cmdargs):
         self._iserv = iserv
         self._bounds = bounds
@@ -32,6 +33,9 @@ class PopulationOptimizer(object):
         for i in range(niter):
             logger.info("EM iteration %d/%d" % (i + 1, niter))
             logger.info("\tM-step...")
+            if i % 5 == 0:
+                self._optimize_param("rho")
+                self._optimize_param("theta")
             self._optimize(models)
             logger.info("Current model(s):")
             for j, m in enumerate(models, 1):
@@ -50,9 +54,10 @@ class PopulationOptimizer(object):
         return llold
 
     def _f_param(self, x, param):
-        setattr(self._iserv, param)
-        q = self._iserv.Q()
-        return (q.x, q.d(getattr(self._iserv, param)))
+        x = ad.adnumber(x[0])
+        setattr(self._iserv, param, x)
+        q = -np.mean(self._iserv.Q())
+        return (q.x, np.array([q.d(x)]))
 
     def _f(self, xs, models):
         xs = ad.adnumber(xs)
@@ -63,7 +68,6 @@ class PopulationOptimizer(object):
         self._pre_Q(models)
         self._iserv.model = models
         q = self._iserv.Q()
-        aoeu
         reg = np.mean(self._iserv.penalize(models))
         ll = -np.mean(q)
         ll += reg
@@ -80,27 +84,35 @@ class PopulationOptimizer(object):
             d = (4, -1)
         else:
             raise RuntimeError("unrecognized param")
-        self._iserv.derivatives = [d]
-        x0 = getattr(self._iserv, param)
-        bounds = [(1e-6, -2)] * len(x0)
+        self._iserv.derivatives = [[d]] * self._npop
+        x0 = np.array([getattr(self._iserv, param)])
+        # f0, fp = self._f_param(x0, param)
+        # for i in range(len(x0)):
+        #      x0c = x0.copy()
+        #      x0c[i] += 1e-8
+        #      f1, _ = self._f_param(x0c, param)
+        #      logger.info((i, f1, f0, (f1 - f0) / 1e-8, fp[i]))
+        bounds = [(1e-6, 1e-2)]
         res = scipy.optimize.fmin_l_bfgs_b(self._f_param, x0, None, args=(param,), bounds=bounds, factr=1e9)
+        x = res[0][0]
+        logger.info("new %s: %g" % (param, x))
+        setattr(self._iserv, param, x)
 
     def _optimize(self, models):
         logger.debug("Performing a round of optimization")
-        x0 = np.array([models[i][cc] / models[i].precond[cc] for i, cc in self._coords])
+        x0 = np.array([float(models[i][cc] / models[i].precond[cc]) for i, cc in self._coords])
         d = [[],[]]
         for i, cc in self._coords:
             d[i].append(cc)
         self._iserv.derivatives = d
-        logger.info("gradient check")
-        f0, fp = self._f(x0, models)
-        for i in range(len(x0)):
-            x0c = x0.copy()
-            x0c[i] += 1e-8
-            f1, _ = self._f(x0c, models)
-            logger.info((i, cc, f1, f0, (f1 - f0) / 1e-8, fp[i]))
-        aoeu
-        logger.info(scipy.optimize.check_grad(lambda x: self._f(x, models)[0], lambda x: self._f(x, models)[1], x0))
+        # logger.info("gradient check")
+        # f0, fp = self._f(x0, models)
+        # for i in range(len(x0)):
+        #     x0c = x0.copy()
+        #     x0c[i] += 1e-8
+        #     f1, _ = self._f(x0c, models)
+        #     logger.info((i, cc, f1, f0, (f1 - f0) / 1e-8, fp[i]))
+        # logger.info(scipy.optimize.check_grad(lambda x: self._f(x, models)[0], lambda x: self._f(x, models)[1], x0))
         res = scipy.optimize.fmin_l_bfgs_b(self._f, x0, None, args=[models], 
                 bounds=[tuple(self._bounds[cc] / models[i].precond[cc]) for i, cc in self._coords],
                 factr=1e9)
@@ -116,6 +128,7 @@ class PopulationOptimizer(object):
         pass
 
 class TwoPopulationOptimizer(PopulationOptimizer):
+    _npop = 2
     def _join_before_split(self, models):
         for a, cc in self._coords:
             if a == 0 and cc[1] >= self._split:

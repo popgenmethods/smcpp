@@ -131,7 +131,7 @@ cdef class PyInferenceManager:
             return self._theta
 
         def __set__(self, theta):
-            self._theta = adnumber(theta)
+            self._theta = theta
             self._im.setTheta(theta)
 
     property rho:
@@ -139,7 +139,7 @@ cdef class PyInferenceManager:
             return self._rho
 
         def __set__(self, rho):
-            self._rho = adnumber(rho)
+            self._rho = rho
             self._im.setRho(rho)
 
     property model:

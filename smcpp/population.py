@@ -12,9 +12,8 @@ from .model import SMCModel
 
 def _tied_property(attr):
     def getx(self):
-        return getattr(self, "_" + attr)
+        return getattr(self._im, attr)
     def setx(self, x):
-        setattr(self, "_" + attr, x)
         setattr(self._im, attr, x)
     return property(getx, setx)
         
@@ -74,7 +73,7 @@ class Population(object):
             self._pretrain(self.theta)
     
         # We remember the initialized model for use in split estimated
-        self._init_model_x = self.model.x.copy()
+        self._init_model_x = self._model.x.copy()
 
         ## choose hidden states based on prior model
         logger.info("Balancing hidden states...")
@@ -93,9 +92,9 @@ class Population(object):
         ## Create inference object which will be used for all further calculations.
         logger.debug("Creating inference manager...")
         self._im = _smcpp.PyInferenceManager(self._n - 2, self._dataset, self._hidden_states)
-        self._im.model = self.model
-        self._im.theta = self.theta
-        self._im.rho = self.rho
+        self._im.model = self._model
+        self._im.theta = self._theta
+        self._im.rho = self._rho
 
     def _balance_hidden_states(self):
         hs = _smcpp.balance_hidden_states(self._model, self._M)
