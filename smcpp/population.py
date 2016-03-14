@@ -70,7 +70,7 @@ class Population(object):
 
         if not cmd_args.no_pretrain:
             logger.info("Pretraining")
-            self._pretrain(self.theta)
+            self._pretrain(self._theta)
     
         # We remember the initialized model for use in split estimated
         self._init_model_x = self._model.x.copy()
