@@ -159,6 +159,7 @@ class DumbInferenceService(InferenceService):
             args = [[]] * self._npop
         return [getattr(p, message)(*a) for p, a in zip(self._populations, args)]
 
+    bounds = _property_factory('bounds', shared=True)
     model = _property_factory('model', shared=False)
     theta = _property_factory('theta', shared=True)
     rho = _property_factory('rho', shared=True)

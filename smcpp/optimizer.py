@@ -10,10 +10,10 @@ logger = logging.getLogger(__name__)
 
 class PopulationOptimizer(object):
     _npop = 1
-    def __init__(self, iserv, bounds, cmdargs):
+    def __init__(self, iserv, outdir):
         self._iserv = iserv
-        self._bounds = bounds
-        self._cmdargs = cmdargs
+        self._bounds = iserv.bounds
+        self._outdir = outdir
         self._precond = iserv.precond
         self._K = self._iserv.model[0].K
         self._coords = [(i, cc) for i, m in enumerate(self._iserv.model) for cc in m.coords]
@@ -33,9 +33,8 @@ class PopulationOptimizer(object):
         for i in range(niter):
             logger.info("EM iteration %d/%d" % (i + 1, niter))
             logger.info("\tM-step...")
-            if i % 5 == 0:
-                self._optimize_param("rho")
-                self._optimize_param("theta")
+            self._optimize_param("rho")
+            self._optimize_param("theta")
             self._optimize(models)
             logger.info("Current model(s):")
             for j, m in enumerate(models, 1):
@@ -48,15 +47,17 @@ class PopulationOptimizer(object):
             if ll < llold:
                 logger.warn("Log-likelihood decreased")
             llold = ll
-            iserv.dump([[os.path.join(self._cmdargs.outdir, ".pop%d.iter%d" % (j, i))] for j in range(len(models))])
+            iserv.dump([[os.path.join(self._outdir, ".pop%d.iter%d" % (j, i))] for j in range(len(models))])
         ## Optimization concluded
-        iserv.dump([[os.path.join(self._cmdargs.outdir, "pop%d.final" % j)] for j in range(len(models))])
+        iserv.dump([[os.path.join(self._outdir, "pop%d.final" % j)] for j in range(len(models))])
         return llold
 
     def _f_param(self, x, param):
-        x = ad.adnumber(x[0])
+        x0 = x[0]
+        x = ad.adnumber(x0)
         setattr(self._iserv, param, x)
         q = -np.mean(self._iserv.Q())
+        logger.debug("f_%s: q(%f)=%f" % (param, x0, q.x))
         return (q.x, np.array([q.d(x)]))
 
     def _f(self, xs, models):
@@ -93,8 +94,9 @@ class PopulationOptimizer(object):
         #      f1, _ = self._f_param(x0c, param)
         #      logger.info((i, f1, f0, (f1 - f0) / 1e-8, fp[i]))
         bounds = [(1e-6, 1e-2)]
-        res = scipy.optimize.fmin_l_bfgs_b(self._f_param, x0, None, args=(param,), bounds=bounds, factr=1e9)
-        x = res[0][0]
+        # res = scipy.optimize.fmin_tnc(self._f_param, x0, None, args=(param,), bounds=bounds)
+        res = scipy.optimize.fminbound(lambda x, param: self._f_param([x], param)[0], *(bounds[0]), args=(param,))
+        x = res
         logger.info("new %s: %g" % (param, x))
         setattr(self._iserv, param, x)
 

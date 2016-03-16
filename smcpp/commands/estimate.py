@@ -81,28 +81,8 @@ def main(args):
         logger.info("Split estimation mode selected")
         datasets_files.append(args.second_population)
     
-    ## Build time intervals
-    if args.exponential_pieces is None:
-        args.exponential_pieces = []
-    t1 = args.t1 / (2 * args.N0)
-    tK = args.tK / (2 * args.N0)
-    pieces = estimation_tools.extract_pieces(args.pieces)
-    time_points = estimation_tools.construct_time_points(t1, tK, pieces)
-    logger.debug("time points in coalescent scaling:\n%s", str(time_points))
-    logger.debug("cumulative time point:\n%s", str(time_points * 2 * args.N0 * 25))
-    K = len(time_points)
-
-    ## Construct bounds
-    Nmin = args.Nmin / (2 * args.N0)
-    Nmax = args.Nmax / (2 * args.N0)
-    bounds = np.array([[Nmin, Nmax]] * K + 
-            [[1.01 * Nmin, 0.99 * Nmax]] * K).reshape([2, K, 2])
-
     ## Construct populations
-    populations = [
-            (dsf, time_points, args.exponential_pieces, args.N0, args.theta, args.rho, args.M, bounds, args)
-            for dsf in datasets_files
-            ]
+    populations = [(dsf, args) for dsf in datasets_files]
 
     ## Initialize the "inference server"
     iserv = InferenceService(populations)
@@ -114,7 +94,7 @@ def main(args):
         opt_klass = TwoPopulationOptimizer
     else:
         raise RuntimeError("> 2 populations not currently supported")
-    opt = opt_klass(iserv, bounds, args)
+    opt = opt_klass(iserv, args.outdir)
 
     # Run the optimizer
     opt.run(args.em_iterations)
