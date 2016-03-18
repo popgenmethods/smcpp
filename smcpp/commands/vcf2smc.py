@@ -7,7 +7,7 @@ from logging import getLogger
 import numpy as np
 logger = getLogger(__name__)
 
-from ..util import init_logging
+from ..logging import init_logging
 
 
 @contextmanager
