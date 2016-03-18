@@ -1,8 +1,9 @@
+from __future__ import absolute_import, division, print_function
 import numpy as np
-from logging import getLogger
 import jsonpickle
 import functools
 import multiprocessing
+from logging import getLogger
 logger = getLogger(__name__)
 
 from . import estimation_tools, _smcpp, util

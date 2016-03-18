@@ -1,5 +1,8 @@
+from __future__ import absolute_import, division, print_function
+import os
+import logging
+
 def init_logging(outdir, verbose, debug_log=os.devnull):
-    import logging
     logging.addLevelName(logging.DEBUG-1, 'DEBUG1')
     root = logging.getLogger()
     while len(root.handlers) > 0:
@@ -8,7 +11,7 @@ def init_logging(outdir, verbose, debug_log=os.devnull):
     sh = logging.StreamHandler()
     sh.setFormatter(fmt)
     if verbose:
-        sh.setLevel(logging.DEBUG - 1)
+        sh.setLevel(logging.DEBUG)
     else:
         sh.setLevel(logging.INFO)
     root.addHandler(sh)

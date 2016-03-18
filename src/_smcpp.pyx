@@ -1,6 +1,6 @@
+from __future__ import absolute_import, division, print_function
 cimport numpy as np
 from cython.operator cimport dereference as deref, preincrement as inc
-
 import random
 import sys
 import numpy as np

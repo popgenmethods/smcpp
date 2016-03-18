@@ -1,3 +1,4 @@
+from __future__ import absolute_import, division, print_function
 import numpy as np
 import scipy.optimize
 import logging
@@ -86,7 +87,7 @@ class PopulationOptimizer(object):
         else:
             raise RuntimeError("unrecognized param")
         self._iserv.derivatives = [[d]] * self._npop
-        x0 = np.array([getattr(self._iserv, param)])
+        x0 = getattr(self._iserv, param)
         # f0, fp = self._f_param(x0, param)
         # for i in range(len(x0)):
         #      x0c = x0.copy()
@@ -95,15 +96,21 @@ class PopulationOptimizer(object):
         #      logger.info((i, f1, f0, (f1 - f0) / 1e-8, fp[i]))
         bounds = [(1e-6, 1e-2)]
         # res = scipy.optimize.fmin_tnc(self._f_param, x0, None, args=(param,), bounds=bounds)
-        res = scipy.optimize.fminbound(lambda x, param: self._f_param([x], param)[0], *(bounds[0]), args=(param,))
-        x = res
-        logger.info("new %s: %g" % (param, x))
+        def _f(x):
+            return self._f_param([x], param)[0]
+        logger.info("old %s: f(%g)=%g" % (param, x0, _f(x0)))
+        x = scipy.optimize.fminbound(_f, *(bounds[0]))
+        logger.info("new %s: f(%g)=%g" % (param, x, _f(x)))
         setattr(self._iserv, param, x)
 
     def _optimize(self, models):
         logger.debug("Performing a round of optimization")
         x0 = np.array([float(models[i][cc] / models[i].precond[cc]) for i, cc in self._coords])
+        logger.info('starting model')
+        logger.info(x0)
         d = [[],[]]
+        self._iserv.derivatives = d
+        logger.info("old model: f(m)=%g" % self._f(x0, models)[0])
         for i, cc in self._coords:
             d[i].append(cc)
         self._iserv.derivatives = d
@@ -118,10 +125,13 @@ class PopulationOptimizer(object):
         res = scipy.optimize.fmin_l_bfgs_b(self._f, x0, None, args=[models], 
                 bounds=[tuple(self._bounds[cc] / models[i].precond[cc]) for i, cc in self._coords],
                 factr=1e9)
+        logger.info('finishing model')
+        logger.info(res[0])
         for xx, (i, cc) in zip(res[0], self._coords):
             models[i][cc] = xx * models[i].precond[cc]
-        logger.debug(models)
+        logger.info("new model: f(m)=%g" % res[1])
         self._post_optimize(models)
+        self._iserv.model = models
 
     def _pre_Q(self, models):
         pass

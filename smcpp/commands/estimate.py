@@ -1,6 +1,5 @@
 'Fit SMC++ to data using the EM algorithm'
-
-from __future__ import division, print_function
+from __future__ import absolute_import, division, print_function
 import numpy as np
 import scipy.optimize
 import pprint
