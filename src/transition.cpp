@@ -37,6 +37,12 @@ void HJTransition<T>::compute(void)
         expms_hs.push_back(expms[ip] * matrix_exp(c_rho, c_eta));
     }
     this->Phi.setZero();
+    Vector<T> expms_diff(this->M - 2);
+    for (int k = 1; k < this->M - 1; ++k)
+        expms_diff(k - 1) = expms_hs[k](0, 2) - expms_hs[k - 1](0, 2);
+    expms_diff *= 0.5;
+    for (int k = 2; k < this->M; ++k)
+        this->Phi.block(k - 1, 0, 1, k - 1) = expms_diff.head(k - 1).transpose();
     const int Q = 50;
 #pragma omp parallel for
     for (int j = 1; j < this->M; ++j)
@@ -49,10 +55,6 @@ void HJTransition<T>::compute(void)
         for (int q = 0; q < Q; ++q)
             // Sample coalescence times in this interval
             rtimes.push_back(myeta.random_time(myeta.hidden_states[j - 1], myeta.hidden_states[j], gen));
-        for (int k = 1; k < j; ++k)
-        {
-            this->Phi(j - 1, k - 1) = 0.5 * (expms_hs[k](0, 2) - expms_hs[k - 1](0, 2));
-        }
         for (int k = j + 1; k < this->M; ++k)
         {
             for (int q = 0; q < Q; ++q)
@@ -74,7 +76,6 @@ void HJTransition<T>::compute(void)
                 this->Phi(j - 1, k - 1) += r / Q;
             }
         }
-        this->Phi(j - 1, j - 1) = 0;
         T rowsum = this->Phi.row(j - 1).sum();
         this->Phi(j - 1, j - 1) = myeta.one - rowsum;
     }
