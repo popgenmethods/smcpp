@@ -157,8 +157,8 @@ adouble HMM::Q(void)
     check_nan(q1);
     check_nan(q2);
     check_nan(q3);
-    DEBUG("q1:" << q1 << " [" << q1.derivatives().transpose() << "]\nq2:" 
-            << q2 << " [" << q2.derivatives().transpose() << "]\nq3:" << q3 
+    DEBUG("\nq1:" << q1.value() << " [" << q1.derivatives().transpose() << "]\nq2:" 
+            << q2.value() << " [" << q2.derivatives().transpose() << "]\nq3:" << q3.value()
             << " [" << q3.derivatives().transpose() << "]\n");
     return q1 + q2 + q3;
 }
