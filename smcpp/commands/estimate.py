@@ -35,7 +35,7 @@ def init_parser(parser):
     model.add_argument('--t1', type=float, help="end-point of first piece, in generations", default=400.)
     model.add_argument('--tK', type=float, help="end-point of last piece, in generations", default=40000.)
     model.add_argument('--exponential-pieces', type=int, nargs="+", help="piece(s) which have exponential growth")
-    hmm.add_argument('--thinning', help="emit full SFS every <k>th site", default=10000, type=int, metavar="k")
+    hmm.add_argument('--thinning', help="emit full SFS every <k>th site", default=None, type=int, metavar="k")
     hmm.add_argument('--no-pretrain', help="do not pretrain model", action="store_true", default=False)
     hmm.add_argument('--M', type=int, help="number of hidden states", default=32)
     hmm.add_argument('--em-iterations', type=int, help="number of EM steps to perform", default=20)
@@ -50,7 +50,7 @@ def init_parser(parser):
             help="population-scaled mutation rate. default: watterson's estimator.")
     pop_params.add_argument('--rho', type=float, 
             help="population-scaled mutation rate. default: theta.")
-    pop_params.add_argument("--fix-r", default=False, action="store_true", 
+    pop_params.add_argument("--fix-rho", default=False, action="store_true", 
             help="do not estimate recombination rate from data")
     hmm.add_argument('--length-cutoff', help="omit sequences < cutoff", default=1000000, type=int)
     parser.add_argument("-p", "--second-population", nargs="+", widget="MultiFileChooser", 
@@ -96,6 +96,6 @@ def main(args):
     opt = opt_klass(iserv, args.outdir)
 
     # Run the optimizer
-    opt.run(args.em_iterations)
+    opt.run(args.em_iterations, args.fix_rho)
 
     iserv.close()

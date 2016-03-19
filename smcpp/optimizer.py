@@ -22,7 +22,7 @@ class PopulationOptimizer(object):
             if m.K != self._K:
                 raise RuntimeError("models need to have same time periods and change points")
 
-    def run(self, niter):
+    def run(self, niter, fix_rho):
         iserv = self._iserv
         logger.debug("Initializing model(s)")
         models = iserv.model
@@ -34,8 +34,9 @@ class PopulationOptimizer(object):
         for i in range(niter):
             logger.info("EM iteration %d/%d" % (i + 1, niter))
             logger.info("\tM-step...")
-            self._optimize_param("rho")
-            self._optimize_param("theta")
+            if not fix_rho:
+                self._optimize_param("rho")
+            # self._optimize_param("theta")
             self._optimize(models)
             logger.info("Current model(s):")
             for j, m in enumerate(models, 1):
@@ -71,7 +72,7 @@ class PopulationOptimizer(object):
         self._iserv.model = models
         q = self._iserv.Q()
         reg = np.mean(self._iserv.penalize(models))
-        ll = -np.mean(q)
+        ll = -np.mean([sum(qq) for qq in q])
         ll += reg
         ret = [ll.x, np.array(list(map(ll.d, xs)))]
         logger.debug(xs)
@@ -106,8 +107,6 @@ class PopulationOptimizer(object):
     def _optimize(self, models):
         logger.debug("Performing a round of optimization")
         x0 = np.array([float(models[i][cc] / models[i].precond[cc]) for i, cc in self._coords])
-        logger.info('starting model')
-        logger.info(x0)
         d = [[],[]]
         self._iserv.derivatives = d
         logger.info("old model: f(m)=%g" % self._f(x0, models)[0])
@@ -125,8 +124,6 @@ class PopulationOptimizer(object):
         res = scipy.optimize.fmin_l_bfgs_b(self._f, x0, None, args=[models], 
                 bounds=[tuple(self._bounds[cc] / models[i].precond[cc]) for i, cc in self._coords],
                 factr=1e9)
-        logger.info('finishing model')
-        logger.info(res[0])
         for xx, (i, cc) in zip(res[0], self._coords):
             models[i][cc] = xx * models[i].precond[cc]
         logger.info("new model: f(m)=%g" % res[1])
@@ -149,7 +146,7 @@ class TwoPopulationOptimizer(PopulationOptimizer):
     # Alias these methods to fix stuff before and after split
     _pre_Q = _post_optimize = _join_before_split
 
-    def run(self, niter):
+    def run(self, niter, fix_rho):
         upper = 2 * self._K
         lower = 0
         self._split = self._K
@@ -162,7 +159,7 @@ class TwoPopulationOptimizer(PopulationOptimizer):
             self._coords += [(1, cc) for cc in models[1].coords if cc[1] < self._split]
             # reset models
             self._iserv.reset()
-            ll = PopulationOptimizer.run(self, niter)
+            ll = PopulationOptimizer.run(self, niter, fix_rho)
             aic = 2 * (len(self._coords) - ll)
             logger.info((len(self._coords), ll, aic))
             logger.info("AIC old/new: %g/%g" % (self._old_aic, aic))
@@ -176,5 +173,5 @@ class TwoPopulationOptimizer(PopulationOptimizer):
                 break
             self._split = new_split
             i += 1
-        logger.info("split chosen to be: " % self._split)
-    
+        s = self._iserv.model[0][2]
+        logger.info("split chosen to be: [%g, %g)" % (s[self._split], s[self._split + 1]))

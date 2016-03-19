@@ -57,8 +57,9 @@ class Population(object):
                 Lseg += conds.sum()
             segfrac = 1. * Lseg / L
             self._theta = segfrac / (1. / np.arange(1, n)).sum()
-            logger.info("watterson's theta: %f" % self._theta)
+        logger.info("theta: %f" % self._theta)
         self._rho = args.rho or self._theta / 4.
+        logger.info("rho: %f" % self._rho)
 
         ## After (potentially) doing pretraining, normalize and thin the data set
         ## Optionally thin each dataset
@@ -68,7 +69,8 @@ class Population(object):
         
         # Prepare empirical SFS for later use. This is cheap to compute
         esfs = util.compute_esfs(dataset, n)
-        self._sfs = np.mean(esfs, axis=0)
+        self._sfs = np.mean(esfs, axis=0) 
+        logger.info("Empirical SFS:\n%s" % np.array_str(self._sfs, precision=4))
 
         # pretrain if requested
         self._penalizer = functools.partial(estimation_tools.regularizer, 
@@ -144,6 +146,6 @@ class Population(object):
 
     def dump(self, fn):
         er = EstimationResult()
-        for attr in ['model', 'N0']:
+        for attr in ['model', 'N0', 'theta', 'rho']:
             setattr(er, attr, getattr(self, "_" + attr))
         er.dump(fn)

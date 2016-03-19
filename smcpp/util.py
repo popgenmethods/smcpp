@@ -127,7 +127,7 @@ def hmm_data_format(dataset, n, distinguished_rows):
     en = (haps[2:] != -1).sum(axis=0)
     nd = d.shape[0]
     nrow = 2 * nd - 1
-    ret = np.zeros([nrow, 4], dtype=int)
+    ret = np.zeros([nrow, 4], dtype=np.int32)
     ret[::2, 0] = 1
     ret[::2, 1] = d
     ret[::2, 2] = t
@@ -144,8 +144,6 @@ def hmm_data_format(dataset, n, distinguished_rows):
     ret = ret[ret[:, 0] > 0]
     # assert np.all(ret >= 0)
     assert ret.sum(axis=0)[0] == L, (L, ret.sum(axis=0)[0], ret)
-    ret = np.array(ret, dtype=np.int32)
-    assert ret.sum(axis=0)[0] == L
     assert np.all(ret[:, 0] >= 1)
     return ret
 
