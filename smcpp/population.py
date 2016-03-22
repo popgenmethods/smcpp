@@ -48,7 +48,7 @@ class Population(object):
 
         ## Set theta and rho to their default parameters
         if args.theta is not None:
-            self._theta = args.theta
+            theta = args.theta
         else:
             L = sum([obs[:,0].sum() for obs in dataset])
             Lseg = 0
@@ -56,10 +56,10 @@ class Population(object):
                 conds = (obs[:, 1:3].sum(axis=1) > 0) & (obs[:, 3] == n - 2) & (obs[:, 1] > -1)
                 Lseg += conds.sum()
             segfrac = 1. * Lseg / L
-            self._theta = segfrac / (1. / np.arange(1, n)).sum()
-        logger.info("theta: %f" % self._theta)
-        self._rho = args.rho or self._theta / 4.
-        logger.info("rho: %f" % self._rho)
+            theta = segfrac / (1. / np.arange(1, n)).sum()
+        logger.info("theta: %f" % theta)
+        rho = args.rho or theta / 4.
+        logger.info("rho: %f" % rho)
 
         ## After (potentially) doing pretraining, normalize and thin the data set
         ## Optionally thin each dataset
@@ -80,7 +80,7 @@ class Population(object):
 
         if not args.no_pretrain:
             logger.info("Pretraining")
-            self._pretrain(self._theta)
+            self._pretrain(theta)
     
         # We remember the initialized model for use in split estimated
         self._init_model_x = self._model.x.copy()
@@ -103,8 +103,8 @@ class Population(object):
         logger.debug("Creating inference manager...")
         self._im = _smcpp.PyInferenceManager(n - 2, self._dataset, self._hidden_states)
         self._im.model = self._model
-        self._im.theta = self._theta
-        self._im.rho = self._rho
+        self._im.theta = theta
+        self._im.rho = rho
 
     def _balance_hidden_states(self, M):
         hs = _smcpp.balance_hidden_states(self._model, M)
@@ -141,6 +141,10 @@ class Population(object):
     def bounds(self):
         return self._bounds
 
+    @property
+    def N0(self):
+        return self._N0
+
     model = _tied_property("model")
     theta = _tied_property("theta")
     rho = _tied_property("rho")
@@ -149,5 +153,5 @@ class Population(object):
     def dump(self, fn):
         er = EstimationResult()
         for attr in ['model', 'N0', 'theta', 'rho']:
-            setattr(er, attr, getattr(self, "_" + attr))
+            setattr(er, attr, getattr(self, attr))
         er.dump(fn)
