@@ -29,7 +29,8 @@ class PopulationOptimizer(object):
         iserv.model = models
         logger.debug("Performing initial E step")
         iserv.E_step()
-        llold = np.mean([x for loglik in iserv.loglik() for x in loglik])
+        llold = np.sum([x for loglik in iserv.loglik() for x in loglik])
+        llold -= np.sum(self._iserv.penalize(models))
         logger.debug("Starting loglik: %g" % llold)
         for i in range(niter):
             logger.info("EM iteration %d/%d" % (i + 1, niter))
@@ -44,7 +45,8 @@ class PopulationOptimizer(object):
             iserv.model = models
             logger.info("\tE-step...")
             iserv.E_step()
-            ll = np.mean([x for loglik in iserv.loglik() for x in loglik])
+            ll = np.sum([x for loglik in iserv.loglik() for x in loglik])
+            ll -= np.sum(iserv.penalize(models))
             logger.info("\tNew/old loglik: %f/%f" % (ll, llold))
             if ll < llold:
                 logger.warn("Log-likelihood decreased")
@@ -75,8 +77,6 @@ class PopulationOptimizer(object):
         ll = -np.mean([sum(qq) for qq in q])
         ll += reg
         ret = [ll.x, np.array(list(map(ll.d, xs)))]
-        logger.debug(xs)
-        logger.debug(ret)
         return ret
 
     def _optimize_param(self, param):
@@ -107,12 +107,7 @@ class PopulationOptimizer(object):
     def _optimize(self, models):
         logger.debug("Performing a round of optimization")
         x0 = np.array([float(models[i][cc] / models[i].precond[cc]) for i, cc in self._coords])
-        d = [[],[]]
-        self._iserv.derivatives = d
-        logger.info("old model: f(m)=%g" % self._f(x0, models)[0])
-        for i, cc in self._coords:
-            d[i].append(cc)
-        self._iserv.derivatives = d
+        self._iserv.derivatives = [m.coords for m in models]
         # logger.info("gradient check")
         # f0, fp = self._f(x0, models)
         # for i in range(len(x0)):
@@ -153,8 +148,10 @@ class TwoPopulationOptimizer(PopulationOptimizer):
         self._old_aic = np.inf
         i = 1
         models = self._iserv.model
+        cs = np.concatenate([np.cumsum(models[0][2]), [np.inf]])
         while True:
-            logger.info("Outer iteration %d / split point %d" % (i, self._split))
+            logger.info("Outer iteration %d" % i)
+            logger.info("split point %d:%g" % (self._split, cs[self._split]))
             self._coords = [(0, cc) for cc in models[0].coords]
             self._coords += [(1, cc) for cc in models[1].coords if cc[1] < self._split]
             # reset models
@@ -173,5 +170,4 @@ class TwoPopulationOptimizer(PopulationOptimizer):
                 break
             self._split = new_split
             i += 1
-        s = self._iserv.model[0][2]
-        logger.info("split chosen to be: [%g, %g)" % (s[self._split], s[self._split + 1]))
+        logger.info("split chosen to be: [%g, %g)" % (cs[self._split], cs[self._split + 1]))

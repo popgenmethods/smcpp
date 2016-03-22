@@ -66,6 +66,8 @@ class Population(object):
         if args.thinning is not None:
             logger.info("Thinning...")
             dataset = estimation_tools.thin_dataset(dataset, args.thinning)
+        elif n > 2:
+            logger.warn("Not thinning yet n=%d. This probably isn't what you desire. See the --thinning option." % (n//2,))
         
         # Prepare empirical SFS for later use. This is cheap to compute
         esfs = util.compute_esfs(dataset, n)
