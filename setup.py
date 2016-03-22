@@ -31,8 +31,8 @@ def lazy_extensions():
                 sources=["src/_smcpp.pyx"] + cpps,
                 language="c++",
                 include_dirs=["src", np.get_include()] + include_dirs,
-                extra_compile_args=["-O0", "-ggdb3", "-std=c++11", "-Wfatal-errors", "-Wno-unused-variable", "-Wno-unused-function", "-D_GLIBCXX_DEBUG"],
-                # extra_compile_args=["-O2", "-std=c++11", "-Wno-deprecated-declarations", "-Wfatal-errors", "-fopenmp"],
+                # extra_compile_args=["-O0", "-ggdb3", "-std=c++11", "-Wfatal-errors", "-Wno-unused-variable", "-Wno-unused-function", "-D_GLIBCXX_DEBUG"],
+                extra_compile_args=["-O2", "-std=c++11", "-Wno-deprecated-declarations", "-Wfatal-errors", "-fopenmp"],
                 libraries=['gmp', 'gmpxx', 'gsl', 'gslcblas'],
                 extra_link_args=['-fopenmp'],
                 )]

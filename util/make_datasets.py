@@ -111,6 +111,7 @@ if __name__ == "__main__":
     parser.add_argument("n", type=int, help="Sample size.")
     parser.add_argument("L", type=int, help="Length of each simulated chromosome.")
     parser.add_argument("C", type=int, help="Number of chromosomes to simulate.")
+    parser.add_argument("--pool-size", type=int, help="Number of processes to use")
     parser.add_argument("--pairs", type=int, default=1, help="Number of pairs to generate")
     group = parser.add_mutually_exclusive_group()
     group.add_argument("--sawtooth", const=True, default=False, action="store_const")
@@ -164,7 +165,7 @@ if __name__ == "__main__":
 # Generate data set using scrm
     print("simulating")
 
-    pool = multiprocessing.Pool(args.C)
+    pool = multiprocessing.Pool(args.pool_size or args.C)
     data_sets = list(pool.imap_unordered(perform_sim, 
         [(args.panel_size, args.N0, args.theta, args.rho, args.L, 
             np.random.randint(0, 4000000000), args.trees,
