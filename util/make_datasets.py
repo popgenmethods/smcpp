@@ -226,8 +226,9 @@ if __name__ == "__main__":
         # 1. Write smc++ format
         if args.smcpp:
             smcpp_outdir = mk_outdir("smc++")
-            obs = [smcpp.util.hmm_data_format(data, 2 * args.n, p) for data in data_sets for p in pairs]
-            pool.map(savetxt, [(os.path.join(smcpp_outdir, "%i.txt.gz" % i), ob) for i, ob in enumerate(obs, 1)])
+            for p in pairs:
+                obs = [smcpp.util.hmm_data_format(data, 2 * args.n, p) for data in data_sets]
+                pool.map(savetxt, [(os.path.join(smcpp_outdir, "%d-%d_%d.txt.gz" % (i, p[0], p[1])), ob) for i, ob in enumerate(obs, 1)])
 
     # 2. Write psmc format
     # if args.psmc:

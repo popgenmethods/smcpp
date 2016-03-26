@@ -29,16 +29,36 @@ class PopulationOptimizer(object):
         iserv.model = models
         logger.debug("Performing initial E step")
         iserv.E_step()
-        llold = np.sum([x for loglik in iserv.loglik() for x in loglik])
-        llold -= np.sum(self._iserv.penalize(models))
-        logger.debug("Starting loglik: %g" % llold)
+        ll = np.sum([x for loglik in iserv.loglik() for x in loglik])
+        reg = np.sum(self._iserv.penalize(models))
+        llold = ll - reg
+        logger.info("ll:%f reg:%f" % (ll, reg))
+        logger.info("Starting loglik: %f" % llold)
         for i in range(niter):
             logger.info("EM iteration %d/%d" % (i + 1, niter))
             logger.info("\tM-step...")
             if not fix_rho:
                 self._optimize_param("rho")
             # self._optimize_param("theta")
-            self._optimize(models)
+            logger.debug("starting model:\n%s" % np.array_str(models[0].x.astype(float), precision=2))
+            r0 = self._optimize(models)
+            logger.debug("ending model:\n%s" % np.array_str(models[0].x.astype(float), precision=2))
+            mc = [m.copy() for m in models]
+            logger.info("from x0=%f" % r0)
+            self._iserv.reset()
+            r1 = self._optimize(self._iserv.model)
+            logger.debug("ending model:\n%s" % np.array_str(self._iserv.model[0].x.astype(float), precision=2))
+            logger.info("from pretrain=%f" % r1)
+            models = self._iserv.model if r1 < r0 else mc
+            # for j in range(5):
+            #     self._iserv.randomize()
+            #     mc = [m.copy() for m in self._iserv.model]
+            #     logger.debug("starting model:\n%s" % np.array_str(mc[0].x.astype(float), precision=2))
+            #     r = self._optimize(mc)
+            #     rets[j] = (r, mc)
+            #     logger.debug("ending model:\n%s" % np.array_str(mc[0].x.astype(float), precision=2))
+            #     logger.info("random restart %d=%f" % (j, rets[j][0]))
+            # models = min(rets.values())[1]
             logger.info("Current model(s):")
             for j, m in enumerate(models, 1):
                 logger.info("Pop %d:\n%s" % (j, np.array_str(np.array(m.x[:2]).astype(float), precision=2)))
@@ -46,7 +66,9 @@ class PopulationOptimizer(object):
             logger.info("\tE-step...")
             iserv.E_step()
             ll = np.sum([x for loglik in iserv.loglik() for x in loglik])
-            ll -= np.sum(iserv.penalize(models))
+            reg = np.sum(iserv.penalize(models))
+            logger.info("ll:%f reg:%f" % (ll, reg))
+            ll -= reg
             logger.info("\tNew/old loglik: %f/%f" % (ll, llold))
             if ll < llold:
                 logger.warn("Log-likelihood decreased")
@@ -60,7 +82,7 @@ class PopulationOptimizer(object):
         x0 = x[0]
         x = ad.adnumber(x0)
         setattr(self._iserv, param, x)
-        q = -np.mean(self._iserv.Q())
+        q = -np.sum(self._iserv.Q())
         logger.debug("f_%s: q(%f)=%f" % (param, x0, q.x))
         return (q.x, np.array([q.d(x)]))
 
@@ -71,12 +93,15 @@ class PopulationOptimizer(object):
         for i, (a, cc) in enumerate(self._coords):
             models[a][cc] = xs[i] * models[a].precond[cc]
         self._pre_Q(models)
+        # for m in models:
+        #     logger.debug("\n%s" % np.array_str(m.x[:2].astype(float), precision=4))
         self._iserv.model = models
         q = self._iserv.Q()
         reg = np.mean(self._iserv.penalize(models))
         ll = -np.mean([sum(qq) for qq in q])
         ll += reg
         ret = [ll.x, np.array(list(map(ll.d, xs)))]
+        # logger.debug(ret[0])
         return ret
 
     def _optimize_param(self, param):
@@ -95,13 +120,14 @@ class PopulationOptimizer(object):
         #      x0c[i] += 1e-8
         #      f1, _ = self._f_param(x0c, param)
         #      logger.info((i, f1, f0, (f1 - f0) / 1e-8, fp[i]))
-        bounds = [(1e-6, 1e-2)]
-        # res = scipy.optimize.fmin_tnc(self._f_param, x0, None, args=(param,), bounds=bounds)
         def _f(x):
             return self._f_param([x], param)[0]
         logger.info("old %s: f(%g)=%g" % (param, x0, _f(x0)))
-        x = scipy.optimize.fminbound(_f, *(bounds[0]))
-        logger.info("new %s: f(%g)=%g" % (param, x, _f(x)))
+        bounds = [(1e-6, 1e-2)]
+        x = scipy.optimize.fmin_l_bfgs_b(self._f_param, x0, None, args=(param,), bounds=bounds, disp=False)[0].item()
+        # x = scipy.optimize.fminbound(_f, *(bounds[0]))
+        # logger.info("new %s: f(%g)=%g" % (param, x, _f(x)))
+        logger.info("new %s: f(%g)=%g" % (param, x, self._f_param([x], param)[0]))
         setattr(self._iserv, param, x)
 
     def _optimize(self, models):
@@ -118,12 +144,13 @@ class PopulationOptimizer(object):
         # logger.info(scipy.optimize.check_grad(lambda x: self._f(x, models)[0], lambda x: self._f(x, models)[1], x0))
         res = scipy.optimize.fmin_l_bfgs_b(self._f, x0, None, args=[models], 
                 bounds=[tuple(self._bounds[cc] / models[i].precond[cc]) for i, cc in self._coords],
-                factr=1e9)
+                factr=1e10)
         for xx, (i, cc) in zip(res[0], self._coords):
             models[i][cc] = xx * models[i].precond[cc]
         logger.info("new model: f(m)=%g" % res[1])
         self._post_optimize(models)
         self._iserv.model = models
+        return res[1]
 
     def _pre_Q(self, models):
         pass

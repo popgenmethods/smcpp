@@ -122,6 +122,11 @@ class Population(object):
     def _pretrain(self, theta):
         estimation_tools.pretrain(self._model, self._sfs, self._bounds, theta, self.penalize)
 
+    def randomize(self):
+        for i in range(2):
+            for j in range(self.model.x.shape[1]):
+                self.model.x[i, j] = np.random.uniform(*self.bounds[i, j])
+
     def sfs(self):
         return self._sfs
 

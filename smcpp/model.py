@@ -64,3 +64,13 @@ class SMCModel(object):
 
     def to_dict(self):
         return {'x': list(map(list, self.x)), 'exponential_pieces': self._exponential_pieces}
+
+    @classmethod
+    def from_dict(klass, d):
+        r = klass(d['x'][2], d['exponential_pieces'])
+        r.x[:2] = d['x'][:2]
+        return r
+
+    def copy(self):
+        return SMCModel.from_dict(self.to_dict())
+

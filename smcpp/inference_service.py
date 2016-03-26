@@ -60,6 +60,13 @@ class Worker(multiprocessing.Process):
             f = getattr(self._population, task)
             self._pipe.send(f(*args))
 
+def _message_sender(msg, prop=False):
+    def f(self):
+        return self._send_message(msg)
+    if prop:
+        return property(f)
+    return f
+
 class InferenceService(object):
     def __init__(self, populations):
         '''Initialize the inference service with a sequence of populations. 
@@ -92,11 +99,16 @@ class InferenceService(object):
             p.send(("exit", None))
         self._parent_pipes = []
 
-    def Q(self):
-        return self._send_message("Q")
-
-    def E_step(self):
-        return self._send_message("E_step")
+    Q = _message_sender("Q")
+    E_step = _message_sender("E_step")
+    loglik = _message_sender("loglik")
+    reset = _message_sender("reset")
+    randomize = _message_sender("randomize")
+    coords = _message_sender("coords", True)
+    sfs = _message_sender("sfs", True)
+    precond = _message_sender("precond", True)
+    theta = _message_sender("theta", True)
+    model = _message_sender("model", True)
 
     def penalize(self, models):
         return self._send_message("penalize", [[m] for m in models])
@@ -105,34 +117,9 @@ class InferenceService(object):
         coords = [coords] * len(models)
         return self._send_message("set_params", list(zip(models, coords)))
 
-    def loglik(self):
-        return self._send_message("loglik")
-
     def dump(self, file):
         self._send_message("dump", file)
 
-    @property
-    def coords(self):
-        return self._send_message("coords")
-
-    @property
-    def sfs(self):
-        return self._send_message("sfs")
-
-    @property
-    def precond(self):
-        return self._send_message("precond")
-
-    @property
-    def theta(self):
-        return self._send_message("theta")
-
-    def reset(self):
-        return self._send_message("reset")
-
-    @property
-    def model(self):
-        return self._send_message("model")
 
 # Used for debugging, does not fork()
 def _property_factory(attr, shared=False):
