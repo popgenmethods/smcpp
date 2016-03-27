@@ -78,32 +78,37 @@ PiecewiseExponentialRateFunction<T>::PiecewiseExponentialRateFunction(
 
     std::vector<T> new_ada, new_adb, new_ts;
     new_ts.push_back(zero);
+    new_ada.push_back(ada[0]);
+    new_adb.push_back(zero);
+    new_ts.push_back(0.01 * ads[0]);
+    ads[0] *= 0.99;
     for (int k = 0; k < K; ++k)
     {
         if (adb[k] == 0.)
         {
             new_ada.push_back(ada[k]);
             new_adb.push_back(adb[k]);
-            new_ts.push_back(ts.back() + ads[k]);
+            new_ts.push_back(new_ts.back() + ads[k]);
         }
         else
         {
-            T t0 = log(ts[k]);
-            T t1 = log(ts[k + 1]);
-            T t = t0;
-            T delta = (t1 - t0) / 20.;
+            T t = log(new_ts.back());
+            T t1 = log(new_ts.back() + ads[k]);
+            T delta = (t1 - t) / 20.;
             for (int i = 0; i < 20; ++i)
             {
                 t += delta;
-                new_ada.push_back(ada[k] * exp(adb[k] * (t - ts[k])));
+                new_ada.push_back(ada[k] * exp(adb[k] * (exp(t) - ts[k])));
                 new_adb.push_back(zero);
-                new_ts.push_back(exp(t) - new_ts.back());
+                new_ts.push_back(exp(t));
             }
         }
     }
-    new_ts.push_back(ts[K]);
+    K = new_ada.size();
+    new_ts[K] = T_MAX;
     ada = new_ada;
     adb = new_adb;
+    ts = new_ts;
 
     int ip;
     for (double h : hidden_states)
@@ -121,6 +126,7 @@ PiecewiseExponentialRateFunction<T>::PiecewiseExponentialRateFunction(
             }
             else
             {
+                throw std::runtime_error("should have b=0");
                 vec_insert<T>(ada, ip + 1, ada[ip] * exp(adb[ip] * (one * h - ts[ip])));
                 vec_insert<T>(adb, ip + 1, (log(ada[ip] / ada[ip + 1]) + adb[ip] * (ts[ip + 2] - ts[ip])) / (ts[ip + 2] - (T)h));
             }
