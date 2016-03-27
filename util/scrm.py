@@ -13,7 +13,7 @@ from collections import Counter
 import re
 from cStringIO import StringIO
 
-import smcpp._newick, smcpp.util
+import smcpp.util
 
 logger = logging.getLogger(__name__)
 scrm = sh.Command(os.environ['SCRM_PATH'])
@@ -154,6 +154,7 @@ def distinguished_sfs(n, M, N0, theta, demography, t0=0.0, t1=np.inf):
             continue
         sfs = np.zeros([3, n - 1], dtype=float)
         if t0 > 0.0 or t1 < np.inf:
+            import smcpp._newick as _newick
             newick = next(lines)
             d12 = _newick.tmrca(newick, "1", "2")
             if not t0 < d12 < t1:

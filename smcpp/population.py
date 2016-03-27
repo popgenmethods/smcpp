@@ -23,7 +23,7 @@ class Population(object):
     '''Class representing a population + model for estimation.'''
     def __init__(self, dataset_files, args):
         self._N0 = args.N0
-        t1 = args.t1 / (2 * args.N0)
+        t1 = np.array(args.t1) / (2 * args.N0)
         tK = args.tK / (2 * args.N0)
         pieces = estimation_tools.extract_pieces(args.pieces)
         time_points = estimation_tools.construct_time_points(t1, tK, pieces)

@@ -26,14 +26,14 @@ def extract_pieces(piece_str):
 
 def construct_time_points(t1, tK, pieces):
     logger.debug((t1, tK, pieces))
-    s = np.logspace(np.log10(t1), np.log10(tK), sum(pieces) + 1)
+    s = np.logspace(np.log10(t1[-1]), np.log10(tK), sum(pieces) + 1)
     s = s[1:] - s[:-1]
     time_points = np.zeros(len(pieces))
     count = 0
     for i, p in enumerate(pieces):
         time_points[i] = s[count:(count+p)].sum()
         count += p
-    return np.insert(time_points, 0, t1)
+    return np.concatenate([t1, time_points])
 
 ##
 ## Regularization
