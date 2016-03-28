@@ -92,6 +92,8 @@ class PopulationOptimizer(object):
             xx.tag = i
         for i, (a, cc) in enumerate(self._coords):
             models[a][cc] = xs[i] * models[a].precond[cc]
+        for m in models:
+            logger.debug(m.x[:2].astype('float'))
         self._pre_Q(models)
         # for m in models:
         #     logger.debug("\n%s" % np.array_str(m.x[:2].astype(float), precision=4))
