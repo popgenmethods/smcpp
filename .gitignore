@@ -21,3 +21,4 @@ dist/
 .Rhistory
 .eggs
 smcpp.egg-info
+.cache
