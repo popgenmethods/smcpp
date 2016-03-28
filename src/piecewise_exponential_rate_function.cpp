@@ -76,6 +76,40 @@ PiecewiseExponentialRateFunction<T>::PiecewiseExponentialRateFunction(
     adb[K - 1] = zero;
     ts[K] = T_MAX;
 
+    std::vector<T> new_ada, new_adb, new_ts;
+    new_ts.push_back(zero);
+    new_ada.push_back(ada[0]);
+    new_adb.push_back(zero);
+    new_ts.push_back(0.01 * ads[0]);
+    ads[0] *= 0.99;
+    for (int k = 0; k < K; ++k)
+    {
+        if (adb[k] == 0.)
+        {
+            new_ada.push_back(ada[k]);
+            new_adb.push_back(adb[k]);
+            new_ts.push_back(new_ts.back() + ads[k]);
+        }
+        else
+        {
+            T t = log(new_ts.back());
+            T t1 = log(new_ts.back() + ads[k]);
+            T delta = (t1 - t) / 20.;
+            for (int i = 0; i < 20; ++i)
+            {
+                t += delta;
+                new_ada.push_back(ada[k] * exp(adb[k] * (exp(t) - ts[k])));
+                new_adb.push_back(zero);
+                new_ts.push_back(exp(t));
+            }
+        }
+    }
+    K = new_ada.size();
+    new_ts[K] = T_MAX;
+    ada = new_ada;
+    adb = new_adb;
+    ts = new_ts;
+
     int ip;
     for (double h : hidden_states)
     {
