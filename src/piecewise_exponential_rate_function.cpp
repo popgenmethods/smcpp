@@ -109,7 +109,7 @@ PiecewiseExponentialRateFunction<T>::PiecewiseExponentialRateFunction(
     }
     K = new_ada.size();
     new_ts[K] = T_MAX;
-    if (false)
+    if (true)
     {
         std::cout << "ada: " << ada << std::endl;
         std::cout << "adb: " << adb << std::endl;
@@ -126,7 +126,7 @@ PiecewiseExponentialRateFunction<T>::PiecewiseExponentialRateFunction(
     for (double h : hidden_states)
     {
         ip = insertion_point(h, ts, 0, ts.size());
-        if (abs(ts[ip] - h) < 1e-3)
+        if (myabs(ts[ip] - h) < 1e-5)
         // if (ts[ip] == h)
             hs_indices.push_back(ip);
         else
@@ -313,9 +313,7 @@ inline T _single_integral(const int rate, const T &tsm, const T &tsm1, const T &
         T ret = exp(-c * Rrng + log_coef);
         if (tsm1 < INFINITY)
             ret *= -expm1(-c * ada * (tsm1 - tsm));
-        ret /= ada * c;
-        check_negative(ret);
-        return ret;
+        return ret / ada / c;
     }
     T e1 = -c * ada / adb;
     T e2 = -c * exp(adb * (tsm1 - tsm)) * ada / adb;
@@ -456,9 +454,7 @@ void PiecewiseExponentialRateFunction<T>::tjj_double_integral_above(const int n,
             }
             for (int k = m + 1; k < K; ++k)
             {
-                T si = _single_integral(rate, ts[k], ts[k + 1], ada[k], adb[k], Rrng[k], log_coef) * fac;
-                ts_integrals(m, j - 2) += si;
-                check_negative(ts_integrals(m, j - 2));
+                ts_integrals(m, j - 2) += _single_integral(rate, ts[k], ts[k + 1], ada[k], adb[k], Rrng[k], log_coef) * fac;
                 check_nan(ts_integrals(m, j - 2));
             }
             check_nan(ts_integrals(m, j - 2));
