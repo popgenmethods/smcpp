@@ -31,7 +31,7 @@ def lazy_extensions():
                 sources=["src/_smcpp.pyx"] + cpps,
                 language="c++",
                 include_dirs=["src", np.get_include()] + include_dirs,
-                # extra_compile_args=["-O0", "-ggdb3", "-std=c++11", "-Wfatal-errors", "-Wno-unused-variable", "-Wno-unused-function", "-D_GLIBCXX_DEBUG"],
+                #extra_compile_args=["-O0", "-ggdb3", "-std=c++11", "-Wfatal-errors", "-Wno-unused-variable", "-Wno-unused-function", "-D_GLIBCXX_DEBUG"],
                 extra_compile_args=["-O2", "-std=c++11", "-Wno-deprecated-declarations", "-Wfatal-errors", "-fopenmp"],
                 libraries=['gmp', 'gmpxx', 'gsl', 'gslcblas'],
                 extra_link_args=['-fopenmp'],
@@ -40,6 +40,14 @@ def lazy_extensions():
 
 ## Create a dummy distro in order to get setup_requires without
 ## having to have already installed these modules
+## numpy auto install doesn't work.
+try:
+    import numpy
+except ImportError:
+    sys.exit("""
+Setup requires the numpy package order to proceed. Please install it
+before continuing.
+""")
 dist.Distribution({'setup_requires': ['numpy', 'pkgconfig', 'cython']})
 
 setup(name='smcpp',
