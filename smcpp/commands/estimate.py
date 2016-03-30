@@ -52,7 +52,7 @@ def init_parser(parser):
             help="population-scaled mutation rate. default: theta.")
     pop_params.add_argument("--fix-rho", default=False, action="store_true", 
             help="do not estimate recombination rate from data")
-    hmm.add_argument('--length-cutoff', help="omit sequences < cutoff", default=1000000, type=int)
+    hmm.add_argument('--length-cutoff', help="omit sequences < cutoff", default=0, type=int)
     parser.add_argument("-p", "--second-population", nargs="+", widget="MultiFileChooser", 
             help="Estimate divergence time using data set(s) from a second subpopulation")
     parser.add_argument("-o", "--outdir", help="output directory", default=".", widget="DirChooser")
