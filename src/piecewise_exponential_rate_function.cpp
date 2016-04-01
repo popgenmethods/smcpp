@@ -84,6 +84,7 @@ PiecewiseExponentialRateFunction<T>::PiecewiseExponentialRateFunction(
     new_ada.push_back(ada[0]);
     new_adb.push_back(zero);
     new_ts.push_back(ts[1]);
+    const int D = 20;
     for (int k = 1; k < K + 1; ++k)
     {
         if (adb[k] == 0.)
@@ -96,8 +97,8 @@ PiecewiseExponentialRateFunction<T>::PiecewiseExponentialRateFunction(
         {
             T log_t = log(ts[k]);
             T log_t1 = log(ts[k + 1]);
-            T delta = (log_t1 - log_t) / 20.;
-            for (int i = 0; i < 20; ++i)
+            T delta = (log_t1 - log_t) / (double)D;
+            for (int i = 0; i < D; ++i)
             {
                 log_t += delta;
                 T t = exp(log_t);
@@ -109,7 +110,7 @@ PiecewiseExponentialRateFunction<T>::PiecewiseExponentialRateFunction(
     }
     K = new_ada.size();
     new_ts[K] = T_MAX;
-    if (true)
+    if (false)
     {
         std::cout << "ada: " << ada << std::endl;
         std::cout << "adb: " << adb << std::endl;
