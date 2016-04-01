@@ -76,11 +76,59 @@ PiecewiseExponentialRateFunction<T>::PiecewiseExponentialRateFunction(
     adb[K - 1] = zero;
     ts[K] = T_MAX;
 
+    std::vector<T> new_ada, new_adb, new_ts;
+    new_ts.push_back(zero);
+    ada.insert(ada.begin(), ada.at(0));
+    adb.insert(adb.begin(), zero);
+    ts.insert(ts.begin() + 1, 0.01 * ts.at(1));
+    new_ada.push_back(ada[0]);
+    new_adb.push_back(zero);
+    new_ts.push_back(ts[1]);
+    const int D = 20;
+    for (int k = 1; k < K + 1; ++k)
+    {
+        if (adb[k] == 0.)
+        {
+            new_ada.push_back(ada[k]);
+            new_adb.push_back(adb[k]);
+            new_ts.push_back(ts[k + 1]);
+        }
+        else
+        {
+            T log_t = log(ts[k]);
+            T log_t1 = log(ts[k + 1]);
+            T delta = (log_t1 - log_t) / (double)D;
+            for (int i = 0; i < D; ++i)
+            {
+                log_t += delta;
+                T t = exp(log_t);
+                new_ada.push_back(ada[k] * exp(adb[k] * (t - ts[k])));
+                new_adb.push_back(zero);
+                new_ts.push_back(t);
+            }
+        }
+    }
+    K = new_ada.size();
+    new_ts[K] = T_MAX;
+    if (false)
+    {
+        std::cout << "ada: " << ada << std::endl;
+        std::cout << "adb: " << adb << std::endl;
+        std::cout << "ts: " << ts << std::endl;
+        std::cout << "new_ada: " << new_ada << std::endl;
+        std::cout << "new_adb: " << new_adb << std::endl;
+        std::cout << "new_ts: " << new_ts << std::endl;
+    }
+    ada = new_ada;
+    adb = new_adb;
+    ts = new_ts;
+
     int ip;
     for (double h : hidden_states)
     {
         ip = insertion_point(h, ts, 0, ts.size());
-        if (abs(ts[ip] - h) < 1e-5)
+        if (myabs(ts[ip] - h) < 1e-5)
+        // if (ts[ip] == h)
             hs_indices.push_back(ip);
         else
         {

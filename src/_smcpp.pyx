@@ -320,7 +320,7 @@ def raw_sfs(model, int n, double t1, double t2, jacobian=False):
         _check_abort()
         store_matrix(dsfs, &vret[0, 0])
         return ret
-    derivs = [(i, j) for i in range(2) for j in range(model.x.shape[1])]
+    derivs = model.coords
     with nogil:
         dsfs = sfs_cython(n, pv, t1, t2, derivs)
     _check_abort()

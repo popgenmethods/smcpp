@@ -46,10 +46,10 @@ def regularizer(model, penalty, f):
         cons = penalty
         # rr = (abs(x) - .25) if abs(x) >= 0.5 else x**2
         reg += cons * regularizer._regs[f](x)
-        if model[0, i - 1] != model[1, i - 1]:
-            a, b = model[:2, i - 1]
-            r0 = reg
-            reg += cons * a / b * abs(a - b) 
+        # if model[0, i - 1] != model[1, i - 1]:
+        #     a, b = model[:2, i - 1]
+        #     r0 = reg
+        #     reg += cons * a / b * abs(a - b) 
     return reg
 
 def _diffabs(x):
