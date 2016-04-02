@@ -44,7 +44,7 @@ def init_parser(parser):
     hmm.add_argument('--lbfgs-factor', type=float, help="stopping criterion for optimizer", default=1e9)
     hmm.add_argument('--Nmin', type=float, help="Lower bound on effective population size", default=1000)
     hmm.add_argument('--Nmax', type=float, help="Upper bound on effective population size", default=400000)
-    hmm.add_argument('--span-cutoff', help="treat spans > as missing", default=50000, type=int)
+    hmm.add_argument('--span-cutoff', help="treat spans > as missing", default=100000, type=int)
     pop_params.add_argument('--N0', default=1e4, type=float, help="reference effective (diploid) population size to scale output.")
     pop_params.add_argument('--theta', type=float, 
             help="population-scaled mutation rate. default: watterson's estimator.")

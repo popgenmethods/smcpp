@@ -40,6 +40,7 @@ class Population(object):
         logger.info("Loading data...")
         dataset = util.parse_text_datasets(dataset_files)
         n = 2 + max([obs[:, -1].max() for obs in dataset])
+        logger.info("n=%d" % n)
         ## At this point, data have not been thinned or anything. 
 
         ## Initialize model
@@ -63,7 +64,9 @@ class Population(object):
 
         ## After (potentially) doing pretraining, normalize and thin the data set
         ## Optionally thin each dataset
-        if args.thinning is not None:
+        if args.thinning is None:
+            args.thinning = min(400 * n, 30000)
+        if args.thinning > 1:
             logger.info("Thinning...")
             dataset = estimation_tools.thin_dataset(dataset, args.thinning)
         elif n > 2:
