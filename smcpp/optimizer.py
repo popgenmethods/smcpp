@@ -42,14 +42,14 @@ class PopulationOptimizer(object):
             # self._optimize_param("theta")
             logger.debug("starting model:\n%s" % np.array_str(models[0].x.astype(float), precision=2))
             r0 = self._optimize(models)
-            logger.debug("ending model:\n%s" % np.array_str(models[0].x.astype(float), precision=2))
-            mc = [m.copy() for m in models]
-            logger.info("from x0=%f" % r0)
-            self._iserv.reset()
-            r1 = self._optimize(self._iserv.model)
-            logger.debug("ending model:\n%s" % np.array_str(self._iserv.model[0].x.astype(float), precision=2))
-            logger.info("from pretrain=%f" % r1)
-            models = self._iserv.model if r1 < r0 else mc
+            # logger.debug("ending model:\n%s" % np.array_str(models[0].x.astype(float), precision=2))
+            # mc = [m.copy() for m in models]
+            # logger.info("from x0=%f" % r0)
+            # self._iserv.reset()
+            # r1 = self._optimize(self._iserv.model)
+            # logger.debug("ending model:\n%s" % np.array_str(self._iserv.model[0].x.astype(float), precision=2))
+            # logger.info("from pretrain=%f" % r1)
+            # models = self._iserv.model if r1 < r0 else mc
             # for j in range(5):
             #     self._iserv.randomize()
             #     mc = [m.copy() for m in self._iserv.model]
