@@ -117,7 +117,7 @@ class Population(object):
         logger.info("hidden states:\n%s" % str(self._hidden_states))
 
     def reset(self):
-        self._model.x[:] = self._init_model_x[:]
+        self.model.x[:] = self._init_model_x[:]
 
     def penalize(self, model):
         return self._penalizer(model)
