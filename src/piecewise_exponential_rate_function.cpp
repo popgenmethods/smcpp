@@ -127,9 +127,11 @@ PiecewiseExponentialRateFunction<T>::PiecewiseExponentialRateFunction(
     for (double h : hidden_states)
     {
         ip = insertion_point(h, ts, 0, ts.size());
-        if (myabs(ts[ip] - h) < 1e-5)
+        if (myabs(ts[ip] - h) < 1e-4)
         // if (ts[ip] == h)
             hs_indices.push_back(ip);
+        else if (ip + 1 < ts.size() and myabs(ts[ip + 1] - h) < 1e-4)
+            hs_indices.push_back(ip + 1);
         else
         {
             vec_insert<T>(ts, ip + 1, (T)h);
