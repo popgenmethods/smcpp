@@ -48,15 +48,16 @@ class Population(object):
         self._model = SMCModel(time_points, exponential_pieces)
 
         ## Set theta and rho to their default parameters
+        self._L = sum([obs[:,0].sum() for obs in dataset])
+        logger.info("%.2f Gb of data" % (self._L * 1e-9))
         if args.theta is not None:
             theta = args.theta
         else:
-            L = sum([obs[:,0].sum() for obs in dataset])
             Lseg = 0
             for obs in dataset:
                 conds = (obs[:, 1:3].sum(axis=1) > 0) & (obs[:, 3] == n - 2) & (obs[:, 1] > -1)
                 Lseg += conds.sum()
-            segfrac = 1. * Lseg / L
+            segfrac = 1. * Lseg / self._L
             theta = segfrac / (1. / np.arange(1, n)).sum()
         logger.info("theta: %f" % theta)
         rho = args.rho or theta / 4.
@@ -77,12 +78,19 @@ class Population(object):
         self._sfs = np.mean(esfs, axis=0) 
         logger.info("Empirical SFS:\n%s" % np.array_str(self._sfs, precision=4))
 
+        if args.regularization_penalty is None:
+            args.regularization_penalty = 3e-9 * self._L
+        logger.info("regularization penalty: %g" % args.regularization_penalty)
+
         # pretrain if requested
         self._penalizer = functools.partial(estimation_tools.regularizer, 
                 penalty=args.regularization_penalty, f=args.regularizer)
 
         if not args.no_pretrain:
             logger.info("Pretraining")
+            self._pretrain_penalizer = functools.partial(estimation_tools.regularizer, 
+                    penalty=args.regularization_penalty * self._sfs.sum() / self._L, 
+                    f=args.regularizer)
             self._pretrain(theta)
     
         # We remember the initialized model for use in split estimated
@@ -123,7 +131,7 @@ class Population(object):
         return self._penalizer(model)
 
     def _pretrain(self, theta):
-        estimation_tools.pretrain(self._model, self._sfs, self._bounds, theta, self.penalize)
+        estimation_tools.pretrain(self._model, self._sfs, self._bounds, theta, self._pretrain_penalizer)
 
     def randomize(self):
         for i in range(2):
