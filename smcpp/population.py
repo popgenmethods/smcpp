@@ -66,7 +66,7 @@ class Population(object):
         ## After (potentially) doing pretraining, normalize and thin the data set
         ## Optionally thin each dataset
         if args.thinning is None:
-            args.thinning = min(400 * n, 30000)
+            args.thinning = 100 * n
         if args.thinning > 1:
             logger.info("Thinning...")
             dataset = estimation_tools.thin_dataset(dataset, args.thinning)
@@ -89,8 +89,9 @@ class Population(object):
         if not args.no_pretrain:
             logger.info("Pretraining")
             self._pretrain_penalizer = functools.partial(estimation_tools.regularizer, 
-                    penalty=args.regularization_penalty * self._sfs.sum() / self._L, 
+                    penalty=args.regularization_penalty * 1e-1,
                     f=args.regularizer)
+            # self._pretrain_penalizer = self._penalizer
             self._pretrain(theta)
     
         # We remember the initialized model for use in split estimated
