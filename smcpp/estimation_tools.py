@@ -43,14 +43,11 @@ def regularizer(model, penalty, f):
     reg = 0
     for i in range(1, model.K):
         x = model[1, i - 1] - model[0, i]
-        cons = penalty
-        # rr = (abs(x) - .25) if abs(x) >= 0.5 else x**2
-        reg += cons * regularizer._regs[f](x)
-        # if model[0, i - 1] != model[1, i - 1]:
-        #     a, b = model[:2, i - 1]
-        #     r0 = reg
-        #     reg += cons * a / b * abs(a - b) 
-    return reg
+        reg += regularizer._regs[f](x)
+        if model[0, i - 1] != model[1, i - 1]:
+            a, b = model[:2, i - 1]
+            reg += abs(a - b) 
+    return penalty * reg
 
 def _diffabs(x):
     K = 1.
@@ -95,10 +92,10 @@ def pretrain(model, sample_csfs, bounds, theta0, penalizer):
         usfs = util.undistinguished_sfs(sfs)
         kl = -(sample_sfs * ad.admath.log(usfs)).sum()
         reg = penalizer(model)
-        kl += penalizer(model)
+        kl += reg
         ret = (kl.x, np.array(list(map(kl.d, x))))
         logger.debug("\n%s" % np.array_str(np.array([[float(y) for y in row] for row in model._x]), precision=3))
-        logger.debug(ret)
+        logger.debug((reg, ret))
         return ret
     x0 = [float(model[cc]) for cc in model.coords]
     res = scipy.optimize.fmin_tnc(f, 
