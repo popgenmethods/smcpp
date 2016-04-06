@@ -117,7 +117,7 @@ def break_long_spans(dataset, span_cutoff, length_cutoff):
     for fn, obs in enumerate(dataset):
         long_spans = np.where(obs[:, 0] >= span_cutoff)[0]
         cob = 0
-        logger.debug("Long spans: %s" % str(long_spans))
+        logger.debug("Long spans: \n%s" % str(obs[long_spans]))
         positions = np.insert(np.cumsum(obs[:, 0]), 0, 0)
         for x in long_spans:
             if not np.all(obs[x, 1:] == [-1, 0, 0]):
