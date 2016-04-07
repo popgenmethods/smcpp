@@ -66,7 +66,7 @@ class Population(object):
         ## After (potentially) doing pretraining, normalize and thin the data set
         ## Optionally thin each dataset
         if args.thinning is None:
-            args.thinning = 100 * n
+            args.thinning = 400 * n
         if args.thinning > 1:
             logger.info("Thinning...")
             dataset = estimation_tools.thin_dataset(dataset, args.thinning)
