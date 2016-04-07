@@ -45,8 +45,9 @@ def regularizer(model, penalty, f):
         x = model[1, i - 1] - model[0, i]
         reg += regularizer._regs[f](x)
         if model[0, i - 1] != model[1, i - 1]:
-            a, b = model[:2, i - 1]
-            reg += abs(a - b) 
+            ## squared-second-derivative penalty a la spline smoothing
+            a, b, s = model[:, i - 1]
+            reg += (b**2 - a**2) * ad.admath.log(a / b)**3 / (2. * s**3)
     return penalty * reg
 
 def _diffabs(x):
