@@ -27,6 +27,7 @@ def plot_psfs(psfs, xlim, ylim, xlabel, logy=False):
     fig, ax = pretty_plot()
     xmax = ymax = 0.
     labels = []
+    data = []
     for label, d in psfs:
         N0 = d['N0']
         a = N0 * d['a']
@@ -44,6 +45,7 @@ def plot_psfs(psfs, xlim, ylim, xlabel, logy=False):
             cum += ss
         x = np.concatenate([x, [cum, 2 * cum]])
         y = np.concatenate([y, [a[-1], a[-1]]])
+        data.append((label, x, y))
         if label is None:
             ax.plot(x, y, linewidth=2, color="black")
         else:
@@ -63,7 +65,7 @@ def plot_psfs(psfs, xlim, ylim, xlabel, logy=False):
         ylim=(0.0, 1.1 * ymax)
     ax.set_xlim(*xlim)
     ax.set_ylim(*ylim)
-    return fig
+    return fig, data
 
 def make_psfs(d):
     ret = {'fit': {'a': d['a'], 'b': d['b'], 's': d['s']},
