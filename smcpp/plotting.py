@@ -1,5 +1,5 @@
 from __future__ import absolute_import, division, print_function
-import matplotlib
+import matplotlib, matplotlib.cm
 matplotlib.use('Agg')
 
 import numpy as np
@@ -28,6 +28,8 @@ def plot_psfs(psfs, xlim, ylim, xlabel, logy=False):
     xmax = ymax = 0.
     labels = []
     data = []
+    npsf = sum(label != "None" for label, _ in psfs)
+    colors = list(matplotlib.cm.Dark2(np.linspace(0, 1, npsf)))
     for label, d in psfs:
         N0 = d['N0']
         a = N0 * d['a']
@@ -49,11 +51,11 @@ def plot_psfs(psfs, xlim, ylim, xlabel, logy=False):
         if label is None:
             ax.plot(x, y, linewidth=2, color="black")
         else:
-            labels += ax.plot(x, y, label=label)
+            labels += ax.plot(x, y, label=label, color=colors.pop())
         ymax = max(ymax, np.max(y))
         xmax = max(xmax, np.max(x))
     if labels:
-        first_legend = ax.legend(handles=labels, loc=9, ncol=4)
+        first_legend = ax.legend(handles=labels, loc=9, ncol=4, prop={'size':6})
     ax.set_xscale('log')
     if logy:
         ax.set_yscale('log')
