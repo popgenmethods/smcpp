@@ -26,6 +26,7 @@ def save_pdf(plt, filename):
 def plot_psfs(psfs, xlim, ylim, xlabel, logy=False):
     fig, ax = pretty_plot()
     xmax = ymax = 0.
+    xmin = np.inf
     labels = []
     data = []
     for label, d in psfs:
@@ -50,6 +51,7 @@ def plot_psfs(psfs, xlim, ylim, xlabel, logy=False):
             ax.plot(x, y, linewidth=2, color="black")
         else:
             labels += ax.plot(x, y, label=label)
+	xmin = min(xmin, x[1])
         ymax = max(ymax, np.max(y))
         xmax = max(xmax, np.max(x))
     if labels:
@@ -60,7 +62,7 @@ def plot_psfs(psfs, xlim, ylim, xlabel, logy=False):
     ax.set_xlabel(xlabel)
     ax.set_ylabel(r'$N_e \times 10^3$')
     if not xlim:
-        xlim = (3000., 1.1 * xmax)
+        xlim = (0.9 * xmin, 1.1 * xmax)
     if not ylim:
         ylim=(0.0, 1.1 * ymax)
     ax.set_xlim(*xlim)
