@@ -46,17 +46,8 @@ def regularizer(model, penalty, f):
         x = model[1, i - 1] - model[0, i]
         reg += regularizer._regs[f](x) * ad.admath.exp(-cs[i - 1])
         # if model[0, i - 1] != model[1, i - 1]:
-        #     ## squared-second-derivative penalty a la spline smoothing
-        #     ## done on a log scale
-        #     a, b, s = model[:, i - 1]
-        #     t0, t1 = cs[(i-1):(i+1)]
-        #     t0 = max(t0, 1e-8)
-        #     Log = ad.admath.log
-        #     p = (((a - b)*(a + b)*(t0 - t1)**3 + 2*(t0 - t1)**2*(a**2*t0 - b**2*t1)*Log(b/a) - 
-        #         2*(t0 - t1)*(a*t0 - b*t1)*(a*t0 + b*t1)*Log(b/a)**2 + 
-        #         4*(a**2*t0**3 - b**2*t1**3)*Log(b/a)**3)/(8.*(t0 - t1)**3))
-        #     print((a, b, s, t0, t1, p))
-        #     reg += p
+        #     a, b = model[:2, i - 1]
+        #     reg += abs(a - b) 
     return penalty * reg
 
 def _diffabs(x):
