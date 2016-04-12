@@ -53,11 +53,11 @@ def plot_psfs(psfs, xlim, ylim, xlabel, logy=False):
             ax.plot(x, y, linewidth=2, color="black")
         else:
             labels += ax.plot(x, y, label=label, color=colors.pop())
-        xmin = min(xmin, x[1])
+        xmin = s[0] * 0.9
         ymax = max(ymax, np.max(y))
         xmax = max(xmax, np.max(x))
     if labels:
-        first_legend = ax.legend(handles=labels, loc=9, ncol=4, prop={'size':6})
+        first_legend = ax.legend(handles=labels, loc=9, ncol=4, prop={'size':8})
     ax.set_xscale('log')
     if logy:
         ax.set_yscale('log')

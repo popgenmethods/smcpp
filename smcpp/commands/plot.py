@@ -7,7 +7,7 @@ from ..estimation_result import EstimationResult
 def init_parser(parser):
     parser.add_argument("-g", type=float, help="Plot x-axis in years assuming a generation time of g")
     parser.add_argument("--logy", action="store_true", help="ploy y on log axis")
-    parser.add_argument("-x", "--xlim", type=float, nargs=2, default=(1000, 1000000), help="x-axis limits")
+    parser.add_argument("-x", "--xlim", type=float, nargs=2, default=None, help="x-axis limits")
     parser.add_argument("-y", "--ylim", type=float, nargs=2, default=None, help="y-axis limits")
     parser.add_argument("-l", "--labels", type=str, help="label for each plotted function", nargs="+")
     parser.add_argument("-c", "--csv", help="also write <plot.pdf.csv> containing data used to make plot", action="store_true", default=False)
