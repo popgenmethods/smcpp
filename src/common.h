@@ -149,7 +149,9 @@ inline T dmin(const T a, const T b) { if (a > b) return b; return a; }
 template <typename T>
 inline T dmax(const T a, const T b) { if (a > b) return a; return b; }
 
-#define check_nan(X) { try { _check_nan(X); } catch (std::runtime_error e) { std::cout << __FILE__ << ":" << __LINE__ << std::endl; throw; } }
+void crash_backtrace();
+
+#define check_nan(X) { try { _check_nan(X); } catch (std::runtime_error e) { std::cout << __FILE__ << ":" << __LINE__ << std::endl; crash_backtrace(); throw; } }
 
 inline void _check_nan(const double x) { if (std::isnan(x) or std::isinf(x)) throw std::runtime_error("nan/inf detected"); }
 
