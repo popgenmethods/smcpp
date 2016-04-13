@@ -82,8 +82,8 @@ class PopulationOptimizer(object):
         x0 = x[0]
         x = ad.adnumber(x0)
         setattr(self._iserv, param, x)
-        q = -sum([x for l in self._iserv.Q() for x in l])
-        logger.debug("f_%s: q(%f)=%f" % (param, x0, q.x))
+        q = -sum([u for l in self._iserv.Q() for u in l])
+        logger.debug("f_%s: q(%f)=%f dq=%f" % (param, x0, q.x, q.d(x)))
         return (q.x, np.array([q.d(x)]))
 
     def _f(self, xs, models):
