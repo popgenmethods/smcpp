@@ -110,14 +110,14 @@ template <typename T>
 void ConditionedSFS<T>::compute_below(const PiecewiseExponentialRateFunction<T> &eta)
 {
     DEBUG("compute below");
-    Matrix<T> ts_integrals(eta.K, n + 1); 
+    tjj_below.setZero();
 #pragma omp parallel for
-    for (int m = 0; m < eta.K; ++m)
-        eta.tjj_double_integral_below(n, m, ts_integrals);
+    for (int h = 0; h < H; ++h)
+        eta.tjj_double_integral_below(n, h, tjj_below);
     DEBUG("tjj_double_integral below finished");
-    for (int h = 1; h < H + 1; ++h)
-        tjj_below.row(h - 1) = ts_integrals.block(eta.hs_indices[h - 1], 0, 
-                eta.hs_indices[h] - eta.hs_indices[h - 1], n + 1).colwise().sum();
+    // for (int h = 1; h < H + 1; ++h)
+    //     tjj_below.row(h - 1) = ts_integrals.block(eta.hs_indices[h - 1], 0, 
+    //             eta.hs_indices[h] - eta.hs_indices[h - 1], n + 1).colwise().sum();
     DEBUG("matrix products below (M0)");
     M0_below = tjj_below * mcache.M0.template cast<T>();
     DEBUG("matrix products below (M1)");
@@ -202,16 +202,16 @@ std::vector<Matrix<T> >& ConditionedSFS<T>::compute(const PiecewiseExponentialRa
     for (int i = 0; i < H; ++i)
     {
         csfs[i] = csfs_above[i] + csfs_below[i];
-        T h1 = eta.R(eta.hidden_states[i]), d;
-        if (eta.hidden_states[i + 1] < INFINITY)
-        {
-            T h2 = eta.R(eta.hidden_states[i + 1]);
-            d = -exp(-h1) * expm1(h1 - h2);
-        }
-        else
-            d = exp(-h1);
-        check_nan(d);
-        csfs[i] /= d;
+        // T h1 = eta.R(eta.hidden_states[i]), d;
+        // if (eta.hidden_states[i + 1] < INFINITY)
+        // {
+        //     T h2 = eta.R(eta.hidden_states[i + 1]);
+        //     d = -exp(-h1) * expm1(h1 - h2);
+        // }
+        // else
+        //     d = exp(-h1);
+        // check_nan(d);
+        // csfs[i] /= d;
     }
     DEBUG("compute finished");
     return csfs;
@@ -229,14 +229,15 @@ std::vector<Matrix<T> > incorporate_theta(const std::vector<Matrix<T> > &csfs, T
         try
         {
             check_nan(tauh);
+            ret[i] = csfs[i] * -expm1(-theta * tauh) / tauh;
+            check_nan(ret[i]);
         } catch (std::runtime_error)
         {
-            std::cout << tauh << std::endl;
             std::cout << i << std::endl << csfs[i].template cast<double>() << std::endl;
+            std::cout << tauh << std::endl;
+            std::cout << theta << std::endl;
             throw;
         }
-        ret[i] = csfs[i] * -expm1(-theta * tauh) / tauh;
-        check_nan(ret[i]);
         T tiny = tauh - tauh + 1e-20;
         ret[i] = ret[i].unaryExpr([=](const T x) { if (x < 1e-20) return tiny; if (x < -1e-8) throw std::domain_error("very negative sfs"); return x; });
         check_nan(ret[i]);

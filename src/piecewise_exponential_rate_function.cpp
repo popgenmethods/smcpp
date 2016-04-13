@@ -127,10 +127,10 @@ PiecewiseExponentialRateFunction<T>::PiecewiseExponentialRateFunction(
     for (double h : hidden_states)
     {
         ip = insertion_point(h, ts, 0, ts.size());
-        if (myabs(ts[ip] - h) < 1e-4)
+        if (myabs(ts[ip] - h) < 1e-8)
         // if (ts[ip] == h)
             hs_indices.push_back(ip);
-        else if (ip + 1 < ts.size() and myabs(ts[ip + 1] - h) < 1e-4)
+        else if (ip + 1 < ts.size() and myabs(ts[ip + 1] - h) < 1e-8)
             hs_indices.push_back(ip + 1);
         else
         {
@@ -197,7 +197,8 @@ void PiecewiseExponentialRateFunction<adouble>::initialize_derivatives(void)
 }
 
 template <typename T>
-inline T _double_integral_below_helper(const int rate, const T &tsm, const T &tsm1, const T &ada, const T &Rrng)
+inline T _double_integral_below_helper(const int rate, const T &tsm, const T &tsm1, const T &ada, 
+        const T &Rrng, const T &log_denom)
 {
     const int l1r = 1 + rate;
     T _tsm = tsm, _tsm1 = tsm1, _ada = ada, _Rrng = Rrng; // don't ask
@@ -208,32 +209,33 @@ inline T _double_integral_below_helper(const int rate, const T &tsm, const T &ts
     if (rate == 0)
     {
         if (tsm1 == INFINITY)
-            return exp(-_Rrng) / _ada;
+            return exp(-_Rrng - log_denom) / _ada;
         else
-            return exp(-_Rrng) * (1 - exp(-_adadiff) * (1 + _adadiff)) / _ada;
+            return exp(-_Rrng - log_denom) * (1 - exp(-_adadiff) * (1 + _adadiff)) / _ada;
     }
     if (tsm1 == INFINITY)
-        return exp(-l1r * _Rrng) * (1 - l1rinv) / (rate * _ada);
-    return exp(-l1r * _Rrng) * (expm1(-l1r * _adadiff) * l1rinv - expm1(-_adadiff)) / (rate * _ada);
+        return exp(-l1r * _Rrng - log_denom) * (1 - l1rinv) / (rate * _ada);
+    return exp(-l1r * _Rrng - log_denom) * (expm1(-l1r * _adadiff) * l1rinv - expm1(-_adadiff)) / (rate * _ada);
 }
 
 template <typename U>
-inline U _double_integral_above_helper(const int rate, const int lam, const U &_tsm, const U &_tsm1, const U &_ada, const U &_Rrng)
+inline U _double_integral_above_helper(const int rate, const int lam, const U &_tsm, 
+        const U &_tsm1, const U &_ada, const U &_Rrng, const U &log_coef)
 {
     U diff = _tsm1 - _tsm;
     U adadiff = _ada * diff;
     long l1 = lam + 1;
     if (rate == 0)
-        return exp(-l1 * _Rrng) * (expm1(-l1 * adadiff) + l1 * adadiff) / l1 / l1 / _ada;
+        return exp(-l1 * _Rrng + log_coef) * (expm1(-l1 * adadiff) + l1 * adadiff) / l1 / l1 / _ada;
     if (l1 == rate)
     {
         if (_tsm1 == INFINITY)
-            return exp(-rate * _Rrng) / rate / rate / _ada;
-        return exp(-rate * _Rrng) * (1 - exp(-rate * adadiff) * (1 + rate * adadiff)) / rate / rate / _ada;
+            return exp(-rate * _Rrng + log_coef) / rate / rate / _ada;
+        return exp(-rate * _Rrng + log_coef) * (1 - exp(-rate * adadiff) * (1 + rate * adadiff)) / rate / rate / _ada;
     }
     if (_tsm1 == INFINITY)
-        return exp(-l1 * _Rrng) / l1 / rate / _ada;
-    return -exp(-l1 * _Rrng) * (expm1(-l1 * adadiff) / l1 + (exp(-rate * adadiff) - exp(-l1 * adadiff)) / (l1 - rate)) / rate / _ada;
+        return exp(-l1 * _Rrng + log_coef) / l1 / rate / _ada;
+    return -exp(-l1 * _Rrng + log_coef) * (expm1(-l1 * adadiff) / l1 + (exp(-rate * adadiff) - exp(-l1 * adadiff)) / (l1 - rate)) / rate / _ada;
 }
 
 template <typename T>
@@ -331,7 +333,7 @@ inline T _single_integral(const int rate, const T &tsm, const T &tsm1, const T &
 
 template <typename T>
 inline T _double_integral_below_helper_ei(const int rate, const T &tsm, const T &tsm1, 
-        const T &ada, const T &adb, const T &Rrng)
+        const T &ada, const T &adb, const T &Rrng, const T &log_denom)
 {
     // We needn't cover the tsm1==INFINITY case here as the last piece is assumed flat (i.e., adb=0).
     long c = rate;
@@ -341,10 +343,10 @@ inline T _double_integral_below_helper_ei(const int rate, const T &tsm, const T 
     {
         T a1 = -adadb;
         T b1 = -eadb * adadb;
-        T cons1 = adadb - Rrng;
+        T cons1 = adadb - Rrng - log_denom;
         T int1 = eintdiff(a1, b1, cons1);
         int1 /= adb;
-        int1 += exp(adadb * (1. - eadb) - Rrng) * (tsm - tsm1);
+        int1 += exp(adadb * (1. - eadb) - Rrng - log_denom) * (tsm - tsm1);
         check_negative(int1);
         check_nan(int1);
         return int1;
@@ -357,7 +359,7 @@ inline T _double_integral_below_helper_ei(const int rate, const T &tsm, const T 
     T a2 = -(c + 1) * adadb;
     T b2 = -(c + 1) * adadb * eadb;
     T int2 = eintdiff(a2, b2, cons2);
-    T cons3 = exp(-(ada * (1 + eadb) / adb + (1 + c) * Rrng));
+    T cons3 = exp(-(ada * (1 + eadb) / adb + (1 + c) * Rrng) - log_denom);
     T ret = cons3 * (int1 + int2) / adb;
     check_negative(ret);
     check_nan(ret);
@@ -366,7 +368,7 @@ inline T _double_integral_below_helper_ei(const int rate, const T &tsm, const T 
 
 template <typename T>
 inline T _double_integral_above_helper_ei(const int rate, const int lam, const T &tsm, const T &tsm1, 
-        const T &ada, const T &adb, const T &Rrng)
+        const T &ada, const T &adb, const T &Rrng, const T &log_coef)
 {
     long d = lam + 1;
     long c = rate;
@@ -374,7 +376,7 @@ inline T _double_integral_above_helper_ei(const int rate, const int lam, const T
     T cons1 = ada * c / adb;
     T a1 = -cons1 * eadb;
     T b1 = -cons1;
-    T c1 = cons1 - d * Rrng;
+    T c1 = cons1 - d * Rrng + log_coef;
     T ed1 = eintdiff(a1, b1, c1);
     if (c != d)
     {
@@ -384,7 +386,7 @@ inline T _double_integral_above_helper_ei(const int rate, const int lam, const T
         T c2 = cons2 - d * Rrng;
         return (ed1 + eintdiff(a2, b2, c2)) / adb / (c - d);
     }
-    T ret = (exp(-d * Rrng) * (-adb * expm1(-ada / adb * d * expm1(adb * (tsm1 - tsm)))) + ada * d * ed1) / (adb * adb * d);
+    T ret = (exp(-d * Rrng + log_coef) * (-adb * expm1(-ada / adb * d * expm1(adb * (tsm1 - tsm)))) + ada * d * ed1) / (adb * adb * d);
     check_negative(ret);
     check_nan(ret);
     return ret;
@@ -394,112 +396,100 @@ template <typename T>
 void PiecewiseExponentialRateFunction<T>::tjj_double_integral_above(const int n, long jj, std::vector<Matrix<T> > &C) const
 {
     long lam = nC2(jj) - 1;
-    Matrix<T> ts_integrals(K, n);
-    ts_integrals.fill(zero);
-    std::vector<T> single_integrals;
-    T e1;
-    for (int m = 0; m < K; ++m)
+    // Now calculate with hidden state integration limits
+    for (unsigned int h = 0; h < hs_indices.size() - 1; ++h)
     {
-        e1 = exp(-Rrng[m]);
-        if (m < K - 1)
-            e1 -= exp(-Rrng[m + 1]);
-        single_integrals.push_back(e1);
-    }
-
-    for (int m = 0; m < K; ++m)
-    {
-        for (int j = 2; j < n + 2; ++j)
+        C[h].row(jj - 2).setZero();
+        T log_denom = -Rrng[hs_indices[h]] + log(-expm1(-(Rrng[hs_indices[h + 1]] - Rrng[hs_indices[h]])));
+        for (int m = hs_indices[h]; m < hs_indices[h + 1]; ++m)
         {
-            long rate = nC2(j);
-            if (adb[m] == 0)
-                ts_integrals(m, j - 2) = _double_integral_above_helper<T>(rate, lam, ts[m], ts[m + 1], ada[m], Rrng[m]);
-            else
-                ts_integrals(m, j - 2) = _double_integral_above_helper_ei<T>(rate, lam, ts[m], ts[m + 1], ada[m], adb[m], Rrng[m]);
-            check_nan(ts_integrals(m, j - 2));
-            check_negative(ts_integrals(m, j - 2));
-            T log_coef = zero, fac;
-            long rp = lam + 1 - rate;
-            if (rp == 0)
-                fac = Rrng[m + 1] - Rrng[m];
-            else
+            for (int j = 2; j < n + 2; ++j)
             {
-                // * exp(-rp * Rrng[m]) - exp(-rp * Rrng[m+1]) / rp
-                // if rp >> 1 * Rrng[m] then this is approx exp(-rp * Rrng[m])
-                // if rp << -1 then approx = -exp(-rp * Rrng[m+1])
-                if (rp < 0)
-                {
-                    // exp(-rp * Rrng[m]) - exp(-rp * Rrng[m+1]) / rp
-                    // = exp(-rp * Rrng[m]) * (1 - exp(-rp * (Rrng[m + 1] - Rrng[m]))) / rp
-                    if (-rp * (Rrng[m + 1] - Rrng[m]) > 20)
-                    {
-                        log_coef = -rp * Rrng[m + 1];
-                        fac = -one / rp;
-                    }
-                    else
-                    {
-                        log_coef = -rp * Rrng[m];
-                        fac = -expm1(-rp * (Rrng[m + 1] - Rrng[m])) / rp;
-                    }
-                }
+                long rate = nC2(j);
+                if (adb[m] == 0)
+                    C[h](jj - 2, j - 2) += _double_integral_above_helper<T>(rate, lam, ts[m], ts[m + 1], ada[m], Rrng[m], -log_denom);
+                else
+                    C[h](jj - 2, j - 2) += _double_integral_above_helper_ei<T>(rate, lam, ts[m], ts[m + 1], ada[m], adb[m], Rrng[m], -log_denom);
+                check_nan(C[h](jj - 2, j - 2));
+                check_negative(C[h](jj - 2, j - 2));
+                T log_coef = -log_denom, fac;
+                long rp = lam + 1 - rate;
+                if (rp == 0)
+                    fac = Rrng[m + 1] - Rrng[m];
                 else
                 {
-                    // exp(-rp * Rrng[m]) - exp(-rp * Rrng[m+1]) / rp
-                    // = exp(-rp * Rrng[m + 1]) * (exp(-rp * (Rrng[m] - Rrng[m + 1]) - 1)) / rp
-                    if (-rp * (Rrng[m] - Rrng[m + 1]) > 20)
+                    if (rp < 0)
                     {
-                        log_coef = -rp * Rrng[m];
-                        fac = one / rp;
+                        if (-rp * (Rrng[m + 1] - Rrng[m]) > 20)
+                        {
+                            log_coef += -rp * Rrng[m + 1];
+                            fac = -one / rp;
+                        }
+                        else
+                        {
+                            log_coef += -rp * Rrng[m];
+                            fac = -expm1(-rp * (Rrng[m + 1] - Rrng[m])) / rp;
+                        }
                     }
                     else
                     {
-                        log_coef = -rp * Rrng[m + 1];
-                        fac = expm1(-rp * (Rrng[m] - Rrng[m + 1])) / rp;
+                        if (-rp * (Rrng[m] - Rrng[m + 1]) > 20)
+                        {
+                            log_coef += -rp * Rrng[m];
+                            fac = one / rp;
+                        }
+                        else
+                        {
+                            log_coef += -rp * Rrng[m + 1];
+                            fac = expm1(-rp * (Rrng[m] - Rrng[m + 1])) / rp;
+                        }
                     }
                 }
+                for (int k = m + 1; k < K; ++k)
+                {
+                    T si = _single_integral(rate, ts[k], ts[k + 1], ada[k], adb[k], Rrng[k], log_coef) * fac;
+                    C[h](jj - 2, j - 2) += si;
+                    check_nan(C[h](jj - 2, j - 2));
+                    check_negative(C[h](jj - 2, j - 2));
+                }
+                check_nan(C[h](jj - 2, j - 2));
+                check_negative(C[h](jj - 2, j - 2));
             }
-            for (int k = m + 1; k < K; ++k)
-            {
-                T si = _single_integral(rate, ts[k], ts[k + 1], ada[k], adb[k], Rrng[k], log_coef) * fac;
-                ts_integrals(m, j - 2) += si;
-                check_negative(ts_integrals(m, j - 2));
-                check_nan(ts_integrals(m, j - 2));
-            }
-            check_nan(ts_integrals(m, j - 2));
-            check_negative(ts_integrals(m, j - 2));
         }
-    }
-    // Now calculate with hidden state integration limits
-    Matrix<T> last = ts_integrals.topRows(hs_indices[0]).colwise().sum(), next;
-    last *= one;
-    for (unsigned int h = 1; h < hs_indices.size(); ++h)
-    {
-        next = ts_integrals.topRows(hs_indices[h]).colwise().sum();
-        C[h - 1].row(jj - 2) = next - last;
-        last = next;
     }
 }
 
 template <typename T>
 void PiecewiseExponentialRateFunction<T>::tjj_double_integral_below(
-        const int n, const int m, Matrix<T> &tgt) const
+        const int n, const int h, Matrix<T> &tgt) const
 {
-    Vector<T> ts_integrals(n + 1);
-    T log_coef = -Rrng[m];
-    T fac = one;
-    if (m < K - 1)
-        fac = -expm1(-(Rrng[m + 1] - Rrng[m]));
-    for (int j = 2; j < n + 3; ++j)
+    T log_denom = -Rrng[hs_indices[h]] + log(-expm1(-(Rrng[hs_indices[h + 1]] - Rrng[hs_indices[h]])));
+    for (int m = hs_indices[h]; m < hs_indices[h + 1]; ++m)
     {
-        long rate = nC2(j) - 1;
-        if (adb[m] == 0.)
-            ts_integrals(j - 2) = _double_integral_below_helper<T>(rate, ts[m], ts[m + 1], ada[m], Rrng[m]);
-        else
-            ts_integrals(j - 2) = _double_integral_below_helper_ei(rate, ts[m], ts[m + 1], ada[m], adb[m], Rrng[m]);
-        for (int k = 0; k < m; ++k)
-            ts_integrals(j - 2) += fac * _single_integral(rate, ts[k], ts[k + 1], ada[k], adb[k], Rrng[k], log_coef);
-        check_negative(ts_integrals(j - 2));
+        Vector<T> ts_integrals(n + 1);
+        T log_coef = -Rrng[m];
+        T fac = one;
+        if (m < K - 1)
+            fac = -expm1(-(Rrng[m + 1] - Rrng[m]));
+        for (int j = 2; j < n + 3; ++j)
+        {
+            long rate = nC2(j) - 1;
+            if (adb[m] == 0.)
+                ts_integrals(j - 2) = _double_integral_below_helper<T>(rate, ts[m], ts[m + 1], ada[m], Rrng[m], -log_denom);
+            else
+            {
+                throw std::runtime_error("b!=0 has been disabled");
+                // ts_integrals(j - 2) = _double_integral_below_helper_ei(rate, ts[m], ts[m + 1], ada[m], adb[m], Rrng[m] - log_denom);
+            }
+            for (int k = 0; k < m; ++k)
+            {
+                T _c = log_coef - log_denom;
+                ts_integrals(j - 2) += fac * _single_integral(rate, ts[k], ts[k + 1], ada[k], adb[k], Rrng[k], _c);
+            }
+            check_negative(ts_integrals(j - 2));
+        }
+        tgt.row(h) += ts_integrals.transpose();
     }
-    tgt.row(m) = ts_integrals.transpose();
 }
 
 template <typename T>
