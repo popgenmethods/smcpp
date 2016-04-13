@@ -1,9 +1,8 @@
 from __future__ import division
 import numpy as np
-import _pypsmcpp
 import multiprocessing
-import lib.scrm as scrm
-from lib.util import sawtooth, human
+import util.scrm as scrm
+from smcpp.util import sawtooth, human
 import logging
 # logging.basicConfig(level=logging.DEBUG)
 
