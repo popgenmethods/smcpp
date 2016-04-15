@@ -4,6 +4,13 @@ import os.path
 import glob
 import sys
 
+# Remove the "-Wstrict-prototypes" compiler option, which isn't valid for C++.
+import distutils.sysconfig
+cfg_vars = distutils.sysconfig.get_config_vars()
+for key, value in cfg_vars.items():
+    if type(value) == str:
+        cfg_vars[key] = value.replace("-Wstrict-prototypes", "")
+
 cpps = [f for f in glob.glob("src/*.cpp") if 
         not os.path.basename(f).startswith("_") 
         and not os.path.basename(f).startswith("test") ]
