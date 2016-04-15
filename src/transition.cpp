@@ -78,6 +78,8 @@ void HJTransition<T>::compute(void)
         }
         T rowsum = this->Phi.row(j - 1).sum();
         this->Phi(j - 1, j - 1) = myeta.one - rowsum;
+        T thresh = 1e-20 * myeta.one;
+        this->Phi = this->Phi.unaryExpr([thresh] (const T x) { if (x <= thresh) return thresh; return x; });
     }
 }
 

@@ -125,7 +125,6 @@ void HMM::Estep(bool fbOnly)
         gamma.col(0) = gamma0;
     if (not fbOnly)
         xisum = xisum.cwiseProduct(T);
-    PROGRESS_DONE();
 }
 
 adouble HMM::Q(void)
@@ -152,8 +151,10 @@ adouble HMM::Q(void)
     Matrix<adouble> T = ib->tb->T;
     for (int m1 = 0; m1 < M; ++m1)
         for (int m2 = 0; m2 < M; ++m2)
-            q3 += log(T(m1, m2)) * xisum(m1, m2);
-
+            if (T(m1,m2) <= 0)
+                DEBUG("nonpositive transition matrix (" << m1 << "," << m2 << ")");
+            else
+                q3 += log(T(m1, m2)) * xisum(m1, m2);
     check_nan(q1);
     check_nan(q2);
     check_nan(q3);

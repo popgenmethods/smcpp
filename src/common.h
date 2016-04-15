@@ -149,9 +149,9 @@ inline T dmin(const T a, const T b) { if (a > b) return b; return a; }
 template <typename T>
 inline T dmax(const T a, const T b) { if (a > b) return a; return b; }
 
-void crash_backtrace();
+void crash_backtrace(const char*, const int);
 
-#define check_nan(X) { try { _check_nan(X); } catch (std::runtime_error e) { std::cout << __FILE__ << ":" << __LINE__ << std::endl; crash_backtrace(); throw; } }
+#define check_nan(X) { try { _check_nan(X); } catch (std::runtime_error e) { crash_backtrace(__FILE__, __LINE__); throw; } }
 
 inline void _check_nan(const double x) { if (std::isnan(x) or std::isinf(x)) throw std::runtime_error("nan/inf detected"); }
 
@@ -223,8 +223,5 @@ struct Logger
 #define DEBUG(x) (Logger(__FILE__, "DEBUG") << x).flush()
 #define INFO(x) (Logger(__FILE__, "INFO") << x).flush()
 #define WARN(x) (Logger(__FILE__, "WARN") << x).flush()
-
-#define PROGRESS(x)
-#define PROGRESS_DONE()
 
 #endif

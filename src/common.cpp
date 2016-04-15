@@ -1,9 +1,5 @@
 #include "common.h"
 
-std::mutex mtx;
-bool do_progress;
-void doProgress(bool x) { do_progress = x; }
-
 void store_matrix(const Matrix<double> &M, double* out)
 {
     Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>::Map(out, M.rows(), M.cols()) = M;
@@ -46,7 +42,7 @@ void init_logger_cb(void(*fp)(const char*, const char*, const char*))
 }
 
 #include <execinfo.h>
-void crash_backtrace()
+void crash_backtrace(const char* file, const int lineno)
 {
     void *array[10];
     size_t size;
@@ -55,5 +51,10 @@ void crash_backtrace()
     size = backtrace(array, 10);
 
     // print out all the frames to stderr
-    backtrace_symbols_fd(array, size, STDERR_FILENO);
+#pragma omp critical(crash_backtrace)
+    {
+        std::cerr << file << ":" << lineno << std::endl;
+        backtrace_symbols_fd(array, size, STDERR_FILENO);
+        std::cerr << std::endl << std::flush;
+    }
 }

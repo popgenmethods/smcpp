@@ -38,7 +38,7 @@ InferenceManager::InferenceManager(
             throw std::runtime_error("Dataset did not validate: an observation has derived allele count greater than n + 1");
         if (obs[i](0, 0) > 1)
             throw std::runtime_error("Dataset did not validate: first observation must have span=1");
-        PROGRESS("creating HMM");
+        DEBUG("creating HMM");
         hmmptr h(new HMM(i, obs[i], &ib));
         hmms[i] = std::move(h);
     }
@@ -163,10 +163,19 @@ void InferenceManager::recompute_emission_probs()
     {
         double hsm = hidden_states[m], hsm1 = hidden_states[m + 1];
         adouble Rhsm1 = exp(-eta.R(hsm1)), Rhsm = exp(-eta.R(hsm));
-        subemissions[0](m, 1) = eta.R_integral(hsm, hsm1);
-        subemissions[0](m, 1) += hsm * Rhsm;
-        subemissions[0](m, 1) -= hsm1 * Rhsm1;
-        subemissions[0](m, 1) /= (Rhsm - Rhsm1);
+        if ((Rhsm - Rhsm1) < 1e-6)
+        {
+            // The probability of coalescence in this interval is incredibly low. 
+            // Just approximate by the midpoint to avoid numerical issues.
+            subemissions[0](m, 1) = eta.one * (hsm + hsm1) / 2.0;
+            
+        } else
+        {
+            subemissions[0](m, 1) = eta.R_integral(hsm, hsm1);
+            subemissions[0](m, 1) += hsm * Rhsm;
+            subemissions[0](m, 1) -= hsm1 * Rhsm1;
+            subemissions[0](m, 1) /= (Rhsm - Rhsm1);
+        }
     }
     subemissions[0].col(1) *= 2. * theta;
     subemissions[0].col(0).fill(eta.one);

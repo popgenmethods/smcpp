@@ -272,8 +272,10 @@ cdef class PyInferenceManager:
                         obj = self._rho
                     else:
                         obj = self._model[cc]
-                    for x in obj.d():
-                        d[x] = d.get(x, 0) + obj.d(x) * jac[k]
+                    if hasattr(obj, 'd'):
+                        # if obj is not an adnumber then fuhgeddabouddit
+                        for x in obj.d():
+                            d[x] = d.get(x, 0) + obj.d(x) * jac[k]
                 r.d().update(d)
             ret.append(r)
         return ret

@@ -5,7 +5,7 @@ below_coeff compute_below_coeffs(int n)
 {
     if (below_coeffs_memo.count(n) == 0)
     {
-        PROGRESS("Computing below_coeffs");
+        DEBUG("Computing below_coeffs");
         below_coeff ret;
         MatrixXq mlast;
         for (int nn = 2; nn < n + 3; ++nn)
@@ -25,7 +25,6 @@ below_coeff compute_below_coeffs(int n)
         }
         ret.coeffs = mlast;
         below_coeffs_memo.emplace(n, ret); 
-        PROGRESS_DONE();
     }
     return below_coeffs_memo[n];
 }
