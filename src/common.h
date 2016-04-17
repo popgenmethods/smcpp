@@ -19,10 +19,8 @@
 // Maximum time (in coalescent units) considered for all integrals and hidden states.
 // Technically this is not necessary -- the method works with T_MAX=infinity -- but
 // the derivatives and integrals seem a bit more accurate when everything is finite.
-//
-
 typedef std::array<int, 3> block_key;
-const double T_MAX = 50.0;
+const double T_MAX = 500.0;
 
 template <typename T> using Matrix = Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic>;
 template <typename T> using Vector = Eigen::Matrix<T, Eigen::Dynamic, 1>;
