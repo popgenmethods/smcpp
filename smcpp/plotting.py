@@ -48,6 +48,7 @@ def plot_psfs(psfs, xlim, ylim, xlabel, logy=False):
             cum += ss
         x = np.concatenate([x, [cum, 2 * cum]])
         y = np.concatenate([y, [a[-1], a[-1]]])
+        y *= 1e-3
         data.append((label, x, y))
         if label is None:
             ax.plot(x, y, linewidth=2, color="black")
