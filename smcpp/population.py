@@ -1,6 +1,5 @@
 from __future__ import absolute_import, division, print_function
 import numpy as np
-import jsonpickle
 import functools
 import multiprocessing
 from logging import getLogger
@@ -35,6 +34,7 @@ class Population(object):
         Nmax = args.Nmax / (2 * args.N0)
         self._bounds = np.array([[Nmin, Nmax]] * K + 
                 [[1.01 * Nmin, 0.99 * Nmax]] * K).reshape([2, K, 2])
+        logger.debug("bounds:\n%s" % np.array_str(self._bounds, precision=3))
 
         ## Parse each data set into an array of observations
         logger.info("Loading data...")
@@ -94,12 +94,19 @@ class Population(object):
             # self._pretrain_penalizer = self._penalizer
             self._pretrain(theta)
     
-        # We remember the initialized model for use in split estimated
-        self._init_model_x = self._model.x.copy()
+        # We remember the initialized model for use in split estimation
+        if args.init_model is not None:
+            er = EstimationResult.load(args.init_model)
+            self._model.x[:] = er.model
+        self._init_model_x = self._model.x.copy() 
+        logger.debug("initial model:\n%s" % np.array_str(self._model.x, precision=3))
 
         ## choose hidden states based on prior model
-        logger.info("Balancing hidden states...")
-        self._balance_hidden_states(args.M)
+        if args.hidden_states:
+            self._hidden_states = args.hidden_states
+        else:
+            logger.info("Balancing hidden states...")
+            self._balance_hidden_states(args.M)
 
         ## break up long spans
         self._dataset, attrs = estimation_tools.break_long_spans(dataset, 

@@ -21,14 +21,13 @@ class PopulationOptimizer(object):
         for m in self._iserv.model:
             if m.K != self._K:
                 raise RuntimeError("models need to have same time periods and change points")
+        logger.debug("Initializing model(s)")
+        logger.debug("Performing initial E step")
+        iserv.E_step()
 
     def run(self, niter, fix_rho):
         iserv = self._iserv
-        logger.debug("Initializing model(s)")
         models = iserv.model
-        iserv.model = models
-        logger.debug("Performing initial E step")
-        iserv.E_step()
         ll = np.sum([x for loglik in iserv.loglik() for x in loglik])
         reg = np.sum(self._iserv.penalize(models))
         llold = ll - reg
@@ -39,26 +38,8 @@ class PopulationOptimizer(object):
             logger.info("\tM-step...")
             if not fix_rho:
                 self._optimize_param("rho")
-            # self._optimize_param("theta")
             logger.debug("starting model:\n%s" % np.array_str(models[0].x.astype(float), precision=2))
-            r0 = self._optimize(models)
-            # logger.debug("ending model:\n%s" % np.array_str(models[0].x.astype(float), precision=2))
-            # mc = [m.copy() for m in models]
-            # logger.info("from x0=%f" % r0)
-            # self._iserv.reset()
-            # r1 = self._optimize(self._iserv.model)
-            # logger.debug("ending model:\n%s" % np.array_str(self._iserv.model[0].x.astype(float), precision=2))
-            # logger.info("from pretrain=%f" % r1)
-            # models = self._iserv.model if r1 < r0 else mc
-            # for j in range(5):
-            #     self._iserv.randomize()
-            #     mc = [m.copy() for m in self._iserv.model]
-            #     logger.debug("starting model:\n%s" % np.array_str(mc[0].x.astype(float), precision=2))
-            #     r = self._optimize(mc)
-            #     rets[j] = (r, mc)
-            #     logger.debug("ending model:\n%s" % np.array_str(mc[0].x.astype(float), precision=2))
-            #     logger.info("random restart %d=%f" % (j, rets[j][0]))
-            # models = min(rets.values())[1]
+            self._optimize(models)
             logger.info("Current model(s):")
             for j, m in enumerate(models, 1):
                 logger.info("Pop %d:\n%s" % (j, np.array_str(np.array(m.x[:2]).astype(float), precision=2)))
@@ -92,9 +73,9 @@ class PopulationOptimizer(object):
             xx.tag = i
         for i, (a, cc) in enumerate(self._coords):
             models[a][cc] = xs[i] * models[a].precond[cc]
+        self._pre_Q(models)
         for m in models:
             logger.debug(m.x[:2].astype('float'))
-        self._pre_Q(models)
         # for m in models:
         #     logger.debug("\n%s" % np.array_str(m.x[:2].astype(float), precision=4))
         self._iserv.model = models
@@ -116,19 +97,9 @@ class PopulationOptimizer(object):
             raise RuntimeError("unrecognized param")
         self._iserv.derivatives = [[d]] * self._npop
         x0 = getattr(self._iserv, param)
-        # f0, fp = self._f_param(x0, param)
-        # for i in range(len(x0)):
-        #      x0c = x0.copy()
-        #      x0c[i] += 1e-8
-        #      f1, _ = self._f_param(x0c, param)
-        #      logger.info((i, f1, f0, (f1 - f0) / 1e-8, fp[i]))
-        def _f(x):
-            return self._f_param([x], param)[0]
-        logger.info("old %s: f(%g)=%g" % (param, x0, _f(x0)))
+        logger.info("old %s: f(%g)=%g" % (param, x0, self._f_param([x0], param)[0]))
         bounds = [(1e-6, 1e-2)]
         x = scipy.optimize.fmin_l_bfgs_b(self._f_param, x0, None, args=(param,), bounds=bounds, disp=False)[0].item()
-        # x = scipy.optimize.fminbound(_f, *(bounds[0]))
-        # logger.info("new %s: f(%g)=%g" % (param, x, _f(x)))
         logger.info("new %s: f(%g)=%g" % (param, x, self._f_param([x], param)[0]))
         setattr(self._iserv, param, x)
 
@@ -144,9 +115,10 @@ class PopulationOptimizer(object):
         #     f1, _ = self._f(x0c, models)
         #     logger.info((i, cc, f1, f0, (f1 - f0) / 1e-8, fp[i]))
         # logger.info(scipy.optimize.check_grad(lambda x: self._f(x, models)[0], lambda x: self._f(x, models)[1], x0))
-        res = scipy.optimize.fmin_l_bfgs_b(self._f, x0, None, args=[models], 
-                bounds=[tuple(self._bounds[cc] / models[i].precond[cc]) for i, cc in self._coords],
-                factr=1e10)
+        bounds = [tuple(self._bounds[cc] / models[i].precond[cc]) for i, cc in self._coords]
+        res = scipy.optimize.fmin_l_bfgs_b(self._f, x0, None, args=[models], bounds=bounds, factr=1e10)
+        if res[2]['warnflag'] != 0:
+            logger.warn(res[2])
         for xx, (i, cc) in zip(res[0], self._coords):
             models[i][cc] = xx * models[i].precond[cc]
         logger.info("new model: f(m)=%g" % res[1])
@@ -178,16 +150,24 @@ class TwoPopulationOptimizer(PopulationOptimizer):
         i = 1
         models = self._iserv.model
         cs = np.concatenate([np.cumsum(models[0][2]), [np.inf]])
+        ll = None
         while True:
             logger.info("Outer iteration %d" % i)
             logger.info("split point %d:%g" % (self._split, cs[self._split]))
-            self._coords = [(0, cc) for cc in models[0].coords]
-            self._coords += [(1, cc) for cc in models[1].coords if cc[1] < self._split]
-            # reset models
             self._iserv.reset()
-            ll = PopulationOptimizer.run(self, niter, fix_rho)
-            aic = 2 * (len(self._coords) - ll)
-            logger.info((len(self._coords), ll, aic))
+            # Optimize the blocks of coords separately to speed things up
+            for j in range(niter):
+                logger.info("Pseudo-iteration %d/%d" % (j + 1, niter))
+                for coords in [
+                        [(0, cc) for cc in models[0].coords if cc[0] < self._split],
+                        [(1, cc) for cc in models[1].coords if cc[1] < self._split] ]:
+                    # reset models
+                    self._coords = coords
+                    ll = PopulationOptimizer.run(self, 1, fix_rho)
+                    self._iserv.E_step()
+            nc = len(models[0].coords)
+            nc += sum([cc[1] < self._split for cc in models[1].coords])
+            aic = 2 * (nc - ll)
             logger.info("AIC old/new: %g/%g" % (self._old_aic, aic))
             if aic < self._old_aic:
                 upper = self._split

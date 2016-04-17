@@ -43,8 +43,9 @@ def regularizer(model, penalty, f):
     reg = 0
     cs = np.concatenate([[0], np.cumsum(model[2])])
     for i in range(1, model.K):
-        x = model[1, i - 1] - model[0, i]
-        reg += regularizer._regs[f](x) * ad.admath.exp(-cs[i - 1])
+        # x = model[1, i - 1] - model[0, i]
+        x = ad.admath.log(model[1, i - 1]) - ad.admath.log(model[0, i])
+        reg += regularizer._regs[f](x)
         # if model[0, i - 1] != model[1, i - 1]:
         #     a, b = model[:2, i - 1]
         #     reg += abs(a - b) 
