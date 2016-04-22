@@ -11,6 +11,7 @@ import itertools
 from collections import Counter
 import sys
 import argparse
+import os, os.path
 
 import matplotlib
 matplotlib.use('Agg')
@@ -34,10 +35,17 @@ parser.add_argument("--thinning-factor", type=int, default=1)
 parser.add_argument("--ascertain", type=float, metavar="x", default=0.0, help="delete all SNPs with MAF < x")
 parser.add_argument("L", type=int)
 parser.add_argument("seed", type=int, default=None)
-parser.add_argument("outpdf", type=str, help="Name of output pdf")
+# parser.add_argument("outpdf", type=str, help="Name of output pdf")
+parser.add_argument("outdir", type=str, help="output directory")
 parser.add_argument("demography", type=str)
 parser.add_argument("n", type=int, nargs="+")
 args = parser.parse_args()
+
+# Make output directory
+try:
+    os.mkdir(args.outdir)
+except OSError:
+    pass
 
 theta = args.theta
 rho = args.rho
@@ -62,7 +70,7 @@ demography = scrm.demography_from_params((a, b, s * 0.5))
 print(" ".join(map(str, demography)))
 if args.seed is not None:
     np.random.seed(args.seed)
-data0 = scrm.simulate(args.panel_size, args.N0, args.theta, args.rho, args.L, demography, include_trees=True)
+data0 = scrm.simulate(args.panel_size, args.N0, args.theta, args.rho, args.L, True, demography)
 
 # Create missingness in data
 if args.missing is not None:
@@ -74,6 +82,9 @@ if args.missing is not None:
 
 # Draw from panel
 data = smcpp.util.dataset_from_panel(data0, n_max, (0, 1), True)
+
+# Dump trees
+open(os.path.join(args.outdir, "trees.txt"), "wt").write("\n".join("[%d]%s" % c for c in data[3]))
 
 # True coalescence times
 ct = [(c1, 2. * smcpp._newick.tmrca(c2, "1", "2")) for c1, c2 in data[3]]
@@ -106,6 +117,8 @@ ims = {}
 oo = {}
 bks = {}
 maps = {}
+gammadict = {}
+datadict = {}
 for n in args.n:
     # subset data. some sites might be non-segregating in the subsample.
     seg = [i for i, pos in enumerate(data[1]) if 
@@ -113,16 +126,21 @@ for n in args.n:
             and not all(h[i] == 1 for h in data[2][:n])]
     segdata = np.array([[ba[i] for i in seg] for ba in data[2][:n]])
     dsub = (data[0], data[1][seg], segdata)
-    obs = smcpp.util.hmm_data_format(dsub, n, (0, 1))
+    obs = smcpp.util.hmm_data_format(dsub, n, (0, 1)).astype('int32')
     # oo[n] = np.array([c1[1:] for c1 in obs for _ in range(c1[0])])
     oo[n] = [smcpp.estimation_tools.thin_dataset([obs], 1)]
     oo[n], _ = smcpp.estimation_tools.break_long_spans(oo[n][0], np.inf, 0)
     hidden_states = smcpp._smcpp.balance_hidden_states((a,b,s), args.M + 1)
-    im = smcpp._smcpp.PyInferenceManager(n - 2, oo[n], hidden_states, 2.0 * args.N0 * args.theta, 2.0 * args.N0 * args.estimated_rho / n)
+    im = smcpp._smcpp.PyInferenceManager(n - 2, oo[n], hidden_states)
+    im.theta = 2.0 * args.N0 * args.theta
+    im.rho = 2.0 * args.estimated_rho * args.N0
     im.save_gamma = True
-    im.set_params((a, b, s), False)
+    im.model = smcpp._smcpp.make_model([a, b, s])
     im.E_step()
     ims[n] = im
+    # dump gamma file for each n
+    gammadict[str(n)] = im.gammas[0]
+    datadict[str(n)] = oo[n][0]
     gamma = np.zeros([args.M, args.L])
     sp = 0
     for row, col in zip(oo[n][0], im.gammas[0].T):
@@ -133,6 +151,10 @@ for n in args.n:
     full_gammas[n] = gamma
     gm[n] = scipy.ndimage.zoom(gamma, (1.0, 1. * width / args.L))
     maps[n] = np.argmax(gamma, axis=0)
+
+np.savetxt(os.path.join(args.outdir, "hidden_states.txt"), hidden_states)
+np.savez_compressed(os.path.join(args.outdir, "posteriors.npz"), **gammadict)
+np.savez_compressed(os.path.join(args.outdir, "data.npz"), **datadict)
 
 import matplotlib.pyplot as plt
 
@@ -163,5 +185,5 @@ for n in sorted(gm):
     ax.set_xticklabels(label_text)
     corr = np.corrcoef(coal_times, maps[n])[0, 1]
     txt = ax.text(width + 35, 5, "%.4f" % corr, rotation=-90, va='bottom', ha='right')
-smcpp.plotting.save_pdf(fig, args.outpdf)
+smcpp.plotting.save_pdf(fig, os.path.join(args.outdir, "plot.pdf"))
 plt.close(fig)
