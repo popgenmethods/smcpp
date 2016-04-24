@@ -15,15 +15,6 @@ cpps = [f for f in glob.glob("src/*.cpp") if
         not os.path.basename(f).startswith("_") 
         and not os.path.basename(f).startswith("test") ]
 
-## This depends on boost and is only used for testing purposes
-# Extension(
-#     "smcpp._newick",
-#     # sources=["src/_pypsmcpp.pyx", "src/conditioned_sfs.cpp", "src/hmm.cpp"],
-#     sources=["src/_newick.pyx"],
-#     language="c++",
-#     extra_compile_args=["-O2", "-std=c++11", "-Wfatal-errors", "-Wno-unused-variable", "-Wno-unused-function"],
-#     ),
-
 def lazy_extensions():
     # Lazy evaluation allows us to use setup_requires without have to import at
     # top level
@@ -44,6 +35,16 @@ def lazy_extensions():
                 libraries=['gmp', 'gmpxx', 'gsl', 'gslcblas'],
                 extra_link_args=['-fopenmp'],
                 )]
+    if True:
+        extensions.append(## This depends on boost and is only used for testing purposes
+                Extension(
+                    "smcpp._newick",
+                    # sources=["src/_pypsmcpp.pyx", "src/conditioned_sfs.cpp", "src/hmm.cpp"],
+                    sources=["src/_newick.pyx"],
+                    language="c++",
+                    extra_compile_args=["-O2", "-std=c++11", "-Wfatal-errors", "-Wno-unused-variable", "-Wno-unused-function"]
+                    )
+                )
     return cythonize(extensions)
 
 ## Create a dummy distro in order to get setup_requires without
