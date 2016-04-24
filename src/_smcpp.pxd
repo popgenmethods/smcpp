@@ -44,6 +44,7 @@ cdef extern from "inference_manager.h":
         double R(const ParameterVector, double t)
         bool debug
         bool saveGamma
+        bool folded
         int spanCutoff
         vector[double] hidden_states
         adouble getRegularizer()

@@ -36,7 +36,7 @@ class InferenceManager
     // Unfortunately these are necessary to work around a bug in Cython
     double R(const ParameterVector params, double t);
     adouble getRegularizer();
-    bool debug, saveGamma;
+    bool debug, saveGamma, folded;
     std::vector<double> hidden_states;
     std::vector<double> randomCoalTimes(const ParameterVector params, double fac, const int size);
     std::map<block_key, Vector<adouble> > emission_probs;

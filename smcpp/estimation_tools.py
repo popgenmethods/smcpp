@@ -73,11 +73,13 @@ def thin_dataset(dataset, thinning):
     p.terminate()
     return ret
     
-def pretrain(model, sample_csfs, bounds, theta0, penalizer):
+def pretrain(model, sample_csfs, bounds, theta0, penalizer, folded):
     '''Pre-train model by fitting to observed SFS. Changes model in place!'''
     logger.debug("pretraining")
     n = sample_csfs.shape[1] + 1
-    sample_sfs = util.undistinguished_sfs(sample_csfs)
+    def undist(sfs):
+        return util.undistinguished_sfs(sfs, folded)
+    sample_sfs = undist(sample_csfs)
     fp = model.flat_pieces
     K = model.K
     coords = [(u, v) for v in range(K) for u in ([0] if v in fp else [0, 1])]
@@ -91,7 +93,7 @@ def pretrain(model, sample_csfs, bounds, theta0, penalizer):
         sfs *= theta0
         sfs[0, 0] = 1. - sfs.sum()
         logger.debug("done")
-        usfs = util.undistinguished_sfs(sfs)
+        usfs = undist(sfs)
         kl = -(sample_sfs * ad.admath.log(usfs)).sum()
         reg = penalizer(model)
         kl += reg

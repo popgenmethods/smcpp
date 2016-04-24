@@ -54,6 +54,8 @@ def init_parser(parser):
             help="population-scaled mutation rate. default: theta.")
     pop_params.add_argument("--fix-rho", default=False, action="store_true", 
             help="do not estimate recombination rate from data")
+    pop_params.add_argument("--folded", action="store_true", default=False,
+            help="use folded SFS for emission probabilites. useful if polarization is not known.")
     hmm.add_argument('--length-cutoff', help="omit sequences < cutoff", default=0, type=int)
     parser.add_argument("-p", "--second-population", nargs="+", widget="MultiFileChooser", 
             help="Estimate divergence time using data set(s) from a second subpopulation")
@@ -61,20 +63,30 @@ def init_parser(parser):
     parser.add_argument('-v', '--verbose', action='store_true', help="generate tremendous amounts of output")
     parser.add_argument('data', nargs="+", help="data file(s) in SMC++ format", widget="MultiFileChooser")
 
+def validate_args(args):
+    # perform some sanity checking on the args
+    if args.theta is not None:
+        pgm = args.theta / (2. * args.N0)
+        if not (1e-12 <= pgm <= 1e-2):
+            logger.warn("The per-generation mutation rate is calculated to be %g. Is this correct?" % pgm)
+
 def main(args):
     'Main control loop for EM algorithm'
-    ## Create output directory and dump all values for use later
-    try:
-        os.makedirs(args.outdir)
-    except OSError:
-        pass # directory exists
-
     ## Initialize the logger
     init_logging(args.outdir, args.verbose, os.path.join(args.outdir, ".debug.txt"))
     ## Save all the command line args and stuff
     logger.debug(sys.argv)
     logger.debug(args)
     
+    ## Create output directory and dump all values for use later
+    try:
+        os.makedirs(args.outdir)
+    except OSError:
+        pass # directory exists
+
+    ## Perform some validation on the arguments
+    validate_args(args)
+
     ## Begin main script
     ## Step 1: load data and clean up a bit
     datasets_files = [args.data]

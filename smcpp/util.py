@@ -41,7 +41,7 @@ human = {
         'N0': 10000.
         }
 
-def undistinguished_sfs(sfs):
+def undistinguished_sfs(sfs, folded):
     n = sfs.shape[1] - 1
     new_shape = [n + 2] + list(sfs.shape[2:])
     usfs = np.zeros(new_shape, dtype=sfs.dtype)
@@ -49,6 +49,12 @@ def undistinguished_sfs(sfs):
         for j in range(n + 1):
             if 0 <= i + j < n + 2:
                 usfs[i + j] = usfs[i + j] + sfs[i, j]
+    if folded:
+        ret = [usfs[0]]
+        for i in range(1, -(-(n + 2) // 2)):
+            inds = list({i, n + 2 - i})
+            ret.append(usfs[inds].sum(axis=0))
+        usfs = np.array(ret, dtype=sfs.dtype)
     return usfs
 
 def grouper(iterable, n, fillvalue=None):

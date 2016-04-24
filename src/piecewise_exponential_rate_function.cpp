@@ -296,8 +296,8 @@ T PiecewiseExponentialRateFunction<T>::R_integral(const double a, const double b
             check_negative(r);
             check_nan(r);
         }
-        if (r > 100.)
-            throw std::domain_error("what");
+        // if (r > 100.)
+        //     throw std::domain_error("what");
         check_negative(r);
         check_nan(r);
         ret += r;
@@ -395,6 +395,7 @@ inline T _double_integral_above_helper_ei(const int rate, const int lam, const T
 template <typename T>
 void PiecewiseExponentialRateFunction<T>::tjj_double_integral_above(const int n, long jj, std::vector<Matrix<T> > &C) const
 {
+    T tmp;
     long lam = nC2(jj) - 1;
     // Now calculate with hidden state integration limits
     for (unsigned int h = 0; h < hs_indices.size() - 1; ++h)
@@ -407,11 +408,19 @@ void PiecewiseExponentialRateFunction<T>::tjj_double_integral_above(const int n,
             {
                 long rate = nC2(j);
                 if (adb[m] == 0)
-                    C[h](jj - 2, j - 2) += _double_integral_above_helper<T>(rate, lam, ts[m], ts[m + 1], ada[m], Rrng[m], -log_denom);
+                    tmp = _double_integral_above_helper<T>(rate, lam, ts[m], ts[m + 1], ada[m], Rrng[m], -log_denom);
                 else
-                    C[h](jj - 2, j - 2) += _double_integral_above_helper_ei<T>(rate, lam, ts[m], ts[m + 1], ada[m], adb[m], Rrng[m], -log_denom);
-                check_nan(C[h](jj - 2, j - 2));
-                check_negative(C[h](jj - 2, j - 2));
+                    tmp = _double_integral_above_helper_ei<T>(rate, lam, ts[m], ts[m + 1], ada[m], adb[m], Rrng[m], -log_denom);
+                try 
+                {
+                    check_nan(C[h](jj - 2, j - 2));
+                    check_negative(C[h](jj - 2, j - 2));
+                } catch (std::runtime_error)
+                {
+                    CRITICAL(m << " " << rate << " " << lam << " " << ts[m] << " " << ts[m + 1] << " " << ada[m] << " " << adb[m] << " " << Rrng[m] << " " << log_denom);
+                    throw;
+                }
+                C[h](jj - 2, j - 2) += tmp;
                 T log_coef = -log_denom, fac;
                 long rp = lam + 1 - rate;
                 if (rp == 0)

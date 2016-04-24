@@ -75,8 +75,9 @@ class Population(object):
         
         # Prepare empirical SFS for later use. This is cheap to compute
         esfs = util.compute_esfs(dataset, n)
-        self._sfs = np.mean(esfs, axis=0) 
+        self._sfs = np.sum(esfs, axis=0) / np.sum(esfs)
         logger.info("Empirical SFS:\n%s" % np.array_str(self._sfs, precision=4))
+        logger.info("Reduced SFS:\n%s" % np.array_str(util.undistinguished_sfs(self._sfs, args.folded), precision=4))
 
         if args.regularization_penalty is None:
             args.regularization_penalty = 3e-9 * self._L
@@ -92,7 +93,7 @@ class Population(object):
                     penalty=args.regularization_penalty * 1e-1,
                     f=args.regularizer)
             # self._pretrain_penalizer = self._penalizer
-            self._pretrain(theta)
+            self._pretrain(theta, args.folded)
     
         # We remember the initialized model for use in split estimation
         if args.init_model is not None:
@@ -124,6 +125,7 @@ class Population(object):
         self._im.model = self._model
         self._im.theta = theta
         self._im.rho = rho
+        self._im.folded = args.folded
 
     def _balance_hidden_states(self, M):
         hs = _smcpp.balance_hidden_states(self._model, M)
@@ -138,8 +140,8 @@ class Population(object):
     def penalize(self, model):
         return self._penalizer(model)
 
-    def _pretrain(self, theta):
-        estimation_tools.pretrain(self._model, self._sfs, self._bounds, theta, self._pretrain_penalizer)
+    def _pretrain(self, theta, folded):
+        estimation_tools.pretrain(self._model, self._sfs, self._bounds, theta, self._pretrain_penalizer, folded)
 
     def randomize(self):
         for i in range(2):

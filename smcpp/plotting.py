@@ -31,7 +31,7 @@ def plot_psfs(psfs, xlim, ylim, xlabel, logy=False):
     data = []
     npsf = sum(label != "None" for label, _ in psfs)
     colors = list(matplotlib.cm.Dark2(np.linspace(0, 1, npsf)))
-    for label, d in psfs:
+    for i, (label, d) in enumerate(psfs):
         N0 = d['N0']
         a = N0 * d['a']
         b = N0 * d['b']
@@ -48,8 +48,10 @@ def plot_psfs(psfs, xlim, ylim, xlabel, logy=False):
             cum += ss
         x = np.concatenate([x, [cum, 2 * cum]])
         y = np.concatenate([y, [a[-1], a[-1]]])
-        y *= 1e-3
+        # if not logy:
+        #     y *= 1e-3
         data.append((label, x, y))
+        x *= 1. + i / 50.
         if label is None:
             ax.plot(x, y, linewidth=2, color="black")
         else:
@@ -60,16 +62,17 @@ def plot_psfs(psfs, xlim, ylim, xlabel, logy=False):
     if labels:
         first_legend = ax.legend(handles=labels, loc=9, ncol=4, prop={'size':8})
     ax.set_xscale('log')
+    ax.set_ylabel(r'$N_e$')
     if logy:
         ax.set_yscale('log')
     ax.set_xlabel(xlabel)
-    ax.set_ylabel(r'$N_e \times 10^3$')
     if not xlim:
         xlim = (0.9 * xmin, 1.1 * xmax)
     if not ylim:
         ylim=(0.0, 1.1 * ymax)
     ax.set_xlim(*xlim)
     ax.set_ylim(*ylim)
+    fig.tight_layout()
     return fig, data
 
 def make_psfs(d):

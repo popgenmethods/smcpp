@@ -20,7 +20,7 @@ abort = False
 cdef void logger_cb(const char* name, const char* level, const char* message) with gil:
     global abort
     try:
-        lvl = {"INFO": logging.INFO, "DEBUG": logging.DEBUG - 1, "WARNING": logging.WARNING}
+        lvl = {"INFO": logging.INFO, "DEBUG": logging.DEBUG - 1, "CRITICAL": logging.CRITICAL, "WARNING": logging.WARNING}
         logging.getLogger(name).log(lvl[level.upper()], message)
     except KeyboardInterrupt:
         logging.getLogger(name).critical("Aborting")
@@ -113,6 +113,13 @@ cdef class PyInferenceManager:
 
     def __dealloc__(self):
         del self._im
+
+    property folded:
+        def __get__(self):
+            return self._im.folded
+
+        def __set__(self, bint f):
+            self._im.folded = f
 
     property observations:
         def __get__(self):

@@ -221,5 +221,6 @@ struct Logger
 #define DEBUG(x) (Logger(__FILE__, "DEBUG") << x).flush()
 #define INFO(x) (Logger(__FILE__, "INFO") << x).flush()
 #define WARN(x) (Logger(__FILE__, "WARN") << x).flush()
+#define CRITICAL(x) (Logger(__FILE__, "CRITICAL") << x).flush()
 
 #endif

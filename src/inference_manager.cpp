@@ -4,7 +4,7 @@ InferenceManager::InferenceManager(
             const int n, const std::vector<int> obs_lengths,
             const std::vector<int*> observations,
             const std::vector<double> hidden_states) :
-    debug(false), saveGamma(false),
+    debug(false), saveGamma(false), folded(false),
     hidden_states(hidden_states),
     n(n), 
     obs(map_obs(observations, obs_lengths)),
@@ -186,23 +186,31 @@ void InferenceManager::recompute_emission_probs()
     for (auto it = bpm_keys.begin(); it < bpm_keys.end(); ++it)
     {
         int a = (*it)[0], b = (*it)[1], nb = (*it)[2];
+        std::set<std::array<int, 2> > ab {{a, b}};
+        if (folded and nb > 0)
+            ab.insert({a == -1 ? -1 : 2 - a, nb - b});
         Vector<adouble> tmp(M);
+        tmp.fill(eta.zero);
         Matrix<adouble> emission_nb = subemissions.at(nb);
-        if (nb > 0)
+        for (std::array<int, 2> tup : ab)
         {
-            if (a == -1)
-                tmp = (emission_nb.col(b) + 
-                        emission_nb.col((nb + 1) + b) + 
-                        emission_nb.col(2 * (nb + 1) + b));
+            a = tup[0]; b = tup[1];
+            if (nb > 0)
+            {
+                if (a == -1)
+                    tmp += (emission_nb.col(b) + 
+                            emission_nb.col((nb + 1) + b) + 
+                            emission_nb.col(2 * (nb + 1) + b));
+                else
+                    tmp += emission_nb.col(a * (nb + 1) + b);
+            }
             else
-                tmp = emission_nb.col(a * (nb + 1) + b);
-        }
-        else
-        {
-            if (a == -1)
-                tmp.fill(eta.one);
-            else
-                tmp = emission_nb.col(a);
+            {
+                if (a == -1)
+                    tmp.fill(eta.one);
+                else
+                    tmp += emission_nb.col(a); // nb = 0 => b = 0 => a = a(nb + 1) + b
+            }
         }
         if (tmp.maxCoeff() > 1.0 or tmp.minCoeff() <= 0.0)
         {
