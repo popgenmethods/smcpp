@@ -78,6 +78,7 @@ setup(name='smcpp',
             "scipy>=0.16",
             "numpy>=1.9",
             "matplotlib>=1.5",
+            "pysam>=0.9",
             "future"],
         extras_require = {'gui': ["Gooey>=0.9"]},
         entry_points = {

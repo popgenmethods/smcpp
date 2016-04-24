@@ -30,10 +30,8 @@ class Population(object):
         K = len(time_points)
 
         ## Construct bounds
-        Nmin = args.Nmin / (2 * args.N0)
-        Nmax = args.Nmax / (2 * args.N0)
-        self._bounds = np.array([[Nmin, Nmax]] * K + 
-                [[1.01 * Nmin, 0.99 * Nmax]] * K).reshape([2, K, 2])
+        self._bounds = np.array([[args.Nmin, args.Nmax]] * K + 
+                [[1.01 * args.Nmin, 0.99 * args.Nmax]] * K).reshape([2, K, 2])
         logger.debug("bounds:\n%s" % np.array_str(self._bounds, precision=3))
 
         ## Parse each data set into an array of observations
