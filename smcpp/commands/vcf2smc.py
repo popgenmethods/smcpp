@@ -96,8 +96,8 @@ def main(args):
             if None in rec.samples[dist].alleles:
                 a = -1
             else:
-                a = sum(allele == ref for allele in rec.samples[dist].alleles)
-            bs = [allele == ref for u in undist for allele in rec.samples[u].alleles if allele is not None]
+                a = sum(allele != ref for allele in rec.samples[dist].alleles)
+            bs = [allele != ref for u in undist for allele in rec.samples[u].alleles if allele is not None]
             b = sum(bs)
             nb = len(bs)
             return [a, b, nb]
