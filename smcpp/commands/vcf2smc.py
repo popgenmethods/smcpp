@@ -52,7 +52,7 @@ def init_parser(parser):
             help="ignore samples which are missing in the data")
     parser.add_argument("-i", "--distinguished_index", type=int, default=0, 
             help="index of distinguished lineage in sample ids (default: 0)")
-    parser.add_argument("--missing-cutoff", metavar="c", type=int, default=10000,
+    parser.add_argument("--missing-cutoff", metavar="c", type=int, default=np.inf,
             help="treat runs of homozygosity longer than <c> base pairs as missing")
     parser.add_argument("-s", "--start", type=int, help="starting base pair for conversion")
     parser.add_argument("-e", "--end", type=int, help="ending base pair for conversion")

@@ -72,18 +72,18 @@ def validate_args(args):
 
 def main(args):
     'Main control loop for EM algorithm'
+    ## Create output directory
+    try:
+        os.makedirs(args.outdir)
+    except OSError:
+        pass # directory exists
+
     ## Initialize the logger
     init_logging(args.outdir, args.verbose, os.path.join(args.outdir, ".debug.txt"))
     ## Save all the command line args and stuff
     logger.debug(sys.argv)
     logger.debug(args)
     
-    ## Create output directory and dump all values for use later
-    try:
-        os.makedirs(args.outdir)
-    except OSError:
-        pass # directory exists
-
     ## Perform some validation on the arguments
     validate_args(args)
 
