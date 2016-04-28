@@ -17,7 +17,7 @@ class SMCModel(object):
         self._add_derivatives()
         self._coords = [(a, b) for b in range(self.K) for a in ([0, 1] if b in self._exponential_pieces else [0])]
         pc = 1. / self.s
-        pc[-1] = 1. / (_smcpp.T_MAX - np.sum(self.s))
+        pc[-1] = 1. / min(10, _smcpp.T_MAX - np.sum(self.s))
         self._precond = {c: float(pc[c[1]]) for c in self._coords}
 
     @property

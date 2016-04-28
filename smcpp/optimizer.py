@@ -116,7 +116,7 @@ class PopulationOptimizer(object):
         #     logger.info((i, cc, f1, f0, (f1 - f0) / 1e-8, fp[i]))
         # logger.info(scipy.optimize.check_grad(lambda x: self._f(x, models)[0], lambda x: self._f(x, models)[1], x0))
         bounds = [tuple(self._bounds[cc] / models[i].precond[cc]) for i, cc in self._coords]
-        res = scipy.optimize.fmin_l_bfgs_b(self._f, x0, None, args=[models], bounds=bounds, factr=1e10)
+        res = scipy.optimize.fmin_l_bfgs_b(self._f, x0, None, args=[models], bounds=bounds, factr=1e9)
         if res[2]['warnflag'] != 0:
             logger.warn(res[2])
         for xx, (i, cc) in zip(res[0], self._coords):
