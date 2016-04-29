@@ -159,6 +159,8 @@ np.savez_compressed(os.path.join(args.outdir, "data.npz"), **datadict)
 import matplotlib.pyplot as plt
 
 fig, axes = plt.subplots(nrows=len(args.n), sharex=True, sharey=True, figsize=(25, 15))
+if len(args.n) == 1:
+    axes = [axes]
 # for i, ll in enumerate(((0, 1), (1, 2))[:2]):
 coal_times = np.searchsorted(hidden_states, list(smcpp.util.unpack(ct))) - 1
 zct = scipy.ndimage.zoom(list(smcpp.util.unpack(ct)), 1. * width / args.L)
