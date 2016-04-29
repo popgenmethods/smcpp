@@ -54,7 +54,7 @@ PiecewiseExponentialRateFunction<T>::PiecewiseExponentialRateFunction(
     ts(K + 1), Rrng(K), 
     _reg(zero),
     hidden_states(hidden_states),
-    tmax(std::accumulate(params[2].begin(), params[2].end() - 1, 0.0))
+    tmax(std::accumulate(params[2].begin(), params[2].end(), 0.0))
 {
     for (auto &pp : params)
         if (pp.size() != params[0].size())
@@ -65,6 +65,12 @@ PiecewiseExponentialRateFunction<T>::PiecewiseExponentialRateFunction(
     // These constant values need to have compatible derivative shape
     // with the calculated values.
     initialize_derivatives();
+    // Fix last piece to be constant
+    ada.push_back(adb.back());
+    adb.push_back(adb.back());
+    ads.push_back(one);
+    ts.push_back(T_MAX);
+    ++K;
     for (int k = 0; k < K; ++k)
     {
         ada[k] = 1. / ada[k];
@@ -72,8 +78,6 @@ PiecewiseExponentialRateFunction<T>::PiecewiseExponentialRateFunction(
         ts[k + 1] = ts[k] + ads[k];
         adb[k] = (log(adb[k]) - log(ada[k])) / (ts[k + 1] - ts[k]);
     }
-    // ts[K] = INFINITY;
-    adb[K - 1] = zero;
     ts[K] = T_MAX;
 
     std::vector<T> new_ada, new_adb, new_ts;
