@@ -1,4 +1,6 @@
 from __future__ import absolute_import, division, print_function
+from contextlib import contextmanager
+import gzip
 import numpy as np
 import functools
 import multiprocessing
@@ -231,3 +233,38 @@ def exp_quantiles(M):
     hs = -np.log(1. - np.linspace(0, _smcpp.T_MAX, M, False) / _smcpp.T_MAX)
     hs[0] = 0.
     return hs
+
+
+@contextmanager
+def optional_gzip(f, mode):
+    with gzip.GzipFile(f, mode) if f.endswith(".gz") else open(f, mode) as o:
+        yield o
+
+class RepeatingWriter:
+    def __init__(self, f):
+        self.f = f
+        self.last_ob = None
+        self.i = 0
+
+    def write(self, ob):
+        if self.last_ob is None:
+            self.last_ob = ob
+            return
+        if ob[1:] == self.last_ob[1:]:
+            self.last_ob[0] += ob[0]
+        else:
+            self._write_last_ob()
+            self.last_ob = ob
+
+    def _write_last_ob(self):
+        if self.last_ob is not None:
+            self.f.write("%d %d %d %d\n" % tuple(self.last_ob))
+            self.i += 1
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, type, value, traceback):
+        logger.info("Wrote %d observations" % self.i)
+        self._write_last_ob()
+

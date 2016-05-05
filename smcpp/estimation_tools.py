@@ -45,18 +45,17 @@ def regularizer(model, penalty, f):
     for i in range(1, model.K):
         # x = model[1, i - 1] - model[0, i]
         x = ad.admath.log(model[1, i - 1]) - ad.admath.log(model[0, i])
-        reg += regularizer._regs[f](x)
+        reg += regularizer._regs[f](model[1, i - 1], model[0, i])
         # if model[0, i - 1] != model[1, i - 1]:
         #     a, b = model[:2, i - 1]
         #     reg += abs(a - b) 
     return penalty * reg
 
-def _diffabs(x):
-    K = 1.
-    return 2. / K * ad.admath.log1p(ad.admath.exp(K * x)) - x - 2. / K * ad.admath.log(2)
 regularizer._regs = {
-        'abs': _diffabs,
-        'quadratic': lambda x: x**2
+        'abs': lambda x, y: abs(x - y),
+        'quadratic': lambda x, y: (x - y)**2,
+        'logabs': lambda x, y: abs(ad.admath.log(x / y)),
+        'logquadratic': lambda x, y: (ad.admath.log(x / y))**2
         }
 
 ## TODO: move this to util
@@ -112,17 +111,17 @@ def pretrain(model, sample_csfs, bounds, theta0, penalizer, folded):
     logger.info("pre-trained model:\n%s" % np.array_str(model.x, precision=2))
     return _smcpp.raw_sfs(model, n, 0., _smcpp.T_MAX, False)
 
-def break_long_spans(dataset, span_cutoff, length_cutoff):
+def break_long_spans(dataset, rho, length_cutoff):
+    # Spans longer than this are effectively independent
+    span_cutoff = 5. / rho
     obs_list = []
     obs_attributes = {}
     for fn, obs in enumerate(dataset):
-        long_spans = np.where(obs[:, 0] >= span_cutoff)[0]
+        long_spans = np.where((obs[:, 0] >= span_cutoff) & (obs[:, 1] == -1) & (obs[:, 3] == 0))[0]
         cob = 0
-        logger.debug("Long spans: \n%s" % str(obs[long_spans]))
+        logger.debug("Long missing spans: \n%s" % str(obs[long_spans]))
         positions = np.insert(np.cumsum(obs[:, 0]), 0, 0)
         for x in long_spans:
-            if not np.all(obs[x, 1:] == [-1, 0, 0]):
-                logger.warn("Data set contains a very long span of non-missing observations.")
             s = obs[cob:x, 0].sum()
             if s > length_cutoff:
                 obs_list.append(np.insert(obs[cob:x], 0, [1, -1, 0, 0], 0))

@@ -1,50 +1,14 @@
-from contextlib import contextmanager
 import argparse
 import warnings
-import gzip
 import itertools as it
 from logging import getLogger
 import numpy as np
 import sys
-from pysam import VariantFile
+from pysam import VariantFile, TabixFile
 logger = getLogger(__name__)
 
 from ..logging import init_logging
-
-
-@contextmanager
-def optional_gzip(f, mode):
-    with gzip.GzipFile(f, mode) if f.endswith(".gz") else open(f, mode) as o:
-        yield o
-
-
-class RepeatingWriter:
-    def __init__(self, f):
-        self.f = f
-        self.last_ob = None
-        self.i = 0
-
-    def write(self, ob):
-        if self.last_ob is None:
-            self.last_ob = ob
-            self.last_ob[0] = 0
-        if ob[1:] == self.last_ob[1:]:
-            self.last_ob[0] += ob[0]
-        else:
-            self._write_last_ob()
-            self.last_ob = ob
-
-    def _write_last_ob(self):
-        if self.last_ob is not None:
-            self.f.write("%d %d %d %d\n" % tuple(self.last_ob))
-            self.i += 1
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, type, value, traceback):
-        print(("Wrote %d observations" % self.i))
-        self._write_last_ob()
+from ..util import optional_gzip, RepeatingWriter
 
 
 def init_parser(parser):
@@ -52,18 +16,21 @@ def init_parser(parser):
             help="ignore samples which are missing in the data")
     parser.add_argument("-i", "--distinguished_index", type=int, default=0, 
             help="index of distinguished lineage in sample ids (default: 0)")
-    parser.add_argument("--missing-cutoff", metavar="c", type=int, default=np.inf,
+    parser.add_argument("--missing-cutoff", "-c", metavar="c", type=int, default=None,
             help="treat runs of homozygosity longer than <c> base pairs as missing")
-    parser.add_argument("-s", "--start", type=int, help="starting base pair for conversion")
-    parser.add_argument("-e", "--end", type=int, help="ending base pair for conversion")
+    parser.add_argument("--mask", "-m", help="BED-formatted mask of missing regions", widget="FileChooser")
     parser.add_argument("vcf", metavar="vcf[.gz]", help="input VCF file", widget="FileChooser")
     parser.add_argument("out", metavar="out[.gz]", help="output SMC++ file", widget="FileChooser")
-    parser.add_argument("chrom", help="chromosome to parse")
-    parser.add_argument("sample_ids", nargs="+", help="Columns to pull from the VCF, or file(s) containing the same.")
+    parser.add_argument("region", help="SAM-style region to parse")
+    parser.add_argument("sample_ids", nargs="+", help="Column(s) to pull from the VCF, or file containing the same.")
 
+def validate(args):
+    if args.missing_cutoff and args.mask:
+        raise RuntimeError("--missing-cutoff and --mask are mutually exclusive")
 
 def main(args):
     init_logging(".", False)
+    validate(args)
     if len(args.sample_ids) == 1:
         try:
             with open(args.sample_ids[0], "rt") as f:
@@ -102,16 +69,55 @@ def main(args):
             nb = len(bs)
             return [a, b, nb]
 
-        region_iterator = vcf.fetch(args.chrom, args.start, args.end)
+        region_iterator = vcf.fetch(region=args.region)
+        if args.mask:
+            mask_iterator = TabixFile(args.mask).fetch(region=args.region)
+            args.missing_cutoff = np.inf
+        else:
+            mask_iterator = iter([])
+        mask_iterator = (x.split("\t") for x in mask_iterator)
+        mask_iterator = ((x[0], int(x[1]), int(x[2])) for x in mask_iterator)
         snps_only = (rec for rec in region_iterator if len(rec.alleles) == 2 and set(rec.alleles) <= set("ACTG"))
+
+        def interleaved():
+            cmask = next(mask_iterator, None)
+            csnp = next(snps_only, None)
+            while cmask or csnp:
+                if cmask is None:
+                    yield "snp", csnp
+                    csnp = next(snps_only, None)
+                elif csnp is None:
+                    yield "mask", cmask
+                    cmask = next(mask_iterator, None)
+                else:
+                    if csnp.pos < cmask[1]:
+                        yield "snp", csnp
+                        csnp = next(snps_only, None)
+                    elif csnp.pos <= cmask[2]:
+                        while csnp is not None and csnp.pos <= cmask[2]:
+                            csnp = next(snps_only, None)
+                        yield "mask", cmask
+                        cmask = next(mask_iterator, None)
+                    else:
+                        yield "mask", cmask
+                        cmask = next(mask_iterator, None)
+
         with RepeatingWriter(out) as rw:
-            try: 
-                rec = next(snps_only)
-            except StopIteration:
-                raise RuntimeError("No records found in VCF for given region")
-            last_pos = rec.pos
-            rw.write([1] + rec2gt(rec))
-            for rec in snps_only:
+            records = interleaved()
+            ty, rec = next(records)
+            if ty == "snp":
+                last_pos = rec.pos
+                rw.write([1] + rec2gt(rec))
+            else:
+                last_pos = rec[2]
+                rw.write([rec[2] - rec[1] + 1, -1, 0, 0])
+            for ty, rec in records:
+                if ty == "mask":
+                    span = rec[1] - last_pos
+                    rw.write([span, 0, 0, nb])
+                    rw.write([rec[2] - rec[1] + 1, -1, 0, 0])
+                    last_pos = rec[2]
+                    continue
                 abnb = rec2gt(rec)
                 span = rec.pos - last_pos - 1
                 if 1 <= span <= args.missing_cutoff:

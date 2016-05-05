@@ -79,6 +79,7 @@ class Population(object):
 
         if args.regularization_penalty is None:
             args.regularization_penalty = 3e-9 * self._L
+        logger.info("regularizer: %s" % args.regularizer)
         logger.info("regularization penalty: %g" % args.regularization_penalty)
 
         # pretrain if requested
@@ -108,8 +109,7 @@ class Population(object):
             self._balance_hidden_states(args.M)
 
         ## break up long spans
-        self._dataset, attrs = estimation_tools.break_long_spans(dataset, 
-                args.span_cutoff, args.length_cutoff)
+        self._dataset, attrs = estimation_tools.break_long_spans(dataset, rho, args.length_cutoff)
 
         logger.debug("Average heterozygosity (derived / total bases) by data set:")
         for fn, key in zip(dataset_files, attrs):
