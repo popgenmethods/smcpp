@@ -29,15 +29,15 @@ def plot_psfs(psfs, xlim, ylim, xlabel, logy=False):
     xmin = np.inf
     labels = []
     data = []
-    npsf = sum(label != "None" for label, _ in psfs)
+    npsf = sum(label != "None" for label, _, _ in psfs)
     colors = list(matplotlib.cm.Dark2(np.linspace(0, 1, npsf)))
-    for i, (label, d) in enumerate(psfs):
+    for i, (label, d, off) in enumerate(psfs):
         N0 = d['N0']
         a = N0 * d['a']
         b = N0 * d['b']
         s = 2. * N0 * d['s']
         slope = np.log(a/b) / s
-        cum = 0.
+        cum = off
         x = []
         y = []
         for aa, bb, ss in zip(b[:-1], slope[:-1], s[:-1]):
