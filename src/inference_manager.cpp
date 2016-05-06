@@ -38,7 +38,7 @@ InferenceManager::InferenceManager(
             throw std::runtime_error("Dataset did not validate: an observation has derived allele count greater than n + 1");
         if (obs[i](0, 0) > 1)
             throw std::runtime_error("Dataset did not validate: first observation must have span=1");
-        DEBUG("creating HMM");
+        DEBUG << "creating HMM";
         hmmptr h(new HMM(i, obs[i], &ib));
         hmms[i] = std::move(h);
     }
@@ -138,9 +138,9 @@ void InferenceManager::recompute_emission_probs()
         em_tmp = new_sfss[m];
         emission.row(m) = Matrix<adouble>::Map(em_tmp.data(), 1, 3 * (n + 1));
     }
-    DEBUG("recompute B");
+    DEBUG << "recompute B";
     std::map<int, Matrix<adouble> > subemissions;
-    DEBUG("subemissions");
+    DEBUG << "subemissions";
 #pragma omp parallel for
     for (auto it = nbs.begin(); it < nbs.end(); ++it)
     {
@@ -156,7 +156,7 @@ void InferenceManager::recompute_emission_probs()
     // subemissions[0] is computed more easily / accurately by direct method
     // than by marginalizing. (in particular, the derivatives)
     // std::cerr << "old sub[0]\n" << subemissions[0].template cast<double>() << std::endl;
-    DEBUG("done subemissions");
+    DEBUG << "done subemissions";
     subemissions[0] = Matrix<adouble>::Zero(M, 2);
     PiecewiseExponentialRateFunction<adouble> eta = getEta();
     for (int m = 0; m < M; ++m)
@@ -181,7 +181,7 @@ void InferenceManager::recompute_emission_probs()
     subemissions[0].col(0).fill(eta.one);
     subemissions[0].col(0) -= subemissions[0].col(1);
     // std::cerr << "new sub[0]\n" << subemissions[0].template cast<double>() << std::endl;
-    DEBUG("emission keys");
+    DEBUG << "emission keys";
 #pragma omp parallel for
     for (auto it = bpm_keys.begin(); it < bpm_keys.end(); ++it)
     {
@@ -222,7 +222,7 @@ void InferenceManager::recompute_emission_probs()
         check_nan(tmp);
         emission_probs.at(*it) = tmp;
     }
-    DEBUG("recompute done");
+    DEBUG << "recompute done";
 }
 
 std::vector<double> InferenceManager::randomCoalTimes(const ParameterVector params, double fac, const int size)
@@ -308,7 +308,7 @@ template std::vector<adouble> InferenceManager::parallel_select(std::function<ad
 
 void InferenceManager::Estep(bool fbonly)
 {
-    DEBUG("E step");
+    DEBUG << "E step";
     do_dirty_work();
     parallel_do([fbonly] (hmmptr &hmm) { hmm->Estep(fbonly); });
 }
@@ -347,7 +347,7 @@ void InferenceManager::do_dirty_work()
 
 std::vector<adouble> InferenceManager::Q(void)
 {
-    DEBUG("InferenceManager::Q");
+    DEBUG << "InferenceManager::Q";
     do_dirty_work();
     return parallel_select<adouble>([] (hmmptr &hmm) { return hmm->Q(); });
 }

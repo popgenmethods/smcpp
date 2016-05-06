@@ -5,7 +5,7 @@ below_coeff compute_below_coeffs(int n)
 {
     if (below_coeffs_memo.count(n) == 0)
     {
-        DEBUG("Computing below_coeffs");
+        DEBUG << "Computing below_coeffs";
         below_coeff ret;
         MatrixXq mlast;
         for (int nn = 2; nn < n + 3; ++nn)
@@ -108,20 +108,20 @@ ConditionedSFS<T>::ConditionedSFS(int n, int H) :
 template <typename T>
 void ConditionedSFS<T>::compute_below(const PiecewiseExponentialRateFunction<T> &eta)
 {
-    DEBUG("compute below");
+    DEBUG << "compute below";
     tjj_below.setZero();
 #pragma omp parallel for
     for (int h = 0; h < H; ++h)
         eta.tjj_double_integral_below(n, h, tjj_below);
-    DEBUG("tjj_double_integral below finished");
+    DEBUG << "tjj_double_integral below finished";
     // for (int h = 1; h < H + 1; ++h)
     //     tjj_below.row(h - 1) = ts_integrals.block(eta.hs_indices[h - 1], 0, 
     //             eta.hs_indices[h] - eta.hs_indices[h - 1], n + 1).colwise().sum();
-    DEBUG("matrix products below (M0)");
+    DEBUG << "matrix products below (M0)";
     M0_below = tjj_below * mcache.M0.template cast<T>();
-    DEBUG("matrix products below (M1)");
+    DEBUG << "matrix products below (M1)";
     M1_below = tjj_below * mcache.M1.template cast<T>();
-    DEBUG("filling csfs_below");
+    DEBUG << "filling csfs_below";
     for (int h = 0; h < H; ++h) 
     {
         csfs_below[h].fill(eta.zero);
@@ -129,7 +129,7 @@ void ConditionedSFS<T>::compute_below(const PiecewiseExponentialRateFunction<T> 
         csfs_below[h].block(1, 0, 1, n + 1) = M1_below.row(h);
         check_nan(csfs_below[h]);
     }
-    DEBUG("compute below finished");
+    DEBUG << "compute below finished";
 }
 
 template <typename T>
@@ -156,7 +156,7 @@ inline T doubly_compensated_summation(const std::vector<T> &x)
 template <typename T>
 void ConditionedSFS<T>::compute_above(const PiecewiseExponentialRateFunction<T> &eta)
 {
-    DEBUG("compute above");
+    DEBUG << "compute above";
 #pragma omp parallel for
     for (int j = 2; j < n + 3; ++j)
         eta.tjj_double_integral_above(n, j, C_above);
@@ -195,7 +195,7 @@ void ConditionedSFS<T>::compute_above(const PiecewiseExponentialRateFunction<T> 
 template <typename T>
 std::vector<Matrix<T> >& ConditionedSFS<T>::compute(const PiecewiseExponentialRateFunction<T> &eta)
 {
-    DEBUG("compute called");
+    DEBUG << "compute called";
     compute_above(eta);
     compute_below(eta);
     for (int i = 0; i < H; ++i)
@@ -212,7 +212,7 @@ std::vector<Matrix<T> >& ConditionedSFS<T>::compute(const PiecewiseExponentialRa
         // check_nan(d);
         // csfs[i] /= d;
     }
-    DEBUG("compute finished");
+    DEBUG << "compute finished";
     return csfs;
 }
     

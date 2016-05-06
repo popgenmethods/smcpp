@@ -421,7 +421,7 @@ void PiecewiseExponentialRateFunction<T>::tjj_double_integral_above(const int n,
                     check_negative(C[h](jj - 2, j - 2));
                 } catch (std::runtime_error)
                 {
-                    CRITICAL(m << " " << rate << " " << lam << " " << ts[m] << " " << ts[m + 1] << " " << ada[m] << " " << adb[m] << " " << Rrng[m] << " " << log_denom);
+                    CRITICAL << m << " " << rate << " " << lam << " " << ts[m] << " " << ts[m + 1] << " " << ada[m] << " " << adb[m] << " " << Rrng[m] << " " << log_denom;
                     throw;
                 }
                 C[h](jj - 2, j - 2) += tmp;

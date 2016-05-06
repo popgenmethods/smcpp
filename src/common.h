@@ -149,44 +149,6 @@ inline T dmax(const T a, const T b) { if (a > b) return a; return b; }
 
 void crash_backtrace(const char*, const int);
 
-#define check_nan(X) { try { _check_nan(X); } catch (std::runtime_error e) { crash_backtrace(__FILE__, __LINE__); throw; } }
-
-inline void _check_nan(const double x) { if (std::isnan(x) or std::isinf(x)) throw std::runtime_error("nan/inf detected"); }
-
-template <typename T>
-void _check_nan(const Eigen::AutoDiffScalar<T> &x);
-
-template <typename Derived>
-void _check_nan(const Eigen::DenseBase<Derived> &M)
-{
-    for (int i = 0; i < M.rows(); ++i)
-        for (int j = 0; j < M.cols(); ++j)
-        {
-            try 
-            {
-                _check_nan(M.coeff(i, j));
-            }
-            catch (std::runtime_error)
-            {
-                std::cout << i << " " << j << " " << M.coeff(i, j) << std::endl;
-                throw;
-            }
-        }
-}
-
-template <typename T>
-void _check_nan(const Eigen::AutoDiffScalar<T> &x)
-{
-    _check_nan(x.value());
-    _check_nan(x.derivatives());
-}
-
-template <typename T>
-void _check_nan(const Vector<T> &x) 
-{ 
-    for (int i = 0; i < x.rows(); ++i) 
-        _check_nan(x(i));
-}
 
 #define check_negative(X) { try { _check_negative(X); } catch (std::runtime_error e) { std::cout << __FILE__ << ":" << __LINE__ << std::endl; throw; } }
 
@@ -202,25 +164,75 @@ void call_logger(const char*, const char*, const char*);
 struct Logger
 {
     static void(*logger_cb)(const char*, const char*, const char*);
-    Logger(const char* name, const char* level) : name(name), level(level) {}
+    Logger(const char* name, int line, const char* level) : name(name), line(line), level(level) {}
     const char* name;
+    const int line;
     const char* level;
     std::stringstream stream;
     template <typename T>
     Logger &operator<<(const T &data)
     {
-        stream << data;
+        (stream) << data;
         return *this;
     }
-    void flush()
+    ~Logger()
     {
-        call_logger(name, level, stream.str().c_str());
+        std::ostringstream oss;
+        oss << name << ":" << line;
+        call_logger(oss.str().c_str(), level, stream.str().c_str());
     }
 };
 
-#define DEBUG(x) (Logger(__FILE__, "DEBUG") << x).flush()
-#define INFO(x) (Logger(__FILE__, "INFO") << x).flush()
-#define WARN(x) (Logger(__FILE__, "WARN") << x).flush()
-#define CRITICAL(x) (Logger(__FILE__, "CRITICAL") << x).flush()
+#define DEBUG Logger(__FILE__, __LINE__, "DEBUG")
+#define DEBUG1 Logger(__FILE__, __LINE__, "DEBUG1")
+#define INFO Logger(__FILE__, __LINE__, "INFO")
+#define WARN Logger(__FILE__, __LINE__, "WARN")
+#define CRITICAL Logger(__FILE__, __LINE__, "CRITICAL")
+
+inline void check_nan(const double x) { if (std::isnan(x) or std::isinf(x)) throw std::runtime_error("nan/inf detected"); }
+
+template <typename T>
+void check_nan(const Eigen::AutoDiffScalar<T> &x);
+
+template <typename Derived>
+void check_nan(const Eigen::DenseBase<Derived> &M)
+{
+    for (int i = 0; i < M.rows(); ++i)
+        for (int j = 0; j < M.cols(); ++j)
+        {
+            try 
+            {
+                check_nan(M.coeff(i, j));
+            }
+            catch (std::runtime_error)
+            {
+                CRITICAL << i << " " << j << " " << M.coeff(i, j);
+                throw;
+            }
+        }
+}
+
+template <typename T>
+void _check_nan(const Vector<T> &x) 
+{ 
+    for (int i = 0; i < x.rows(); ++i) 
+    {
+        try
+        {
+            _check_nan(x(i));
+        }
+        catch (std::runtime_error)
+        {
+            CRITICAL << i << " " << x(i);
+        }
+    }
+}
+
+template <typename T>
+void check_nan(const Eigen::AutoDiffScalar<T> &x)
+{
+    check_nan(x.value());
+    check_nan(x.derivatives());
+}
 
 #endif

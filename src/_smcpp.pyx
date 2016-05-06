@@ -20,7 +20,8 @@ abort = False
 cdef void logger_cb(const char* name, const char* level, const char* message) with gil:
     global abort
     try:
-        lvl = {"INFO": logging.INFO, "DEBUG": logging.DEBUG - 1, "CRITICAL": logging.CRITICAL, "WARNING": logging.WARNING}
+        lvl = {"INFO": logging.INFO, "DEBUG": logging.DEBUG - 1, "DEBUG1": logging.DEBUG,
+               "CRITICAL": logging.CRITICAL, "WARNING": logging.WARNING}
         logging.getLogger(name).log(lvl[level.upper()], message)
     except KeyboardInterrupt:
         logging.getLogger(name).critical("Aborting")

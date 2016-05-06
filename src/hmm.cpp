@@ -36,7 +36,7 @@ void HMM::Estep(bool fbOnly)
     alpha_hat.col(0) /= c(0);
     block_key key;
     Eigen::DiagonalMatrix<double, Eigen::Dynamic, Eigen::Dynamic> B;
-    DEBUG("forward algorithm (HMM #" << hmm_num << ")");
+    DEBUG << "forward algorithm (HMM #" << hmm_num << ")";
     for (int ell = 1; ell < L; ++ell)
     {
         key = ob_key(ell);
@@ -51,11 +51,12 @@ void HMM::Estep(bool fbOnly)
             alpha_hat.col(ell) = (es.P_r * (es.d_r.array().pow(span).matrix().asDiagonal() * 
                         (es.Pinv_r * alpha_hat.col(ell - 1))));
         }
-        else
         {
             Matrix<double> M = (B * T.transpose()).pow(span);
             alpha_hat.col(ell) = M * alpha_hat.col(ell - 1);
         }
+        // alpha_hat might have some small negative entries
+        alpha_hat.col(ell) = alpha_hat.col(ell).unaryExpr([] (const double &x) { return std::max(x, 1e-20); });
         c(ell) = alpha_hat.col(ell).sum();
         alpha_hat.col(ell) /= c(ell);
     }
@@ -63,7 +64,7 @@ void HMM::Estep(bool fbOnly)
     xisum.setZero();
     Matrix<double> Q(M, M), Qt(M, M), xis(M, M);
     Eigen::Array<double, Eigen::Dynamic, Eigen::Dynamic> atmp(M, *(ib->spanCutoff)), btmp(M, *(ib->spanCutoff));
-    DEBUG("backward algorithm (HMM #" << hmm_num << ")");
+    DEBUG << "backward algorithm (HMM #" << hmm_num << ")";
     for (int ell = L - 1; ell > 0; --ell)
     {
         v.setZero();
@@ -129,7 +130,7 @@ void HMM::Estep(bool fbOnly)
 
 adouble HMM::Q(void)
 {
-    DEBUG("HMM::Q");
+    DEBUG << "HMM::Q";
     adouble q1, q2, q3;
     q1 = 0.0;
     Vector<adouble> pi = *(ib->pi);
@@ -152,14 +153,14 @@ adouble HMM::Q(void)
     for (int m1 = 0; m1 < M; ++m1)
         for (int m2 = 0; m2 < M; ++m2)
             if (T(m1,m2) <= 0)
-                DEBUG("nonpositive transition matrix (" << m1 << "," << m2 << ")");
+                WARNING << "nonpositive transition matrix (" << m1 << "," << m2 << ")";
             else
                 q3 += log(T(m1, m2)) * xisum(m1, m2);
     check_nan(q1);
     check_nan(q2);
     check_nan(q3);
-    DEBUG("\nq1:" << q1.value() << " [" << q1.derivatives().transpose() << "]\nq2:" 
+    DEBUG << "\nq1:" << q1.value() << " [" << q1.derivatives().transpose() << "]\nq2:" 
             << q2.value() << " [" << q2.derivatives().transpose() << "]\nq3:" << q3.value()
-            << " [" << q3.derivatives().transpose() << "]\n");
+            << " [" << q3.derivatives().transpose() << "]\n";
     return q1 + q2 + q3;
 }
