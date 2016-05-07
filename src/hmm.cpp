@@ -37,8 +37,14 @@ void HMM::Estep(bool fbOnly)
     block_key key;
     Eigen::DiagonalMatrix<double, Eigen::Dynamic, Eigen::Dynamic> B;
     DEBUG << "forward algorithm (HMM #" << hmm_num << ")";
+    int prog = (int)((double)L * 0.1);
     for (int ell = 1; ell < L; ++ell)
     {
+        if (ell == prog)
+        {
+            DEBUG << "hmm " << hmm_num << ": " << (int)(100. * (double)ell / (double)L) << "%";
+            prog += (int)((double)L * 0.1);
+        }
         key = ob_key(ell);
         gamma_sums.emplace(key, z);
         B = ib->emission_probs->at(key).template cast<double>().asDiagonal();
