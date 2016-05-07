@@ -51,6 +51,7 @@ void HMM::Estep(bool fbOnly)
             alpha_hat.col(ell) = (es.P_r * (es.d_r.array().pow(span).matrix().asDiagonal() * 
                         (es.Pinv_r * alpha_hat.col(ell - 1))));
         }
+        else
         {
             Matrix<double> M = (B * T.transpose()).pow(span);
             alpha_hat.col(ell) = M * alpha_hat.col(ell - 1);
