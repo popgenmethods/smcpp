@@ -11,6 +11,7 @@ def init_parser(parser):
     parser.add_argument("--logy", action="store_true", help="ploy y on log axis")
     parser.add_argument("-t", "--offsets", type=float, nargs="+", 
             help="list of offsets, one for each <model>, to shift x axes. Useful for plotting aDNA")
+    parser.add_argument("--median", action="store_true", help="plot median and iqr")
     parser.add_argument("-x", "--xlim", type=float, nargs=2, default=None, help="x-axis limits")
     parser.add_argument("-y", "--ylim", type=float, nargs=2, default=None, help="y-axis limits")
     parser.add_argument("-l", "--labels", type=str, help="label for each plotted function", nargs="+")
@@ -40,6 +41,11 @@ def main(args):
         if args.g is not None:
             d['s'] *= args.g
         psfs.append((label, d, off or 0))
+    if args.median:
+        dmed = {'s': psfs[-1][1]['s'], 'N0': psfs[-1][1]['N0']}
+        for x in "ab":
+            dmed[x] = np.median([p[1][x] for p in psfs], axis=0)
+        psfs.append((None, dmed, 0))
     fig, data = plotting.plot_psfs(psfs, xlim=args.xlim, ylim=args.ylim,
                                    xlabel="Generations" if args.g is None else "Years", 
                                    logy=args.logy) 
