@@ -42,8 +42,9 @@ def regularizer(model, penalty, f):
     ## Regularizer
     reg = 0
     cs = np.concatenate([[0], np.cumsum(model[2])])
-    for i in range(1, model.K):
-        reg += regularizer._regs[f](model[1, i - 1], model[0, i])
+    for i in range(2, model.K):
+	# FIXME: for exponential this probably needs to be changed
+        reg += regularizer._regs[f](model[0, i - 2] - model[0, i - 1], model[0, i - 1] - model[0, i])
     return penalty * reg
 
 regularizer._regs = {
