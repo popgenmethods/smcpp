@@ -69,7 +69,7 @@ class Population(object):
             logger.info("Thinning...")
             dataset = estimation_tools.thin_dataset(dataset, args.thinning)
         elif n > 2:
-            logger.warn("Not thinning yet n=%d. This probably isn't what you desire. See the --thinning option." % (n//2,))
+            logger.warn("Not thinning yet n=%d. This probably isn't what you desire, see --thinning" % (n//2,))
         
         # Prepare empirical SFS for later use. This is cheap to compute
         esfs = util.compute_esfs(dataset, n)
@@ -82,15 +82,16 @@ class Population(object):
         logger.info("regularizer: %s" % args.regularizer)
         logger.info("regularization penalty: %g" % args.regularization_penalty)
 
-        # pretrain if requested
         self._penalizer = functools.partial(estimation_tools.regularizer, 
                 penalty=args.regularization_penalty, f=args.regularizer)
 
         if not args.no_pretrain:
             logger.info("Pretraining")
+            # pretrain if requested
+            if args.pretrain_penalty is None:
+                args.pretrain_penalty = args.regularization_penalty * 1e-3
             self._pretrain_penalizer = functools.partial(estimation_tools.regularizer, 
-                    penalty=args.regularization_penalty * 1e-3,
-                    f=args.regularizer)
+                    penalty=args.pretrain_penalty, f=args.regularizer)
             # self._pretrain_penalizer = self._penalizer
             self._pretrain(theta, args.folded)
     
@@ -98,6 +99,8 @@ class Population(object):
         if args.init_model is not None:
             er = EstimationResult.load(args.init_model)
             self._model.x[:] = er.model
+            rho = er.rho
+            theta = er.theta
         self._init_model_x = self._model.x.copy() 
         logger.debug("initial model:\n%s" % np.array_str(self._model.x, precision=3))
 
@@ -130,7 +133,7 @@ class Population(object):
         cs = np.cumsum(self._model.s)
         cs = cs[cs <= hs[1]]
         self._hidden_states = np.sort(np.unique(np.concatenate([cs, hs])))
-        logger.info("hidden states:\n%s" % str(self._hidden_states))
+        logger.info("%d hidden states:\n%s" % (len(self._hidden_states), str(self._hidden_states)))
 
     def reset(self):
         self.model.x[:] = self._init_model_x[:]
