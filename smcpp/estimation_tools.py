@@ -43,12 +43,7 @@ def regularizer(model, penalty, f):
     reg = 0
     cs = np.concatenate([[0], np.cumsum(model[2])])
     for i in range(1, model.K):
-        # x = model[1, i - 1] - model[0, i]
-        x = ad.admath.log(model[1, i - 1]) - ad.admath.log(model[0, i])
         reg += regularizer._regs[f](model[1, i - 1], model[0, i])
-        # if model[0, i - 1] != model[1, i - 1]:
-        #     a, b = model[:2, i - 1]
-        #     reg += abs(a - b) 
     return penalty * reg
 
 regularizer._regs = {
@@ -105,15 +100,17 @@ def pretrain(model, sample_csfs, bounds, theta0, penalizer, folded):
             x0,
             None,
             bounds=[tuple(bounds[cc]) for cc in coords],
-            xtol=.01, disp=False)
+            xtol=0.01,
+            disp=False)
     for cc, xx in zip(coords, res[0]):
         model[cc] = xx 
     logger.info("pre-trained model:\n%s" % np.array_str(model.x, precision=2))
     return _smcpp.raw_sfs(model, n, 0., _smcpp.T_MAX, False)
 
 def break_long_spans(dataset, rho, length_cutoff):
-    # Spans longer than this are effectively independent
-    span_cutoff = 5. / rho
+    # Spans longer than this are broken up
+    # FIXME: should depend on rho
+    span_cutoff = 100000
     obs_list = []
     obs_attributes = {}
     for fn, obs in enumerate(dataset):
