@@ -1,3 +1,6 @@
+#include <execinfo.h>
+#include <signal.h>
+
 #include "common.h"
 
 void store_matrix(const Matrix<double> &M, double* out)
@@ -36,12 +39,18 @@ void call_logger(const char* name, const char* level, const char* message)
     }
 }
 
+void signal_bt(int sig)
+{
+    crash_backtrace("", -1);
+}
+
 void init_logger_cb(void(*fp)(const char*, const char*, const char*))
 {
     Logger::logger_cb = fp;
+    signal(SIGSEGV, signal_bt);
+    signal(SIGABRT, signal_bt);
 }
 
-#include <execinfo.h>
 void crash_backtrace(const char* file, const int lineno)
 {
     void *array[10];

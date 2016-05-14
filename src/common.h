@@ -149,7 +149,6 @@ inline T dmax(const T a, const T b) { if (a > b) return a; return b; }
 
 void crash_backtrace(const char*, const int);
 
-
 #define check_negative(X) { try { _check_negative(X); } catch (std::runtime_error e) { std::cout << __FILE__ << ":" << __LINE__ << std::endl; throw; } }
 
 template <typename T>
@@ -186,7 +185,7 @@ struct Logger
 #define DEBUG Logger(__FILE__, __LINE__, "DEBUG")
 #define DEBUG1 Logger(__FILE__, __LINE__, "DEBUG1")
 #define INFO Logger(__FILE__, __LINE__, "INFO")
-#define WARN Logger(__FILE__, __LINE__, "WARN")
+#define WARNING Logger(__FILE__, __LINE__, "WARNING")
 #define CRITICAL Logger(__FILE__, __LINE__, "CRITICAL")
 
 inline void check_nan(const double x) { if (std::isnan(x) or std::isinf(x)) throw std::runtime_error("nan/inf detected"); }
