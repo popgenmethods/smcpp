@@ -74,14 +74,14 @@ class PopulationOptimizer(object):
         for i, (a, cc) in enumerate(self._coords):
             models[a][cc] = xs[i] * models[a].precond[cc]
         self._pre_Q(models)
-        for m in models:
-            logger.debug(m.x[:2].astype('float'))
         # for m in models:
         #     logger.debug("\n%s" % np.array_str(m.x[:2].astype(float), precision=4))
         self._iserv.model = models
         q = self._iserv.Q()
         reg = np.mean(self._iserv.penalize(models))
         ll = -np.mean([sum(qq) for qq in q])
+        logger.debug(np.array_str(models[0][0].astype(float), precision=1))
+        logger.debug((float(ll), float(reg), float(ll + reg)))
         ll += reg
         ret = [ll.x, np.array(list(map(ll.d, xs)))]
         # logger.debug(ret[0])
@@ -113,8 +113,8 @@ class PopulationOptimizer(object):
         #     x0c = x0.copy()
         #     x0c[i] += 1e-8
         #     f1, _ = self._f(x0c, models)
-        #     logger.info((i, cc, f1, f0, (f1 - f0) / 1e-8, fp[i]))
-        # logger.info(scipy.optimize.check_grad(lambda x: self._f(x, models)[0], lambda x: self._f(x, models)[1], x0))
+        #     logger.info((i, f1, f0, (f1 - f0) / 1e-8, fp[i]))
+        # # logger.info(scipy.optimize.check_grad(lambda x: self._f(x, models)[0], lambda x: self._f(x, models)[1], x0))
         bounds = [tuple(self._bounds[cc] / models[i].precond[cc]) for i, cc in self._coords]
         res = scipy.optimize.fmin_l_bfgs_b(self._f, x0, None, args=[models], bounds=bounds, factr=1e10)
         if res[2]['warnflag'] != 0:
