@@ -42,18 +42,16 @@ def regularizer(model, penalty, f):
     ## Regularizer
     reg = 0
     cs = np.concatenate([[0], np.cumsum(model[2])])
-    if f[:3] == "log":
-        g = ad.admath.log
-        f = f[3:]
-    else:
-        g = lambda x: x
     for i in range(2, model.K):
 	# FIXME: for exponential this probably needs to be changed
-        reg += regularizer._regs[f](g(model[0, i - 2]) - g(model[0, i - 1]), g(model[0, i - 1]) - g(model[0, i]))
+        reg += regularizer._regs[f](model[0, i - 2] - model[0, i - 1], model[0, i - 1] - model[0, i])
     return penalty * reg
+
 regularizer._regs = {
         'abs': lambda x, y: abs(x - y),
         'quadratic': lambda x, y: (x - y)**2,
+        'logabs': lambda x, y: abs(ad.admath.log(x / y)),
+        'logquadratic': lambda x, y: (ad.admath.log(x / y))**2
         }
 
 ## TODO: move this to util
