@@ -41,14 +41,8 @@ def construct_time_points(t1, tK, pieces):
 def regularizer(model, penalty, f):
     ## Regularizer
     reg = 0
-    cs = np.concatenate([[0], np.cumsum(model[2])])
     for i in range(1, model.K):
-        # x = model[1, i - 1] - model[0, i]
-        x = ad.admath.log(model[1, i - 1]) - ad.admath.log(model[0, i])
-        reg += regularizer._regs[f](model[1, i - 1], model[0, i])
-        # if model[0, i - 1] != model[1, i - 1]:
-        #     a, b = model[:2, i - 1]
-        #     reg += abs(a - b) 
+        reg += regularizer._regs[f](model[0, i - 1], model[0, i])
     return penalty * reg
 
 regularizer._regs = {
