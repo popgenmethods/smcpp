@@ -1,19 +1,11 @@
 import numpy as np
 np.set_printoptions(linewidth=120)
 import sys
+import ad
 
-import _pypsmcpp
-from fixtures import *
-
-NTHREAD = 1
-
-theta = 2.5e-8
-N0 = 10000.0
+import smcpp._smcpp, smcpp.model
 
 def test_human():
-    # a = np.ones(10) * 1.0
-    # b = 2 * a
-    # s = np.array([0.1] * K)
     n = 30
     hs = np.array([  0.00000000e+00,   1.57510516e-03,   3.17596524e-03,   4.80342731e-03,   6.45838076e-03,   8.14176017e-03,
         9.85454842e-03,   1.15977801e-02,   1.33725451e-02,   1.51799927e-02,   1.70213360e-02,   1.88978566e-02,
@@ -43,36 +35,26 @@ def test_human():
           5.06695350e-02,   5.80190280e-02,   6.64345470e-02,   7.60707166e-02,   8.71045892e-02,   9.97388982e-02,
           1.14205783e-01,   1.30771054e-01,   1.49739078e-01,   1.71458367e-01,   1.96327987e-01,   2.24804884e-01,
           2.57412286e-01,   2.94749313e-01,   3.37501985e-01,   3.86455827e-01,   4.42510306e-01,   5.06695350e-01]])
-    theta = 0.000125
-    d_to_test = (0, 1)
-    coords = [(aa,bb) for aa in d_to_test for bb in range(len(a))]
-    im = _pypsmcpp.PyInferenceManager(n - 2, [np.array([[1, 0, 0, n - 2], [1, 1, 1, n - 2]], dtype=np.int32)],
-            hs, theta, theta)
-    im.setParams((a,b,s), coords)
-    aoeu
+    a = np.array([ad.adnumber(x) for x in a])
+    m = smcpp.model.SMCModel(s, [0])
+    m.x[0] = m.x[1] = a
     for i in range(1, len(hs)):
         t0 = hs[i - 1]
         t1 = hs[i]
-        sfs, jac = _pypsmcpp.sfs(n, (a, b, s), t0, t1, theta, coords)
-        jac.shape = (3, n - 1, len(d_to_test), K)
+        sfs = smcpp._smcpp.raw_sfs(m, n, t0, t1, jacobian=True)
         eps = 1e-8
-        I = np.eye(K)
-        for ind in d_to_test:
-            for k in range(K):
-                args = [a, b, s]
-                args[ind] = args[ind] + eps * I[k]
-                # print(args)
-                la, lb, ls = args
-                sfs2 = _pypsmcpp.sfs(n, (la, lb, ls), t0, t1, theta, jacobian=False)
-                for i in (0, 1, 2):
-                    for j in range(n - 1):
-                        jaca = jac[i, j, ind, k]
-                        j1 = sfs2[i, j]
-                        j2 = sfs[i, j] + eps * jaca
-                        jacb = (sfs2[i,j] - sfs[i,j]) / eps
-                        if abs(jaca - jacb) / jacb > 1e-2:
-                            print(ind, k, i, j, sfs[i,j], sfs2[i,j], jaca, jacb)
-                        # assert abs(j1 - j2) < eps
+        for k in range(m.K):
+            ac = a.copy()
+            ac[k] += eps 
+            m.x[0] = m.x[1] = ac
+            sfs2 = smcpp._smcpp.raw_sfs(m, n, t0, t1, jacobian=False)
+            for j in range(n - 1):
+                jaca = sfs[0, j].d(a[k])
+                j1 = sfs2[0, j]
+                j2 = sfs[0, j] + eps * jaca
+                jacb = (sfs2[0,j] - sfs[0,j]) / eps
+                print(k, j, sfs[0,j], sfs2[0,j], jaca, jacb)
+                # assert abs(j1 - j2) < eps
     assert False
 
 def test_d():
@@ -90,7 +72,6 @@ def test_d():
     sfs, jac = _pypsmcpp.sfs(n, (a, b, s), t0, t1, 4 * N0 * theta, coords)
     jac.shape = (3, n - 1, 2, K)
     eps = 1e-8
-    I = np.eye(K)
     for ind in (0, 1):
         for k in range(K):
             args = [a, b, s]
