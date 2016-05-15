@@ -41,7 +41,9 @@ def init_parser(parser):
     hmm.add_argument('--em-iterations', type=int, help="number of EM steps to perform", default=20)
     hmm.add_argument('--regularization-penalty', type=float, help="regularization penalty", default=None)
     hmm.add_argument('--pretrain-penalty', type=float, help="regularization penalty for pretraining", default=None)
-    hmm.add_argument('--regularizer', choices=["abs", "quadratic", "logabs", "logquadratic"], default="quadratic", help="type of regularization to apply")
+    hmm.add_argument('--regularizer', 
+            choices=[x + y for x in ["", "log"] for y in ["abs", "quadratic", "curvature"]],
+            default="quadratic", help="type of regularization to apply")
     hmm.add_argument('--lbfgs-factor', type=float, help="stopping criterion for optimizer", default=1e9)
     hmm.add_argument('--Nmin', type=float, help="Lower bound on effective population size (in units of N0)", default=.01)
     hmm.add_argument('--Nmax', type=float, help="Upper bound on effective population size (in units of N0)", default=100)

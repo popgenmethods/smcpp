@@ -5,7 +5,7 @@ from logging import getLogger
 logger = getLogger(__name__)
 import scipy.optimize
 import multiprocessing
-import ad.admath
+import ad.admath, ad.linalg
 
 from . import _smcpp, util
 
@@ -38,13 +38,79 @@ def construct_time_points(t1, tK, pieces):
 ##
 ## Regularization
 ##
+# This is taken directly from the Wikipedia page
+def _TDMASolve(a, b, c, d):
+    # a, b, c == diag(-1, 0, 1)
+    n = len(d) # n is the numbers of rows, a and c has length n-1
+    for i in xrange(n-1):
+        d[i+1] -= 1. * d[i] * a[i] / b[i]
+        b[i+1] -= 1. * c[i] * a[i] / b[i]
+    for i in reversed(xrange(n-1)):
+        d[i] -= d[i+1] * c[i] / b[i+1]
+    return [d[i] / b[i] for i in xrange(n)]
+
 def regularizer(model, penalty, f):
     ## Regularizer
     reg = 0
-    for i in range(1, model.K):
-        reg += regularizer._regs[f](model[0, i - 1], model[0, i])
-    return penalty * reg
-
+    cs = np.concatenate([[0], np.cumsum(model[2])])
+    if f[:3] == "log":
+        g = ad.admath.log
+        f = f[3:]
+    else:
+        g = lambda x: x
+    if f in ("quadratic", "abs"):
+        for i in range(1, model.K):
+            reg += regularizer._regs[f](g(model[0, i - 1]), (model[0, i]))
+        return penalty * reg
+    ## Spline fit / curvature penalty
+    assert f == "curvature"
+    log_s = np.log(np.cumsum(model[2]).astype("float"))
+    mps = 0.5 * (log_s[1:] + log_s[:-1])
+    mps = np.concatenate([mps, [log_s[-1]]])
+    x = mps
+    y = np.array([g(_) for _ in model[0]], dtype=object)
+    h = x[1:] - x[:-1]
+    j = y[1:] - y[:-1]
+    # Subdiagonal
+    a = h[:-1] / 3.
+    a = np.append(a, h[-1])
+    # Diagonal
+    b = (h[1:] + h[:-1]) / 3.
+    b = 2. * np.concatenate([[h[0]], b, [h[-1]]])
+    # Superdiagonal
+    c = h[1:] / 3.
+    c = np.concatenate([[h[0]], c])
+    # RHS
+    jh = j / h
+    d = np.concatenate([[3 * jh[0]], jh[1:] - jh[:-1], [-3. * jh[-1]]])
+    # Solve tridiagonal system
+    cb = np.array(_TDMASolve(a, b, c, d))
+    ca = (cb[1:] - cb[:-1]) / h / 3.
+    ca = np.append(ca, 0.0)
+    cc = jh - h * (2. * cb[:-1] + cb[1:]) / 3.
+    cc = np.append(cc, 3. * ca[-2] * h[1]**2 + 2 * cb[-2] * h[-1] + cc[-1])
+    coef = [x for abcd in zip(ca, cb, cc, model[0]) for x in abcd]
+    ## Curvature 
+    # (d'')^2 = (6au + 2b)^2 = 36a^2 u^2 + 24aub + 4b^2
+    # int(d''^2, {u,0,1}) = 36a^2 / 3 + 24ab / 2 + 4b^2
+    curv = 0
+    for k in range(model.K - 1):
+        a, b = coef[(4 * k):(4 * k + 2)]
+        x = mps[k + 1] - mps[k]
+        curv += (12 * a**2 * x**3 + 12 * a * b * x**2 + 4 * b**2 * x)
+    if False:
+        print(model[0])
+        s = "Piecewise[{"
+        arr = []
+        for k in range(model.K - 1):
+            u = "(x-(%f))" % mps[k]
+            arr.append("{" + " + ".join(
+                "%f * %s^%d" % (float(x), u, 3 - i) 
+                for i, x in enumerate(coef[(4 * k):(4 * (k + 1))])) + ", x >= %f && x < %f}" % (mps[k], mps[k + 1]))
+        s += ",\n".join(arr) + "}];"
+        logger.debug(s)
+        print(curv)
+    return penalty * curv
 regularizer._regs = {
         'abs': lambda x, y: abs(x - y),
         'quadratic': lambda x, y: (x - y)**2,
