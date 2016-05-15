@@ -148,21 +148,15 @@ adouble HMM::Q(void)
     for (auto &p : gamma_sums)
     {
         Vector<adouble> ep = ib->emission_probs->at(p.first);
-        for (int m = 0; m < M; ++m)
-            q2 += p.second(m) * log(ep(m));
+        q2 += (ep.array().log() * p.second.array()).sum();
     }
 
     // Am getting a weird memory-related bug here when I do this all in
     // one line. Something related to threading and CRTP, maybe. Split
     // things up a bit to fix.
-    q3 = 0.0;
     Matrix<adouble> T = ib->tb->T;
-    for (int m1 = 0; m1 < M; ++m1)
-        for (int m2 = 0; m2 < M; ++m2)
-            if (T(m1,m2) <= 0)
-                WARNING << "nonpositive transition matrix (" << m1 << "," << m2 << ")";
-            else
-                q3 += log(T(m1, m2)) * xisum(m1, m2);
+    q3 = (T.array().log() * xisum.array()).sum();
+
     check_nan(q1);
     check_nan(q2);
     check_nan(q3);
