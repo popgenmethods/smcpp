@@ -7,7 +7,7 @@ from .. import util, plotting
 from ..estimation_result import EstimationResult
 
 def init_parser(parser):
-    parser.add_argument("-g", type=float, help="Plot x-axis in years assuming a generation time of g")
+    parser.add_argument("-g", nargs="+", type=float, help="Plot x-axis in years assuming generation time(s) of g")
     parser.add_argument("--logy", action="store_true", help="ploy y on log axis")
     parser.add_argument("-t", "--offsets", type=float, nargs="+", 
             help="list of offsets, one for each <model>, to shift x axes. Useful for plotting aDNA")
@@ -21,11 +21,15 @@ def init_parser(parser):
 
 def main(args):
     psfs = []
+    if args.g is not None and len(args.g) == 1:
+        args.g *= len(args.model)
+    if args.offsets is not None and len(args.offsets) == 1:
+        args.offsets *= len(args.model)
     if args.labels is None:
         args.labels = []
     if args.offsets is None:
         args.offsets = []
-    for fn, label, off in it.izip_longest(args.model, args.labels, args.offsets, fillvalue=None):
+    for fn, label, off, g in it.izip_longest(args.model, args.labels, args.offsets, args.g, fillvalue=None):
         if not os.path.exists(fn):
             sys.exit("File not found: %s" % fn)
         if label == "None": 
@@ -38,8 +42,8 @@ def main(args):
             er = EstimationResult.load(fn)
             d = dict(zip("abs", np.array(er.model)))
             d['N0'] = er.N0
-        if args.g is not None:
-            d['s'] *= args.g
+        if g is not None:
+            d['s'] *= g
         psfs.append((label, d, off or 0))
     if args.median:
         dmed = {'s': psfs[-1][1]['s'], 'N0': psfs[-1][1]['N0']}
