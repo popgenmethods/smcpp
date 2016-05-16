@@ -74,14 +74,14 @@ class PopulationOptimizer(object):
         for i, (a, cc) in enumerate(self._coords):
             models[a][cc] = xs[i] * models[a].precond[cc]
         self._pre_Q(models)
-        for m in models:
-            logger.debug(m.x[:2].astype('float'))
         # for m in models:
         #     logger.debug("\n%s" % np.array_str(m.x[:2].astype(float), precision=4))
         self._iserv.model = models
         q = self._iserv.Q()
         reg = np.mean(self._iserv.penalize(models))
         ll = -np.mean([sum(qq) for qq in q])
+        logger.debug(np.array_str(models[0][0].astype(float), precision=1))
+        logger.debug((float(ll), float(reg), float(ll + reg)))
         ll += reg
         ret = [ll.x, np.array(list(map(ll.d, xs)))]
         # logger.debug(ret[0])
