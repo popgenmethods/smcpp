@@ -60,7 +60,7 @@ def regularizer(model, penalty, f):
         g = lambda x: x
     if f in ("quadratic", "abs"):
         for i in range(1, model.K):
-            reg += regularizer._regs[f](g(model[0, i - 1]), (model[0, i]))
+            reg += regularizer._regs[f](g(model[0, i - 1]), g(model[0, i]))
         return penalty * reg
     ## Spline fit / curvature penalty
     assert f == "curvature"
