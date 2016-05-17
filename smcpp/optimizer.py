@@ -2,7 +2,7 @@ from __future__ import absolute_import, division, print_function
 import numpy as np
 import scipy.optimize
 import logging
-import os.path
+import os.path, os
 import ad
 
 from . import estimation_tools
@@ -25,7 +25,7 @@ class PopulationOptimizer(object):
         logger.debug("Performing initial E step")
         iserv.E_step()
 
-    def run(self, niter, fix_rho):
+    def run(self, niter, blocks, fix_rho):
         iserv = self._iserv
         models = iserv.model
         ll = np.sum([x for loglik in iserv.loglik() for x in loglik])
@@ -39,7 +39,16 @@ class PopulationOptimizer(object):
             if not fix_rho:
                 self._optimize_param("rho")
             logger.debug("starting model:\n%s" % np.array_str(models[0].x.astype(float), precision=2))
-            self._optimize(models)
+            B = len(models[0].x[0]) // blocks
+            for b in range(blocks):
+                self._coords = [(mi, cc) for mi, m in enumerate(self._iserv.model) 
+                        for cc in m.coords if (b * B) <= cc[1] <= ((b + 2) * B)]
+                logger.info("optimizing coords:\n%s" % str(self._coords))
+                self._optimize(models)
+            # for v in [0, 1]:
+            #     self._coords = [(mi, cc) for mi, m in enumerate(self._iserv.model) for cc in m.coords[v::2]]
+            #     logger.info("optimizing coords:\n%s" % str(self._coords))
+            #     self._optimize(models)
             logger.info("Current model(s):")
             for j, m in enumerate(models, 1):
                 logger.info("Pop %d:\n%s" % (j, np.array_str(np.array(m.x[:2]).astype(float), precision=2)))
@@ -80,8 +89,10 @@ class PopulationOptimizer(object):
         q = self._iserv.Q()
         reg = np.mean(self._iserv.penalize(models))
         ll = -np.mean([sum(qq) for qq in q])
-        logger.debug(np.array_str(models[0][0].astype(float), precision=1))
+        logger.debug("\n" + np.array_str(models[0][0].astype(float), precision=2, max_line_width=100))
         logger.debug((float(ll), float(reg), float(ll + reg)))
+        logger.debug("dll:\n" + np.array_str(np.array(list(map(ll.d, xs))), max_line_width=100, precision=2))
+        logger.debug("dreg:\n" + np.array_str(np.array(list(map(reg.d, xs))), max_line_width=100, precision=2))
         ll += reg
         ret = [ll.x, np.array(list(map(ll.d, xs)))]
         # logger.debug(ret[0])
@@ -99,25 +110,28 @@ class PopulationOptimizer(object):
         x0 = getattr(self._iserv, param)
         logger.info("old %s: f(%g)=%g" % (param, x0, self._f_param([x0], param)[0]))
         bounds = [(1e-6, 1e-2)]
-        x = scipy.optimize.fmin_l_bfgs_b(self._f_param, x0, None, args=(param,), bounds=bounds, disp=False)[0].item()
+        ret = scipy.optimize.fmin_l_bfgs_b(self._f_param, x0, None, args=(param,), bounds=bounds, disp=False)
+        x = ret[0].item()
         logger.info("new %s: f(%g)=%g" % (param, x, self._f_param([x], param)[0]))
         setattr(self._iserv, param, x)
 
     def _optimize(self, models):
         logger.debug("Performing a round of optimization")
         x0 = np.array([float(models[i][cc] / models[i].precond[cc]) for i, cc in self._coords])
-        self._iserv.derivatives = [m.coords for m in models]
-        # logger.info("gradient check")
-        # f0, fp = self._f(x0, models)
-        # for i in range(len(x0)):
-        #     x0c = x0.copy()
-        #     x0c[i] += 1e-8
-        #     f1, _ = self._f(x0c, models)
-        #     logger.info((i, cc, f1, f0, (f1 - f0) / 1e-8, fp[i]))
+        self._iserv.derivatives = [[cc for _, cc in self._coords]]
+        if os.environ.get("SMCPP_GRADIENT_CHECK", False):
+            logger.info("gradient check")
+            f0, fp = self._f(x0, models)
+            for i in range(len(x0)):
+                x0c = x0.copy()
+                x0c[i] += 1e-8
+                f1, _ = self._f(x0c, models)
+                logger.info((i, cc, f1, f0, (f1 - f0) / 1e-8, fp[i]))
         bounds = [tuple(self._bounds[cc] / models[i].precond[cc]) for i, cc in self._coords]
-        res = scipy.optimize.fmin_l_bfgs_b(self._f, x0, None, args=[models], bounds=bounds, factr=1e10)
-        if res[2]['warnflag'] != 0:
-            logger.warn(res[2])
+        res = scipy.optimize.fmin_tnc(self._f, x0, None, args=[models], bounds=bounds)
+        # res = scipy.optimize.fmin_l_bfgs_b(self._f, x0, None, args=[models], bounds=bounds, factr=1e9)
+        # if res[2]['warnflag'] != 0:
+        #     logger.warn(res[2])
         for xx, (i, cc) in zip(res[0], self._coords):
             models[i][cc] = xx * models[i].precond[cc]
         logger.info("new model: f(m)=%g" % res[1])

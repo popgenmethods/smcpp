@@ -31,6 +31,7 @@ def init_parser(parser):
     pop_params = parser # parser.add_argument_group('population parameters')
     model = parser # parser.add_argument_group('model')
     hmm = parser # parser.add_argument_group('HMM and fitting parameters')
+    optimizer = parser
     model.add_argument('--pieces', type=str, help="span of model pieces", default="32*1")
     model.add_argument('--t1', type=float, nargs="+", help="span of first piece(s), in generations", default=[400.])
     model.add_argument('--tK', type=float, help="end-point of last piece, in generations", default=40000.)
@@ -39,14 +40,15 @@ def init_parser(parser):
     hmm.add_argument('--no-pretrain', help="do not pretrain model", action="store_true", default=False)
     hmm.add_argument('--M', type=int, help="number of hidden states", default=32)
     hmm.add_argument('--em-iterations', type=int, help="number of EM steps to perform", default=20)
-    hmm.add_argument('--regularization-penalty', type=float, help="regularization penalty", default=None)
-    hmm.add_argument('--pretrain-penalty', type=float, help="regularization penalty for pretraining", default=None)
-    hmm.add_argument('--regularizer', 
+    optimizer.add_argument('--blocks', type=int, default=1, help="number of blocks for coordinate ascent")
+    optimizer.add_argument('--regularization-penalty', type=float, help="regularization penalty", default=None)
+    optimizer.add_argument('--pretrain-penalty', type=float, help="regularization penalty for pretraining", default=None)
+    optimizer.add_argument('--regularizer', 
             choices=[x + y for x in ["", "log"] for y in ["abs", "quadratic", "curvature"]],
             default="quadratic", help="type of regularization to apply")
-    hmm.add_argument('--lbfgs-factor', type=float, help="stopping criterion for optimizer", default=1e9)
-    hmm.add_argument('--Nmin', type=float, help="Lower bound on effective population size (in units of N0)", default=.01)
-    hmm.add_argument('--Nmax', type=float, help="Upper bound on effective population size (in units of N0)", default=100)
+    optimizer.add_argument('--lbfgs-factor', type=float, help="stopping criterion for optimizer", default=1e9)
+    optimizer.add_argument('--Nmin', type=float, help="Lower bound on effective population size (in units of N0)", default=.01)
+    optimizer.add_argument('--Nmax', type=float, help="Upper bound on effective population size (in units of N0)", default=100)
     hmm.add_argument('--init-model', type=str, help="model to use as starting point in optimization")
     hmm.add_argument('--hidden-states', type=float, nargs="+")
     pop_params.add_argument('--N0', default=1e4, type=float, help="reference effective (diploid) population size to scale output.")
@@ -112,6 +114,6 @@ def main(args):
     opt = opt_klass(iserv, args.outdir)
 
     # Run the optimizer
-    opt.run(args.em_iterations, args.fix_rho)
+    opt.run(args.em_iterations, args.blocks, args.fix_rho)
 
     iserv.close()

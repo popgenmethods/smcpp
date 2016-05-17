@@ -19,6 +19,7 @@ class SMCModel(object):
         pc = 1. / self.s
         pc[-1] = 1. / min(10, _smcpp.T_MAX - np.sum(self.s))
         self._precond = {c: float(pc[c[1]]) for c in self._coords}
+        # self._precond = {c: 1.0 for c in self._coords}
 
     @property
     def coords(self):
