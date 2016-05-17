@@ -51,7 +51,7 @@ def plot_psfs(psfs, xlim, ylim, xlabel, logy=False):
         # if not logy:
         #     y *= 1e-3
         data.append((label, x, y))
-        x *= 1. + i / 50.
+        x *= 1. + (i - len(psfs)) / 50.
         if label is None:
             ax.plot(x, y, linewidth=2, color="black")
         else:
