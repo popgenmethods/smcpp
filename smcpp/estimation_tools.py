@@ -84,12 +84,12 @@ def regularizer(model, penalty, f):
     jh = j / h
     d = np.concatenate([[3 * jh[0]], jh[1:] - jh[:-1], [-3. * jh[-1]]])
     # Solve tridiagonal system
-    cb = np.array(_TDMASolve(a, b, c, d))
+    cb = np.array(_TDMASolve(a, b, c, d), dtype=object)
     ca = (cb[1:] - cb[:-1]) / h / 3.
     ca = np.append(ca, 0.0)
     cc = jh - h * (2. * cb[:-1] + cb[1:]) / 3.
     cc = np.append(cc, 3. * ca[-2] * h[1]**2 + 2 * cb[-2] * h[-1] + cc[-1])
-    coef = [x for abcd in zip(ca, cb, cc, model[0]) for x in abcd]
+    coef = [x for abcd in zip(ca, cb, cc, y) for x in abcd]
     ## Curvature 
     # (d'')^2 = (6au + 2b)^2 = 36a^2 u^2 + 24aub + 4b^2
     # int(d''^2, {u,0,1}) = 36a^2 / 3 + 24ab / 2 + 4b^2
@@ -99,17 +99,16 @@ def regularizer(model, penalty, f):
         x = mps[k + 1] - mps[k]
         curv += (12 * a**2 * x**3 + 12 * a * b * x**2 + 4 * b**2 * x)
     if False:
-        print(model[0])
         s = "Piecewise[{"
         arr = []
         for k in range(model.K - 1):
             u = "(x-(%f))" % mps[k]
-            arr.append("{" + " + ".join(
-                "%f * %s^%d" % (float(x), u, 3 - i) 
-                for i, x in enumerate(coef[(4 * k):(4 * (k + 1))])) + ", x >= %f && x < %f}" % (mps[k], mps[k + 1]))
+            arr.append("{" + "+".join(
+                "%f*%s^%d" % (float(x), u, 3 - i) 
+                for i, x in enumerate(coef[(4 * k):(4 * (k + 1))])) + ",x>=%f&&x<%f}" % (mps[k], mps[k + 1]))
         s += ",\n".join(arr) + "}];"
         logger.debug(s)
-        print(curv)
+        logger.debug("curv: %f" % curv)
     return penalty * curv
 regularizer._regs = {
         'abs': lambda x, y: abs(x - y),
