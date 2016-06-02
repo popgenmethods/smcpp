@@ -21,7 +21,7 @@ def init_parser(parser):
     parser.add_argument("--mask", "-m", help="BED-formatted mask of missing regions", widget="FileChooser")
     parser.add_argument("vcf", metavar="vcf[.gz]", help="input VCF file", widget="FileChooser")
     parser.add_argument("out", metavar="out[.gz]", help="output SMC++ file", widget="FileChooser")
-    parser.add_argument("region", help="SAM-style region to parse")
+    parser.add_argument("contig", help="contig to parse")
     parser.add_argument("sample_ids", nargs="+", help="Column(s) to pull from the VCF, or file containing the same.")
 
 def validate(args):
@@ -69,9 +69,10 @@ def main(args):
             nb = len(bs)
             return [a, b, nb]
 
-        region_iterator = vcf.fetch(region=args.region)
+        region_iterator = vcf.fetch(contig=args.contig)
+        contig_length = vcf.header.contigs[args.contig].length
         if args.mask:
-            mask_iterator = TabixFile(args.mask).fetch(region=args.region)
+            mask_iterator = TabixFile(args.mask).fetch(contig=args.contig)
             args.missing_cutoff = np.inf
         else:
             mask_iterator = iter([])
@@ -104,13 +105,7 @@ def main(args):
 
         with RepeatingWriter(out) as rw:
             records = interleaved()
-            ty, rec = next(records)
-            if ty == "snp":
-                last_pos = rec.pos
-                rw.write([1] + rec2gt(rec))
-            else:
-                last_pos = rec[2]
-                rw.write([rec[2] - rec[1] + 1, -1, 0, 0])
+            last_pos = 0
             for ty, rec in records:
                 if ty == "mask":
                     span = rec[1] - last_pos
@@ -126,3 +121,4 @@ def main(args):
                     rw.write([span, -1, 0, 0])
                 rw.write([1] + abnb)
                 last_pos = rec.pos
+            rw.write([contig_length - last_pos, 0, 0, nb])

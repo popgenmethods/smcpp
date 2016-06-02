@@ -257,7 +257,7 @@ class RepeatingWriter:
             self.last_ob = ob
 
     def _write_last_ob(self):
-        if self.last_ob is not None:
+        if self.last_ob is not None and self.last_ob[0] > 0:
             self.f.write("%d %d %d %d\n" % tuple(self.last_ob))
             self.i += 1
 
@@ -265,6 +265,6 @@ class RepeatingWriter:
         return self
 
     def __exit__(self, type, value, traceback):
-        logger.info("Wrote %d observations" % self.i)
         self._write_last_ob()
+        logger.info("Wrote %d observations" % self.i)
 
