@@ -186,10 +186,12 @@ def _pt_helper(fn):
     try:
         # This parser is way faster than loadtxt
         import pandas as pd
-        A = pd.read_csv(fn, sep=' ').values
+        A = pd.read_csv(fn, sep=' ', header=None).values
     except ImportError:
         A = np.loadtxt(fn, dtype=np.int32)
     A[np.logical_and(A[:,1] == 2, A[:,2] == A[:,3]), 1:3] = 0
+    if len(A) == 0:
+        raise RuntimeError("empty dataset: %s" % fn)
     return np.ascontiguousarray(A, dtype=np.int32)
 
 def parse_text_datasets(datasets):
