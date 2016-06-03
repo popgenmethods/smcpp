@@ -28,7 +28,7 @@ class PopulationOptimizer(object):
     def run(self, niter, blocks, fix_rho):
         iserv = self._iserv
         models = iserv.model
-        ll = np.sum([x for loglik in iserv.loglik() for x in loglik])
+        ll = sum([_ for _ in iserv.loglik()])
         reg = np.sum(self._iserv.penalize(models))
         llold = ll - reg
         logger.info("ll:%f reg:%f" % (ll, reg))
@@ -55,7 +55,7 @@ class PopulationOptimizer(object):
             iserv.model = models
             logger.info("\tE-step...")
             iserv.E_step()
-            ll = np.sum([x for loglik in iserv.loglik() for x in loglik])
+            ll = np.sum(iserv.loglik())
             reg = np.sum(iserv.penalize(models))
             logger.info("ll:%f reg:%f" % (ll, reg))
             ll -= reg
@@ -72,7 +72,7 @@ class PopulationOptimizer(object):
         x0 = x[0]
         x = ad.adnumber(x0)
         setattr(self._iserv, param, x)
-        q = -sum([u for l in self._iserv.Q() for u in l])
+        q = -np.mean(self._iserv.Q())
         logger.debug("f_%s: q(%f)=%f dq=%f" % (param, x0, q.x, q.d(x)))
         return (q.x, np.array([q.d(x)]))
 
@@ -83,19 +83,17 @@ class PopulationOptimizer(object):
         for i, (a, cc) in enumerate(self._coords):
             models[a][cc] = xs[i] * models[a].precond[cc]
         self._pre_Q(models)
-        # for m in models:
-        #     logger.debug("\n%s" % np.array_str(m.x[:2].astype(float), precision=4))
+        for m in models:
+            logger.debug("\n%s" % np.array_str(m.x[:2].astype(float), precision=4))
         self._iserv.model = models
-        q = self._iserv.Q()
+        q = -np.mean(self._iserv.Q())
         reg = np.mean(self._iserv.penalize(models))
-        ll = -np.mean([sum(qq) for qq in q])
-        logger.debug("\n" + np.array_str(models[0][0].astype(float), precision=2, max_line_width=100))
-        logger.debug((float(ll), float(reg), float(ll + reg)))
-        logger.debug("dll:\n" + np.array_str(np.array(list(map(ll.d, xs))), max_line_width=100, precision=2))
-        logger.debug("dreg:\n" + np.array_str(np.array(list(map(reg.d, xs))), max_line_width=100, precision=2))
-        ll += reg
-        ret = [ll.x, np.array(list(map(ll.d, xs)))]
-        # logger.debug(ret[0])
+        # logger.debug("\n" + np.array_str(models[0][0].astype(float), precision=2, max_line_width=100))
+        # logger.debug((float(ll), float(reg), float(ll + reg)))
+        # logger.debug("dll:\n" + np.array_str(np.array(list(map(ll.d, xs))), max_line_width=100, precision=2))
+        # logger.debug("dreg:\n" + np.array_str(np.array(list(map(reg.d, xs))), max_line_width=100, precision=2))
+        q += reg
+        ret = [q.x, np.array(list(map(q.d, xs)))]
         return ret
 
     def _optimize_param(self, param):
@@ -128,10 +126,10 @@ class PopulationOptimizer(object):
                 f1, _ = self._f(x0c, models)
                 logger.info((i, cc, f1, f0, (f1 - f0) / 1e-8, fp[i]))
         bounds = [tuple(self._bounds[cc] / models[i].precond[cc]) for i, cc in self._coords]
-        res = scipy.optimize.fmin_tnc(self._f, x0, None, args=[models], bounds=bounds)
-        # res = scipy.optimize.fmin_l_bfgs_b(self._f, x0, None, args=[models], bounds=bounds, factr=1e9)
-        # if res[2]['warnflag'] != 0:
-        #     logger.warn(res[2])
+        # res = scipy.optimize.fmin_tnc(self._f, x0, None, args=[models], bounds=bounds)
+        res = scipy.optimize.fmin_l_bfgs_b(self._f, x0, None, args=[models], bounds=bounds, factr=1e10)
+        if res[2]['warnflag'] != 0:
+            logger.warn(res[2])
         for xx, (i, cc) in zip(res[0], self._coords):
             models[i][cc] = xx * models[i].precond[cc]
         logger.info("new model: f(m)=%g" % res[1])

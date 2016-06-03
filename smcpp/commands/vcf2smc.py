@@ -76,6 +76,8 @@ def main(args):
             args.missing_cutoff = np.inf
         else:
             mask_iterator = iter([])
+            if args.missing_cutoff is None:
+                args.missing_cutoff = np.inf
         mask_iterator = (x.split("\t") for x in mask_iterator)
         mask_iterator = ((x[0], int(x[1]), int(x[2])) for x in mask_iterator)
         snps_only = (rec for rec in region_iterator if len(rec.alleles) == 2 and set(rec.alleles) <= set("ACTG"))

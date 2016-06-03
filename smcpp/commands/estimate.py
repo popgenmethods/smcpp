@@ -64,7 +64,7 @@ def init_parser(parser):
     parser.add_argument("-p", "--second-population", nargs="+", widget="MultiFileChooser", 
             help="Estimate divergence time using data set(s) from a second subpopulation")
     parser.add_argument("-o", "--outdir", help="output directory", default=".", widget="DirChooser")
-    parser.add_argument('-v', '--verbose', action='store_true', help="generate tremendous amounts of output")
+    parser.add_argument('-v', '--verbose', action='count', help="increase debugging output, specify multiply times for more")
     parser.add_argument('data', nargs="+", help="data file(s) in SMC++ format", widget="MultiFileChooser")
 
 def validate_args(args):

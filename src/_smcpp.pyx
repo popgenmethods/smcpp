@@ -261,39 +261,41 @@ cdef class PyInferenceManager:
             ad_rets = self._im.Q()
         _check_abort()
         cdef int K = ad_rets.size()
-        ret = []
+        cdef int i
+        cdef adouble q
+        q = ad_rets[0]
+        for i in range(1, K):
+            q += ad_rets[i]
+        r = toDouble(q)
         cdef double[::1] vjac
-        for i in range(self._num_hmms):
-            r = toDouble(ad_rets[i])
-            if self._derivatives:
-                r = adnumber(r)
-                jac = aca(np.zeros([len(self._derivatives)]))
-                vjac = jac
-                fill_jacobian(ad_rets[i], &vjac[0])
-                d = {}
-                for k, cc in enumerate(self._derivatives):
-                    if cc[0] == 3:
-                        assert cc[1] == -1
-                        obj = self._theta
-                    elif cc[0] == 4:
-                        assert cc[1] == -1
-                        obj = self._rho
-                    else:
-                        obj = self._model[cc]
-                    if hasattr(obj, 'd'):
-                        # if obj is not an adnumber then fuhgeddabouddit
-                        for x in obj.d():
-                            d[x] = d.get(x, 0) + obj.d(x) * jac[k]
-                r.d().update(d)
-            ret.append(r)
-        return ret
+        if self._derivatives:
+            r = adnumber(r)
+            jac = aca(np.zeros([len(self._derivatives)]))
+            vjac = jac
+            fill_jacobian(q, &vjac[0])
+            d = {}
+            for k, cc in enumerate(self._derivatives):
+                if cc[0] == 3:
+                    assert cc[1] == -1
+                    obj = self._theta
+                elif cc[0] == 4:
+                    assert cc[1] == -1
+                    obj = self._rho
+                else:
+                    obj = self._model[cc]
+                if hasattr(obj, 'd'):
+                    # if obj is not an adnumber then fuhgeddabouddit
+                    for x in obj.d():
+                        d[x] = d.get(x, 0) + obj.d(x) * jac[k]
+            r.d().update(d)
+        return r
 
     def loglik(self):
         cdef vector[double] llret
         with nogil:
             llret = self._im.loglik()
         _check_abort()
-        return llret
+        return sum(llret)
 
 @modelify
 def balance_hidden_states(model, int M):

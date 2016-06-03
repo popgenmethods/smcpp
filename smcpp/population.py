@@ -29,11 +29,6 @@ class Population(object):
         logger.debug("time points in coalescent scaling:\n%s", str(time_points))
         K = len(time_points)
 
-        ## Construct bounds
-        self._bounds = np.array([[args.Nmin, args.Nmax]] * K + 
-                [[1.01 * args.Nmin, 0.99 * args.Nmax]] * K).reshape([2, K, 2])
-        logger.debug("bounds:\n%s" % np.array_str(self._bounds, precision=3))
-
         ## Parse each data set into an array of observations
         logger.info("Loading data...")
         dataset = util.parse_text_datasets(dataset_files)
@@ -60,6 +55,14 @@ class Population(object):
         logger.info("theta: %f" % theta)
         rho = args.rho or theta / 4.
         logger.info("rho: %f" % rho)
+
+        ## Construct bounds
+        # P(seg) is at most theta * 2 * N_max / H_n << 1 so set Nmax
+        Nmax = .1 / theta / 2 * np.arange(n).sum()
+        logger.debug("Nmax calculated to be %g" % Nmax)
+        self._bounds = np.array([[args.Nmin, Nmax]] * K + 
+                [[1.01 * args.Nmin, 0.99 * Nmax]] * K).reshape([2, K, 2])
+        # logger.debug("bounds:\n%s" % np.array_str(self._bounds, precision=3))
 
         ## After (potentially) doing pretraining, normalize and thin the data set
         ## Optionally thin each dataset

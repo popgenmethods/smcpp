@@ -11,7 +11,7 @@ def init_logging(outdir, verbose, debug_log=os.devnull):
     sh = logging.StreamHandler()
     sh.setFormatter(fmt)
     if verbose:
-        sh.setLevel(logging.DEBUG)
+        sh.setLevel(logging.DEBUG - verbose + 1)
     else:
         sh.setLevel(logging.INFO)
     root.addHandler(sh)

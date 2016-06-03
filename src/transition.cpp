@@ -43,7 +43,7 @@ void HJTransition<T>::compute(void)
     expms_diff *= 0.5;
     for (int k = 2; k < this->M; ++k)
         this->Phi.block(k - 1, 0, 1, k - 1) = expms_diff.head(k - 1).transpose();
-    const int Q = 50;
+    const int Q = 10;
 #pragma omp parallel for
     for (int j = 1; j < this->M; ++j)
     {

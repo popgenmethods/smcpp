@@ -1,5 +1,6 @@
 'Miscellaneous estimation and data-massaging functions.'
 from __future__ import absolute_import, division, print_function
+import sys
 import numpy as np
 from logging import getLogger
 logger = getLogger(__name__)
@@ -49,12 +50,12 @@ def _TDMASolve(a, b, c, d):
         d[i] -= d[i+1] * c[i] / b[i+1]
     return [d[i] / b[i] for i in xrange(n)]
 
-def regularizer(model, penalty, f):
+def regularizer(model, penalty, f, dump_piecewise=False):
     ## Regularizer
     reg = 0
     cs = np.concatenate([[0], np.cumsum(model[2])])
     if f[:3] == "log":
-        g = ad.admath.log
+        g = ad.admath.log10
         f = f[3:]
     else:
         g = lambda x: x
@@ -64,9 +65,10 @@ def regularizer(model, penalty, f):
         return penalty * reg
     ## Spline fit / curvature penalty
     assert f == "curvature"
-    log_s = np.log(np.cumsum(model[2]).astype("float"))
+    log_s = np.log10(np.cumsum(model[2]).astype("float"))
     mps = 0.5 * (log_s[1:] + log_s[:-1])
     mps = np.concatenate([mps, [log_s[-1]]])
+    # mps = log_s
     x = mps
     y = np.array([g(_) for _ in model[0]], dtype=object)
     h = x[1:] - x[:-1]
@@ -98,17 +100,17 @@ def regularizer(model, penalty, f):
         a, b = coef[(4 * k):(4 * k + 2)]
         x = mps[k + 1] - mps[k]
         curv += (12 * a**2 * x**3 + 12 * a * b * x**2 + 4 * b**2 * x)
-    if False:
+    if dump_piecewise:
         s = "Piecewise[{"
         arr = []
         for k in range(model.K - 1):
-            u = "(x-(%f))" % mps[k]
+            u = "(x-(%.2f))" % mps[k]
             arr.append("{" + "+".join(
-                "%f*%s^%d" % (float(x), u, 3 - i) 
-                for i, x in enumerate(coef[(4 * k):(4 * (k + 1))])) + ",x>=%f&&x<%f}" % (mps[k], mps[k + 1]))
+                "%.6f*%s^%d" % (float(x), u, 3 - i) 
+                for i, x in enumerate(coef[(4 * k):(4 * (k + 1))])) + ",x>=%.2f&&x<%.2f}" % (mps[k], mps[k + 1]))
         s += ",\n".join(arr) + "}];"
-        logger.debug(s)
-        logger.debug("curv: %f" % curv)
+        print(s, file=sys.stderr)
+        print("curv: %f" % curv, file=sys.stderr)
     return penalty * curv
 regularizer._regs = {
         'abs': lambda x, y: abs(x - y),
@@ -174,7 +176,7 @@ def pretrain(model, sample_csfs, bounds, theta0, penalizer, folded):
 def break_long_spans(dataset, rho, length_cutoff):
     # Spans longer than this are broken up
     # FIXME: should depend on rho
-    span_cutoff = 100000
+    span_cutoff = 10000000
     obs_list = []
     obs_attributes = {}
     for fn, obs in enumerate(dataset):
@@ -190,7 +192,7 @@ def break_long_spans(dataset, rho, length_cutoff):
                 s2 = obs_list[-1][:,1][obs_list[-1][:,1]>=0].sum()
                 obs_attributes.setdefault(fn, []).append((positions[cob], positions[x], sums[0], 1. * s2 / sums[0], 1. * sums[2] / sums[0]))
             else:
-                logger.info("omitting sequence length < %d as less than length cutoff" % s)
+                logger.info("omitting sequence length < %d as less than length cutoff %d" % (s, length_cutoff))
             cob = x + 1
         s = obs[cob:, 0].sum()
         if s > length_cutoff:
@@ -199,5 +201,5 @@ def break_long_spans(dataset, rho, length_cutoff):
             s2 = obs_list[-1][:,1][obs_list[-1][:,1]>=0].sum()
             obs_attributes.setdefault(fn, []).append((positions[cob], positions[-1], sums[0], 1. * s2 / sums[0], 1. * sums[2] / sums[0]))
         else:
-            logger.info("omitting sequence length < %d as less than length cutoff" % s)
+            logger.info("omitting sequence length < %d as less than length cutoff %d" % (s, length_cutoff))
     return obs_list, obs_attributes
