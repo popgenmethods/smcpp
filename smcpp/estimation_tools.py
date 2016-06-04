@@ -5,6 +5,7 @@ import numpy as np
 from logging import getLogger
 logger = getLogger(__name__)
 import scipy.optimize
+import scipy.interpolate
 import multiprocessing
 import ad.admath, ad.linalg
 
@@ -50,6 +51,39 @@ def _TDMASolve(a, b, c, d):
         d[i] -= d[i+1] * c[i] / b[i+1]
     return [d[i] / b[i] for i in xrange(n)]
 
+
+def _pchipendpoint(h1, h2, del1, del2):
+    d = ((2 * h1 + h2) * del1 - h1 * del2) / (h1 + h2)
+    if np.sign(d) != np.sign(del1):
+        d = 0
+    elif (np.sign(del1) != np.sign(del2)) and (abs(d) > abs(3 * del1)):
+        d = 3 * del1
+    return d
+
+
+def _pchipslopes(h, delta):
+    n = len(h) + 1
+    d = np.zeros_like(delta)
+    k = np.where(np.sign(delta[:(n - 2)]) *
+                 np.sign(delta[1:(n + 1)]) > 0)[0] + 1
+    w1 = 2 * h[k] + h[k - 1]
+    w2 = h[k] + 2 * h[k - 1]
+    d[k] = (w1 + w2) / (w1 / delta[k - 1] + w2 / delta[k])
+    d[0] = _pchipendpoint(h[0], h[1], delta[0], delta[1])
+    d = np.append(d, _pchipendpoint(
+        h[n - 2], h[n - 3], delta[n - 2], delta[n - 3]))
+    return d
+
+
+def _pchip(x, y):
+    h = np.diff(x)
+    delta = np.diff(y) / h
+    d = _pchipslopes(h, delta)
+    n = len(x)
+    c = (3 * delta - 2 * d[:n - 1] - d[1:n]) / h
+    b = (d[:n - 1] - 2 * delta + d[1:n]) / h**2
+    return b, c, d, y
+
 def regularizer(model, penalty, f, dump_piecewise=False):
     ## Regularizer
     reg = 0
@@ -71,27 +105,7 @@ def regularizer(model, penalty, f, dump_piecewise=False):
     # mps = log_s
     x = mps
     y = np.array([g(_) for _ in model[0]], dtype=object)
-    h = x[1:] - x[:-1]
-    j = y[1:] - y[:-1]
-    # Subdiagonal
-    a = h[:-1] / 3.
-    a = np.append(a, h[-1])
-    # Diagonal
-    b = (h[1:] + h[:-1]) / 3.
-    b = 2. * np.concatenate([[h[0]], b, [h[-1]]])
-    # Superdiagonal
-    c = h[1:] / 3.
-    c = np.concatenate([[h[0]], c])
-    # RHS
-    jh = j / h
-    d = np.concatenate([[3 * jh[0]], jh[1:] - jh[:-1], [-3. * jh[-1]]])
-    # Solve tridiagonal system
-    cb = np.array(_TDMASolve(a, b, c, d), dtype=object)
-    ca = (cb[1:] - cb[:-1]) / h / 3.
-    ca = np.append(ca, 0.0)
-    cc = jh - h * (2. * cb[:-1] + cb[1:]) / 3.
-    cc = np.append(cc, 3. * ca[-2] * h[1]**2 + 2 * cb[-2] * h[-1] + cc[-1])
-    coef = [x for abcd in zip(ca, cb, cc, y) for x in abcd]
+    coef = [x for abcd in zip(*_pchip(x, y)) for x in abcd]
     ## Curvature 
     # (d'')^2 = (6au + 2b)^2 = 36a^2 u^2 + 24aub + 4b^2
     # int(d''^2, {u,0,1}) = 36a^2 / 3 + 24ab / 2 + 4b^2
