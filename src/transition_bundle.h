@@ -1,6 +1,8 @@
 #ifndef TRANSITION_BUNDLE_H
 #define TRANSITION_BUNDLE_H
 
+#include "common.h"
+
 struct eigensystem
 {
     Eigen::MatrixXcd P, Pinv;
@@ -11,8 +13,10 @@ struct eigensystem
         P(es.eigenvectors()), Pinv(P.inverse()), d(es.eigenvalues()),
         P_r(P.real()), Pinv_r(Pinv.real()), d_r(d.real())
     {
-        if (Pinv.imag().cwiseAbs().maxCoeff() > 1e-10 or P.imag().cwiseAbs().maxCoeff() > 1e-10)
-            throw std::runtime_error("Non-negligible imaginary part of eigendecomposition");
+        double i1 = Pinv.imag().cwiseAbs().maxCoeff();
+        double i2 = P.imag().cwiseAbs().maxCoeff();
+        if (i1 > 1e-10 or i2 > 1e-10)
+            WARNING << "Non-negligible imaginary part of eigendecomposition: i1=" << i1 << " i2=" << i2;
     }
 };
 
