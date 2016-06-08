@@ -57,8 +57,9 @@ class Population(object):
         logger.info("rho: %f" % rho)
 
         ## Construct bounds
-        # P(seg) is at most theta * 2 * N_max / H_n << 1 so set Nmax
-        Nmax = .1 / theta / 2 * np.arange(n).sum()
+        # P(seg) is at most theta * 2 * N_max / H_n << 1
+        Hn = (1. / np.arange(1, n)).sum()
+        Nmax = .1 / (2 * theta * Hn)
         logger.debug("Nmax calculated to be %g" % Nmax)
         self._bounds = np.array([[args.Nmin, Nmax]] * K + 
                 [[1.01 * args.Nmin, 0.99 * Nmax]] * K).reshape([2, K, 2])
