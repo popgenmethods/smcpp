@@ -100,11 +100,16 @@ def regularizer(model, penalty, f, dump_piecewise=False):
     ## Spline fit / curvature penalty
     assert f == "curvature"
     log_s = np.log10(np.cumsum(model[2]).astype("float"))
+    # log_s = np.cumsum(model[2]).astype("float")
     mps = 0.5 * (log_s[1:] + log_s[:-1])
     mps = np.concatenate([mps, [log_s[-1]]])
     # mps = log_s
-    x = mps
+    x = np.array(mps, dtype=object)
     y = np.array([g(_) for _ in model[0]], dtype=object)
+    dx = np.diff(x)
+    d2y = np.diff(y, 2)
+    return penalty * ((d2y / dx[:-1])**2).sum()
+
     coef = [x for abcd in zip(*_pchip(x, y)) for x in abcd]
     ## Curvature 
     # (d'')^2 = (6au + 2b)^2 = 36a^2 u^2 + 24aub + 4b^2
@@ -190,7 +195,7 @@ def pretrain(model, sample_csfs, bounds, theta0, penalizer, folded):
 def break_long_spans(dataset, rho, length_cutoff):
     # Spans longer than this are broken up
     # FIXME: should depend on rho
-    span_cutoff = 10000000
+    span_cutoff = 1000000
     obs_list = []
     obs_attributes = {}
     for fn, obs in enumerate(dataset):

@@ -5,7 +5,7 @@ import logging
 import os.path, os
 import ad
 
-from . import estimation_tools
+from . import estimation_tools, spg
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +40,7 @@ class PopulationOptimizer(object):
                 self._optimize_param("rho")
             logger.debug("starting model:\n%s" % np.array_str(models[0].x.astype(float), precision=2))
             B = len(models[0].x[0]) // blocks
-            for b in range(blocks):
+            for b in range(-1, blocks):
                 self._coords = [(mi, cc) for mi, m in enumerate(self._iserv.model) 
                         for cc in m.coords if (b * B) <= cc[1] <= ((b + 2) * B)]
                 logger.info("optimizing coords:\n%s" % str(self._coords))
@@ -88,10 +88,10 @@ class PopulationOptimizer(object):
         self._iserv.model = models
         q = -np.mean(self._iserv.Q())
         reg = np.mean(self._iserv.penalize(models))
-        # logger.debug("\n" + np.array_str(models[0][0].astype(float), precision=2, max_line_width=100))
-        # logger.debug((float(ll), float(reg), float(ll + reg)))
-        # logger.debug("dll:\n" + np.array_str(np.array(list(map(ll.d, xs))), max_line_width=100, precision=2))
-        # logger.debug("dreg:\n" + np.array_str(np.array(list(map(reg.d, xs))), max_line_width=100, precision=2))
+        logger.debug("\n" + np.array_str(models[0][0].astype(float), precision=2, max_line_width=100))
+        logger.debug((float(q), float(reg), float(q + reg)))
+        logger.debug("dq:\n" + np.array_str(np.array(list(map(q.d, xs))), max_line_width=100, precision=2))
+        logger.debug("dreg:\n" + np.array_str(np.array(list(map(reg.d, xs))), max_line_width=100, precision=2))
         q += reg
         ret = [q.x, np.array(list(map(q.d, xs)))]
         return ret
@@ -125,11 +125,15 @@ class PopulationOptimizer(object):
                 x0c[i] += 1e-8
                 f1, _ = self._f(x0c, models)
                 logger.info((i, cc, f1, f0, (f1 - f0) / 1e-8, fp[i]))
-        bounds = [tuple(self._bounds[cc] / models[i].precond[cc]) for i, cc in self._coords]
+        bounds = np.array([tuple(self._bounds[cc] / models[i].precond[cc]) for i, cc in self._coords])
+        res = spg.SPG(
+                lambda x: self._f(x, models), 
+                lambda x: spg.projectBound(x, bounds[:, 0], bounds[:, 1]),
+                x0)
         # res = scipy.optimize.fmin_tnc(self._f, x0, None, args=[models], bounds=bounds)
-        res = scipy.optimize.fmin_l_bfgs_b(self._f, x0, None, args=[models], bounds=bounds, factr=1e10)
-        if res[2]['warnflag'] != 0:
-            logger.warn(res[2])
+        # res = scipy.optimize.fmin_l_bfgs_b(self._f, x0, None, args=[models], bounds=bounds, factr=1e10)
+        # if res[2]['warnflag'] != 0:
+        #     logger.warn(res[2])
         for xx, (i, cc) in zip(res[0], self._coords):
             models[i][cc] = xx * models[i].precond[cc]
         logger.info("new model: f(m)=%g" % res[1])
