@@ -72,7 +72,7 @@ def main(args):
         region_iterator = vcf.fetch(contig=args.contig)
         contig_length = vcf.header.contigs[args.contig].length
         if args.mask:
-            mask_iterator = TabixFile(args.mask).fetch(contig=args.contig)
+            mask_iterator = TabixFile(args.mask).fetch(reference=args.contig)
             args.missing_cutoff = np.inf
         else:
             mask_iterator = iter([])
