@@ -61,7 +61,7 @@ def SPG(funObj, funProj, x, options=default_options):
     i = 0  # iteration
     for i in range(5):
         gn = np.linalg.norm(g)
-        t = 5. / gn / (i + 1)
+        t = 2. / gn / (i + 1)
         xp = funProj(x - t * g)
         fp, gp = funObj(xp)
         j = 0
@@ -71,10 +71,10 @@ def SPG(funObj, funProj, x, options=default_options):
             fp, gp = funObj(xp)
             j += 1
             logger.debug("line search: %g <> %g" % (fp, f - t * 1e-3 * gn**2))
-        x += 0.5 * dx
+        xp = funProj(xp + 0.5 * dx)
+	fp, gp = funObj(xp)
         dx = xp - x
         df = fp - f
-        assert df < 0
         logger.debug("i:%d df:%g |dx|:%g |g|:%g" % (i, df, np.linalg.norm(dx), np.linalg.norm(gp)))
         x, f, g = xp, fp, gp
         if np.abs(dx).max() < .01:

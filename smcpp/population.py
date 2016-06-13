@@ -92,8 +92,6 @@ class Population(object):
         if not args.no_pretrain:
             logger.info("Pretraining")
             # pretrain if requested
-            if args.pretrain_penalty is None:
-                args.pretrain_penalty = args.regularization_penalty * 1e-3
             self._pretrain_penalizer = functools.partial(estimation_tools.regularizer, 
                     penalty=args.pretrain_penalty, f=args.regularizer)
             # self._pretrain_penalizer = self._penalizer

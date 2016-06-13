@@ -42,7 +42,7 @@ def init_parser(parser):
     hmm.add_argument('--em-iterations', type=int, help="number of EM steps to perform", default=20)
     optimizer.add_argument('--blocks', type=int, default=1, help="number of blocks for coordinate ascent")
     optimizer.add_argument('--regularization-penalty', type=float, help="regularization penalty", default=None)
-    optimizer.add_argument('--pretrain-penalty', type=float, help="regularization penalty for pretraining", default=None)
+    optimizer.add_argument('--pretrain-penalty', type=float, help="regularization penalty for pretraining", default=1e-7)
     optimizer.add_argument('--regularizer', 
             choices=[x + y for x in ["", "log"] for y in ["abs", "quadratic", "curvature"]],
             default="quadratic", help="type of regularization to apply")
