@@ -41,10 +41,9 @@ class PopulationOptimizer(object):
             logger.debug("starting model:\n%s" % np.array_str(models[0].x.astype(float), precision=2))
             B = models[0].K // blocks
             # for b in range(-1, blocks):
-            for _ in range(B):
-                st = np.random.randint(models[0].K)
+            for b in range(0, models[0].K, blocks - 2):
                 self._coords = [(mi, cc) for mi, m in enumerate(self._iserv.model) 
-                        for cc in m.coords if abs(st - cc[1]) <= 0.5 * blocks]
+                        for cc in m.coords if b <= cc[1] < b + blocks]
                         # for cc in m.coords if (b * B) <= cc[1] <= ((b + 2) * B)]
                 logger.info("optimizing coords:\n%s" % str(self._coords))
                 self._optimize(models)
@@ -133,10 +132,13 @@ class PopulationOptimizer(object):
         #         lambda x: self._f(x, models), 
         #         lambda x: spg.projectBound(x, bounds[:, 0], bounds[:, 1]),
         #         x0)
-        # res = scipy.optimize.fmin_tnc(self._f, x0, None, args=[models], bounds=bounds)
-        res = scipy.optimize.fmin_l_bfgs_b(self._f, x0, None, args=[models], bounds=bounds, factr=1e10)
-        if res[2]['warnflag'] != 0:
-            logger.warn(res[2])
+        res = scipy.optimize.fmin_tnc(self._f, x0, None, args=[models], bounds=bounds, disp=5, xtol=1e-4)
+        # eps = np.finfo(float).eps
+        # bds = [[max(bb[0], xx - 5.), min(bb[1], xx + 5.)] for bb, xx in zip(bounds, x0)]
+        # res = scipy.optimize.fmin_l_bfgs_b(self._f, x0, None, args=[models], bounds=bds, pgtol=.1)
+        # if res[2]['warnflag'] != 0:
+        #     logger.warn(res[2])
+        # print(res)
         for xx, (i, cc) in zip(res[0], self._coords):
             models[i][cc] = xx * models[i].precond[cc]
         logger.info("new model: f(m)=%g" % res[1])
