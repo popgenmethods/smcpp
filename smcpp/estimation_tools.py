@@ -99,34 +99,79 @@ def regularizer(model, penalty, f, dump_piecewise=False):
         return penalty * reg
     ## Spline fit / curvature penalty
     assert f == "curvature"
-    log_s = np.log10(np.cumsum(model[2]).astype("float"))
-    # log_s = np.cumsum(model[2]).astype("float")
-    mps = 0.5 * (log_s[1:] + log_s[:-1])
-    mps = np.concatenate([mps, [log_s[-1]]])
-    # mps = log_s
-    x = np.array(mps, dtype=object)
+    x = np.log10(np.cumsum(model[2]).astype("float"))
     y = np.array([g(_) for _ in model[0]], dtype=object)
-    dx = np.diff(x)
-    d2y = np.diff(y, 2)
-    return penalty * ((d2y / dx[:-1])**2).sum()
+    xy = list(zip(x, y))
+    
+    xavg = (x[1:] + x[:-1]) / 2.
+    yavg = (y[1:] + y[:-1]) / 2.
+    xy += list(zip(xavg, yavg))
+    pts = sorted(xy)
+    x, y = np.array(pts).T
+    
+    h = x[1:] - x[:-1]
+    j = y[1:] - y[:-1]
+    # Subdiagonal
+    a = h[:-1] / 3.
+    a = np.append(a, h[-1])
+    # Diagonal
+    b = (h[1:] + h[:-1]) / 3.
+    b = 2. * np.concatenate([[h[0]], b, [h[-1]]])
+    # Superdiagonal
+    c = h[1:] / 3.
+    c = np.concatenate([[h[0]], c])
+    # RHS
+    jh = j / h
+    d = np.concatenate([[3 * jh[0]], jh[1:] - jh[:-1], [-3. * jh[-1]]])
+    # Solve tridiagonal system
+    cb = np.array(_TDMASolve(a, b, c, d), dtype=object)
+    ca = (cb[1:] - cb[:-1]) / h / 3.
+    ca = np.append(ca, 0.0)
+    cc = jh - h * (2. * cb[:-1] + cb[1:]) / 3.
+    cc = np.append(cc, 3. * ca[-2] * h[1]**2 + 2 * cb[-2] * h[-1] + cc[-1])
+    coef = [_ for abcd in zip(ca, cb, cc, y) for _ in abcd]
 
-    coef = [x for abcd in zip(*_pchip(x, y)) for x in abcd]
+    # dx = np.diff(x)
+    # n = len(x)
+    # # akima spline interp
+    # m = np.diff(y) / dx
+    # mm = 2.0 * m[0] - m[1]
+    # mmm = 2.0 * mm - m[0]
+    # mp = 2.0 * m[n - 2] - m[n - 3]
+    # mpp = 2.0 * mp - m[n - 2]
+
+    # m1 = np.concatenate(([mmm], [mm], m, [mp], [mpp]))
+
+    # dm = np.abs(np.diff(m1))
+    # f1 = dm[2:n + 2]
+    # f2 = dm[0:n]
+    # f12 = f1 + f2
+
+    # ids = np.nonzero(f12 > 1e-9 * np.max(f12))[0]
+    # b = m1[1:n + 1]
+
+    # b[ids] = (f1[ids] * m1[ids + 1] + f2[ids] * m1[ids + 2]) / f12[ids]
+    # c = (3.0 * m - 2.0 * b[0:n - 1] - b[1:n]) / dx
+    # d = (b[0:n - 1] + b[1:n] - 2.0 * m) / dx ** 2
+
+    # coef = [_ for abcd in zip(d, c, b, y) for _ in abcd]
+
     ## Curvature 
     # (d'')^2 = (6au + 2b)^2 = 36a^2 u^2 + 24aub + 4b^2
     # int(d''^2, {u,0,1}) = 36a^2 / 3 + 24ab / 2 + 4b^2
     curv = 0
-    for k in range(model.K - 1):
+    for k in range(len(x) - 1):
         a, b = coef[(4 * k):(4 * k + 2)]
-        x = mps[k + 1] - mps[k]
-        curv += (12 * a**2 * x**3 + 12 * a * b * x**2 + 4 * b**2 * x)
+        xi = x[k + 1] - x[k]
+        curv += (12 * a**2 * xi**3 + 12 * a * b * xi**2 + 4 * b**2 * xi)
     if dump_piecewise:
         s = "Piecewise[{"
         arr = []
-        for k in range(model.K - 1):
-            u = "(x-(%.2f))" % mps[k]
+        for k in range(len(x) - 1):
+            u = "(x-(%.2f))" % x[k]
             arr.append("{" + "+".join(
-                "%.6f*%s^%d" % (float(x), u, 3 - i) 
-                for i, x in enumerate(coef[(4 * k):(4 * (k + 1))])) + ",x>=%.2f&&x<%.2f}" % (mps[k], mps[k + 1]))
+                "%.6f*%s^%d" % (float(xi), u, 3 - i) 
+                for i, xi in enumerate(coef[(4 * k):(4 * (k + 1))])) + ",x>=%.2f&&x<%.2f}" % (x[k], x[k + 1]))
         s += ",\n".join(arr) + "}];"
         print(s, file=sys.stderr)
         print("curv: %f" % curv, file=sys.stderr)
