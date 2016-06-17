@@ -100,7 +100,7 @@ class Population(object):
         # We remember the initialized model for use in split estimation
         if args.init_model is not None:
             er = EstimationResult.load(args.init_model)
-            self._model.y = er.model.y
+            self._model[:] = er.model[:]
             rho = er.rho
             theta = er.theta
         self._init_model_y = self._model.y.copy() 
