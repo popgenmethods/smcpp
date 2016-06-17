@@ -58,6 +58,6 @@ class ConditionedSFS : public ConditionedSFSBase
 };
 
 template <typename T>
-std::vector<Matrix<T> > incorporate_theta(const std::vector<Matrix<T> > &, const T);
+std::vector<Matrix<T> > incorporate_theta(const std::vector<Matrix<T> > &, const double);
 
 #endif

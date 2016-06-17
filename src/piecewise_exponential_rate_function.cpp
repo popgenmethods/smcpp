@@ -2,38 +2,13 @@
 
 constexpr long nC2(int n) { return n * (n - 1) / 2; }
 
+/*
 template <typename T>
 PiecewiseExponentialRateFunction<T>::PiecewiseExponentialRateFunction(const std::vector<std::vector<double>> params,
         const std::vector<double> hidden_states) : 
     PiecewiseExponentialRateFunction(params, std::vector<std::pair<int, int>>(), hidden_states) 
 { }
-
-std::vector<std::pair<int, int>> derivatives_from_params(const std::vector<std::vector<double>> params)
-{
-    std::vector<std::pair<int, int>> ret;
-    for (size_t i = 0; i < params.size(); ++i)
-        for (size_t j = 0; j < params[0].size(); ++j)
-            ret.emplace_back(i, j);
-    return ret;
-} 
-
-template <>
-PiecewiseExponentialRateFunction<adouble>::PiecewiseExponentialRateFunction(
-        const std::vector<std::vector<double>> params, 
-        const std::vector<double> hidden_states) :
-    PiecewiseExponentialRateFunction(params, derivatives_from_params(params), hidden_states) {}
-
-template <>
-adouble PiecewiseExponentialRateFunction<adouble>::init_derivative(double x)
-{
-    return adouble(x, Vector<double>::Zero(derivatives.size()));
-}
-
-template <>
-double PiecewiseExponentialRateFunction<double>::init_derivative(double x)
-{
-    return x;
-}
+*/
 
 template <typename T>
 inline void vec_insert(std::vector<T> &v, const int pos, const T &x)
@@ -42,19 +17,43 @@ inline void vec_insert(std::vector<T> &v, const int pos, const T &x)
 }
 
 template <typename T>
+inline T _conv(const adouble x);
+
+template <typename T>
+inline std::vector<T> _vconv(const std::vector<adouble> v);
+
+template <>
+inline double _conv(const adouble x) { return x.value(); }
+
+template <>
+inline adouble _conv(const adouble x) { return x; }
+
+template <>
+inline std::vector<adouble> _vconv(const std::vector<adouble> v) { return v; }
+
+template <>
+inline std::vector<double> _vconv(const std::vector<adouble> v) 
+{ 
+    std::vector<double> ret; 
+    for (adouble x : v)
+        ret.push_back(x.value());
+    return ret;
+}
+
+template <typename T>
 PiecewiseExponentialRateFunction<T>::PiecewiseExponentialRateFunction(
-        const std::vector<std::vector<double>> params, 
-        const std::vector<std::pair<int, int>> derivatives,
+        const std::vector<std::vector<adouble>> params, 
+        const std::vector<double> _s,
         const std::vector<double> hidden_states) :
     params(params),
-    derivatives(derivatives), 
-    zero(init_derivative(0.0)), one(init_derivative(1.0)),
-    K(params[0].size()), ada(params[0].begin(), params[0].end()), 
-    adb(params[1].begin(), params[1].end()), ads(params[2].begin(), params[2].end()),
+    nder(params[0][0].derivatives().size()),
+    K(params[0].size()), ada(_vconv<T>(params[0])),
+    adb(_vconv<T>(params[1])), s(_s),
     ts(K + 1), Rrng(K), 
-    _reg(zero),
     hidden_states(hidden_states),
-    tmax(std::accumulate(params[2].begin(), params[2].end(), 0.0))
+    tmax(std::accumulate(s.begin(), s.end(), 0.0)),
+    zero(_conv<T>(adouble(0.0, Vector<double>::Zero(nder)))),
+    one(_conv<T>(adouble(1.0, Vector<double>::Zero(nder))))
 {
     for (auto &pp : params)
         if (pp.size() != params[0].size())
@@ -64,18 +63,17 @@ PiecewiseExponentialRateFunction<T>::PiecewiseExponentialRateFunction(
     Rrng[0] = zero;
     // These constant values need to have compatible derivative shape
     // with the calculated values.
-    initialize_derivatives();
     // Fix last piece to be constant
     ada.push_back(adb.back());
     adb.push_back(adb.back());
-    ads.push_back(one);
+    s.push_back(1.0);
     ts.push_back(T_MAX);
     ++K;
     for (int k = 0; k < K; ++k)
     {
         ada[k] = 1. / ada[k];
         adb[k] = 1. / adb[k];
-        ts[k + 1] = ts[k] + ads[k];
+        ts[k + 1] = ts[k] + s[k];
         adb[k] = (log(adb[k]) - log(ada[k])) / (ts[k + 1] - ts[k]);
     }
     ts[K] = T_MAX;
@@ -128,7 +126,7 @@ PiecewiseExponentialRateFunction<T>::PiecewiseExponentialRateFunction(
     ts = new_ts;
 
     int ip;
-    for (double h : hidden_states)
+    for (T h : hidden_states)
     {
         ip = insertion_point(h, ts, 0, ts.size());
         if (myabs(ts[ip] - h) < 1e-8)
@@ -138,7 +136,7 @@ PiecewiseExponentialRateFunction<T>::PiecewiseExponentialRateFunction(
             hs_indices.push_back(ip + 1);
         else
         {
-            vec_insert<T>(ts, ip + 1, (T)h);
+            vec_insert(ts, ip + 1, h);
             if (adb[ip] == 0)
             {
                 vec_insert<T>(ada, ip + 1, ada[ip]);
@@ -167,37 +165,6 @@ PiecewiseExponentialRateFunction<T>::PiecewiseExponentialRateFunction(
     _R.reset(new PExpIntegralEvaluator<T>(ada, adb, ts, Rrng));
     _Rinv.reset(new PExpInverseIntegralEvaluator<T>(ada, adb, ts, Rrng));
     // lastly
-    compute_regularizer();
-}
-
-template <typename T>
-void PiecewiseExponentialRateFunction<T>::compute_regularizer()
-{
-    _reg = zero;
-}
-
-template <typename T>
-void PiecewiseExponentialRateFunction<T>::initialize_derivatives(void) {}
-
-template <>
-void PiecewiseExponentialRateFunction<adouble>::initialize_derivatives(void)
-{
-    int nd = derivatives.size();
-    Eigen::VectorXd z = Eigen::VectorXd::Zero(nd);
-    Eigen::MatrixXd I = Eigen::MatrixXd::Identity(nd, nd);
-    for (int k = 0; k < K; ++k)
-    {
-        ada[k].derivatives() = z;
-        adb[k].derivatives() = z;
-        ads[k].derivatives() = z;
-    }
-    std::vector<adouble>* dl[3] = {&ada, &adb, &ads};
-    int d = 0;
-    for (auto p : derivatives)
-        if (p.first < 3)
-            (*dl[p.first])[p.second].derivatives() = I.col(d++);
-    ts[0].derivatives() = z;
-    Rrng[0].derivatives() = z;
 }
 
 template <typename T>
@@ -205,7 +172,8 @@ inline T _double_integral_below_helper(const int rate, const T &tsm, const T &ts
         const T &Rrng, const T &log_denom)
 {
     const int l1r = 1 + rate;
-    T _tsm = tsm, _tsm1 = tsm1, _ada = ada, _Rrng = Rrng; // don't ask
+    T _tsm = tsm, _tsm1 = tsm1;
+    T _ada = ada, _Rrng = Rrng; // don't ask
     T z = _tsm - _tsm;
     const T l1rinv = 1 / (z + l1r);
     T diff = _tsm1 - _tsm;
@@ -246,7 +214,7 @@ template <typename T>
 void PiecewiseExponentialRateFunction<T>::print_debug() const
 {
     std::vector<std::pair<std::string, std::vector<T>>> arys = 
-    {{"ada", ada}, {"adb", adb}, {"ads", ads}, {"ts", ts}, {"Rrng", Rrng}};
+    {{"ada", ada}, {"adb", adb}, {"Rrng", Rrng}};
     std::cout << std::endl;
     for (auto p : arys)
     {
@@ -255,7 +223,6 @@ void PiecewiseExponentialRateFunction<T>::print_debug() const
             std::cout << x.value() << "::" << x.derivatives().transpose() << std::endl;
         std::cout << std::endl;
     }
-    std::cout << "reg: " << toDouble(_reg) << std::endl << std::endl;
 }
 
 template <typename T>
@@ -281,8 +248,8 @@ T PiecewiseExponentialRateFunction<T>::R_integral(const double a, const double b
     T ret = zero, r;
     for (int i = ip_a; i < ip_b + 1; ++i)
     {
-        T left = dmax(Ta, ts[i]);
-        T right = dmin(Tb, ts[i + 1]);
+        T left = dmax(Ta, (T)ts[i]);
+        T right = dmin(Tb, (T)ts[i + 1]);
         T diff = right - left;
         if (adb[i] == 0)
         {
@@ -311,7 +278,8 @@ T PiecewiseExponentialRateFunction<T>::R_integral(const double a, const double b
 
 
 template <typename T>
-inline T _single_integral(const int rate, const T &tsm, const T &tsm1, const T &ada, const T &adb, const T &Rrng, const T &log_coef)
+inline T _single_integral(const int rate, const T &tsm, const T &tsm1, 
+        const T &ada, const T &adb, const T &Rrng, const T &log_coef)
 {
     // = int_ts[m]^ts[m+1] exp(-rate * R(t)) dt
     const int c = rate;

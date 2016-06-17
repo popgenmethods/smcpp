@@ -38,7 +38,7 @@ class Population(object):
 
         ## Initialize model
         exponential_pieces = args.exponential_pieces or []
-        self._model = SMCModel(time_points, exponential_pieces)
+        self._model = SMCModel(time_points, np.cumsum(time_points)[::4])
 
         ## Set theta and rho to their default parameters
         self._L = sum([obs[:,0].sum() for obs in dataset])
@@ -100,17 +100,18 @@ class Population(object):
         # We remember the initialized model for use in split estimation
         if args.init_model is not None:
             er = EstimationResult.load(args.init_model)
-            self._model.x[:] = er.model
+            self._model.y = er.model.y
             rho = er.rho
             theta = er.theta
-        self._init_model_x = self._model.x.copy() 
-        logger.debug("initial model:\n%s" % np.array_str(self._model.x, precision=3))
+        self._init_model_y = self._model.y.copy() 
+        logger.debug("initial model:\n%s" % np.array_str(self._model.y, precision=3))
 
         ## choose hidden states based on prior model
         if args.hidden_states:
             self._hidden_states = args.hidden_states
         else:
             logger.info("Balancing hidden states...")
+            self._model._spline.eval(0.0)
             self._balance_hidden_states(args.M)
 
         ## break up long spans
@@ -124,7 +125,7 @@ class Population(object):
 
         ## Create inference object which will be used for all further calculations.
         logger.debug("Creating inference manager...")
-        self._im = _smcpp.PyInferenceManager(n - 2, self._dataset, self._hidden_states)
+        self._im = _smcpp.PyInferenceManager(n - 2, self._dataset, self._hidden_states, time_points)
         self._im.model = self._model
         self._im.theta = theta
         self._im.rho = rho
@@ -140,11 +141,8 @@ class Population(object):
     def reset(self):
         self.model.x[:] = self._init_model_x[:]
 
-    def penalize(self, model):
-        return self._penalizer(model)
-
     def _pretrain(self, theta, folded):
-        estimation_tools.pretrain(self._model, self._sfs, self._bounds, theta, self._pretrain_penalizer, folded)
+        estimation_tools.pretrain(self._model, self._sfs, self._bounds, theta, folded, args.pretrain_penalty)
 
     def randomize(self):
         for i in range(2):

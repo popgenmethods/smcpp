@@ -105,7 +105,7 @@ ConditionedSFS<T>::ConditionedSFS(int n, int H) :
     Uinv_mp2(mei.Uinv.reverse().leftCols(n).template cast<double>())
 {}
 
-template <typename T>
+    template <typename T>
 void ConditionedSFS<T>::compute_below(const PiecewiseExponentialRateFunction<T> &eta)
 {
     DEBUG << "compute below";
@@ -132,7 +132,7 @@ void ConditionedSFS<T>::compute_below(const PiecewiseExponentialRateFunction<T> 
     DEBUG << "compute below finished";
 }
 
-template <typename T>
+    template <typename T>
 inline T doubly_compensated_summation(const std::vector<T> &x)
 {
     if (x.size() == 0)
@@ -153,7 +153,7 @@ inline T doubly_compensated_summation(const std::vector<T> &x)
     return s;
 }
 
-template <typename T>
+    template <typename T>
 void ConditionedSFS<T>::compute_above(const PiecewiseExponentialRateFunction<T> &eta)
 {
     DEBUG << "compute above";
@@ -192,7 +192,7 @@ void ConditionedSFS<T>::compute_above(const PiecewiseExponentialRateFunction<T> 
     }
 }
 
-template <typename T>
+    template <typename T>
 std::vector<Matrix<T> >& ConditionedSFS<T>::compute(const PiecewiseExponentialRateFunction<T> &eta)
 {
     DEBUG << "compute called";
@@ -215,9 +215,9 @@ std::vector<Matrix<T> >& ConditionedSFS<T>::compute(const PiecewiseExponentialRa
     DEBUG << "compute finished";
     return csfs;
 }
-    
-template <typename T>
-std::vector<Matrix<T> > incorporate_theta(const std::vector<Matrix<T> > &csfs, T theta)
+
+    template <typename T>
+std::vector<Matrix<T> > incorporate_theta(const std::vector<Matrix<T> > &csfs, double theta)
 {
     std::vector<Matrix<T> > ret(csfs.size());
     for (unsigned int i = 0; i < csfs.size(); ++i)
@@ -258,7 +258,7 @@ std::vector<Matrix<T> > incorporate_theta(const std::vector<Matrix<T> > &csfs, T
 }
 
 template std::vector<Matrix<double> > incorporate_theta(const std::vector<Matrix<double> > &csfs, double theta);
-template std::vector<Matrix<adouble> > incorporate_theta(const std::vector<Matrix<adouble> > &csfs, adouble theta);
+template std::vector<Matrix<adouble> > incorporate_theta(const std::vector<Matrix<adouble> > &csfs, double theta);
 
 std::map<int, MatrixCache> ConditionedSFSBase::matrix_cache;
 MatrixCache& ConditionedSFSBase::cached_matrices(int n)
