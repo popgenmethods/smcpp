@@ -9,7 +9,7 @@ import collections
 import scipy.optimize
 import collections
 import wrapt
-from ad import adnumber, ADV
+from ad import adnumber, ADF
 
 T_MAX = C_T_MAX - 0.1
 
@@ -44,7 +44,7 @@ cdef ParameterVector make_params(model):
     dlist = model.dlist
     ar = []
     for aa in a:
-        if not isinstance(aa, ADV):
+        if not isinstance(aa, ADF):
             aa = adnumber(aa)
         r.push_back(double_vec_to_adouble(aa.x, [aa.d(da) for da in dlist]))
     ret.push_back(r)
