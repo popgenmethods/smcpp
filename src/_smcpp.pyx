@@ -9,7 +9,7 @@ import collections
 import scipy.optimize
 import collections
 import wrapt
-from ad import adnumber
+from ad import adnumber, ADV
 
 T_MAX = C_T_MAX - 0.1
 
@@ -21,7 +21,7 @@ cdef void logger_cb(const char* name, const char* level, const char* message) wi
     global abort
     try:
         lvl = {"INFO": logging.INFO, "DEBUG": logging.DEBUG - 1, "DEBUG1": logging.DEBUG,
-               "CRITICAL": logging.CRITICAL, "WARNING": logging.WARNING}
+                "CRITICAL": logging.CRITICAL, "WARNING": logging.WARNING}
         logging.getLogger(name).log(lvl[level.upper()], message)
     except KeyboardInterrupt:
         logging.getLogger(name).critical("Aborting")
@@ -39,12 +39,16 @@ aca = np.ascontiguousarray
 
 cdef ParameterVector make_params(model):
     cdef ParameterVector ret
-    for i in range(3):
-        r = []
-        for j in range(model.K):
-            entry = model[i, j]
-            r.append(float(entry))
-        ret.push_back(r)
+    cdef vector[adouble] r
+    a = model.stepwise_values()
+    dlist = model.dlist
+    ar = []
+    for aa in a:
+        if not isinstance(aa, ADV):
+            aa = adnumber(aa)
+        r.push_back(double_vec_to_adouble(aa.x, [aa.d(da) for da in dlist]))
+    ret.push_back(r)
+    ret.push_back(r)
     return ret
 
 cdef _make_em_matrix(vector[pMatrixD] mats):
@@ -64,21 +68,7 @@ def validate_observation(ob):
         raise ValueError("Input arrays must be C-ordered")
     if np.any(np.logical_and(ob[:, 1] == 2, ob[:, 2] == ob[:, 3])):
         raise RuntimeError("Error: data set contains sites where every individual is homozygous recessive. "
-                           "Please encode / fold these as non-segregating (homozygous dominant).")
-
-@wrapt.decorator
-def modelify(wrapped, instance, args, kwargs):
-    model = args[0]
-    new_args = (make_model(model),) + args[1:]
-    return wrapped(*new_args, **kwargs)
-
-def make_model(model):
-    if isinstance(model, (np.ndarray, collections.Sequence)):
-        from .model import SMCModel
-        m = SMCModel(model[2], np.where(model[0] != model[1])[0])
-        m.x[:2] = model[:2]
-        model = m
-    return model
+                "Please encode / fold these as non-segregating (homozygous dominant).")
 
 cdef class PyInferenceManager:
     cdef InferenceManager *_im
@@ -87,7 +77,7 @@ cdef class PyInferenceManager:
     cdef object _observations, _derivatives, _model, _theta, _rho
     cdef public long long seed
 
-    def __cinit__(self, int n, observations, hidden_states):
+    def __cinit__(self, int n, observations, hidden_states, s):
         self.seed = 1
         self._n = n
         cdef int[:, ::1] vob
@@ -107,9 +97,10 @@ cdef class PyInferenceManager:
             Ls.append(ob.shape[0])
         self._num_hmms = len(observations)
         cdef vector[double] hs = hidden_states
+        cdef vector[double] _s = s
         cdef vector[int] _Ls = Ls
         with nogil:
-            self._im = new InferenceManager(n, _Ls, obs, hs)
+            self._im = new InferenceManager(n, _Ls, obs, hs, _s)
         _check_abort()
 
     def __dealloc__(self):
@@ -125,14 +116,6 @@ cdef class PyInferenceManager:
     property observations:
         def __get__(self):
             return self._observations
-
-    property derivatives:
-        def __get__(self):
-            return self._derivatives
-
-        def __set__(self, derivatives):
-            self._derivatives = derivatives
-            self._im.setDerivatives(derivatives)
 
     property theta:
         def __get__(self):
@@ -158,7 +141,7 @@ cdef class PyInferenceManager:
             self._model = model
             cdef ParameterVector params = make_params(model)
             self._im.setParams(params)
-    
+
     def E_step(self, forward_backward_only=False):
         logger.debug("Forward-backward algorithm...")
         cdef bool fbOnly = forward_backward_only
@@ -256,7 +239,7 @@ cdef class PyInferenceManager:
             return _store_admatrix_helper(self._im.getEmission(), self._nder)
 
     def Q(self):
-        cdef vector[adouble] ad_rets 
+        cdef vector[adouble] ad_rets
         with nogil:
             ad_rets = self._im.Q()
         _check_abort()
@@ -266,28 +249,16 @@ cdef class PyInferenceManager:
         q = ad_rets[0]
         for i in range(1, K):
             q += ad_rets[i]
-        r = toDouble(q)
+        r = adnumber(toDouble(q))
         cdef double[::1] vjac
-        if self._derivatives:
+        dlist = self._model.dlist
+        if dlist:
             r = adnumber(r)
-            jac = aca(np.zeros([len(self._derivatives)]))
+            jac = aca(np.zeros([len(dlist)]))
             vjac = jac
             fill_jacobian(q, &vjac[0])
-            d = {}
-            for k, cc in enumerate(self._derivatives):
-                if cc[0] == 3:
-                    assert cc[1] == -1
-                    obj = self._theta
-                elif cc[0] == 4:
-                    assert cc[1] == -1
-                    obj = self._rho
-                else:
-                    obj = self._model[cc]
-                if hasattr(obj, 'd'):
-                    # if obj is not an adnumber then fuhgeddabouddit
-                    for x in obj.d():
-                        d[x] = d.get(x, 0) + obj.d(x) * jac[k]
-            r.d().update(d)
+            for i, d in enumerate(dlist):
+                r.d()[d] = jac[i]
         return r
 
     def loglik(self):
@@ -297,12 +268,12 @@ cdef class PyInferenceManager:
         _check_abort()
         return sum(llret)
 
-@modelify
 def balance_hidden_states(model, int M):
     M -= 1
     cdef ParameterVector pv = make_params(model)
     cdef vector[double] v = []
-    cdef PiecewiseExponentialRateFunction[double] *eta = new PiecewiseExponentialRateFunction[double](pv, v)
+    cdef vector[double] s = model.s
+    cdef PiecewiseExponentialRateFunction[double] *eta = new PiecewiseExponentialRateFunction[double](pv, s, v)
     try:
         ret = [0.0]
         t = 0
@@ -318,32 +289,27 @@ def balance_hidden_states(model, int M):
         ret.append(T_MAX)
     return np.array(ret)
 
-@modelify
-def raw_sfs(model, int n, double t1, double t2, jacobian=False):
+def raw_sfs(model, s, int n, double t1, double t2):
     cdef ParameterVector pv = make_params(model)
     cdef Matrix[adouble] dsfs
     cdef Matrix[double] sfs
     ret = aca(np.zeros([3, n - 1]))
     cdef double[:, ::1] vret = ret
     cdef vector[pair[int, int]] derivs
-    if not jacobian:
-        with nogil:
-            dsfs = sfs_cython(n, pv, t1, t2, derivs)
-        _check_abort()
+    cdef vector[double] _s = s
+    with nogil:
+        dsfs = sfs_cython(n, pv, _s, t1, t2)
+    _check_abort()
+    if not model.dlist:
         store_matrix(dsfs, &vret[0, 0])
         return ret
-    derivs = model.coords
-    with nogil:
-        dsfs = sfs_cython(n, pv, t1, t2, derivs)
-    _check_abort()
-    J = derivs.size()
+    J = len(model.dlist)
     ret, jac = _store_admatrix_helper(dsfs, J)
     ret = adnumber(ret)
     for i in range(3):
         for j in range(n - 1):
-            for k, p in enumerate(derivs):
-                for x in model[p].d():
-                    ret[i, j].d()[x] = ret[i, j].d().get(x, 0) + model[p].d(x) * jac[i, j, k]
+            for k, x in enumerate(model.dlist):
+                ret[i, j].d()[x] = jac[i, j, k]
     return ret
 
 cdef _store_admatrix_helper(Matrix[adouble] &mat, int nder):

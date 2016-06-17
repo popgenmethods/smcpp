@@ -3,9 +3,10 @@
 InferenceManager::InferenceManager(
             const int n, const std::vector<int> obs_lengths,
             const std::vector<int*> observations,
-            const std::vector<double> hidden_states) :
+            const std::vector<double> hidden_states,
+            const std::vector<double> s) :
     debug(false), saveGamma(false), folded(false),
-    hidden_states(hidden_states),
+    hidden_states(hidden_states), s(s),
     n(n), 
     obs(map_obs(observations, obs_lengths)),
     M(hidden_states.size() - 1), 
@@ -227,7 +228,7 @@ void InferenceManager::recompute_emission_probs()
 
 std::vector<double> InferenceManager::randomCoalTimes(const ParameterVector params, double fac, const int size)
 {
-    PiecewiseExponentialRateFunction<double> eta(params, {}, hidden_states);
+    PiecewiseExponentialRateFunction<double> eta(params, s, hidden_states);
     std::vector<double> ret(size);
     std::mt19937 gen;
     for (int i = 0; i < size; ++i)
@@ -237,7 +238,7 @@ std::vector<double> InferenceManager::randomCoalTimes(const ParameterVector para
 
 PiecewiseExponentialRateFunction<adouble> InferenceManager::getEta()
 {
-    return PiecewiseExponentialRateFunction<adouble>(params, derivatives, hidden_states);
+    return PiecewiseExponentialRateFunction<adouble>(params, s, hidden_states);
 }
 
 void InferenceManager::setParams(const ParameterVector params)
@@ -259,16 +260,6 @@ void InferenceManager::setTheta(const double theta)
 {
     this->theta = theta;
     dirty.theta = true;
-}
-
-void InferenceManager::setDerivatives(const std::vector<std::pair<int, int> > derivatives)
-{
-    this->derivatives = derivatives;
-    zero = 0.;
-    zero.derivatives() = Vector<double>::Zero(derivatives.size());
-    dirty.params = true;
-    dirty.theta = true;
-    dirty.rho = true;
 }
 
 void InferenceManager::parallel_do(std::function<void(hmmptr&)> lambda)
@@ -318,20 +309,9 @@ void InferenceManager::do_dirty_work()
     // First set derivatives correctly. PiecewiseExponentialRateFunction
     // will already do this for all the params.
     PiecewiseExponentialRateFunction<adouble> eta = getEta();
-    unsigned int ds = derivatives.size();
-    theta.derivatives() = Vector<double>::Zero(ds);
-    rho.derivatives() = Vector<double>::Zero(ds);
-    for (unsigned int i = 0; i < ds; ++i)
-    {
-        if (derivatives[i] == std::make_pair(3, -1)) 
-            theta.derivatives()(i) = 1.;
-        if (derivatives[i] == std::make_pair(4, -1)) 
-            rho.derivatives()(i) = 1.;
-    }
     // Next figure out what changed and recompute accordingly.
     if (dirty.params)
     {
-        regularizer = adouble(eta.regularizer());
         recompute_initial_distribution();
         sfss = csfs.compute(eta);
     }
@@ -411,16 +391,14 @@ std::vector<double> InferenceManager::loglik(void)
 
 double InferenceManager::R(const ParameterVector params, double t)
 {
-    PiecewiseExponentialRateFunction<double> eta(params, std::vector<std::pair<int, int> >(), std::vector<double>());
+    PiecewiseExponentialRateFunction<double> eta(params, s, std::vector<double>());
     return (*eta.getR())(t);
 }
 
-adouble InferenceManager::getRegularizer() { return regularizer; }
-
-Matrix<adouble> sfs_cython(int n, const ParameterVector &p, double t1, double t2,
-        std::vector<std::pair<int, int> > deriv) 
+Matrix<adouble> sfs_cython(int n, const ParameterVector &p, std::vector<double> s, 
+        double t1, double t2)
 { 
-    PiecewiseExponentialRateFunction<adouble> eta(p, deriv, {t1, t2});
+    PiecewiseExponentialRateFunction<adouble> eta(p, s, {t1, t2});
     ConditionedSFS<adouble> csfs(n - 2, 1);
     std::vector<Matrix<adouble> > v = csfs.compute(eta);
     return v[0];

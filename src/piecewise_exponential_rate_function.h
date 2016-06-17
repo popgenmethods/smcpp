@@ -17,12 +17,10 @@ template <typename T>
 class PiecewiseExponentialRateFunction
 {
     public:
-    PiecewiseExponentialRateFunction(const std::vector<std::vector<double>>, 
-            const std::vector<std::pair<int, int>>, const std::vector<double>);
-    PiecewiseExponentialRateFunction(const std::vector<std::vector<double>>, const std::vector<double>);
+    PiecewiseExponentialRateFunction(const std::vector<std::vector<adouble>>, const std::vector<double>,
+            const std::vector<double>);
     PiecewiseExponentialRateFunction(const PiecewiseExponentialRateFunction &other) : 
-        PiecewiseExponentialRateFunction(other.params, other.derivatives, other.hidden_states) {}
-    std::vector<T> getTimes() const { return ts; }
+        PiecewiseExponentialRateFunction(other.params, other.s, other.hidden_states) {}
     const FunctionEvaluator<T>* geteta() const { return _eta.get(); }
     const FunctionEvaluator<T>* getR() const { return _R.get(); }
     const FunctionEvaluator<T>* getRinv() const { return _Rinv.get(); }
@@ -30,7 +28,6 @@ class PiecewiseExponentialRateFunction
     T eta(T x) const { return (*_eta)(x); }
     T R_integral(const double, const double) const;
     void print_debug() const;
-    const T regularizer(void) const { return _reg; }
     
     Matrix<T> tjj_all_above(const int, const MatrixXq&, const MatrixXq&, const MatrixXq&, const MatrixXq&) const;
     void tjj_double_integral_above(const int, long, std::vector<Matrix<T> > &) const;
@@ -49,27 +46,21 @@ class PiecewiseExponentialRateFunction
     }
     
     private:
-    T init_derivative(double x);
-    std::vector<std::vector<double>> params;
-    const std::vector<std::pair<int, int>> derivatives;
+    std::vector<std::vector<adouble>> params;
+    const int nder;
     
-    public:
-    const T zero;
-    const T one;
-
     private:
     int K;
-    std::vector<T> ada, adb, ads, ts, Rrng;
-    void initialize_derivatives();
+    std::vector<T> ada, adb, ts, Rrng;
+    std::vector<double> s;
     void compute_antiderivative();
-    void compute_regularizer();
     feval<T> _eta, _R, _Rinv;
-    T _reg;
     std::vector<int> hs_indices;
 
     public:
     const std::vector<double> hidden_states;
     const double tmax;
+    const T zero, one;
 };
 
 template <typename T>
@@ -81,11 +72,6 @@ class BasePExpEvaluator : public FunctionEvaluator<T>
         ada(ada), adb(adb), ts(ts), Rrng(Rrng) {}
 
     virtual ~BasePExpEvaluator() = default;
-
-    virtual std::vector<T> getTimes(void) const
-    {
-        return ts;
-    }
 
     virtual T operator()(const T &t) const
     {

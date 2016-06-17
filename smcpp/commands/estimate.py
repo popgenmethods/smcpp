@@ -20,7 +20,7 @@ from ..model import SMCModel
 from ..population import Population
 from ..inference_service import DumbInferenceService as InferenceService
 # from ..inference_service import InferenceService
-from ..optimizer import PopulationOptimizer, TwoPopulationOptimizer
+from ..optimizer import PopulationOptimizer
 from ..logging import init_logging
 
 np.set_printoptions(linewidth=120, suppress=True)
@@ -107,10 +107,8 @@ def main(args):
     npop = len(populations)
     if npop == 1:
         opt_klass = PopulationOptimizer
-    elif npop == 2:
-        opt_klass = TwoPopulationOptimizer
     else:
-        raise RuntimeError("> 2 populations not currently supported")
+        raise RuntimeError("> 1 population not currently supported")
     opt = opt_klass(iserv, args.outdir)
 
     # Run the optimizer

@@ -11,7 +11,7 @@
 #include "transition_bundle.h"
 #include "inference_bundle.h"
 
-typedef std::vector<std::vector<double>> ParameterVector;
+typedef std::vector<std::vector<adouble>> ParameterVector;
 class HMM;
 
 class InferenceManager
@@ -19,9 +19,8 @@ class InferenceManager
     public:
     InferenceManager(
             const int, const std::vector<int>, const std::vector<int*>,
-            const std::vector<double>);
+            const std::vector<double>, const std::vector<double>);
 
-    void setDerivatives(const std::vector<std::pair<int, int> >);
     void setRho(const double);
     void setTheta(const double);
     void setParams(const ParameterVector);
@@ -35,9 +34,8 @@ class InferenceManager
 
     // Unfortunately these are necessary to work around a bug in Cython
     double R(const ParameterVector params, double t);
-    adouble getRegularizer();
     bool debug, saveGamma, folded;
-    std::vector<double> hidden_states;
+    std::vector<double> hidden_states, s;
     std::vector<double> randomCoalTimes(const ParameterVector params, double fac, const int size);
     std::map<block_key, Vector<adouble> > emission_probs;
     std::vector<Matrix<double>*> getXisums();
@@ -51,7 +49,7 @@ class InferenceManager
     private:
     ParameterVector params;
     std::vector<std::pair<int, int> > derivatives;
-    adouble theta, rho;
+    double theta, rho;
 
     std::vector<Eigen::Matrix<int, Eigen::Dynamic, 4, Eigen::RowMajor> > 
         map_obs(const std::vector<int*>&, const std::vector<int>&);
@@ -68,7 +66,7 @@ class InferenceManager
     const int n;
     std::vector<Eigen::Matrix<int, Eigen::Dynamic, 4, Eigen::RowMajor> > obs;
     const int M;
-    adouble regularizer, zero;
+    adouble zero;
     ConditionedSFS<adouble> csfs;
 
     std::vector<hmmptr> hmms;
@@ -96,7 +94,7 @@ class InferenceManager
     PiecewiseExponentialRateFunction<adouble> getEta();
 };
 
-Matrix<adouble> sfs_cython(int n, const ParameterVector &p, double t1, double t2,
-        std::vector<std::pair<int, int> > deriv);
+Matrix<adouble> sfs_cython(int n, const ParameterVector &p, std::vector<double> s,
+        double t1, double t2);
 
 #endif

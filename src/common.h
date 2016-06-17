@@ -234,4 +234,13 @@ void check_nan(const Eigen::AutoDiffScalar<T> &x)
     check_nan(x.derivatives());
 }
 
+inline adouble double_vec_to_adouble(const double &x, const std::vector<double> &dx)
+{
+    adouble ret;
+    Vector<double> vdx(dx.size());
+    for (int i = 0; i < dx.size(); ++i)
+        vdx(i) = dx[i];
+    return adouble(x, vdx);
+}
+
 #endif

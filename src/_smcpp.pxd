@@ -7,6 +7,7 @@ cdef extern from "common.h":
     cdef cppclass Vector[T]:
         T& operator()(int)
         int size()
+    adouble double_vec_to_adouble(double x, vector[double] v)
     cdef cppclass adouble:
         double value()
         Vector[double] derivatives()
@@ -29,11 +30,11 @@ ctypedef map[block_key, Vector[double]]* pBlockMap
 cdef extern from "inference_manager.h":
     cdef cppclass block_key:
         int& operator[](int)
-    ctypedef vector[vector[double]] ParameterVector
+    ctypedef vector[vector[adouble]] ParameterVector
     cdef cppclass InferenceManager nogil:
         InferenceManager(const int, const vector[int],
-                const vector[int*], const vector[double]) except +
-        void setDerivatives(vector[pair[int, int]])
+                const vector[int*], const vector[double],
+                const vector[double]) except +
         void setParams(const ParameterVector)
         void setTheta(const double)
         void setRho(const double)
@@ -55,10 +56,10 @@ cdef extern from "inference_manager.h":
         Matrix[adouble]& getTransition()
         Matrix[adouble]& getEmission()
         map[block_key, Vector[adouble] ]& getEmissionProbs()
-    Matrix[adouble] sfs_cython(int, const ParameterVector&, double, double, vector[pair[int, int]]) nogil
+    Matrix[adouble] sfs_cython(int, const ParameterVector&, const vector[double], double, double) nogil
 
 
 cdef extern from "piecewise_exponential_rate_function.h":
     cdef cppclass PiecewiseExponentialRateFunction[T]:
-        PiecewiseExponentialRateFunction(const ParameterVector, const vector[double])
+        PiecewiseExponentialRateFunction(const ParameterVector, const vector[double], const vector[double])
         T R(T x)

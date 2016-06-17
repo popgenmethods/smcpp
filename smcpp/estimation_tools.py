@@ -41,15 +41,6 @@ def construct_time_points(t1, tK, pieces):
 ## Regularization
 ##
 # This is taken directly from the Wikipedia page
-def _TDMASolve(a, b, c, d):
-    # a, b, c == diag(-1, 0, 1)
-    n = len(d) # n is the numbers of rows, a and c has length n-1
-    for i in xrange(n-1):
-        d[i+1] -= 1. * d[i] * a[i] / b[i]
-        b[i+1] -= 1. * c[i] * a[i] / b[i]
-    for i in reversed(xrange(n-1)):
-        d[i] -= d[i+1] * c[i] / b[i+1]
-    return [d[i] / b[i] for i in xrange(n)]
 
 
 def _pchipendpoint(h1, h2, del1, del2):
@@ -99,8 +90,21 @@ def regularizer(model, penalty, f, dump_piecewise=False):
         return penalty * reg
     ## Spline fit / curvature penalty
     assert f == "curvature"
-    x = np.log10(np.cumsum(model[2]).astype("float"))
+    x = np.cumsum(model[2]).astype("float")
     y = np.array([g(_) for _ in model[0]], dtype=object)
+
+    # d2y = np.diff(y, 2)
+    # dx = np.diff(x)
+    # avgdx = (dx[1:] + dx[:-1]) / 2.
+    # curv = d2y / avgdx
+    # alpha = 1
+    # ecurv = (np.exp(alpha * x)[:-2] * curv**2).sum()
+    # return penalty * ecurv
+
+    # dydx = np.diff(y) / np.diff(x)
+    # mon = dydx[1:] * dydx[:-1]
+    # mon[mon > 0] *= 0
+    # return -penalty * mon.sum()
     xy = list(zip(x, y))
     
     xavg = (x[1:] + x[:-1]) / 2.
@@ -108,62 +112,19 @@ def regularizer(model, penalty, f, dump_piecewise=False):
     xy += list(zip(xavg, yavg))
     pts = sorted(xy)
     x, y = np.array(pts).T
+
+    return penalty * (np.diff(y, 2)**2).sum()
     
-    h = x[1:] - x[:-1]
-    j = y[1:] - y[:-1]
-    # Subdiagonal
-    a = h[:-1] / 3.
-    a = np.append(a, h[-1])
-    # Diagonal
-    b = (h[1:] + h[:-1]) / 3.
-    b = 2. * np.concatenate([[h[0]], b, [h[-1]]])
-    # Superdiagonal
-    c = h[1:] / 3.
-    c = np.concatenate([[h[0]], c])
-    # RHS
-    jh = j / h
-    d = np.concatenate([[3 * jh[0]], jh[1:] - jh[:-1], [-3. * jh[-1]]])
-    # Solve tridiagonal system
-    cb = np.array(_TDMASolve(a, b, c, d), dtype=object)
-    ca = (cb[1:] - cb[:-1]) / h / 3.
-    ca = np.append(ca, 0.0)
-    cc = jh - h * (2. * cb[:-1] + cb[1:]) / 3.
-    cc = np.append(cc, 3. * ca[-2] * h[1]**2 + 2 * cb[-2] * h[-1] + cc[-1])
-    coef = [_ for abcd in zip(ca, cb, cc, y) for _ in abcd]
-
-    # dx = np.diff(x)
-    # n = len(x)
-    # # akima spline interp
-    # m = np.diff(y) / dx
-    # mm = 2.0 * m[0] - m[1]
-    # mmm = 2.0 * mm - m[0]
-    # mp = 2.0 * m[n - 2] - m[n - 3]
-    # mpp = 2.0 * mp - m[n - 2]
-
-    # m1 = np.concatenate(([mmm], [mm], m, [mp], [mpp]))
-
-    # dm = np.abs(np.diff(m1))
-    # f1 = dm[2:n + 2]
-    # f2 = dm[0:n]
-    # f12 = f1 + f2
-
-    # ids = np.nonzero(f12 > 1e-9 * np.max(f12))[0]
-    # b = m1[1:n + 1]
-
-    # b[ids] = (f1[ids] * m1[ids + 1] + f2[ids] * m1[ids + 2]) / f12[ids]
-    # c = (3.0 * m - 2.0 * b[0:n - 1] - b[1:n]) / dx
-    # d = (b[0:n - 1] + b[1:n] - 2.0 * m) / dx ** 2
-
-    # coef = [_ for abcd in zip(d, c, b, y) for _ in abcd]
-
     ## Curvature 
     # (d'')^2 = (6au + 2b)^2 = 36a^2 u^2 + 24aub + 4b^2
     # int(d''^2, {u,0,1}) = 36a^2 / 3 + 24ab / 2 + 4b^2
     curv = 0
     for k in range(len(x) - 1):
         a, b = coef[(4 * k):(4 * k + 2)]
-        xi = x[k + 1] - x[k]
+        x1, x2 = x[k:(k + 2)]
+        xi = x2 - x1
         curv += (12 * a**2 * xi**3 + 12 * a * b * xi**2 + 4 * b**2 * xi)
+        print(x1, x2, a, b, curv)
     if dump_piecewise:
         s = "Piecewise[{"
         arr = []
@@ -197,7 +158,7 @@ def thin_dataset(dataset, thinning):
     p.terminate()
     return ret
     
-def pretrain(model, sample_csfs, bounds, theta0, penalizer, folded):
+def pretrain(model, sample_csfs, bounds, theta0, folded, penalty):
     '''Pre-train model by fitting to observed SFS. Changes model in place!'''
     logger.debug("pretraining")
     n = sample_csfs.shape[1] + 1
@@ -219,7 +180,7 @@ def pretrain(model, sample_csfs, bounds, theta0, penalizer, folded):
         logger.debug("done")
         usfs = undist(sfs)
         kl = -(sample_sfs * ad.admath.log(usfs)).sum()
-        reg = penalizer(model)
+        reg = penalty * model.regularizer()
         kl += reg
         ret = (kl.x, np.array(list(map(kl.d, x))))
         logger.debug("\n%s" % np.array_str(np.array([[float(y) for y in row] for row in model._x]), precision=3))
