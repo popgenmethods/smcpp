@@ -1,161 +1,55 @@
-import pytest
-import multiprocessing
+import smcpp._smcpp, smcpp.model
 import numpy as np
-import logging
-import _pypsmcpp
 import sys
+import logging
+import ad
 
-logging.getLogger().setLevel("INFO")
+def test_inference():
+    logging.basicConfig(level=logging.DEBUG - 1)
+    hs=[0, 0.002, 0.0024992427075529156, 0.0031231070556282147, 0.0039027012668429368, 0.0048768988404573679,
+            0.0060942769312431738, 0.0076155385891087321, 0.0095165396414589112, 0.011892071150027212, 0.014860586049702963, 0.018570105657341358,
+            0.023205600571298769, 0.028998214001102113, 0.036236787437156658, 0.045282263373729439, 0.0565856832591419, 0.070710678118654752, 0.088361573317084705,
+            0.11041850887031313, 0.1379813265364985, 0.15879323234898887, 0.22690003122622915, 0.28675095012241164, 0.35039604900931776, 0.4174620285802807,
+            0.48093344839252727, 0.54048403452772453, 0.58902987679112695, 0.63973400753929655, 0.6661845719884536, 0.68097444812291441, 0.69652310395210704,
+            0.71291262669986732, 0.73023918985303526, 0.74861647270557707, 0.76818018497781393, 0.7890941548490632, 0.81155867710242946, 0.8429182938518559,
+            0.88146343535942318, 0.92368486081866963, 0.97035848127888702, 1.0225351498208244, 1.1293598575982273, 1.2553186915845398, 1.468142830257521,
+            1.7982719448467761, 2.3740247153419043, 3.2719144602927757, 4.8068671176749671, 49.899999999999999]
+    a=[0.0050000000000000001, 0.0050000000000000001,
+        0.0050000000000000001, 0.0050000000000000001, 0.0050000000000000001, 0.0050000000000000001, 0.0050000000000000001, 0.0050000000000000001,
+        0.0050000000000000001, 0.0050000000000000001, 0.0050000000000000001, 0.0050000000000000001, 0.0050000000000000001, 0.0050000000000000001,
+        0.0050000000000000001, 0.0050000000000000001, 0.0050000000000000001, 0.0050000000000000001, 0.0050000000000000001, 0.0050000000000000001,
+        0.0050000000000000001, 0.0050000000000000001, 0.0050000000000000001, 0.0050000000000000001, 0.0050000000000000001, 50, 50, 0.0050000000000000001,
+        0.0050000000000000001, 0.0050000000000000001, 0.0050000000000000001, 0.0050000000000000001, 7.41771300094591]
+    s= [0.002, 0.00049924270755291556,
+            0.00062386434807529907, 0.00077959421121472213, 0.00097419757361443156, 0.0012173780907858058, 0.0015212616578655584, 0.0019010010523501783,
+            0.0023755315085683005, 0.0029685148996757508, 0.0037095196076383959, 0.0046354949139574102, 0.0057926134298033442, 0.0072385734360545448,
+            0.0090454759365727819, 0.011303419885412461, 0.014124994859512852, 0.017650895198429953, 0.022056935553228421, 0.027562817666185374,
+            0.034443085525912243, 0.043040815163128798, 0.0537847217117913, 0.067210536757978667, 0.083987721931547688, 0.10495285078070138,
+            0.13115132347527858, 0.16388949439075173, 0.20479981185031038, 0.25592221813754867, 0.31980586869051764, 0.39963624257870101,
+            0.49939398246933342]
+    x = np.array([a,a,s])
+    s = x[2]
+    m = smcpp.model.SMCModel(s, [])
+    m.x[:2] = x[:2]
+    n = 10
+# fakeobs = [[1, -1, 0, 0]] + [[1,a,b,c] for a in range(2) for c in range(n - 2) for b in range(c)]
+    fakeobs = [[1, -1, 0, 0], [1, 0, 0, 0], [10, 0, 0, 0], [1000, -1, 0, 0], [200000, 0, 0, n - 2]]
+    im = smcpp._smcpp.PyInferenceManager(n - 2, np.array([fakeobs] * 1, dtype=np.int32), hs)
+    m.x[0] = [ad.adnumber(x) for x in m.x[0]]
+    im.model = m
+    im.derivatives = [(0,i) for i in range(len(s))]
+    im.theta = 0.0025000000000000001
+    im.rho = 0.0031206103977654887
+    im.E_step()
+    q0 = np.mean(im.Q())
+    for k in range(m.K):
+        dq = q0.d(m.x[0, k])
+        m.x[0, k] += 1e-8
+        m.x[1, k] = m.x[0, k]
+        im.model = m
+        q1 = np.mean(im.Q())
+        a = (q1 - q0) * 1e8
+        print(k, a, dq)
+        assert abs(a - dq) < 1e-8
+        m.x[0, k] -= 1e-8
 
-from fixtures import *
-
-n = 25
-L = 1000
-
-hidden_states = np.array([  0.      ,   0.110721,   0.474051,   1.564003,   2.951359,   4.592253,   6.600545,   9.189684,  12.83887 ,
-            14.077194])
-num_threads = 1
-num_samples = 10
-block_size = 50
-
-def no_test_transition_derivatives(demo, mock_dataset):
-    N0 = 10000.
-    rho = 1e-9
-    theta = 2.5e-8
-    obs_list = mock_dataset['obs']
-    em = np.arange(3 *  (n - 1), dtype=int).reshape([3, n - 1])
-    em[0] = em[2] = 0
-    em[1] = 1
-    im = _pypsmcpp.PyInferenceManager(n - 2, obs_list, hidden_states, 
-            4.0 * N0 * theta, 4.0 * N0 * rho, block_size, 50, [0], em)
-    def f(x):
-        # print("f", x, recompute)
-        im.setParams(x, False)
-        return -im.Q(0.)[0]
-    a = np.array([   2.640374,    5.552209,   44.405643,   37.321315,    5.466158,    2.024763,  10.      ,  10.      ,
-                .01      ,    6.634416])
-    b = a + .01
-    s = np.array([0.1] * 10)
-    demo = (a, a, s)
-    K = len(a)
-    coords = [(aa, k) for aa in [0, 1] for k in range(K)]
-    im.setParams(demo, coords)
-    im.Estep()
-    E = im.transition
-    jac = E[1]
-    jac.shape = jac.shape[:2] + (2, jac.shape[-1] // 2)
-    eps = 1e-8
-    I = np.eye(K)
-    for m in range(E[0].shape[0]):
-        for h in range(E[0].shape[1]):
-            for k in [0, 1]:
-                for ell in range(K):
-                    args = [demo[0].copy(), demo[1].copy(), demo[2].copy()]
-                    args[k][ell] += eps
-                    im.setParams(args, False)
-                    E2 = im.transition
-                    q = E[0][m, h]
-                    q2 = E2[m, h]
-                    print(k, ell, q2, q, jac[m, h, k, ell], (q2 - q) / eps)
-    assert False
-
-def no_test_emission_derivatives(demo, mock_dataset):
-    N0 = 10000.
-    rho = 1e-9
-    theta = 2.5e-8
-    obs_list = mock_dataset['obs']
-    em = np.arange(3 *  (n - 1), dtype=int).reshape([3, n - 1])
-    em[0] = em[2] = 0
-    em[1] = 1
-    im = _pypsmcpp.PyInferenceManager(n - 2, obs_list, hidden_states, 
-            4.0 * N0 * theta, 4.0 * N0 * rho, block_size, 50, [0], em)
-    def f(x):
-        # print("f", x, recompute)
-        im.setParams(x, False)
-        return -im.Q(0.)[0]
-    a = np.array([   2.640374,    5.552209,   44.405643,   37.321315,    5.466158,    2.024763,  10.      ,  10.      ,
-                .01      ,    6.634416])
-    b = a + .01
-    s = np.array([0.1] * 10)
-    demo = (a, a, s)
-    K = len(a)
-    coords = [(aa, k) for aa in [0, 1] for k in range(K)]
-    im.setParams(demo, coords)
-    im.Estep()
-    E = im.emission
-    jac = E[1]
-    jac.shape = jac.shape[:2] + (2, jac.shape[-1] // 2)
-    eps = 1e-8
-    I = np.eye(K)
-    for m in range(E[0].shape[0]):
-        for h in range(E[0].shape[1]):
-            for k in [0, 1]:
-                for ell in range(K):
-                    args = [demo[0].copy(), demo[1].copy(), demo[2].copy()]
-                    args[k][ell] += eps
-                    im.setParams(args, False)
-                    E2 = im.emission
-                    q = E[0][m, h]
-                    q2 = E2[m, h]
-                    print(k, ell, q2, q, jac[m, h, k, ell], (q2 - q) / eps)
-    assert False
-
-def test_derivatives(demo, mock_dataset):
-    N0 = 10000.
-    rho = 1e-9
-    theta = 2.5e-8
-    obs_list = mock_dataset['obs']
-    em = np.arange(3 *  (n - 1), dtype=int).reshape([3, n - 1])
-    em[0] = em[2] = 0
-    em[1] = 1
-    im = _pypsmcpp.PyInferenceManager(n - 2, obs_list, hidden_states, 
-            4.0 * N0 * theta, 4.0 * N0 * rho, block_size, 50, [0], em)
-    def f(x):
-        # print("f", x, recompute)
-        im.setParams(x, False)
-        return -im.Q(0.)[0]
-    a = np.array([   2.640374,    5.552209,   44.405643,   37.321315,    5.466158,    2.024763,  10.      ,  10.      ,
-                .1      ,    6.634416])
-    b = a + .01
-    s = np.array([0.1] * 10)
-    demo = (a, b, s)
-    K = len(a)
-    coords = [(0, k) for k in range(K)]
-    im.setParams(demo, True)
-    im.Estep()
-    ret = im.Q(0.0)[0]
-    q = -ret[0]
-    K = demo[0].shape[0]
-    jac = -ret[1].reshape(3, K)
-    print(jac)
-    eps = 1e-8
-    K = len(demo[0])
-    I = np.eye(K)
-    for k in [0, 1, 2]:
-        for ell in range(K):
-            args = [demo[0].copy(), demo[1].copy(), demo[2].copy()]
-            args[k][ell] += eps
-            q2 = f(args)
-            print(k, ell, q2, q, jac[k, ell], (q2 - q) / eps)
-    assert False
-
-def test_diff_nodiff(demo, fake_obs):
-    N0 = 10000.
-    rho = theta = 1e-8
-    obs_list = [fake_obs]
-    im = _pypsmcpp.PyInferenceManager(n, obs_list, hidden_states, 
-            4.0 * N0 * theta / 2.0, 4.0 * N0 * rho, block_size, num_threads, num_samples)
-    for ad in [True, False]:
-        im.set_seed(1)
-        im.setParams(demo, ad)
-        im.Estep()
-    ret = im.Q(0.0, False)[0]
-    ret2, _ = im.Q(0.0, True)[0]
-    assert abs(ret - ret2) < 1e-10
-
-def test_inference_parallel(constant_demo_1, fake_obs):
-    a, b, s = constant_demo_1
-    ll, jac = inference.loglik(a, b, s, 1, 1, N, [fake_obs,] * 4, 1e-8, 1e-8, hidden_states, numthreads=8, jacobian=True)
-    print(ll)
-    print(jac)
-    # Well, that worked

@@ -2,7 +2,7 @@ from __future__ import absolute_import, division, print_function
 import numpy as np
 import json
 import logging
-from ad import adnumber, ADV
+from ad import adnumber, ADF
 logger = logging.getLogger(__name__)
 
 from . import _smcpp, estimation_tools
@@ -39,7 +39,7 @@ class SMCModel(object):
 
     @property
     def dlist(self):
-        return [yy for yy in self.y if isinstance(yy, ADV)]
+        return [yy for yy in self.y if isinstance(yy, ADF)]
 
     def regularizer(self):
         return self._spline.roughness()
