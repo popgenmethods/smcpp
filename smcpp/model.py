@@ -15,7 +15,7 @@ class SMCModel(object):
     def __init__(self, s, knots):
         self._s = s
         self._knots = knots
-        self.y = np.ones_like(knots)
+        self.y = np.zeros_like(knots, dtype='object')
 
     @property
     def s(self):
@@ -37,7 +37,7 @@ class SMCModel(object):
         return self._y[ind]
 
     def _refit(self):
-        self._spline = CubicSpline(np.log(self._knots), ad.admath.log(self._y))
+        self._spline = CubicSpline(np.log(self._knots), self._y)
 
     @property
     def y(self):
@@ -52,7 +52,7 @@ class SMCModel(object):
     def dlist(self):
         return [yy for yy in self.y if isinstance(yy, ADF)]
 
-    def regularizer(self, x_trans=np.log, y_trans=np.log):
+    def regularizer(self):
         return self._spline.roughness()
 
     def stepwise_values(self):
