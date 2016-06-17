@@ -3,6 +3,7 @@ import numpy as np
 import json
 import logging
 from ad import adnumber, ADF
+import ad.admath
 logger = logging.getLogger(__name__)
 
 from . import _smcpp, estimation_tools
@@ -28,6 +29,16 @@ class SMCModel(object):
     def knots(self):
         return self._knots
 
+    def __setitem__(self, key, item):
+        self._y[key] = item
+        self._refit()
+
+    def __getitem__(self, ind):
+        return self._y[ind]
+
+    def _refit(self):
+        self._spline = CubicSpline(np.log(self._knots), ad.admath.log(self._y))
+
     @property
     def y(self):
         return self._y
@@ -35,17 +46,17 @@ class SMCModel(object):
     @y.setter
     def y(self, y):
         self._y = y
-        self._spline = CubicSpline(self._knots, self._y)
+        self._refit()
 
     @property
     def dlist(self):
         return [yy for yy in self.y if isinstance(yy, ADF)]
 
-    def regularizer(self):
+    def regularizer(self, x_trans=np.log, y_trans=np.log):
         return self._spline.roughness()
 
     def stepwise_values(self):
-        return self._spline.eval(np.cumsum(self._s))
+        return np.array(ad.admath.exp(self._spline.eval(np.log(np.cumsum(self._s)))))
 
     def to_dict(self):
         x = np.array([self.stepwise_values(), self.stepwise_values(), self._s])

@@ -84,6 +84,7 @@ class PopulationOptimizer(object):
         q = -np.mean(self._iserv.Q())
         reg = np.mean([m.regularizer() for m in models])
         logger.debug("\n" + np.array_str(models[0].y.astype(float), precision=2, max_line_width=100))
+        logger.debug("\n" + np.array_str(models[0].stepwise_values().astype(float), precision=2, max_line_width=100))
         logger.debug((float(q), float(reg), float(q + reg)))
         logger.debug("dq:\n" + np.array_str(np.array(list(map(q.d, xs))), max_line_width=100, precision=2))
         logger.debug("dreg:\n" + np.array_str(np.array(list(map(reg.d, xs))), max_line_width=100, precision=2))
@@ -129,7 +130,7 @@ class PopulationOptimizer(object):
         # res = scipy.optimize.fmin_tnc(self._f, x0, None, args=[models], bounds=bounds, disp=5, xtol=1e-4)
         # eps = np.finfo(float).eps
         # bds = [[max(bb[0], xx - 5.), min(bb[1], xx + 5.)] for bb, xx in zip(bounds, x0)]
-        res = scipy.optimize.fmin_l_bfgs_b(self._f, x0, None, args=[models], bounds=bounds, pgtol=.1)
+        res = scipy.optimize.fmin_l_bfgs_b(self._f, x0, None, args=[models], bounds=bounds)
         if res[2]['warnflag'] != 0:
             logger.warn(res[2])
         print(res)
