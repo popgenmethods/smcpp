@@ -42,7 +42,6 @@ cdef ParameterVector make_params(model):
     cdef vector[adouble] r
     a = model.stepwise_values()
     dlist = model.dlist
-    ar = []
     for aa in a:
         if not isinstance(aa, ADF):
             aa = adnumber(aa)
