@@ -31,7 +31,7 @@ def lazy_extensions():
                 language="c++",
                 include_dirs=["src", np.get_include()] + include_dirs,
                 # extra_compile_args=["-O0", "-ggdb3", "-std=c++11", "-Wfatal-errors", "-Wno-unused-variable", "-Wno-unused-function", "-D_GLIBCXX_DEBUG"],
-                extra_compile_args=["-O2", "-std=c++11", "-g", "-rdynamic", "-Wno-deprecated-declarations", "-fopenmp"],
+                extra_compile_args=["-O2", "-std=c++11", "-Wno-deprecated-declarations", "-fopenmp"],
                 libraries=['gmp', 'gmpxx', 'gsl', 'gslcblas'],
                 extra_link_args=['-fopenmp'],
                 )]

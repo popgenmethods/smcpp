@@ -8,11 +8,13 @@ logger = logging.getLogger(__name__)
 
 from . import _smcpp, estimation_tools
 from .spline import CubicSpline
+from .observe import Observable
 
 
-class SMCModel(object):
+class SMCModel(Observable):
 
     def __init__(self, s, knots):
+        Observable.__init__(self)
         self._s = s
         self._knots = knots
         self.y = np.zeros_like(knots, dtype='object')
@@ -32,6 +34,7 @@ class SMCModel(object):
     def __setitem__(self, key, item):
         self._y[key] = item
         self._refit()
+        self.update_observers('model update')
 
     def __getitem__(self, ind):
         return self._y[ind]

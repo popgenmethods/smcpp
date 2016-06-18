@@ -18,8 +18,6 @@ logger = getLogger(__name__)
 from .. import _smcpp, util, estimation_tools
 from ..model import SMCModel
 from ..population import Population
-from ..inference_service import DumbInferenceService as InferenceService
-# from ..inference_service import InferenceService
 from ..optimizer import PopulationOptimizer
 from ..logging import init_logging
 
@@ -99,19 +97,14 @@ def main(args):
         datasets_files.append(args.second_population)
     
     ## Construct populations
-    populations = [(dsf, args) for dsf in datasets_files]
-
-    ## Initialize the "inference server"
-    iserv = InferenceService(populations)
+    populations = [Population(dsf, args) for dsf in datasets_files]
 
     npop = len(populations)
     if npop == 1:
         opt_klass = PopulationOptimizer
     else:
         raise RuntimeError("> 1 population not currently supported")
-    opt = opt_klass(iserv, args.outdir)
+    opt = opt_klass(populations[0], args.outdir, args.regularization_penalty)
 
     # Run the optimizer
     opt.run(args.em_iterations, args.blocks, args.fix_rho)
-
-    iserv.close()
