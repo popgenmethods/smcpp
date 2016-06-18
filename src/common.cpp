@@ -1,5 +1,6 @@
 #include <execinfo.h>
 #include <signal.h>
+#include <unistd.h>
 
 #include "common.h"
 
