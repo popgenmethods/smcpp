@@ -8,6 +8,7 @@ logger = getLogger(__name__)
 from . import estimation_tools, _smcpp, util
 from .estimation_result import EstimationResult
 from .model import SMCModel
+from .observe import Observer
 
 
 def _tied_property(attr):
@@ -18,7 +19,7 @@ def _tied_property(attr):
     return property(getx, setx)
         
 
-class Population(object):
+class Population(Observer):
     '''Class representing a population + model for estimation.'''
     def __init__(self, dataset_files, args):
         self._N0 = args.N0
@@ -39,6 +40,7 @@ class Population(object):
         ## Initialize model
         exponential_pieces = args.exponential_pieces or []
         self._model = SMCModel(time_points, np.cumsum(time_points)[::4])
+        self._model.register(self)
 
         ## Set theta and rho to their default parameters
         self._L = sum([obs[:,0].sum() for obs in dataset])
@@ -176,6 +178,10 @@ class Population(object):
     theta = _tied_property("theta")
     rho = _tied_property("rho")
     derivatives = _tied_property("derivatives")
+
+    def update(self, *args, **kwargs):
+        if args[0] == "model update":
+            self._im.model = self._model
 
     def dump(self, fn):
         er = EstimationResult()
