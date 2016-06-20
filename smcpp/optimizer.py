@@ -21,9 +21,9 @@ class PopulationOptimizer(object):
 
     def run(self, niter, blocks, fix_rho):
         pop = self._pop
-        model = self._pop.model
+        model = pop.model
         ll = pop.loglik()
-        reg = pop.model.regularizer()
+        reg = model.regularizer()
         llold = ll - self._penalty * reg
         logger.info("ll:%f reg:%f" % (ll, reg))
         logger.info("Starting loglik: %f" % llold)
@@ -60,12 +60,10 @@ class PopulationOptimizer(object):
         return llold
 
     def _f_param(self, x, param):
-        x0 = x[0]
-        x = ad.adnumber(x0)
         setattr(self._pop, param, x)
         q = -self._pop.Q()
-        logger.debug("f_%s: q(%f)=%f dq=%f" % (param, x0, q.x, q.d(x)))
-        return (q.x, np.array([q.d(x)]))
+        logger.debug("f_%s: q(%f)=%f" % (param, x, q))
+        return q
 
     def _f(self, xs):
         model = self._pop.model
@@ -91,12 +89,11 @@ class PopulationOptimizer(object):
         else:
             raise RuntimeError("unrecognized param")
         x0 = getattr(self._pop, param)
-        logger.info("old %s: f(%g)=%g" % (param, x0, self._f_param([x0], param)[0]))
-        bounds = [(1e-6, 1e-2)]
-        ret = scipy.optimize.fmin_l_bfgs_b(self._f_param, x0, None, args=(param,), bounds=bounds, disp=False)
-        x = ret[0].item()
-        logger.info("new %s: f(%g)=%g" % (param, x, self._f_param([x], param)[0]))
-        setattr(self._pop, param, x)
+        logger.info("old %s: f(%g)=%g" % (param, x0, self._f_param(x0, param)))
+        bounds = (1e-6, 1e-2)
+        res = scipy.optimize.minimize_scalar(self._f_param, args=(param,), method='bounded', bounds=bounds)
+        logger.info("new %s: f(%g)=%g" % (param, res.x, res.fun))
+        setattr(self._pop, param, res.x)
 
     def _optimize(self):
         model = self._pop.model
