@@ -56,7 +56,7 @@ class PopulationOptimizer(object):
             llold = ll
             self._pop.dump(os.path.join(self._outdir, ".pop0.iter%d" % i))
         ## Optimization concluded
-        self._pop.dump(os.path.join(self._outdir, "pop0.final" % i))
+        self._pop.dump(os.path.join(self._outdir, "pop0.final"))
         return llold
 
     def _f_param(self, x, param):
@@ -112,7 +112,8 @@ class PopulationOptimizer(object):
                 logger.info((i, f1, f0, (f1 - f0) / 1e-8, fp[i]))
         # bounds = np.array([tuple(self._bounds[(0, cc)]) for i, cc in self._coords])
         # bounds = [(max(bd[0], 0.5 * xx0), min(bd[1], 2. * xx0)) for bd, xx0 in zip(bounds, x0)]
-        res = scipy.optimize.minimize(self._f, x0, jac=True)
+        bounds = np.log(self._pop.bounds[0, self._coords])
+        res = scipy.optimize.minimize(self._f, x0, jac=True, bounds=bounds)
         if res.status != 0:
             logger.warn(res.message)
         # if res[2]['warnflag'] != 0:
