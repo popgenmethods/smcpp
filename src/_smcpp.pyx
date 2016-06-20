@@ -138,7 +138,6 @@ cdef class PyInferenceManager:
 
         def __set__(self, model):
             self._model = model
-            logger.debug(("set model", model.y))
             cdef ParameterVector params = make_params(model)
             self._im.setParams(params)
 
