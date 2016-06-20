@@ -4,8 +4,13 @@ template <typename T>
 Matrix<T> HJTransition<T>::matrix_exp(T c_rho, T c_eta)
 {
     Matrix<T> Q(3, 3);
+    T x;
+    if (fabs(toDouble(c_eta) - toDouble(c_rho)) < 1e-8) 
+        x = 2. * exp(-2 * c_eta) * c_eta;
+    else
+        x = (exp(-2 * c_rho) - exp(-2 * c_eta)) * c_rho / (c_eta - c_rho);
     Q << 
-        exp(-2 * c_rho), (exp(-2 * c_rho) - exp(-2 * c_eta)) * c_rho / (c_eta - c_rho), this->eta->zero,
+        exp(-2 * c_rho), x, this->eta->zero,
         this->eta->zero, exp(-2 * c_eta), this->eta->one - exp(-2 * c_eta),
         this->eta->zero, this->eta->zero, this->eta->one;
     Q(0, 2) = this->eta->one - Q(0, 0) - Q(0, 1);
@@ -49,19 +54,18 @@ void HJTransition<T>::compute(void)
     {
         std::mt19937 gen;
         gen.seed(1);
-        const PiecewiseExponentialRateFunction<T> myeta(*eta);
         T r, p_coal;
         std::vector<T> rtimes;
         for (int q = 0; q < Q; ++q)
             // Sample coalescence times in this interval
-            rtimes.push_back(myeta.random_time(myeta.hidden_states[j - 1], myeta.hidden_states[j], gen));
+            rtimes.push_back(eta->random_time(eta->hidden_states[j - 1], eta->hidden_states[j], gen));
         for (int k = j + 1; k < this->M; ++k)
         {
             for (int q = 0; q < Q; ++q)
             {
-                p_coal = exp(-(myeta.R(eta->hidden_states[k - 1]) - myeta.R(rtimes[q])));
+                p_coal = exp(-(eta->R(eta->hidden_states[k - 1]) - eta->R(rtimes[q])));
                 if (k < this->M - 1)
-                    p_coal *= -expm1(-(myeta.R(eta->hidden_states[k]) - myeta.R(eta->hidden_states[k - 1])));
+                    p_coal *= -expm1(-(eta->R(eta->hidden_states[k]) - eta->R(eta->hidden_states[k - 1])));
                 unsigned int ip = insertion_point(rtimes[q], times, 0, times.size());
                 if (ip >= times.size())
                     throw std::runtime_error("erroneous insertion point");
@@ -70,14 +74,14 @@ void HJTransition<T>::compute(void)
                 T tip = times[ip];
                 T dt = rtimes[q] - tip;
                 T c_rho = dt * this->rho;
-                T c_eta = myeta.R(rtimes[q]) - myeta.R(tip);
+                T c_eta = eta->R(rtimes[q]) - eta->R(tip);
                 Matrix<T> tmp = expms[ip] * matrix_exp(c_rho, c_eta);
                 r = tmp(0, 1) * p_coal;
                 this->Phi(j - 1, k - 1) += r / Q;
             }
         }
         T rowsum = this->Phi.row(j - 1).sum();
-        this->Phi(j - 1, j - 1) = myeta.one - rowsum;
+        this->Phi(j - 1, j - 1) = eta->one - rowsum;
     }
     T thresh = 1e-20 * eta->one;
     this->Phi = this->Phi.unaryExpr([thresh] (const T x) { if (x <= thresh) return thresh; return x; });
