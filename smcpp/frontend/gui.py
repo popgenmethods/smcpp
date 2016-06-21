@@ -1,4 +1,5 @@
 import os
+import os.path
 import sys
 
 # Make stdout unbuffered
@@ -13,9 +14,12 @@ from gooey import Gooey, GooeyParser
 
 from .common import init_subparsers
 
+image_dir = os.path.normpath(os.path.join(os.path.dirname(__file__), '..', '..', 'assets'))
+
 @Gooey(progress_regex=r'.*EM iteration (\d+)/(\d+)',
         progress_expr='x[0] / x[1] * 100.',
-        monospace_display=True)
+        monospace_display=True,
+        image_dir=image_dir)
 def main():
     parser = GooeyParser()
     subparsers = parser.add_subparsers()
