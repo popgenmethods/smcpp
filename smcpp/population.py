@@ -39,7 +39,9 @@ class Population(Observer):
 
         ## Initialize model
         exponential_pieces = args.exponential_pieces or []
-        self._model = SMCModel(time_points, np.cumsum(time_points)[::4])
+        knots = np.cumsum(estimation_tools.construct_time_points(t1, tK, [1] * 10))
+        logger.debug("knots in coalescent scaling:\n%s", str(knots))
+        self._model = SMCModel(time_points, knots)
         self._model.register(self)
 
         ## Set theta and rho to their default parameters
@@ -113,7 +115,6 @@ class Population(Observer):
             self._hidden_states = args.hidden_states
         else:
             logger.info("Balancing hidden states...")
-            self._model._spline.eval(0.0)
             self._balance_hidden_states(args.M)
 
         ## break up long spans
@@ -181,6 +182,11 @@ class Population(Observer):
 
     def update(self, *args, **kwargs):
         if args[0] == "model update":
+            for sv in self._model.stepwise_values():
+                if hasattr(sv, 'd'):
+                    for xx in sv.d().values():
+                        if np.isnan(xx):
+                            raise RuntimeError(xx)
             self._im.model = self._model
 
     def dump(self, fn):

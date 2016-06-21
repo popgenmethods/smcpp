@@ -30,14 +30,14 @@ def main(args):
     if args.offsets is None:
         args.offsets = []
     for fn, label, off, g in it.izip_longest(args.model, args.labels, args.offsets, args.g, fillvalue=None):
-        if not os.path.exists(fn):
-            sys.exit("File not found: %s" % fn)
         if label == "None": 
             label = None
         if fn in ["human", "sawtooth"]:
             p = getattr(util, fn)
             d = {k: p[k] for k in "abs"}
             d['N0'] = p['N0']
+        elif not os.path.exists(fn):
+            sys.exit("File not found: %s" % fn)
         else:
             er = EstimationResult.load(fn)
             d = dict(zip("abs", np.array(er.model)))

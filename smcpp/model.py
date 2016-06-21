@@ -7,9 +7,8 @@ import ad.admath
 logger = logging.getLogger(__name__)
 
 from . import _smcpp, estimation_tools
-from .spline import CubicSpline
+from .spline import AkimaSpline as CubicSpline
 from .observe import Observable
-
 
 class SMCModel(Observable):
 
@@ -17,7 +16,7 @@ class SMCModel(Observable):
         Observable.__init__(self)
         self._s = s
         self._knots = knots
-        self.y = np.zeros_like(knots, dtype='object')
+        self.y = np.zeros_like(knots, dtype='object') + np.random.normal(0.0, 1e-5, len(knots))
 
     @property
     def s(self):
@@ -35,7 +34,7 @@ class SMCModel(Observable):
         self._y[key] = item
         self._refit()
         self.update_observers('model update')
-
+          
     def __getitem__(self, ind):
         return self._y[ind]
 

@@ -14,6 +14,7 @@ class EstimationResult(object):
     def model(self, model):
         v = model.stepwise_values()
         self._model = np.array([v, v, model.s]).astype('float').tolist()
+        self._spline = np.array([model._knots, model.y]).astype('float').tolist()
 
     def dump(self, filename):
         json.dump(self.__dict__, open(filename + ".json", "wt"))
