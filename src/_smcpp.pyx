@@ -138,6 +138,7 @@ cdef class PyInferenceManager:
 
         def __set__(self, model):
             self._model = model
+            sv = model.stepwise_values()
             cdef ParameterVector params = make_params(model)
             self._im.setParams(params)
 

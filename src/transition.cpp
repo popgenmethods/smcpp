@@ -49,11 +49,15 @@ void HJTransition<T>::compute(void)
     for (int k = 2; k < this->M; ++k)
         this->Phi.block(k - 1, 0, 1, k - 1) = expms_diff.head(k - 1).transpose();
     const int Q = 10;
+    std::seed_seq sseq{1};
 #pragma omp parallel for
     for (int j = 1; j < this->M; ++j)
     {
         std::mt19937 gen;
-        gen.seed(1);
+#pragma omp critical(genSeed)
+        {
+            gen.seed(sseq);
+        }
         T r, p_coal;
         std::vector<T> rtimes;
         for (int q = 0; q < Q; ++q)

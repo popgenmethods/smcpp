@@ -36,14 +36,13 @@ class PopulationOptimizer(object):
                 np.array_str(model.y.astype('float'), precision=3),
                 np.array_str(model.stepwise_values().astype(
                     'float'), precision=3)))
-            B = len(model.y) // blocks
-            # for b in range(-1, blocks):
-            for b in range(0, model.K, blocks - 2):
+            for b in range(0, model.K - blocks + 1, blocks - 2):
                 self._coords = list(range(b, min(model.K, b + blocks)))
                 logger.info("optimizing coords:\n%s" % str(self._coords))
                 self._optimize()
             logger.info("Current model:\n%s" % 
                     np.array_str(np.array(model.stepwise_values()).astype(float), precision=2))
+            model._spline.dump()
             logger.info("\tE-step...")
             self._pop.E_step()
             ll = self._pop.loglik()
@@ -61,7 +60,7 @@ class PopulationOptimizer(object):
 
     def _f_param(self, x, param):
         setattr(self._pop, param, x)
-        q = -self._pop.Q()
+        q = -float(self._pop.Q()) # will return adouble, don't want
         logger.debug("f_%s: q(%f)=%f" % (param, x, q))
         return q
 
@@ -76,7 +75,7 @@ class PopulationOptimizer(object):
         logger.debug((float(q), float(reg), float(q + reg)))
         logger.debug("dq:\n" + np.array_str(np.array(list(map(q.d, xs))), max_line_width=100, precision=2))
         logger.debug("dreg:\n" + np.array_str(np.array(list(map(reg.d, xs))), max_line_width=100, precision=2))
-        q += reg
+        q += self._penalty * reg
         ret = [q.x, np.array(list(map(q.d, xs)))]
         return ret
 
@@ -107,13 +106,10 @@ class PopulationOptimizer(object):
                 x0c[i] += 1e-8
                 f1, _ = self._f(x0c)
                 logger.info((i, f1, f0, (f1 - f0) / 1e-8, fp[i]))
-        # bounds = np.array([tuple(self._bounds[(0, cc)]) for i, cc in self._coords])
-        # bounds = [(max(bd[0], 0.5 * xx0), min(bd[1], 2. * xx0)) for bd, xx0 in zip(bounds, x0)]
         bounds = np.log(self._pop.bounds[0, self._coords])
-        res = scipy.optimize.minimize(self._f, x0, jac=True, bounds=bounds)
-        if res.status != 0:
-            logger.warn(res.message)
-        # if res[2]['warnflag'] != 0:
-            # logger.warn(res[2])
-        model[self._coords] = res.x
-        return res.fun
+        res = scipy.optimize.fmin_l_bfgs_b(self._f, x0, None, pgtol=.01, factr=1e7)
+        logger.debug(res)
+        if res[2]['warnflag']:
+            logger.warn(res[2])
+        model[self._coords] = res[0]
+        return res[1]
