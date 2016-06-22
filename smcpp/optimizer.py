@@ -107,7 +107,7 @@ class PopulationOptimizer(object):
                 f1, _ = self._f(x0c)
                 logger.info((i, f1, f0, (f1 - f0) / 1e-8, fp[i]))
         bounds = np.log(self._pop.bounds[0, self._coords])
-        res = scipy.optimize.fmin_l_bfgs_b(self._f, x0, None, pgtol=.01, factr=1e7)
+        res = scipy.optimize.fmin_l_bfgs_b(self._f, x0, None, pgtol=.01, factr=1e7, bounds=bounds)
         logger.debug(res)
         if res[2]['warnflag']:
             logger.warn(res[2])

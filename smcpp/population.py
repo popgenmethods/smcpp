@@ -42,7 +42,6 @@ class Population(Observer):
         knots = np.cumsum(estimation_tools.construct_time_points(t1, tK, [1] * 10))
         logger.debug("knots in coalescent scaling:\n%s", str(knots))
         self._model = SMCModel(time_points, knots)
-        self._model.register(self)
 
         ## Set theta and rho to their default parameters
         self._L = sum([obs[:,0].sum() for obs in dataset])
@@ -99,7 +98,7 @@ class Population(Observer):
             self._pretrain_penalizer = functools.partial(estimation_tools.regularizer, 
                     penalty=args.pretrain_penalty, f=args.regularizer)
             # self._pretrain_penalizer = self._penalizer
-            self._pretrain(theta, args.folded)
+            self._pretrain(theta, args.folded, args.pretrain_penalty)
     
         # We remember the initialized model for use in split estimation
         if args.init_model is not None:
@@ -133,6 +132,7 @@ class Population(Observer):
         self._im.theta = theta
         self._im.rho = rho
         self._im.folded = args.folded
+        self._model.register(self)
 
     def _balance_hidden_states(self, M):
         hs = _smcpp.balance_hidden_states(self._model, M)
@@ -144,8 +144,8 @@ class Population(Observer):
     def reset(self):
         self.model.x[:] = self._init_model_x[:]
 
-    def _pretrain(self, theta, folded):
-        estimation_tools.pretrain(self._model, self._sfs, self._bounds, theta, folded, args.pretrain_penalty)
+    def _pretrain(self, theta, folded, penalty):
+        estimation_tools.pretrain(self._model, self._sfs, self._bounds, theta, folded, penalty)
 
     def randomize(self):
         for i in range(2):

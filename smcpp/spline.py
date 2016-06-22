@@ -1,6 +1,7 @@
 from __future__ import absolute_import, division, print_function
 import numpy as np
 import sys
+import ad.admath
 
 from . import _smcpp
 
@@ -79,6 +80,12 @@ class CubicSpline:
         s += ",\n".join(arr) + "}];"
         print(s, file=sys.stderr)
 
+
+@np.vectorize
+def _smooth_abs(x):
+    return (x**2 + 1e-3)**0.5
+
+
 class AkimaSpline(CubicSpline):
 # http://www.lfd.uci.edu/~gohlke/code/akima.py.html
 # Copyright (c) 2007-2015, Christoph Gohlke
@@ -120,7 +127,7 @@ class AkimaSpline(CubicSpline):
         mp = 2.0 * m[n - 2] - m[n - 3]
         mpp = 2.0 * mp - m[n - 2]
         m1 = np.concatenate(([mmm], [mm], m, [mp], [mpp]))
-        dm = np.abs(np.diff(m1))
+        dm = _smooth_abs(np.diff(m1))
         f1 = dm[2:n + 2]
         f2 = dm[0:n]
         f12 = f1 + f2
@@ -141,5 +148,4 @@ def check_nan(ary):
             for aa in a.d().values():
                 if np.isnan(aa):
                     raise RuntimeError('nan')
-
 

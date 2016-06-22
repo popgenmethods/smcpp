@@ -165,13 +165,11 @@ def pretrain(model, sample_csfs, bounds, theta0, folded, penalty):
     def undist(sfs):
         return util.undistinguished_sfs(sfs, folded)
     sample_sfs = undist(sample_csfs)
-    fp = model.flat_pieces
     K = model.K
-    coords = [(u, v) for v in range(K) for u in ([0] if v in fp else [0, 1])]
+    coords = np.arange(K)
     def f(x):
         x = ad.adnumber(x)
-        for cc, xx in zip(coords, x):
-            model[cc] = xx
+        model[coords] = x
         logger.debug("requesting sfs")
         sfs = _smcpp.raw_sfs(model, n, 0., _smcpp.T_MAX, True)
         sfs[0, 0] = 0
@@ -186,11 +184,11 @@ def pretrain(model, sample_csfs, bounds, theta0, folded, penalty):
         logger.debug("\n%s" % np.array_str(np.array([[float(y) for y in row] for row in model._x]), precision=3))
         logger.debug((reg, ret))
         return ret
-    x0 = [float(model[cc]) for cc in model.coords]
+    x0 = model[coords].astype('float')
     res = scipy.optimize.fmin_tnc(f, 
             x0,
             None,
-            bounds=[tuple(bounds[cc]) for cc in coords],
+            bounds=bounds[0][coords],
             xtol=0.01,
             disp=False)
     for cc, xx in zip(coords, res[0]):
