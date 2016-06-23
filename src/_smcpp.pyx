@@ -181,13 +181,13 @@ cdef class PyInferenceManager:
                     key[i] = p.first[i]
                 M = p.second.size()
                 v = np.zeros(M)
-                if self._derivatives:
-                    dv = np.zeros([M, self._nder])
+                if self._model.dlist:
+                    dv = np.zeros([M, len(self._model.dlist)])
                 for i in range(M):
                     v[i] = p.second(i).value()
-                    for j in range(self._nder):
+                    for j in range(len(self._model.dlist)):
                         dv[i, j] = p.second(i).derivatives()(j)
-                ret[tuple(key)] = (v, dv) if self._nder else v
+                ret[tuple(key)] = (v, dv) if len(self._model.dlist) else v
                 inc(it)
             return ret
 
@@ -228,15 +228,15 @@ cdef class PyInferenceManager:
 
     property pi:
         def __get__(self):
-            return _store_admatrix_helper(self._im.getPi(), self._nder)
+            return _store_admatrix_helper(self._im.getPi(), self._model.dlist)
 
     property transition:
         def __get__(self):
-            return _store_admatrix_helper(self._im.getTransition(), self._nder)
+            return _store_admatrix_helper(self._im.getTransition(), self._model.dlist)
 
     property emission:
         def __get__(self):
-            return _store_admatrix_helper(self._im.getEmission(), self._nder)
+            return _store_admatrix_helper(self._im.getEmission(), self._model.dlist)
 
     def Q(self):
         cdef vector[adouble] ad_rets
@@ -312,21 +312,28 @@ def raw_sfs(model, s, int n, double t1, double t2):
                 ret[i, j].d()[x] = jac[i, j, k]
     return ret
 
-cdef _store_admatrix_helper(Matrix[adouble] &mat, int nder):
+cdef _store_admatrix_helper(Matrix[adouble] &mat, dlist):
     cdef double[:, ::1] v
     cdef double[:, :, ::1] av
+    nder = len(dlist)
     m = mat.rows()
     n = mat.cols()
     ary = aca(np.zeros([m, n]))
     v = ary
-    if (nder == 0):
+    if not dlist:
         store_matrix(mat, &v[0, 0])
         return ary
     else:
         jac = aca(np.zeros([m, n, nder]))
         av = jac
         store_matrix(mat, &v[0, 0], &av[0, 0, 0])
-        return ary, jac
+        ary2 = np.zeros_like(ary, dtype=object)
+        for i in range(m):
+            for j in range(n):
+                ary2[i, j] = adnumber(ary[i, j])
+                for k in range(nder):
+                    ary2[i, j].d()[dlist[k]] = jac[i, j, k]
+        return ary2
 
 def thin_data(data, int thinning, int offset=0):
     '''Implement the thinning procedure needed to break up correlation

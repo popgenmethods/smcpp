@@ -1,7 +1,7 @@
 import pytest
 import numpy as np
+import ad
 
-import fixtures
 import smcpp._smcpp, smcpp.model
 
 @pytest.fixture
@@ -51,45 +51,31 @@ def test_d(fake_obs, constant_demo_1):
     em[0] = em[2] = 0
     em[1] = 1
     print(obs_list)
-    im = smcpp._smcpp.PyInferenceManager(n - 2, obs_list, hidden_states)
+    s = np.diff(np.logspace(np.log10(.01), np.log10(3.), 41))
+    im = smcpp._smcpp.PyInferenceManager(n - 2, obs_list, hidden_states, s)
     im.theta = 4.0 * N0 * theta
     im.rho = 4.0 * N0 * rho
     K = 10
-    a = np.ones(K)
-    b = a
-    s = np.diff(np.logspace(np.log10(.01), np.log10(3.), K + 1))
-    print('hs', hidden_states)
-    print('cumsum(s)', np.cumsum(s))
-    K = len(a)
+    model = smcpp.model.SMCModel(s, np.logspace(np.log10(.01), np.log10(3.), K))
     eps = 1e-8
-    model = smcpp.model.SMCModel(s, [])
-    model.x[:] = (a, b, s)
+    model[:] = ad.adnumber(model[:])
+    y = model[:].copy()
     im.model = model
-    print(im.model.x)
-    im.derivatives = [(0, k) for k in range(K)]
-    im.theta = .00025
-    im.rho = .00025
     im.E_step()
     im.Q()
-    trans1, jac = im.transition
-    jac.shape = (M, M, K)
+    trans1 = im.transition
     I = np.eye(K)
-    M = trans1.shape[0]
-    im.derivatives = []
     for k in range(K):
-        aa = [_ for _ in a]
+        aa = [float(_) for _ in y]
         aa += eps * I[k]
-        model.x[0] = aa
-        print(model.x)
+        model[:] = aa
         im.model = model
         im.Q()
         trans2 = im.transition
         for i in range(M):
             for j in range(M):
-                jaca = jac[i, j, k]
-                j1 = trans2[i, j]
-                j2 = trans1[i, j] + eps * jaca
-                print(k, i, j, jaca, (trans2[i,j] - trans1[i,j]) / eps)
+                dx = trans1[i, j].d(y[k])
+                print(k, i, j, dx, (trans2[i,j] - float(trans1[i,j])) / eps)
     assert False
 
 # def test_equal_jac_nojac(constant_demo_1, hs):
