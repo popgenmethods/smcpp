@@ -73,7 +73,7 @@ cdef class PyInferenceManager:
     cdef InferenceManager *_im
     cdef int _n
     cdef int _num_hmms
-    cdef object _observations, _derivatives, _model, _theta, _rho
+    cdef object _observations, _model, _theta, _rho
     cdef public long long seed
 
     def __cinit__(self, int n, observations, hidden_states, s):

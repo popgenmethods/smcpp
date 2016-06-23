@@ -1,14 +1,27 @@
 import pytest
 import numpy as np
 
-import _pypsmcpp
-from fixtures import *
-
-rho = 1e-4
+import fixtures
+import smcpp._smcpp, smcpp.model
 
 @pytest.fixture
-def hs():
-    return np.array([0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 8.0, 10.0, 13.0, np.inf])
+def fake_obs():
+    L = 10000
+    n = 25
+    ary = []
+    for ell in range(L):
+        ary.append([np.random.randint(1, 1000), 0, 0])
+        d = np.random.randint(0, 3)
+        ary.append([1, d, np.random.randint(not d, n + 1 - (d == 2))])
+    return np.array(ary, dtype=np.int32)
+
+@pytest.fixture
+def constant_demo_1():
+    a = np.array([1.0])
+    b = np.array([1.0])
+    s = np.array([1.0])
+    return (a, b, s)
+
 
 def test_d(fake_obs, constant_demo_1):
     N0 = 10000.
@@ -38,50 +51,59 @@ def test_d(fake_obs, constant_demo_1):
     em[0] = em[2] = 0
     em[1] = 1
     print(obs_list)
-    im = _pypsmcpp.PyInferenceManager(n - 2, obs_list, hidden_states, 
-            4.0 * N0 * theta, 4.0 * N0 * rho)
-    a = np.ones(10)
+    im = smcpp._smcpp.PyInferenceManager(n - 2, obs_list, hidden_states)
+    im.theta = 4.0 * N0 * theta
+    im.rho = 4.0 * N0 * rho
+    K = 10
+    a = np.ones(K)
     b = a
-    s = np.logspace(np.log10(.01), np.log10(3.), 10)
+    s = np.diff(np.logspace(np.log10(.01), np.log10(3.), K + 1))
     print('hs', hidden_states)
     print('cumsum(s)', np.cumsum(s))
     K = len(a)
     eps = 1e-8
-    print((a,b,s))
-    d_to_test = (0, 1, 2)
-    coords = [(x, y) for x in d_to_test for y in range(K)]
-    im.setParams((a,b,s), coords)
+    model = smcpp.model.SMCModel(s, [])
+    model.x[:] = (a, b, s)
+    im.model = model
+    print(im.model.x)
+    im.derivatives = [(0, k) for k in range(K)]
+    im.theta = .00025
+    im.rho = .00025
+    im.E_step()
+    im.Q()
     trans1, jac = im.transition
-    jac.shape = (M, M, len(d_to_test), K)
+    jac.shape = (M, M, K)
     I = np.eye(K)
     M = trans1.shape[0]
-    for ind in d_to_test:
-        for k in range(K):
-            args = [a, b, s]
-            args[ind] = args[ind] + eps * I[k]
-            im.setParams(args, False)
-            trans2 = im.transition
-            for i in range(M):
-                for j in range(M):
-                    jaca = jac[i, j, ind, k]
-                    j1 = trans2[i, j]
-                    j2 = trans1[i, j] + eps * jaca
-                    print(ind, k, i, j, jaca, (trans2[i,j] - trans1[i,j]) / eps)
-                    # assert abs(j1 - j2) < eps
+    im.derivatives = []
+    for k in range(K):
+        aa = [_ for _ in a]
+        aa += eps * I[k]
+        model.x[0] = aa
+        print(model.x)
+        im.model = model
+        im.Q()
+        trans2 = im.transition
+        for i in range(M):
+            for j in range(M):
+                jaca = jac[i, j, k]
+                j1 = trans2[i, j]
+                j2 = trans1[i, j] + eps * jaca
+                print(k, i, j, jaca, (trans2[i,j] - trans1[i,j]) / eps)
     assert False
 
-def test_equal_jac_nojac(constant_demo_1, hs):
-    from timeit import default_timer as timer
-    start = timer()
-    trans1, jac = _pypsmcpp.transition(constant_demo_1, hs, rho, True)
-    end = timer()
-    print("Run-time with jacobian: %f" % (end - start))
-    start = timer()
-    trans2 = _pypsmcpp.transition(constant_demo_1, hs, rho, False)
-    end = timer()
-    print("Run-time without: %f" % (end - start))
-    assert np.allclose(trans1 - trans2, 0)
-
-def test_sum_to_one(constant_demo_1, hs):
-    trans1 = _pypsmcpp.transition(constant_demo_1, hs, rho, False)
-    assert np.allclose(np.sum(trans1, axis=1), 1.0)
+# def test_equal_jac_nojac(constant_demo_1, hs):
+#     from timeit import default_timer as timer
+#     start = timer()
+#     trans1, jac = _pypsmcpp.transition(constant_demo_1, hs, rho, True)
+#     end = timer()
+#     print("Run-time with jacobian: %f" % (end - start))
+#     start = timer()
+#     trans2 = _pypsmcpp.transition(constant_demo_1, hs, rho, False)
+#     end = timer()
+#     print("Run-time without: %f" % (end - start))
+#     assert np.allclose(trans1 - trans2, 0)
+# 
+# def test_sum_to_one(constant_demo_1, hs):
+#     trans1 = _pypsmcpp.transition(constant_demo_1, hs, rho, False)
+#     assert np.allclose(np.sum(trans1, axis=1), 1.0)
