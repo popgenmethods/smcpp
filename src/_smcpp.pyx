@@ -110,7 +110,13 @@ cdef class PyInferenceManager:
         cdef vector[int] _Ls = Ls
         with nogil:
             self._im = new InferenceManager(n, _Ls, obs, hs)
+        self._model = self._theta = self._rho = None
+        self._derivatives = []
         _check_abort()
+
+    @property
+    def _nder(self):
+        return len(self._derivatives)
 
     def __dealloc__(self):
         del self._im
