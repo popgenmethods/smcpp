@@ -135,33 +135,23 @@ void HMM::Estep(bool fbOnly)
         xisum = xisum.cwiseProduct(T);
 }
 
-adouble HMM::Q(void)
+Vector<adouble> HMM::Q(void)
 {
     DEBUG << "HMM::Q";
-    adouble q1, q2, q3;
-    q1 = 0.0;
+    Vector<adouble> ret(3);
+    ret.setZero();
     Vector<adouble> pi = *(ib->pi);
-    for (int m = 0; m < M; ++m)
-        q1 += log(pi(m)) * gamma0(m);
+    ret(0) = (pi.array().log() * gamma0.array()).sum();
 
-    q2 = 0.0;
     for (auto &p : gamma_sums)
     {
         Vector<adouble> ep = ib->emission_probs->at(p.first);
-        q2 += (ep.array().log() * p.second.array()).sum();
+        ret(1) += (ep.array().log() * p.second.array()).sum();
     }
 
-    // Am getting a weird memory-related bug here when I do this all in
-    // one line. Something related to threading and CRTP, maybe. Split
-    // things up a bit to fix.
     Matrix<adouble> T = ib->tb->T;
-    q3 = (T.array().log() * xisum.array()).sum();
+    ret(2) = (T.array().log() * xisum.array()).sum();
 
-    check_nan(q1);
-    check_nan(q2);
-    check_nan(q3);
-    DEBUG << "\nq1:" << q1.value() << " [" << q1.derivatives().transpose() << "]\nq2:" 
-            << q2.value() << " [" << q2.derivatives().transpose() << "]\nq3:" << q3.value()
-            << " [" << q3.derivatives().transpose() << "]\n";
-    return q1 + q2 + q3;
+    check_nan(ret);
+    return ret;
 }

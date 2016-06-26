@@ -17,7 +17,7 @@ class HMM
     HMM(const int hmm_num, const Matrix<int> &obs, const InferenceBundle *ib);
     void Estep(bool);
     double loglik(void);
-    adouble Q(void);
+    Vector<adouble> Q(void);
 
     private:
     HMM(HMM const&) = delete;
