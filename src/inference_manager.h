@@ -66,7 +66,6 @@ class InferenceManager
     const int n;
     std::vector<Eigen::Matrix<int, Eigen::Dynamic, 4, Eigen::RowMajor> > obs;
     const int M;
-    adouble zero;
     ConditionedSFS<adouble> csfs;
 
     std::vector<hmmptr> hmms;

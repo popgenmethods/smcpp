@@ -81,16 +81,14 @@ void InferenceManager::recompute_initial_distribution()
     const PiecewiseExponentialRateFunction<adouble> eta = getEta();
     auto R = eta.getR();
     int M = eta.hidden_states.size() - 1;
-    adouble minval = zero + 1e-20;
     for (int m = 0; m < M - 1; ++m)
     {
         pi(m) = exp(-(*R)(hidden_states[m])) - exp(-(*R)(hidden_states[m + 1]));
-        if (pi(m) < minval) pi(m) = minval;
         assert(pi(m) > 0.0); 
         assert(pi(m) < 1.0); 
     }
     pi(M - 1) = exp(-(*R)(hidden_states[M - 1]));
-    if (pi(M - 1) < minval) pi(M - 1) = minval;
+    pi = pi.unaryExpr([] (const adouble &x) { if (x < 1e-20) return adouble(1e-20); return x; });
     pi /= pi.sum();
     check_nan(pi);
 }
@@ -148,7 +146,7 @@ void InferenceManager::recompute_emission_probs()
         int nb = *it;
         Matrix<adouble> M = emission.lazyProduct(subEmissionCoeffs.at(nb));
         M.col(0) += M.rightCols(1);
-        M.rightCols(1).fill(zero);
+        M.rightCols(1).fill(0.);
 #pragma omp critical(subemissions)
         {
             subemissions[nb] = M;
