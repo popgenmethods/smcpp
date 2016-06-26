@@ -1,5 +1,7 @@
 #include <iostream>
 #include <iomanip>
+#include "gsl/gsl_randist.h"
+
 #include "inference_manager.h"
 
 InferenceManager::InferenceManager(

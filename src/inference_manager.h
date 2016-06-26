@@ -1,8 +1,6 @@
 #ifndef INFERENCE_MANAGER_H
 #define INFERENCE_MANAGER_H
 
-#include "gsl/gsl_randist.h"
-
 #include "common.h"
 #include "hmm.h"
 #include "piecewise_exponential_rate_function.h"
