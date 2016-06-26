@@ -5,7 +5,7 @@ import logging
 import ad
 
 def test_inference():
-    logging.basicConfig(level=logging.DEBUG - 1)
+    logging.basicConfig(level=logging.DEBUG)
     hs=[0, 0.002, 0.0024992427075529156, 0.0031231070556282147, 0.0039027012668429368, 0.0048768988404573679,
             0.0060942769312431738, 0.0076155385891087321, 0.0095165396414589112, 0.011892071150027212, 0.014860586049702963, 0.018570105657341358,
             0.023205600571298769, 0.028998214001102113, 0.036236787437156658, 0.045282263373729439, 0.0565856832591419, 0.070710678118654752, 0.088361573317084705,
@@ -25,19 +25,18 @@ def test_inference():
     model = smcpp.model.SMCModel(s, np.logspace(np.log10(.01), np.log10(3.), K))
     n = 30
     fakeobs = [[1, -1, 0, 0], [1, 1, 0, 0], [10, 0, 0, 0], [1000, -1, 0, 0], [200000, 0, 0, n - 2], [1, 1, n - 4, n - 2]]
+    fakeobs *= 50
     im = smcpp._smcpp.PyInferenceManager(n - 2, np.array([fakeobs] * 50, dtype=np.int32), hs, s)
-    model[:] = [ad.adnumber(x + np.random.normal()) for x in model[:]]
+    model[:] = [ad.adnumber(x + np.random.normal(0, 0.1)) for x in model[:]]
     im.model = model
     print(model.stepwise_values())
     im.theta = 0.0025000000000000001
     im.rho = 0.0031206103977654887
     im.E_step()
     q0 = im.Q()
-    print(q0)
     for k in range(K):
         dq = q0.d(model[k])
         model[k] += 1e-8
-        print(model._y)
         im.model = model
         q1 = im.Q()
         a = float(q1 - q0) * 1e8
