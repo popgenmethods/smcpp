@@ -131,7 +131,7 @@ class AkimaSpline(CubicSpline):
         f1 = dm[2:n + 2]
         f2 = dm[0:n]
         f12 = f1 + f2
-        ids = np.nonzero(f12 > 1e-9 * np.max(f12))[0]
+        ids = f12 > 1e-9 * np.max(f12)
         b = m1[1:n + 1]
         b[ids] = (f1[ids] * m1[ids + 1] + f2[ids] * m1[ids + 2]) / f12[ids]
         c = (3.0 * m - 2.0 * b[0:n - 1] - b[1:n]) / dx
