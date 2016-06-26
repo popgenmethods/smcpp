@@ -85,7 +85,7 @@ void HJTransition<T>::compute(void)
         this->Phi(j - 1, j - 1) = myeta.one - rowsum;
     }
     T thresh = 1e-20 * eta->one;
-    this->Phi = this->Phi.unaryExpr([thresh] (const T x) { if (x <= thresh) return thresh; return x; });
+    this->Phi = this->Phi.unaryExpr([thresh] (const T &x) { if (x < thresh) return thresh; return x; });
 }
 
 template <typename T>
