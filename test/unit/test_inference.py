@@ -25,8 +25,8 @@ def test_inference():
     model = smcpp.model.SMCModel(s, np.logspace(np.log10(.01), np.log10(3.), K))
     n = 30
     fakeobs = [[1, -1, 0, 0], [1, 1, 0, 0], [10, 0, 0, 0], [1000, -1, 0, 0], [200000, 0, 0, n - 2], [1, 1, n - 4, n - 2]]
-    fakeobs *= 50
-    im = smcpp._smcpp.PyInferenceManager(n - 2, np.array([fakeobs] * 50, dtype=np.int32), hs, s)
+    fakeobs *= 4
+    im = smcpp._smcpp.PyInferenceManager(n - 2, np.array([fakeobs] * 1, dtype=np.int32), hs, s)
     model[:] = [ad.adnumber(0.002676322760403453),ad.adnumber(-0.010519987448975402)
             ,ad.adnumber(0.006727140517177145),ad.adnumber(0.0031333684894676865)
             ,ad.adnumber(-0.02302979056648467),ad.adnumber(0.0026368097606793172)

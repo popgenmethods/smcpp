@@ -56,8 +56,10 @@ void HMM::Estep(bool fbOnly)
             //             (es.Pinv * alpha_hat.col(ell - 1).template cast<std::complex<double> >()))).real();
             double scale = es.d_r.maxCoeff();
             Vector<double> d_r_scaled = es.d_r / scale;
-            alpha_hat.col(ell) = (es.P_r * (d_r_scaled.pow(span).matrix().asDiagonal() * 
+            alpha_hat.col(ell) = (es.P_r * (d_r_scaled.array().pow(span).matrix().asDiagonal() * 
                         (es.Pinv_r * alpha_hat.col(ell - 1))));
+            std::cout << ell << std::endl << alpha_hat.col(ell).transpose() << std::endl << std::endl;
+            // c(ell) = c_true(ell) * scale**(-pow)
         }
         else
         {
@@ -70,7 +72,6 @@ void HMM::Estep(bool fbOnly)
     Vector<double> beta = Vector<double>::Ones(M), v(M), alpha(M);
     xisum.setZero();
     Matrix<double> Q(M, M), Qt(M, M), xis(M, M);
-    Eigen::Array<double, Eigen::Dynamic, Eigen::Dynamic> atmp(M, *(ib->spanCutoff)), btmp(M, *(ib->spanCutoff));
     DEBUG << "backward algorithm (HMM #" << hmm_num << ")";
     for (int ell = L - 1; ell > 0; --ell)
     {
@@ -78,53 +79,30 @@ void HMM::Estep(bool fbOnly)
         int span = obs(ell, 0);
         key = ob_key(ell);
         B = ib->emission_probs->at(ob_key(ell)).template cast<double>().asDiagonal();
-        if (tb->span_Qs.count({span, key}) > 0 and span > *(ib->spanCutoff))
+        if (tb->eigensystems.count(key) > 0)
         {
             eigensystem es = tb->eigensystems.at(key);
-            if (not fbOnly)
-            {
-                Q = es.Pinv_r * alpha_hat.col(ell - 1) * beta.transpose() * es.P_r;
-                Q = Q.cwiseProduct(tb->span_Qs.at({span, key}).real());
-                v = (es.P_r * es.d_r.asDiagonal() * Q * es.Pinv_r).diagonal() / c(ell);
-                xisum += (es.P_r * Q * es.Pinv_r) * B / c(ell);
-                check_nan(xisum);
-            }
-            beta = (es.Pinv_r.transpose() * (es.d_r.array().pow(span).matrix().asDiagonal() * 
+            double scale = es.d_r.maxCoeff();
+            Vector<double> d_r_scaled = es.d_r / scale;
+            Q = es.Pinv_r * alpha_hat.col(ell - 1) * beta.transpose() * es.P_r;
+            Q = Q.cwiseProduct(tb->span_Qs.at({span, key}).real());
+            v = (es.P_r * d_r_scaled.asDiagonal() * Q * es.Pinv_r).diagonal() / c(ell);
+            xisum += (es.P_r * Q * es.Pinv_r) * B / c(ell) / scale;
+            std::cout << ell << xisum.sum() << std::endl;
+            check_nan(xisum);
+            beta = (es.Pinv_r.transpose() * (d_r_scaled.array().pow(span).matrix().asDiagonal() * 
                         (es.P_r.transpose() * beta)));
         }
         else
         {
-            if (span == 1)
-            {
-                v = alpha_hat.col(ell).cwiseProduct(beta);
-                if (not fbOnly)
-                    xisum += alpha_hat.col(ell - 1) * beta.transpose() * B / c(ell);
-                beta = T * (B * beta);
-            }
-            else
-            {
-                Q = B * T.transpose();
-                alpha = alpha_hat.col(ell - 1);
-                for (int i = 0; i < span; ++i)
-                {
-                    alpha = Q * alpha;
-                    atmp.col(i) = alpha;
-                    btmp.col(span - i - 1) = beta;
-                    beta = Q.transpose() * beta;
-                }
-                if (not fbOnly)
-                {
-                    v = (atmp.leftCols(span) * btmp.leftCols(span)).rowwise().sum().matrix() / c(ell);
-                    xis = alpha_hat.col(ell - 1) * btmp.col(0).matrix().transpose();
-                    for (int i = 1; i < span; ++i)
-                        xis += atmp.col(i - 1).matrix() * btmp.col(i).transpose().matrix();
-                    xisum += xis * B / c(ell);
-                }
-            }
+            if (span != 1)
+                throw std::runtime_error("span");
+            v = alpha_hat.col(ell).cwiseProduct(beta);
+            xisum += alpha_hat.col(ell - 1) * beta.transpose() * B / c(ell);
+            beta = T * (B * beta);
         }
         beta /= c(ell);
-        if (not fbOnly)
-            gamma_sums.at(key) += v;
+        gamma_sums.at(key) += v;
         if (*(ib->saveGamma))
             gamma.col(ell) = v;
     }
@@ -132,8 +110,7 @@ void HMM::Estep(bool fbOnly)
     gamma_sums.at(ob_key(0)) += gamma0;
     if (*(ib->saveGamma))
         gamma.col(0) = gamma0;
-    if (not fbOnly)
-        xisum = xisum.cwiseProduct(T);
+    xisum = xisum.cwiseProduct(T);
 }
 
 Vector<adouble> HMM::Q(void)

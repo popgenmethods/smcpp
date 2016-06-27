@@ -18,7 +18,7 @@ InferenceManager::InferenceManager(
     subEmissionCoeffs(fill_subemissions()),
     targets(fill_targets()),
     tb(targets, &emission_probs),
-    spanCutoff(M / 2),
+    spanCutoff(1),
     ib{&pi, &tb, &emission_probs, &saveGamma, &spanCutoff},
     dirty({true, true, true})
 {

@@ -56,8 +56,9 @@ class TransitionBundle
             Vector<double> d_r_scaled = eig.d_r / scale;
             for (int a = 0; a < M; ++a)
                 for (int b = 0; b < M; ++b)
-                    tmp(a, b) = (a == b) ? (double)span * std::pow(eig.d_r(a), span - 1) : 
-                        (std::pow(eig.d_r(a), span) - std::pow(eig.d_r(b), span)) / (eig.d_r(a) - eig.d_r(b));
+                    tmp(a, b) = (a == b) ? (double)span * std::pow(d_r_scaled(a), span - 1) : 
+                        (std::pow(d_r_scaled(a), span) - std::pow(d_r_scaled(b), span)) / 
+                        (d_r_scaled(a) - d_r_scaled(b));
 #pragma omp critical(spanQinsert)
             span_Qs.emplace(*it, tmp);
         }
