@@ -54,7 +54,9 @@ void HMM::Estep(bool fbOnly)
             eigensystem es = tb->eigensystems.at(key);
             // alpha_hat.col(ell) = (es.P * (es.d.array().pow(span).matrix().asDiagonal() * 
             //             (es.Pinv * alpha_hat.col(ell - 1).template cast<std::complex<double> >()))).real();
-            alpha_hat.col(ell) = (es.P_r * (es.d_r.array().pow(span).matrix().asDiagonal() * 
+            double scale = es.d_r.maxCoeff();
+            Vector<double> d_r_scaled = es.d_r / scale;
+            alpha_hat.col(ell) = (es.P_r * (d_r_scaled.pow(span).matrix().asDiagonal() * 
                         (es.Pinv_r * alpha_hat.col(ell - 1))));
         }
         else
@@ -62,10 +64,8 @@ void HMM::Estep(bool fbOnly)
             Matrix<double> M = (B * T.transpose()).pow(span);
             alpha_hat.col(ell) = M * alpha_hat.col(ell - 1);
         }
-        // alpha_hat might have some small negative entries
-        alpha_hat.col(ell) = alpha_hat.col(ell).unaryExpr([] (const double &x) { return std::max(x, 1e-20); });
         c(ell) = alpha_hat.col(ell).sum();
-        alpha_hat.col(ell) /= c(ell);
+        alpha_hat /= c(ell);
     }
     Vector<double> beta = Vector<double>::Ones(M), v(M), alpha(M);
     xisum.setZero();
@@ -87,6 +87,7 @@ void HMM::Estep(bool fbOnly)
                 Q = Q.cwiseProduct(tb->span_Qs.at({span, key}).real());
                 v = (es.P_r * es.d_r.asDiagonal() * Q * es.Pinv_r).diagonal() / c(ell);
                 xisum += (es.P_r * Q * es.Pinv_r) * B / c(ell);
+                check_nan(xisum);
             }
             beta = (es.Pinv_r.transpose() * (es.d_r.array().pow(span).matrix().asDiagonal() * 
                         (es.P_r.transpose() * beta)));

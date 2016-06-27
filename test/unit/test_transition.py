@@ -9,12 +9,15 @@ def test_d(im):
     eps = 1e-4
     model = im.model
     K = model.K
-    model[:] = ad.adnumber(np.random.normal(0, .1, size=K))
+    model[:] = ad.adnumber(np.arange(1, K + 1, dtype=float) / K)
     y = model[:].copy()
+    print(y)
+    print(model.stepwise_values())
     im.model = model
     im.E_step()
     im.Q()
     trans1 = im.transition
+    print(trans1)
     M = trans1.shape[0]
     I = np.eye(K)
     for k in range(K):
@@ -27,7 +30,8 @@ def test_d(im):
         for i in range(M):
             for j in range(M):
                 dx = trans1[i, j].d(y[k])
-                print(k, i, j, dx, (trans2[i,j] - float(trans1[i,j])) / eps)
+                dx2 = (trans2[i,j] - float(trans1[i,j])) / eps
+                print(k, i, j, (dx - dx2) / dx)
     assert False
 
 # def test_equal_jac_nojac(constant_demo_1, hs):

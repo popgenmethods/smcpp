@@ -3,7 +3,7 @@ import numpy as np
 import scipy.optimize
 import logging
 import os.path, os
-import ad
+import ad, ad.admath
 
 from . import estimation_tools, spg
 
@@ -37,6 +37,7 @@ class PopulationOptimizer(object):
                 np.array_str(model.stepwise_values().astype(
                     'float'), precision=3)))
             for b in range(0, model.K - blocks + 1, blocks - 2):
+            # for b in range(0, model.K):
                 self._coords = list(range(b, min(model.K, b + blocks)))
                 logger.info("optimizing coords:\n%s" % str(self._coords))
                 self._optimize()
@@ -99,13 +100,30 @@ class PopulationOptimizer(object):
         logger.debug("Performing a round of optimization")
         x0 = model[self._coords].astype('float')
         if os.environ.get("SMCPP_GRADIENT_CHECK", False):
+            logger.info("pre gradient check")
+            eps = 1e-6
             logger.info("gradient check")
             f0, fp = self._f(x0)
+            mx = model[self._coords]
+            e1 = self._pop._im.transition
+            xis = np.sum(self._pop._im.xisums, axis=0)
+            le1 = ad.admath.log(e1)
+            mq3 = le1 * xis
+            print(mq3.sum())
             for i in range(len(x0)):
                 x0c = x0.copy()
-                x0c[i] += 1e-8
+                x0c[i] += eps
                 f1, _ = self._f(x0c)
-                logger.info((i, f1, f0, (f1 - f0) / 1e-8, fp[i]))
+                e2 = self._pop._im.transition
+                le2 = ad.admath.log(e2)
+                mq32 = le2 * xis
+                for i1 in range(e1.shape[0]):
+                    for i2 in range(e1.shape[1]):
+                        logger.info(("e1", i1, i2, float(e1[i1,i2]), e1[i1,i2].d(mx[i])))
+                        logger.info(("le1", i1, i2, 
+                            float(le2[i1][i2] - le1[i1][i2]) / eps, le1[i1][i2].d(mx[i])))
+                        logger.info(("e3", i1, i2, float(xis[i1][i2]), (mq32[i1, i2] - mq3[i1, i2]) / eps, mq3[i1, i2].d(mx[i])))
+                logger.info((i, f1, f0, (f1 - f0) / eps, fp[i]))
         bounds = np.log(self._pop.bounds[0, self._coords])
         res = scipy.optimize.fmin_l_bfgs_b(self._f, x0, None, pgtol=.01, factr=1e7, bounds=bounds)
         logger.debug(res)

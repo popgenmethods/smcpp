@@ -52,6 +52,8 @@ class TransitionBundle
             }
             eigensystem eig = eigensystems.at(key);
             tmp = Matrix<double>::Zero(M, M);
+            double scale = eig.d_r.maxCoeff();
+            Vector<double> d_r_scaled = eig.d_r / scale;
             for (int a = 0; a < M; ++a)
                 for (int b = 0; b < M; ++b)
                     tmp(a, b) = (a == b) ? (double)span * std::pow(eig.d_r(a), span - 1) : 

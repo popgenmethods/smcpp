@@ -39,7 +39,7 @@ class Population(Observer):
 
         ## Initialize model
         exponential_pieces = args.exponential_pieces or []
-        knots = np.cumsum(estimation_tools.construct_time_points(t1, tK, [1] * 10))
+        knots = np.cumsum(estimation_tools.construct_time_points(t1, tK, [5, 5, 4, 4, 3, 3, 2, 2, 1, 1]))
         logger.debug("knots in coalescent scaling:\n%s", str(knots))
         self._model = SMCModel(time_points, knots)
 

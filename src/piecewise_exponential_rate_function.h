@@ -11,6 +11,9 @@ template <typename T>
 class ConditionedSFS;
 
 template <typename T>
+class HJTransition;
+
+template <typename T>
 using feval = std::unique_ptr<FunctionEvaluator<T>>;
 
 template <typename T>
@@ -36,6 +39,7 @@ class PiecewiseExponentialRateFunction
     T random_time(const double, const T&, const T&, std::mt19937&) const;
 
     friend class ConditionedSFS<T>;
+    friend class HJTransition<T>;
 
     friend std::ostream& operator<<(std::ostream& os, const PiecewiseExponentialRateFunction& pexp)
     {

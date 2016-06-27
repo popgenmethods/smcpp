@@ -1,91 +1,119 @@
 #include "transition.h"
 
+namespace hj_matrix_exp {
+    const double A_rho_data[] = {
+        -1, 1, 0,
+         0, 0, 0,
+         0, 0, 0};
+    static Eigen::Matrix<double, 3, 3, Eigen::RowMajor> A_rho(A_rho_data);
+
+    const double A_eta_data[] = {
+        0, 0, 0,
+        1, -2, 1,
+        0, 0, 0};
+    static Eigen::Matrix<double, 3, 3, Eigen::RowMajor> A_eta(A_eta_data);
+
+    template <typename T>
+    Matrix<T> transition_exp(T c_rho, T c_eta);
+
+    template <>
+    Matrix<double> transition_exp(double c_rho, double c_eta)
+    {
+        Matrix<double> M = c_rho * A_rho + c_eta * A_eta;
+        return M.exp();
+    }
+
+    struct expm_functor
+    {
+        typedef double Scalar;
+        typedef Eigen::Matrix<Scalar, 1, 2> InputType;
+        typedef Eigen::Matrix<Scalar, 9, 1> ValueType;
+        typedef Eigen::Matrix<Scalar, 9, 2> JacobianType;
+
+        static const int InputsAtCompileTime = 1;
+        static const int ValuesAtCompileTime = 9;
+
+        static int values() { return 9; }
+
+        expm_functor() {}
+        int operator()(const InputType &x, ValueType &f) const
+        {
+            Eigen::Matrix<double, 3, 3, Eigen::ColMajor> M = transition_exp(x(0), x(1));
+            f = Eigen::Matrix<double, 9, 1, Eigen::ColMajor>::Map(M.data(), 9, 1);
+            return 0;
+        }
+    };
+
+    template <>
+    Matrix<adouble> transition_exp(adouble c_rho, adouble c_eta)
+    {
+        // Compute derivative dependence on c_eta by numerical differentiation
+        expm_functor f;
+        Eigen::NumericalDiff<expm_functor> numDiff(f);
+        Eigen::Matrix<double, 9, 2> df;
+        Eigen::Matrix<double, 1, 2> meta;
+        meta(0, 0) = c_rho.value();
+        meta(0, 1) = c_eta.value();
+        numDiff.df(meta, df);
+        Matrix<adouble> ret = transition_exp(c_rho.value(), c_eta.value()).cast<adouble>();
+        for (int i = 0; i < 3; ++i)
+            for (int j = 0; j < 3; ++j)
+                ret(i, j).derivatives() = c_rho.derivatives() * df(3 * j + i, 0) + 
+                    c_eta.derivatives() * df(3 * j + i, 1);
+        return ret;
+    }
+
+};
+
 template <typename T>
 Matrix<T> HJTransition<T>::matrix_exp(T c_rho, T c_eta)
 {
-    Matrix<T> Q(3, 3);
-    T x;
-    if (fabs(toDouble(c_eta) - toDouble(c_rho)) < 1e-8) 
-        x = 2. * exp(-2 * c_eta) * c_eta;
-    else
-        x = (exp(-2 * c_rho) - exp(-2 * c_eta)) * c_rho / (c_eta - c_rho);
-    Q << 
-        exp(-2 * c_rho), x, this->eta->zero,
-        this->eta->zero, exp(-2 * c_eta), this->eta->one - exp(-2 * c_eta),
-        this->eta->zero, this->eta->zero, this->eta->one;
-    Q(0, 2) = this->eta->one - Q(0, 0) - Q(0, 1);
-    check_nan(Q);
-    return Q;
+    return hj_matrix_exp::transition_exp(c_rho, c_eta);
 }
 
 template <typename T>
 void HJTransition<T>::compute(void)
 {
     const PiecewiseExponentialRateFunction<T> *eta = this->eta;
-    std::vector<double> times;
     std::vector<Matrix<T> > expms;
+    std::vector<Matrix<T> > expm_prods;
     expms.push_back(Matrix<T>::Identity(3, 3));
-    for (double t = 0.0; t < eta->tmax; t += delta)
+    expm_prods.push_back(Matrix<T>::Identity(3, 3));
+    for (int i = 1; i < eta->ts.size(); ++i)
     {
+        T delta = eta->ts[i] - eta->ts[i - 1];
         T c_rho = delta * this->rho;
-        T c_eta = eta->R(t + delta) - eta->R(t);
-        times.push_back(t);
-        expms.push_back(expms.back() * matrix_exp(c_rho, c_eta));
-    }
-    std::vector<Matrix<T> > expms_hs;
-    expms_hs.push_back(Matrix<T>::Identity(3, 3));
-    for (int k = 1; k < this->M; ++k)
-    {
-        int ip = insertion_point(eta->hidden_states[k], times, 0, times.size());
-        T c_rho = (eta->hidden_states[k] - times[ip]) * this->rho;
-        T c_eta = eta->R(eta->hidden_states[k]) - eta->R(times[ip]);
-        expms_hs.push_back(expms[ip] * matrix_exp(c_rho, c_eta));
+        T c_eta = eta->Rrng[i] - eta->Rrng[i - 1];
+        expms.push_back(matrix_exp(c_rho, c_eta));
+        expm_prods.push_back(expm_prods.back() * expms.back());
     }
     this->Phi.setZero();
-    Vector<T> expms_diff(this->M - 2);
-    for (int k = 1; k < this->M - 1; ++k)
-        expms_diff(k - 1) = expms_hs[k](0, 2) - expms_hs[k - 1](0, 2);
-    expms_diff *= 0.5;
-    for (int k = 2; k < this->M; ++k)
-        this->Phi.block(k - 1, 0, 1, k - 1) = expms_diff.head(k - 1).transpose();
-    const int Q = 10;
-#pragma omp parallel for
     for (int j = 1; j < this->M; ++j)
     {
-        std::mt19937 gen;
-        gen.seed(1);
-        const PiecewiseExponentialRateFunction<T> myeta(*eta);
-        T r, p_coal;
-        std::vector<T> rtimes;
-        for (int q = 0; q < Q; ++q)
-            // Sample coalescence times in this interval
-            rtimes.push_back(myeta.random_time(myeta.hidden_states[j - 1], myeta.hidden_states[j], gen));
+        for (int k = 1; k < j; ++k)
+            this->Phi(j - 1, k - 1) = expm_prods[eta->hs_indices[k]](0, 2) - expm_prods[eta->hs_indices[k - 1]](0, 2);
+        if (j == this->M - 1)
+            this->Phi(j - 1, j - 1) = 1. - expm_prods[eta->hs_indices[j]](0, 2);
+        else 
+        {
+            this->Phi(j - 1, j - 1) = expm_prods[eta->hs_indices[j]](0, 0);
+            Matrix<T> A = Matrix<T>::Identity(3, 3);
+            for (int ell = eta->hs_indices[j - 1]; ell < eta->hs_indices[j]; ++ell)
+                A = A * expms[ell];
+            this->Phi(j - 1, j - 1) += expm_prods[eta->hs_indices[j - 1]](0, 0) * A(0, 2);
+            this->Phi(j - 1, j - 1) += expm_prods[eta->hs_indices[j - 1]](0, 1) * A(1, 2);
+        }
         for (int k = j + 1; k < this->M; ++k)
         {
-            for (int q = 0; q < Q; ++q)
-            {
-                p_coal = exp(-(myeta.R(eta->hidden_states[k - 1]) - myeta.R(rtimes[q])));
-                if (k < this->M - 1)
-                    p_coal *= -expm1(-(myeta.R(eta->hidden_states[k]) - myeta.R(eta->hidden_states[k - 1])));
-                unsigned int ip = insertion_point(rtimes[q], times, 0, times.size());
-                if (ip >= times.size())
-                    throw std::runtime_error("erroneous insertion point");
-                // this copy is to avoid some race condition that is resulting
-                // in a double free.
-                T tip = times[ip];
-                T dt = rtimes[q] - tip;
-                T c_rho = dt * this->rho;
-                T c_eta = myeta.R(rtimes[q]) - myeta.R(tip);
-                Matrix<T> tmp = expms[ip] * matrix_exp(c_rho, c_eta);
-                r = tmp(0, 1) * p_coal;
-                this->Phi(j - 1, k - 1) += r / Q;
-            }
+            T p_coal = exp(-(eta->Rrng[eta->hs_indices[k - 1]] - eta->Rrng[eta->hs_indices[j]]));
+            if (k < this->M - 1)
+                p_coal *= -expm1(-(eta->Rrng[eta->hs_indices[k]] - eta->Rrng[eta->hs_indices[k - 1]]));
+            this->Phi(j - 1, k - 1) = expm_prods[eta->hs_indices[j]](0, 1) * p_coal;
         }
-        T rowsum = this->Phi.row(j - 1).sum();
-        this->Phi(j - 1, j - 1) = myeta.one - rowsum;
     }
-    T thresh = 1e-20 * eta->one;
-    this->Phi = this->Phi.unaryExpr([thresh] (const T &x) { if (x < thresh) return thresh; return x; });
+    // T thresh = 1e-20 * eta->one;
+    // this->Phi = this->Phi.unaryExpr([thresh] (const T &x) { if (x < thresh) return thresh; return x; });
+    // check_nan(this->Phi);
 }
 
 template <typename T>

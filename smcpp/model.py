@@ -17,6 +17,7 @@ class SMCModel(Observable):
         self._s = s
         self._knots = knots
         self.y = np.zeros_like(knots, dtype='object')
+        self._refit()
 
     @property
     def s(self):

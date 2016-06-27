@@ -27,9 +27,14 @@ def test_inference():
     fakeobs = [[1, -1, 0, 0], [1, 1, 0, 0], [10, 0, 0, 0], [1000, -1, 0, 0], [200000, 0, 0, n - 2], [1, 1, n - 4, n - 2]]
     fakeobs *= 50
     im = smcpp._smcpp.PyInferenceManager(n - 2, np.array([fakeobs] * 50, dtype=np.int32), hs, s)
-    model[:] = [ad.adnumber(x + np.random.normal(0, 0.1)) for x in model[:]]
-    im.model = model
+    model[:] = [ad.adnumber(0.002676322760403453),ad.adnumber(-0.010519987448975402)
+            ,ad.adnumber(0.006727140517177145),ad.adnumber(0.0031333684894676865)
+            ,ad.adnumber(-0.02302979056648467),ad.adnumber(0.0026368097606793172)
+            ,ad.adnumber(0.0019921562626012993),ad.adnumber(0.004958301100037235)
+            ,ad.adnumber(0.003199704865436452),ad.adnumber(0.0050129872575249744)]
+    print(model[:])
     print(model.stepwise_values())
+    im.model = model
     im.theta = 0.0025000000000000001
     im.rho = 0.0031206103977654887
     im.E_step()
