@@ -9,9 +9,12 @@ struct eigensystem
     Eigen::VectorXcd d;
     Matrix<double> P_r, Pinv_r;
     Vector<double> d_r;
+    double scale;
+    Vector<double> d_r_scaled;
     eigensystem(const Eigen::EigenSolver<Matrix<double> > &es) :
         P(es.eigenvectors()), Pinv(P.inverse()), d(es.eigenvalues()),
-        P_r(P.real()), Pinv_r(Pinv.real()), d_r(d.real())
+        P_r(P.real()), Pinv_r(Pinv.real()), d_r(d.real()),
+        scale(d_r.maxCoeff()), d_r_scaled(d_r / scale)
     {
         double i1 = Pinv.imag().cwiseAbs().maxCoeff();
         double i2 = P.imag().cwiseAbs().maxCoeff();
@@ -52,13 +55,11 @@ class TransitionBundle
             }
             eigensystem eig = eigensystems.at(key);
             tmp = Matrix<double>::Zero(M, M);
-            double scale = eig.d_r.maxCoeff();
-            Vector<double> d_r_scaled = eig.d_r / scale;
             for (int a = 0; a < M; ++a)
                 for (int b = 0; b < M; ++b)
-                    tmp(a, b) = (a == b) ? (double)span * std::pow(d_r_scaled(a), span - 1) : 
-                        (std::pow(d_r_scaled(a), span) - std::pow(d_r_scaled(b), span)) / 
-                        (d_r_scaled(a) - d_r_scaled(b));
+                    tmp(a, b) = (a == b) ? (double)span * std::pow(eig.d_r_scaled(a), span - 1) : 
+                        (std::pow(eig.d_r_scaled(a), span) - std::pow(eig.d_r_scaled(b), span)) / 
+                        (eig.d_r_scaled(a) - eig.d_r_scaled(b));
 #pragma omp critical(spanQinsert)
             span_Qs.emplace(*it, tmp);
         }
