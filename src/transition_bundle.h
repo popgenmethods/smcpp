@@ -7,19 +7,21 @@ struct eigensystem
 {
     Eigen::MatrixXcd P, Pinv;
     Eigen::VectorXcd d;
+    double c_scale;
+    Eigen::VectorXcd d_scaled;
     Matrix<double> P_r, Pinv_r;
     Vector<double> d_r;
     double scale;
     Vector<double> d_r_scaled;
+    bool cplx;
     eigensystem(const Eigen::EigenSolver<Matrix<double> > &es) :
         P(es.eigenvectors()), Pinv(P.inverse()), d(es.eigenvalues()),
-        P_r(P.real()), Pinv_r(Pinv.real()), d_r(d.real()),
-        scale(d_r.maxCoeff()), d_r_scaled(d_r / scale)
+        P_r(P.real()), Pinv_r(Pinv.real()), 
+        c_scale(d.cwiseAbs().maxCoeff()), d_scaled(d / c_scale),
+        d_r(d.real()), scale(d_r.maxCoeff()), d_r_scaled(d_r / scale),
+        cplx(d.imag().cwiseAbs().maxCoeff() > 0)
     {
-        double i1 = Pinv.imag().cwiseAbs().maxCoeff();
-        double i2 = P.imag().cwiseAbs().maxCoeff();
-        if (i1 > 1e-10 or i2 > 1e-10)
-            WARNING << "Non-negligible imaginary part of eigendecomposition: i1=" << i1 << " i2=" << i2;
+        DEBUG << "max imag: " << d.imag().cwiseAbs().maxCoeff();
     }
 };
 
@@ -54,21 +56,24 @@ class TransitionBundle
                 }
             }
             eigensystem eig = eigensystems.at(key);
-            tmp = Matrix<double>::Zero(M, M);
+            Matrix<std::complex<double> > Q(M, M);
             for (int a = 0; a < M; ++a)
                 for (int b = 0; b < M; ++b)
-                    tmp(a, b) = (a == b) ? (double)span * std::pow(eig.d_r_scaled(a), span - 1) : 
-                        (std::pow(eig.d_r_scaled(a), span) - std::pow(eig.d_r_scaled(b), span)) / 
-                        (eig.d_r_scaled(a) - eig.d_r_scaled(b));
+                    if (a == b)
+                        Q(a, b) = std::pow(eig.d_scaled(a), span - 1) * (double)span;
+                    else
+                        Q(a, b) = (std::pow(eig.d_scaled(a), span) - std::pow(eig.d_scaled(b), span)) / 
+                            (eig.d_scaled(a) - eig.d_scaled(b));
 #pragma omp critical(spanQinsert)
-            span_Qs.emplace(*it, tmp);
+            span_Qs.emplace(*it, Q);
         }
     }
     Matrix<adouble> T;
     Matrix<double> Td;
     Eigen::VectorXcd d;
     Eigen::MatrixXcd P, Pinv;
-    std::map<std::pair<int, block_key>, Matrix<double> > span_Qs;
+    // std::map<std::pair<int, block_key>, Matrix<double> > span_Qs;
+    std::map<std::pair<int, block_key>, Matrix<std::complex<double> > > span_Qs;
     std::map<block_key, eigensystem> eigensystems;
 
     private:
