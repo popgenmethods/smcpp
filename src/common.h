@@ -91,6 +91,8 @@ namespace Eigen {
 using std::exp;
 using std::expm1;
 using std::log1p;
+using std::cosh;
+using std::sinh;
 
 EIGEN_AUTODIFF_DECLARE_GLOBAL_UNARY(expm1,
   Scalar expm1x = expm1(x.value());
@@ -106,6 +108,18 @@ EIGEN_AUTODIFF_DECLARE_GLOBAL_UNARY(ceil,
 EIGEN_AUTODIFF_DECLARE_GLOBAL_UNARY(log1p,
   Scalar log1px = std::log1p(x.value());
   return ReturnType(log1px, x.derivatives() * (Scalar(1) / (Scalar(1) + x.value())));
+)
+
+EIGEN_AUTODIFF_DECLARE_GLOBAL_UNARY(sinh,
+  Scalar sinhx = std::sinh(x.value());
+  Scalar coshx = std::cosh(x.value());
+  return ReturnType(sinhx, x.derivatives() * coshx);
+)
+
+EIGEN_AUTODIFF_DECLARE_GLOBAL_UNARY(cosh,
+  Scalar sinhx = std::sinh(x.value());
+  Scalar coshx = std::cosh(x.value());
+  return ReturnType(coshx, x.derivatives() * sinhx);
 )
 
 #undef EIGEN_AUTODIFF_DECLARE_GLOBAL_UNARY

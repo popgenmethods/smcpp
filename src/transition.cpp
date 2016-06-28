@@ -1,74 +1,23 @@
 #include "transition.h"
 
-namespace hj_matrix_exp {
-    const double A_rho_data[] = {
-        -1, 1, 0,
-         0, 0, 0,
-         0, 0, 0};
-    static Eigen::Matrix<double, 3, 3, Eigen::RowMajor> A_rho(A_rho_data);
-
-    const double A_eta_data[] = {
-        0, 0, 0,
-        1, -2, 1,
-        0, 0, 0};
-    static Eigen::Matrix<double, 3, 3, Eigen::RowMajor> A_eta(A_eta_data);
-
-    template <typename T>
-    Matrix<T> transition_exp(T c_rho, T c_eta);
-
-    template <>
-    Matrix<double> transition_exp(double c_rho, double c_eta)
-    {
-        Matrix<double> M = c_rho * A_rho + c_eta * A_eta;
-        return M.exp();
-    }
-
-    struct expm_functor
-    {
-        typedef double Scalar;
-        typedef Eigen::Matrix<Scalar, 1, 2> InputType;
-        typedef Eigen::Matrix<Scalar, 9, 1> ValueType;
-        typedef Eigen::Matrix<Scalar, 9, 2> JacobianType;
-
-        static const int InputsAtCompileTime = 1;
-        static const int ValuesAtCompileTime = 9;
-
-        static int values() { return 9; }
-
-        expm_functor() {}
-        int operator()(const InputType &x, ValueType &f) const
-        {
-            Eigen::Matrix<double, 3, 3, Eigen::ColMajor> M = transition_exp(x(0), x(1));
-            f = Eigen::Matrix<double, 9, 1, Eigen::ColMajor>::Map(M.data(), 9, 1);
-            return 0;
-        }
-    };
-
-    template <>
-    Matrix<adouble> transition_exp(adouble c_rho, adouble c_eta)
-    {
-        // Compute derivative dependence on c_eta by numerical differentiation
-        expm_functor f;
-        Eigen::NumericalDiff<expm_functor> numDiff(f);
-        Eigen::Matrix<double, 9, 2> df;
-        Eigen::Matrix<double, 1, 2> meta;
-        meta(0, 0) = c_rho.value();
-        meta(0, 1) = c_eta.value();
-        numDiff.df(meta, df);
-        Matrix<adouble> ret = transition_exp(c_rho.value(), c_eta.value()).cast<adouble>();
-        for (int i = 0; i < 3; ++i)
-            for (int j = 0; j < 3; ++j)
-                ret(i, j).derivatives() = c_rho.derivatives() * df(3 * j + i, 0) + 
-                    c_eta.derivatives() * df(3 * j + i, 1);
-        return ret;
-    }
-
-};
-
 template <typename T>
 Matrix<T> HJTransition<T>::matrix_exp(T c_rho, T c_eta)
 {
-    return hj_matrix_exp::transition_exp(c_rho, c_eta);
+    T sq = sqrt(4 * c_eta * c_eta + c_rho * c_rho);
+    T s = sinh(0.5 * sq);
+    T c = cosh(0.5 * sq);
+    T e = exp(-c_eta - c_rho / 2.);
+    Matrix<T> Q(3, 3);
+    Q(0, 0) = e * (c + (2 * c_eta - c_rho) * s / sq);
+    Q(0, 1) = 2 * e * c_rho * s / sq;
+    Q(0, 2) = 1. - Q(0, 0) - Q(0, 1);
+    Q(1, 0) = 2 * e * c_eta * s / sq;
+    Q(1, 1) = e * (c - (2 * c_eta - c_rho) * s / sq);
+    Q(1, 2) = 1. - Q(1, 0) - Q(1, 1);
+    Q(2, 0) = 0;
+    Q(2, 1) = 0;
+    Q(2, 2) = 1;
+    return Q;
 }
 
 template <typename T>
