@@ -31,6 +31,7 @@ class HMM
     const Matrix<int> obs;
     const InferenceBundle *ib;
     const int M, L;
+    double ll;
     Matrix<double> alpha_hat, xisum, gamma;
     Vector<double> c, gamma0;
     std::map<block_key, Vector<double> > gamma_sums;
