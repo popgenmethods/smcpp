@@ -111,9 +111,9 @@ void HJTransition<T>::compute(void)
             this->Phi(j - 1, k - 1) = expm_prods[eta->hs_indices[j]](0, 1) * p_coal;
         }
     }
-    // T thresh = 1e-20 * eta->one;
-    // this->Phi = this->Phi.unaryExpr([thresh] (const T &x) { if (x < thresh) return thresh; return x; });
-    // check_nan(this->Phi);
+    T thresh = 1e-20 * eta->one;
+    this->Phi = this->Phi.unaryExpr([thresh] (const T &x) { if (x < thresh) return thresh; return x; });
+    check_nan(this->Phi);
 }
 
 template <typename T>

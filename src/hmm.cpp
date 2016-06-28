@@ -126,7 +126,9 @@ Vector<adouble> HMM::Q(void)
     }
 
     Matrix<adouble> T = ib->tb->T;
-    ret(2) = (T.array().log() * xisum.array()).sum();
+    Matrix<adouble> log_T = T.array().log().matrix();
+    check_nan(log_T);
+    ret(2) = log_T.cwiseProduct(xisum).sum();
 
     check_nan(ret);
     return ret;
