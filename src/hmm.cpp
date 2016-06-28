@@ -1,14 +1,13 @@
 #include "hmm.h"
 
 HMM::HMM(const int hmm_num, const Matrix<int> &obs, const InferenceBundle* ib) : 
-    hmm_num(hmm_num), obs(obs), ib(ib), M(ib->pi->rows()), L(obs.rows()), alpha_hat(M, L), xisum(M, M), c(L)
+    hmm_num(hmm_num), obs(obs), ib(ib), M(ib->pi->rows()), L(obs.rows()), ll(0.),
+    alpha_hat(M, L), xisum(M, M), c(L)
 {}
 
 double HMM::loglik()
 {
-    double ret = c.array().log().sum();
-    check_nan(ret);
-    return ret;
+    return ll;
 }
 
 void HMM::domain_error(double ret)
@@ -38,6 +37,7 @@ void HMM::Estep(bool fbOnly)
     Eigen::DiagonalMatrix<double, Eigen::Dynamic, Eigen::Dynamic> B;
     DEBUG << "forward algorithm (HMM #" << hmm_num << ")";
     int prog = (int)((double)L * 0.1);
+    ll = 0.;
     for (int ell = 1; ell < L; ++ell)
     {
         if (ell == prog)
@@ -54,9 +54,15 @@ void HMM::Estep(bool fbOnly)
             eigensystem es = tb->eigensystems.at(key);
             // alpha_hat.col(ell) = (es.P * (es.d.array().pow(span).matrix().asDiagonal() * 
             //             (es.Pinv * alpha_hat.col(ell - 1).template cast<std::complex<double> >()))).real();
-            alpha_hat.col(ell) = (es.P * (es.d_scaled.array().pow(span).matrix().asDiagonal() * 
-                        (es.Pinv * alpha_hat.col(ell - 1).template cast<std::complex<double> >()))).real();
-            // c(ell) = c_true(ell) * scale**(-pow)
+            if (es.cplx)
+                alpha_hat.col(ell) = (es.P * (es.d_scaled.array().pow(span).matrix().asDiagonal() * 
+                            (es.Pinv * alpha_hat.col(ell - 1).template cast<std::complex<double> >()))).real();
+            else
+                alpha_hat.col(ell) = (es.P_r * (es.d_r_scaled.array().pow(span).matrix().asDiagonal() * 
+                            (es.Pinv_r * alpha_hat.col(ell - 1))));
+
+            // c(ell) = c_true(ell) * scale**(-span)
+            ll += span * log(es.scale);
         }
         else
         {
@@ -67,10 +73,12 @@ void HMM::Estep(bool fbOnly)
         }
         c(ell) = alpha_hat.col(ell).sum();
         alpha_hat.col(ell) /= c(ell);
+        ll += log(c(ell));
     }
     Vector<double> beta = Vector<double>::Ones(M), v(M), alpha(M);
     xisum.setZero();
     Matrix<std::complex<double> > Q(M, M);
+    Matrix<double> Q_r(M, M);
     DEBUG << "backward algorithm (HMM #" << hmm_num << ")";
     for (int ell = L - 1; ell > 0; --ell)
     {
@@ -81,15 +89,28 @@ void HMM::Estep(bool fbOnly)
         if (span > 1 and tb->eigensystems.count(key) > 0)
         {
             eigensystem es = tb->eigensystems.at(key);
-            Q = es.Pinv * 
-                (alpha_hat.col(ell - 1) * beta.transpose()).template cast<std::complex<double> >() * 
-                es.P;
-            Q = Q.cwiseProduct(tb->span_Qs.at({span, key}));
-            v = (es.P * es.d_scaled.asDiagonal() * Q * es.Pinv).diagonal().real() / c(ell);
-            xisum += ((es.P * Q * es.Pinv).real() * B) / (c(ell) * es.c_scale);
-            check_nan(xisum);
-            beta = (es.Pinv.transpose() * (es.d_scaled.array().pow(span).matrix().asDiagonal() * 
-                        (es.P.transpose() * beta.template cast<std::complex<double> >()))).real();
+            if (es.cplx)
+            {
+                Q = es.Pinv * 
+                    (alpha_hat.col(ell - 1) * beta.transpose()).template cast<std::complex<double> >() * 
+                    es.P;
+                Q = Q.cwiseProduct(tb->span_Qs.at({span, key}));
+                v = (es.P * es.d_scaled.asDiagonal() * Q * es.Pinv).diagonal().real() / c(ell);
+                xisum += ((es.P * Q * es.Pinv).real() * B) / (c(ell) * es.scale);
+                beta = (es.Pinv.transpose() * (es.d_scaled.array().pow(span).matrix().asDiagonal() * 
+                            (es.P.transpose() * beta.template cast<std::complex<double> >()))).real();
+            }
+            else
+            {
+                Q_r = es.Pinv_r * 
+                    (alpha_hat.col(ell - 1) * beta.transpose()) * 
+                    es.P_r;
+                Q_r = Q_r.cwiseProduct(tb->span_Qs.at({span, key}).real());
+                v = (es.P_r * es.d_r_scaled.asDiagonal() * Q_r * es.Pinv_r).diagonal() / c(ell);
+                xisum += ((es.P_r * Q_r * es.Pinv_r) * B) / (c(ell) * es.scale);
+                beta = (es.Pinv_r.transpose() * (es.d_r_scaled.array().pow(span).matrix().asDiagonal() * 
+                            (es.P_r.transpose() * beta)));
+            }
         }
         else
         {

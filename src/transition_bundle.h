@@ -7,18 +7,17 @@ struct eigensystem
 {
     Eigen::MatrixXcd P, Pinv;
     Eigen::VectorXcd d;
-    double c_scale;
+    double scale;
     Eigen::VectorXcd d_scaled;
     Matrix<double> P_r, Pinv_r;
     Vector<double> d_r;
-    double scale;
     Vector<double> d_r_scaled;
     bool cplx;
     eigensystem(const Eigen::EigenSolver<Matrix<double> > &es) :
         P(es.eigenvectors()), Pinv(P.inverse()), d(es.eigenvalues()),
         P_r(P.real()), Pinv_r(Pinv.real()), 
-        c_scale(d.cwiseAbs().maxCoeff()), d_scaled(d / c_scale),
-        d_r(d.real()), scale(d_r.maxCoeff()), d_r_scaled(d_r / scale),
+        scale(d.cwiseAbs().maxCoeff()), d_scaled(d / scale),
+        d_r(d.real()), d_r_scaled(d_r / scale),
         cplx(d.imag().cwiseAbs().maxCoeff() > 0)
     {
         DEBUG << "max imag: " << d.imag().cwiseAbs().maxCoeff();
