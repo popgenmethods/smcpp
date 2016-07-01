@@ -286,28 +286,18 @@ def balance_hidden_states(model, int M):
     ret.append(np.inf)
     return np.array(ret)
 
-def raw_sfs(model, s, int n, double t1, double t2):
+def raw_sfs(model, int n, double t1, double t2):
     cdef ParameterVector pv = make_params(model)
     cdef Matrix[adouble] dsfs
     cdef Matrix[double] sfs
     ret = aca(np.zeros([3, n - 1]))
     cdef double[:, ::1] vret = ret
     cdef vector[pair[int, int]] derivs
-    cdef vector[double] _s = s
+    cdef vector[double] _s = model.s
     with nogil:
         dsfs = sfs_cython(n, pv, _s, t1, t2)
     _check_abort()
-    if not model.dlist:
-        store_matrix(dsfs, &vret[0, 0])
-        return ret
-    J = len(model.dlist)
-    ret, jac = _store_admatrix_helper(dsfs, J)
-    ret = adnumber(ret)
-    for i in range(3):
-        for j in range(n - 1):
-            for k, x in enumerate(model.dlist):
-                ret[i, j].d()[x] = jac[i, j, k]
-    return ret
+    return _store_admatrix_helper(dsfs, model.dlist)
 
 cdef _store_admatrix_helper(Matrix[adouble] &mat, dlist):
     cdef double[:, ::1] v

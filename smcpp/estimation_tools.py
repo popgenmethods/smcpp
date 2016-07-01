@@ -135,7 +135,7 @@ def pretrain(model, sample_csfs, bounds, theta0, folded, penalty):
         x = ad.adnumber(x)
         model[coords] = x
         logger.debug("requesting sfs")
-        sfs = _smcpp.raw_sfs(model, n, 0., _smcpp.T_MAX, True)
+        sfs = _smcpp.raw_sfs(model, n, 0., np.inf)
         sfs[0, 0] = 0
         sfs *= theta0
         sfs[0, 0] = 1. - sfs.sum()
@@ -145,7 +145,7 @@ def pretrain(model, sample_csfs, bounds, theta0, folded, penalty):
         reg = penalty * model.regularizer()
         kl += reg
         ret = (kl.x, np.array(list(map(kl.d, x))))
-        logger.debug("\n%s" % np.array_str(np.array([[float(y) for y in row] for row in model._x]), precision=3))
+        logger.debug("\n%s" % np.array_str(model[:].astype('float'), precision=3))
         logger.debug((reg, ret))
         return ret
     x0 = model[coords].astype('float')
@@ -157,8 +157,8 @@ def pretrain(model, sample_csfs, bounds, theta0, folded, penalty):
             disp=False)
     for cc, xx in zip(coords, res[0]):
         model[cc] = xx 
-    logger.info("pre-trained model:\n%s" % np.array_str(model.x, precision=2))
-    return _smcpp.raw_sfs(model, n, 0., _smcpp.T_MAX, False)
+    logger.info("pre-trained model:\n%s" % np.array_str(model[:].astype('float'), precision=2))
+    return _smcpp.raw_sfs(model, n, 0., np.inf).astype('float')
 
 def break_long_spans(dataset, rho, length_cutoff):
     # Spans longer than this are broken up

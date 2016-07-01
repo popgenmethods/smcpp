@@ -148,7 +148,11 @@ inline U _double_integral_above_helper(const int rate, const int lam, const U &_
     }
     if (_tsm1 == INFINITY)
         return exp(-l1 * _Rrng + log_coef) / l1 / rate / _ada;
-    return -exp(-l1 * _Rrng + log_coef) * (expm1(-l1 * adadiff) / l1 + (exp(-rate * adadiff) - exp(-l1 * adadiff)) / (l1 - rate)) / rate / _ada;
+    // return -exp(-l1 * _Rrng + log_coef) * (expm1(-l1 * adadiff) / l1 + (exp(-rate * adadiff) - exp(-l1 * adadiff)) / (l1 - rate)) / rate / _ada;
+    if (rate < l1)
+        return -exp(-l1 * _Rrng + log_coef) * (expm1(-l1 * adadiff) / l1 + (exp(-rate * adadiff) * -expm1(-(l1 - rate) * adadiff) / (l1 - rate))) / rate / _ada;
+    else
+        return -exp(-l1 * _Rrng + log_coef) * (expm1(-l1 * adadiff) / l1 + (exp(-l1 * adadiff) * expm1(-(rate - l1) * adadiff) / (l1 - rate))) / rate / _ada;
 }
 
 template <typename T>
@@ -323,7 +327,11 @@ void PiecewiseExponentialRateFunction<T>::tjj_double_integral_above(const int n,
             {
                 long rate = nC2(j);
                 if (adb[m] == 0)
+                {
                     tmp = _double_integral_above_helper<T>(rate, lam, ts[m], ts[m + 1], ada[m], Rrng[m], -log_denom);
+                    check_nan(tmp);
+                    check_negative(tmp);
+                }
                 else
                     tmp = _double_integral_above_helper_ei<T>(rate, lam, ts[m], ts[m + 1], ada[m], adb[m], Rrng[m], -log_denom);
                 try 

@@ -52,19 +52,18 @@ void HJTransition<T>::compute(void)
     this->Phi.setZero();
     for (int j = 1; j < this->M; ++j)
     {
+        // subdiagonal
         for (int k = 1; k < j; ++k)
             this->Phi(j - 1, k - 1) = expm_prods[eta->hs_indices[k]](0, 2) - expm_prods[eta->hs_indices[k - 1]](0, 2);
-        if (j == this->M - 1)
-            this->Phi(j - 1, j - 1) = 1. - expm_prods[eta->hs_indices[j - 1]](0, 2);
-        else 
-        {
-            this->Phi(j - 1, j - 1) = expm_prods[eta->hs_indices[j]](0, 0);
-            Matrix<T> A = Matrix<T>::Identity(3, 3);
-            for (int ell = eta->hs_indices[j - 1]; ell < eta->hs_indices[j]; ++ell)
-                A = A * expms[ell];
-            this->Phi(j - 1, j - 1) += expm_prods[eta->hs_indices[j - 1]](0, 0) * A(0, 2);
-            this->Phi(j - 1, j - 1) += expm_prods[eta->hs_indices[j - 1]](0, 1) * A(1, 2);
-        }
+        // diagonal element
+        // this is an approximation
+        this->Phi(j - 1, j - 1) = expm_prods[eta->hs_indices[j]](0, 0);
+        Matrix<T> A = Matrix<T>::Identity(3, 3);
+        for (int ell = eta->hs_indices[j - 1]; ell < eta->hs_indices[j]; ++ell)
+            A = A * expms[ell];
+        this->Phi(j - 1, j - 1) += expm_prods[eta->hs_indices[j - 1]](0, 0) * A(0, 2);
+        this->Phi(j - 1, j - 1) += expm_prods[eta->hs_indices[j - 1]](0, 1) * A(1, 2);
+        // superdiagonal
         for (int k = j + 1; k < this->M; ++k)
         {
             T p_coal = exp(-(eta->Rrng[eta->hs_indices[k - 1]] - eta->Rrng[eta->hs_indices[j]]));
