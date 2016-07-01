@@ -27,7 +27,6 @@ def extract_pieces(piece_str):
     return pieces
 
 def construct_time_points(t1, tK, pieces):
-    logger.debug((t1, tK, pieces))
     s = np.logspace(np.log10(t1[-1]), np.log10(tK), sum(pieces) + 1)
     s = s[1:] - s[:-1]
     time_points = np.zeros(len(pieces))
@@ -40,41 +39,6 @@ def construct_time_points(t1, tK, pieces):
 ##
 ## Regularization
 ##
-# This is taken directly from the Wikipedia page
-
-
-def _pchipendpoint(h1, h2, del1, del2):
-    d = ((2 * h1 + h2) * del1 - h1 * del2) / (h1 + h2)
-    if np.sign(d) != np.sign(del1):
-        d = 0
-    elif (np.sign(del1) != np.sign(del2)) and (abs(d) > abs(3 * del1)):
-        d = 3 * del1
-    return d
-
-
-def _pchipslopes(h, delta):
-    n = len(h) + 1
-    d = np.zeros_like(delta)
-    k = np.where(np.sign(delta[:(n - 2)]) *
-                 np.sign(delta[1:(n + 1)]) > 0)[0] + 1
-    w1 = 2 * h[k] + h[k - 1]
-    w2 = h[k] + 2 * h[k - 1]
-    d[k] = (w1 + w2) / (w1 / delta[k - 1] + w2 / delta[k])
-    d[0] = _pchipendpoint(h[0], h[1], delta[0], delta[1])
-    d = np.append(d, _pchipendpoint(
-        h[n - 2], h[n - 3], delta[n - 2], delta[n - 3]))
-    return d
-
-
-def _pchip(x, y):
-    h = np.diff(x)
-    delta = np.diff(y) / h
-    d = _pchipslopes(h, delta)
-    n = len(x)
-    c = (3 * delta - 2 * d[:n - 1] - d[1:n]) / h
-    b = (d[:n - 1] - 2 * delta + d[1:n]) / h**2
-    return b, c, d, y
-
 def regularizer(model, penalty, f, dump_piecewise=False):
     ## Regularizer
     reg = 0

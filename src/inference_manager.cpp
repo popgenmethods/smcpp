@@ -24,8 +24,6 @@ InferenceManager::InferenceManager(
 {
     if (*std::min_element(hidden_states.begin(), hidden_states.end()) != 0.)
         throw std::runtime_error("first hidden interval should be [0, <something>)");
-    if (*std::max_element(hidden_states.begin(), hidden_states.end()) > T_MAX)
-        throw std::runtime_error("largest hidden state cannot exceed T_MAX=" + std::to_string(T_MAX));
     pi = Vector<adouble>::Zero(M);
     transition = Matrix<adouble>::Zero(M, M);
     transition.setZero();
@@ -163,20 +161,17 @@ void InferenceManager::recompute_emission_probs()
     for (int m = 0; m < M; ++m)
     {
         double hsm = hidden_states[m], hsm1 = hidden_states[m + 1];
-        adouble Rhsm1 = exp(-eta.R(hsm1)), Rhsm = exp(-eta.R(hsm));
-        if ((Rhsm - Rhsm1) < 1e-6)
-        {
-            // The probability of coalescence in this interval is incredibly low. 
-            // Just approximate by the midpoint to avoid numerical issues.
-            subemissions[0](m, 1) = eta.one * (hsm + hsm1) / 2.0;
-            
-        } else
-        {
-            subemissions[0](m, 1) = eta.R_integral(hsm, hsm1);
-            subemissions[0](m, 1) += hsm * Rhsm;
+        adouble Rhsm = exp(-eta.R(hsm)), Rhsm1;
+        if (std::isinf(hsm1))
+            Rhsm1 = 0.0;
+        else
+            Rhsm1 = exp(-eta.R(hsm1));
+        subemissions[0](m, 1) = eta.R_integral(hsm, hsm1);
+        subemissions[0](m, 1) += hsm * Rhsm;
+        if (!std::isinf(hsm1))
             subemissions[0](m, 1) -= hsm1 * Rhsm1;
-            subemissions[0](m, 1) /= (Rhsm - Rhsm1);
-        }
+        subemissions[0](m, 1) /= (Rhsm - Rhsm1);
+        check_nan(subemissions[0](m, 1));
     }
     subemissions[0].col(1) *= 2. * theta;
     subemissions[0].col(0).fill(eta.one);
@@ -224,16 +219,6 @@ void InferenceManager::recompute_emission_probs()
         emission_probs.at(*it) = tmp;
     }
     DEBUG << "recompute done";
-}
-
-std::vector<double> InferenceManager::randomCoalTimes(const ParameterVector params, double fac, const int size)
-{
-    PiecewiseExponentialRateFunction<double> eta(params, s, hidden_states);
-    std::vector<double> ret(size);
-    std::mt19937 gen;
-    for (int i = 0; i < size; ++i)
-        ret[i] = eta.random_time(fac, 0., .99 * T_MAX, gen);
-    return ret;
 }
 
 PiecewiseExponentialRateFunction<adouble> InferenceManager::getEta()

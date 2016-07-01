@@ -7,7 +7,7 @@ import ad.admath
 logger = logging.getLogger(__name__)
 
 from . import _smcpp, estimation_tools
-from .spline import CubicSpline
+from .spline import PChipSpline as CubicSpline
 from .observe import Observable
 
 class SMCModel(Observable):

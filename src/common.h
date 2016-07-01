@@ -20,7 +20,6 @@
 // Technically this is not necessary -- the method works with T_MAX=infinity -- but
 // the derivatives and integrals seem a bit more accurate when everything is finite.
 typedef std::array<int, 3> block_key;
-const double T_MAX = 500.0;
 
 template <typename T> using Matrix = Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic>;
 template <typename T> using Vector = Eigen::Matrix<T, Eigen::Dynamic, 1>;
@@ -219,26 +218,11 @@ void check_nan(const Eigen::DenseBase<Derived> &M)
             }
             catch (std::runtime_error)
             {
-                CRITICAL << i << " " << j << " " << M.coeff(i, j);
+                CRITICAL << M.rows() << " " << M.cols() << " " << i << " " << j << " " << M.coeff(i, j);
+                crash_backtrace("", -1);
                 throw;
             }
         }
-}
-
-template <typename T>
-void _check_nan(const Vector<T> &x) 
-{ 
-    for (int i = 0; i < x.rows(); ++i) 
-    {
-        try
-        {
-            _check_nan(x(i));
-        }
-        catch (std::runtime_error)
-        {
-            CRITICAL << i << " " << x(i);
-        }
-    }
 }
 
 template <typename T>

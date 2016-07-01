@@ -17,6 +17,8 @@ class PopulationOptimizer(object):
         self._penalty = regularization_penalty
         logger.debug("Initializing model")
         logger.debug("Performing initial E step")
+        # import IPython
+        # IPython.embed()
         self._pop.E_step()
 
     def run(self, niter, blocks, fix_rho):
@@ -97,6 +99,9 @@ class PopulationOptimizer(object):
 
     def _optimize(self):
         model = self._pop.model
+        if self._coords == [8, 9, 10]:
+            import IPython
+            IPython.embed()
         logger.debug("Performing a round of optimization")
         x0 = model[self._coords].astype('float')
         if os.environ.get("SMCPP_GRADIENT_CHECK", False):
@@ -104,30 +109,16 @@ class PopulationOptimizer(object):
             eps = 1e-6
             logger.info("gradient check")
             f0, fp = self._f(x0)
-            mx = model[self._coords]
-            e1 = self._pop._im.transition
-            xis = np.sum(self._pop._im.xisums, axis=0)
-            le1 = ad.admath.log(e1)
-            mq3 = le1 * xis
-            print(mq3.sum())
             for i in range(len(x0)):
                 x0c = x0.copy()
                 x0c[i] += eps
                 f1, _ = self._f(x0c)
-                e2 = self._pop._im.transition
-                le2 = ad.admath.log(e2)
-                mq32 = le2 * xis
-                for i1 in range(e1.shape[0]):
-                    for i2 in range(e1.shape[1]):
-                        logger.info(("e1", i1, i2, float(e1[i1,i2]), e1[i1,i2].d(mx[i])))
-                        logger.info(("le1", i1, i2, 
-                            float(le2[i1][i2] - le1[i1][i2]) / eps, le1[i1][i2].d(mx[i])))
-                        logger.info(("e3", i1, i2, float(xis[i1][i2]), (mq32[i1, i2] - mq3[i1, i2]) / eps, mq3[i1, i2].d(mx[i])))
                 logger.info((i, f1, f0, (f1 - f0) / eps, fp[i]))
         bounds = np.log(self._pop.bounds[0, self._coords])
-        res = scipy.optimize.fmin_l_bfgs_b(self._f, x0, None, pgtol=.01, factr=1e7, bounds=bounds)
+        # res = scipy.optimize.fmin_l_bfgs_b(self._f, x0, None, pgtol=.01, factr=1e7, bounds=bounds)
+        res = scipy.optimize.fmin_tnc(self._f, x0, None, bounds=bounds)
         logger.debug(res)
-        if res[2]['warnflag']:
-            logger.warn(res[2])
+        # if res[2]['warnflag']:
+        #     logger.warn(res[2])
         model[self._coords] = res[0]
         return res[1]

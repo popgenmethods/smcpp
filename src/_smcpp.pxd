@@ -21,7 +21,6 @@ cdef extern from "common.h":
     void store_matrix(const Matrix[double]&, double*)
     void store_matrix(const Matrix[adouble]&, double*)
     void store_matrix(const Matrix[adouble]&, double*, double*)
-    const double C_T_MAX "T_MAX"
 
 ctypedef Matrix[double]* pMatrixD
 ctypedef Matrix[adouble]* pMatrixAd
@@ -41,7 +40,6 @@ cdef extern from "inference_manager.h":
         void Estep(bool)
         vector[double] loglik()
         vector[adouble] Q()
-        vector[double] randomCoalTimes(const ParameterVector, double, int)
         double R(const ParameterVector, double t)
         bool debug
         bool saveGamma

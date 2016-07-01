@@ -11,8 +11,6 @@ import collections
 import wrapt
 from ad import adnumber, ADF
 
-T_MAX = C_T_MAX - 0.1
-
 init_eigen();
 logger = logging.getLogger(__name__)
 
@@ -87,8 +85,8 @@ cdef class PyInferenceManager:
         Ls = []
         ## Validate hidden states
         if any([not np.all(np.sort(hidden_states) == hidden_states),
-            hidden_states[0] != 0., hidden_states[-1] > T_MAX]):
-            raise RuntimeError("Hidden states must be in ascending order with hs[0]=0 and hs[-1] < %g" % T_MAX)
+            hidden_states[0] != 0., hidden_states[-1] != np.inf]):
+            raise RuntimeError("Hidden states must be in ascending order with hs[0]=0 and hs[-1] = infinity")
         for ob in observations:
             validate_observation(ob)
             vob = ob
@@ -281,12 +279,11 @@ def balance_hidden_states(model, int M):
             def f(double t):
                 cdef double Rt = eta.R(t)
                 return np.exp(-Rt) - 1.0 * (M - m) / M
-            res = scipy.optimize.brentq(f, ret[-1], T_MAX)
+            res = scipy.optimize.brentq(f, ret[-1], 1000.)
             ret.append(res)
     finally:
         del eta
-    if ret[-1] < T_MAX:
-        ret.append(T_MAX)
+    ret.append(np.inf)
     return np.array(ret)
 
 def raw_sfs(model, s, int n, double t1, double t2):

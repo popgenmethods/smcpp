@@ -2,14 +2,6 @@
 
 constexpr long nC2(int n) { return n * (n - 1) / 2; }
 
-/*
-template <typename T>
-PiecewiseExponentialRateFunction<T>::PiecewiseExponentialRateFunction(const std::vector<std::vector<double>> params,
-        const std::vector<double> hidden_states) : 
-    PiecewiseExponentialRateFunction(params, std::vector<std::pair<int, int>>(), hidden_states) 
-{ }
-*/
-
 template <typename T>
 inline void vec_insert(std::vector<T> &v, const int pos, const T &x)
 {
@@ -64,11 +56,6 @@ PiecewiseExponentialRateFunction<T>::PiecewiseExponentialRateFunction(
     // These constant values need to have compatible derivative shape
     // with the calculated values.
     // Fix last piece to be constant
-    ada.push_back(adb.back());
-    adb.push_back(adb.back());
-    s.push_back(1.0);
-    ts.push_back(T_MAX);
-    ++K;
     for (int k = 0; k < K; ++k)
     {
         ada[k] = 1. / ada[k];
@@ -76,58 +63,16 @@ PiecewiseExponentialRateFunction<T>::PiecewiseExponentialRateFunction(
         ts[k + 1] = ts[k] + s[k];
         adb[k] = (log(adb[k]) - log(ada[k])) / (ts[k + 1] - ts[k]);
     }
-    ts[K] = T_MAX;
-
-    std::vector<T> new_ada, new_adb, new_ts;
-    new_ts.push_back(zero);
-    ada.insert(ada.begin(), ada.at(0));
-    adb.insert(adb.begin(), zero);
-    ts.insert(ts.begin() + 1, 0.01 * ts.at(1));
-    new_ada.push_back(ada[0]);
-    new_adb.push_back(zero);
-    new_ts.push_back(ts[1]);
-    const int D = 20;
-    for (int k = 1; k < K + 1; ++k)
-    {
-        if (adb[k] == 0.)
-        {
-            new_ada.push_back(ada[k]);
-            new_adb.push_back(adb[k]);
-            new_ts.push_back(ts[k + 1]);
-        }
-        else
-        {
-            T log_t = log(ts[k]);
-            T log_t1 = log(ts[k + 1]);
-            T delta = (log_t1 - log_t) / (double)D;
-            for (int i = 0; i < D; ++i)
-            {
-                log_t += delta;
-                T t = exp(log_t);
-                new_ada.push_back(ada[k] * exp(adb[k] * (t - ts[k])));
-                new_adb.push_back(zero);
-                new_ts.push_back(t);
-            }
-        }
-    }
-    K = new_ada.size();
-    new_ts[K] = T_MAX;
-    if (false)
-    {
-        std::cout << "ada: " << ada << std::endl;
-        std::cout << "adb: " << adb << std::endl;
-        std::cout << "ts: " << ts << std::endl;
-        std::cout << "new_ada: " << new_ada << std::endl;
-        std::cout << "new_adb: " << new_adb << std::endl;
-        std::cout << "new_ts: " << new_ts << std::endl;
-    }
-    ada = new_ada;
-    adb = new_adb;
-    ts = new_ts;
+    ts[K] = INFINITY;
 
     int ip;
     for (T h : hidden_states)
     {
+        if (std::isinf(toDouble(h)))
+        {
+            hs_indices.push_back(ts.size() - 1);
+            continue;
+        }
         ip = insertion_point(h, ts, 0, ts.size());
         if (myabs(ts[ip] - h) < 1e-8)
         // if (ts[ip] == h)
@@ -155,16 +100,12 @@ PiecewiseExponentialRateFunction<T>::PiecewiseExponentialRateFunction(
         }
     }
     K = ada.size();
-    for (int k = 0; k < K; ++k)
-        if (myabs(adb[k]) < 1e-2)
-            adb[k] = zero;
     Rrng.resize(K + 1);
     compute_antiderivative();
 
     _eta.reset(new PExpEvaluator<T>(ada, adb, ts, Rrng));
     _R.reset(new PExpIntegralEvaluator<T>(ada, adb, ts, Rrng));
     _Rinv.reset(new PExpInverseIntegralEvaluator<T>(ada, adb, ts, Rrng));
-    // lastly
 }
 
 template <typename T>
@@ -242,9 +183,9 @@ template <typename T>
 T PiecewiseExponentialRateFunction<T>::R_integral(const double a, const double b) const
 {
     // int_a^b exp(-R(t)) dt
-    T Ta = one * a, Tb = one * b;
+    T Ta = a, Tb = b;
     int ip_a = insertion_point(Ta, ts, 0, ts.size());
-    int ip_b = insertion_point(Tb, ts, 0, ts.size());
+    int ip_b = (std::isinf(b)) ? ts.size() - 2 : insertion_point(Tb, ts, 0, ts.size());
     T ret = zero, r;
     for (int i = ip_a; i < ip_b + 1; ++i)
     {
@@ -254,7 +195,9 @@ T PiecewiseExponentialRateFunction<T>::R_integral(const double a, const double b
         if (adb[i] == 0)
         {
             T Rleft = R(left);
-            r = -exp(-Rleft) * expm1(-diff * ada[i]);
+            r = exp(-Rleft);
+            if (!std::isinf(toDouble(diff)))
+                r *= -expm1(-diff * ada[i]);
             r /= ada[i];
         }
         else
@@ -267,8 +210,6 @@ T PiecewiseExponentialRateFunction<T>::R_integral(const double a, const double b
             check_negative(r);
             check_nan(r);
         }
-        // if (r > 100.)
-        //     throw std::domain_error("what");
         check_negative(r);
         check_nan(r);
         ret += r;
@@ -373,7 +314,9 @@ void PiecewiseExponentialRateFunction<T>::tjj_double_integral_above(const int n,
     for (unsigned int h = 0; h < hs_indices.size() - 1; ++h)
     {
         C[h].row(jj - 2).setZero();
-        T log_denom = -Rrng[hs_indices[h]] + log(-expm1(-(Rrng[hs_indices[h + 1]] - Rrng[hs_indices[h]])));
+        T log_denom = -Rrng[hs_indices[h]];
+        if (Rrng[hs_indices[h + 1]] != INFINITY)
+            log_denom += log(-expm1(-(Rrng[hs_indices[h + 1]] - Rrng[hs_indices[h]])));
         for (int m = hs_indices[h]; m < hs_indices[h + 1]; ++m)
         {
             for (int j = 2; j < n + 2; ++j)
@@ -444,7 +387,9 @@ template <typename T>
 void PiecewiseExponentialRateFunction<T>::tjj_double_integral_below(
         const int n, const int h, Matrix<T> &tgt) const
 {
-    T log_denom = -Rrng[hs_indices[h]] + log(-expm1(-(Rrng[hs_indices[h + 1]] - Rrng[hs_indices[h]])));
+    T log_denom = -Rrng[hs_indices[h]];
+    if (Rrng[hs_indices[h + 1]] != INFINITY)
+        log_denom += log(-expm1(-(Rrng[hs_indices[h + 1]] - Rrng[hs_indices[h]])));
     for (int m = hs_indices[h]; m < hs_indices[h + 1]; ++m)
     {
         Vector<T> ts_integrals(n + 1);
@@ -494,7 +439,7 @@ T PiecewiseExponentialRateFunction<T>::random_time(const double fac, const T &a,
 {
     T Rb;
     if (b == INFINITY)
-        Rb = R(0.99 * T_MAX);
+        Rb = INFINITY;
     else
         Rb = R(b);
     return (*getRinv())(exp1_conditional(R(a), Rb, gen) / fac);

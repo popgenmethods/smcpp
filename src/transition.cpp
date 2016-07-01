@@ -17,6 +17,7 @@ Matrix<T> HJTransition<T>::matrix_exp(T c_rho, T c_eta)
     Q(2, 0) = 0;
     Q(2, 1) = 0;
     Q(2, 2) = 1;
+    check_nan(Q);
     return Q;
 }
 
@@ -30,10 +31,22 @@ void HJTransition<T>::compute(void)
     expm_prods.push_back(Matrix<T>::Identity(3, 3));
     for (int i = 1; i < eta->ts.size(); ++i)
     {
-        T delta = eta->ts[i] - eta->ts[i - 1];
-        T c_rho = delta * this->rho;
-        T c_eta = eta->Rrng[i] - eta->Rrng[i - 1];
-        expms.push_back(matrix_exp(c_rho, c_eta));
+        if (std::isinf(toDouble(eta->ts[i])))
+        {
+            Matrix<T> Q(3,3);
+            Q << 
+                0, 0, 1,
+                0, 0, 1,
+                0, 0, 1;
+            expms.push_back(Q);
+        }
+        else
+        {
+            T delta = eta->ts[i] - eta->ts[i - 1];
+            T c_rho = delta * this->rho;
+            T c_eta = eta->Rrng[i] - eta->Rrng[i - 1];
+            expms.push_back(matrix_exp(c_rho, c_eta));
+        }
         expm_prods.push_back(expm_prods.back() * expms.back());
     }
     this->Phi.setZero();
@@ -42,7 +55,7 @@ void HJTransition<T>::compute(void)
         for (int k = 1; k < j; ++k)
             this->Phi(j - 1, k - 1) = expm_prods[eta->hs_indices[k]](0, 2) - expm_prods[eta->hs_indices[k - 1]](0, 2);
         if (j == this->M - 1)
-            this->Phi(j - 1, j - 1) = 1. - expm_prods[eta->hs_indices[j]](0, 2);
+            this->Phi(j - 1, j - 1) = 1. - expm_prods[eta->hs_indices[j - 1]](0, 2);
         else 
         {
             this->Phi(j - 1, j - 1) = expm_prods[eta->hs_indices[j]](0, 0);

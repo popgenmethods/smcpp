@@ -34,7 +34,6 @@ class InferenceManager
     double R(const ParameterVector params, double t);
     bool debug, saveGamma, folded;
     std::vector<double> hidden_states, s;
-    std::vector<double> randomCoalTimes(const ParameterVector params, double fac, const int size);
     std::map<block_key, Vector<adouble> > emission_probs;
     std::vector<Matrix<double>*> getXisums();
     std::vector<Matrix<double>*> getGammas();
