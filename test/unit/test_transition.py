@@ -31,7 +31,7 @@ def test_d(im):
             for j in range(M):
                 dx = trans1[i, j].d(y[k])
                 dx2 = (trans2[i,j] - float(trans1[i,j])) / eps
-                print(k, i, j, (dx - dx2) / dx)
+                print(k, i, j, dx, dx2, (dx - dx2) / dx)
     assert False
 
 # def test_equal_jac_nojac(constant_demo_1, hs):
