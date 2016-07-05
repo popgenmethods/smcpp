@@ -99,9 +99,6 @@ class PopulationOptimizer(object):
 
     def _optimize(self):
         model = self._pop.model
-        if self._coords == [8, 9, 10]:
-            import IPython
-            IPython.embed()
         logger.debug("Performing a round of optimization")
         x0 = model[self._coords].astype('float')
         if os.environ.get("SMCPP_GRADIENT_CHECK", False):

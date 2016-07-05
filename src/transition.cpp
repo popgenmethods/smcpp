@@ -25,6 +25,7 @@ template <typename T>
 void HJTransition<T>::compute(void)
 {
     const PiecewiseExponentialRateFunction<T> *eta = this->eta;
+    std::vector<T> avg_coal_times = eta->average_coal_times();
     std::vector<Matrix<T> > expms;
     std::vector<Matrix<T> > expm_prods;
     expms.push_back(Matrix<T>::Identity(3, 3));
@@ -49,6 +50,11 @@ void HJTransition<T>::compute(void)
         }
         expm_prods.push_back(expm_prods.back() * expms.back());
     }
+
+    std::vector<int> avc_ip;
+    for (T x : avg_coal_times)
+        avc_ip.push_back(insertion_point(x, eta->ts, 0, eta->ts.size()));
+
     this->Phi.setZero();
     for (int j = 1; j < this->M; ++j)
     {
@@ -57,10 +63,15 @@ void HJTransition<T>::compute(void)
             this->Phi(j - 1, k - 1) = expm_prods[eta->hs_indices[k]](0, 2) - expm_prods[eta->hs_indices[k - 1]](0, 2);
         // diagonal element
         // this is an approximation
-        this->Phi(j - 1, j - 1) = expm_prods[eta->hs_indices[j]](0, 0);
         Matrix<T> A = Matrix<T>::Identity(3, 3);
-        for (int ell = eta->hs_indices[j - 1]; ell < eta->hs_indices[j]; ++ell)
+        for (int ell = eta->hs_indices[j - 1]; ell < avc_ip[j - 1]; ++ell)
             A = A * expms[ell];
+        T delta = avg_coal_times[j - 1] - eta->ts[avc_ip[j - 1]];
+        T c_rho = delta * this->rho;
+        T c_eta = eta->R(avg_coal_times[j - 1]) - eta->Rrng[avc_ip[j - 1]];
+        A = A * matrix_exp(c_rho, c_eta);
+        Matrix<T> B = expm_prods[eta->hs_indices[j - 1]] * A;
+        this->Phi(j - 1, j - 1) = B(0, 0);
         this->Phi(j - 1, j - 1) += expm_prods[eta->hs_indices[j - 1]](0, 0) * A(0, 2);
         this->Phi(j - 1, j - 1) += expm_prods[eta->hs_indices[j - 1]](0, 1) * A(1, 2);
         // superdiagonal

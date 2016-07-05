@@ -184,22 +184,27 @@ void PiecewiseExponentialRateFunction<T>::compute_antiderivative()
 }
 
 template <typename T>
-T PiecewiseExponentialRateFunction<T>::R_integral(const double a, const double b) const
+T PiecewiseExponentialRateFunction<T>::R_integral(const T a, const T b) const
+{
+    return R_integral(a, b, 0);
+}
+
+template <typename T>
+T PiecewiseExponentialRateFunction<T>::R_integral(const T a, const T b, const T log_denom) const
 {
     // int_a^b exp(-R(t)) dt
-    T Ta = a, Tb = b;
-    int ip_a = insertion_point(Ta, ts, 0, ts.size());
-    int ip_b = (std::isinf(b)) ? ts.size() - 2 : insertion_point(Tb, ts, 0, ts.size());
-    T ret = zero, r;
+    int ip_a = insertion_point(a, ts, 0, ts.size());
+    int ip_b = (std::isinf(toDouble(b))) ? ts.size() - 2 : insertion_point(b, ts, 0, ts.size());
+    T ret = zero, r, left, right, diff, Rleft;
     for (int i = ip_a; i < ip_b + 1; ++i)
     {
-        T left = dmax(Ta, (T)ts[i]);
-        T right = dmin(Tb, (T)ts[i + 1]);
-        T diff = right - left;
+        left = dmax(a, ts[i]);
+        right = dmin(b, ts[i + 1]);
+        diff = right - left;
         if (adb[i] == 0)
         {
-            T Rleft = R(left);
-            r = exp(-Rleft);
+            Rleft = R(left);
+            r = exp(-(Rleft + log_denom));
             if (!std::isinf(toDouble(diff)))
                 r *= -expm1(-diff * ada[i]);
             r /= ada[i];
@@ -458,6 +463,30 @@ template <typename T>
 T PiecewiseExponentialRateFunction<T>::random_time(const T &a, const T &b, std::mt19937 &gen) const
 {
     return random_time(1.0, a, b, gen);
+}
+
+template <typename T>
+std::vector<T> PiecewiseExponentialRateFunction<T>::average_coal_times() const
+{
+    std::vector<T> ret;
+    for (int i = 1; i < hidden_states.size(); ++i)
+    {
+        // discretize by expected coalescent time within each hidden state
+        // e_coal = \int_t0^t1 t eta(t) exp(-R(t)) 
+        //        = t0 e^(-R(t0)) - t1 e^(-R(t1)) + \int
+        T log_denom = -Rrng[hs_indices[i - 1]];
+        bool inf = std::isinf(toDouble(ts[hs_indices[i]]));
+        if (!inf)
+           log_denom += log(-expm1(-(Rrng[hs_indices[i]] - Rrng[hs_indices[i - 1]])));
+        T x = hidden_states[i - 1] * exp(-((Rrng[hs_indices[i - 1]]) + log_denom)) +
+            R_integral(ts[hs_indices[i - 1]], ts[hs_indices[i]], log_denom);
+        if (!inf)
+            x -= hidden_states[i] * exp(-((Rrng[hs_indices[i]]) + log_denom));
+        ret.push_back(x);
+        if (ret.back() > hidden_states[i] or ret.back() < hidden_states[i - 1])
+            throw std::runtime_error("erroneous average coalescence time");
+    }
+    return ret;
 }
 
 

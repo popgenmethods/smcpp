@@ -152,7 +152,7 @@ def pretrain(model, sample_csfs, bounds, theta0, folded, penalty):
     res = scipy.optimize.fmin_tnc(f, 
             x0,
             None,
-            bounds=bounds[0][coords],
+            bounds=np.log(bounds[0][coords]),
             xtol=0.01,
             disp=False)
     for cc, xx in zip(coords, res[0]):

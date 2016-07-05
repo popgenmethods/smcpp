@@ -68,6 +68,20 @@ class Population(Observer):
                 [[1.01 * args.Nmin, 0.99 * Nmax]] * K).reshape([2, K, 2])
         # logger.debug("bounds:\n%s" % np.array_str(self._bounds, precision=3))
 
+        # Prepare empirical SFS for later use. This is cheap to compute
+        esfs = util.compute_esfs(dataset, n)
+        self._sfs = np.sum(esfs, axis=0) / np.sum(esfs)
+        logger.info("Empirical SFS:\n%s" % np.array_str(self._sfs, precision=4))
+        logger.info("Reduced SFS:\n%s" % np.array_str(util.undistinguished_sfs(self._sfs, args.folded), precision=4))
+
+        if not args.no_pretrain:
+            logger.info("Pretraining")
+            # pretrain if requested
+            self._pretrain_penalizer = functools.partial(estimation_tools.regularizer, 
+                    penalty=args.pretrain_penalty, f=args.regularizer)
+            # self._pretrain_penalizer = self._penalizer
+            self._pretrain(theta, args.folded, args.pretrain_penalty)
+    
         ## After (potentially) doing pretraining, normalize and thin the data set
         ## Optionally thin each dataset
         if args.thinning is None:
@@ -78,12 +92,6 @@ class Population(Observer):
         elif n > 2:
             logger.warn("Not thinning yet n=%d. This probably isn't what you desire, see --thinning" % (n//2,))
         
-        # Prepare empirical SFS for later use. This is cheap to compute
-        esfs = util.compute_esfs(dataset, n)
-        self._sfs = np.sum(esfs, axis=0) / np.sum(esfs)
-        logger.info("Empirical SFS:\n%s" % np.array_str(self._sfs, precision=4))
-        logger.info("Reduced SFS:\n%s" % np.array_str(util.undistinguished_sfs(self._sfs, args.folded), precision=4))
-
         if args.regularization_penalty is None:
             args.regularization_penalty = 3e-9 * self._L
         logger.info("regularizer: %s" % args.regularizer)
@@ -92,14 +100,6 @@ class Population(Observer):
         self._penalizer = functools.partial(estimation_tools.regularizer, 
                 penalty=args.regularization_penalty, f=args.regularizer)
 
-        if not args.no_pretrain:
-            logger.info("Pretraining")
-            # pretrain if requested
-            self._pretrain_penalizer = functools.partial(estimation_tools.regularizer, 
-                    penalty=args.pretrain_penalty, f=args.regularizer)
-            # self._pretrain_penalizer = self._penalizer
-            self._pretrain(theta, args.folded, args.pretrain_penalty)
-    
         # We remember the initialized model for use in split estimation
         if args.init_model is not None:
             er = EstimationResult.load(args.init_model)

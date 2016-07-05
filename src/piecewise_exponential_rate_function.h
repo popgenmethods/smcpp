@@ -29,7 +29,9 @@ class PiecewiseExponentialRateFunction
     const FunctionEvaluator<T>* getRinv() const { return _Rinv.get(); }
     T R(T x) const { T ret = (*_R)(x); check_nan(ret); return ret; }
     T eta(T x) const { return (*_eta)(x); }
-    T R_integral(const double, const double) const;
+    T R_integral(const T, const T) const;
+    T R_integral(const T, const T, const T) const;
+    std::vector<T> average_coal_times() const;
     void print_debug() const;
     
     Matrix<T> tjj_all_above(const int, const MatrixXq&, const MatrixXq&, const MatrixXq&, const MatrixXq&) const;
