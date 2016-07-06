@@ -291,7 +291,8 @@ def random_coal_times(model, t1, t2, K):
     cdef vector[double] v = []
     cdef vector[double] s = model.s
     cdef PiecewiseExponentialRateFunction[double] *eta = new PiecewiseExponentialRateFunction[double](pv, s, v)
-    return [eta.random_time(t1, t2, np.random.randint(sys.maxint)) for _ in range(K)]
+    times = [eta.random_time(t1, t2, np.random.randint(sys.maxint)) for _ in range(K)]
+    return zip(times, [eta.R(t) for t in times])
 
 def raw_sfs(model, int n, double t1, double t2, below_only=False):
     cdef ParameterVector pv = make_params(model)
