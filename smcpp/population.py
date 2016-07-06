@@ -5,7 +5,7 @@ import multiprocessing
 from logging import getLogger
 logger = getLogger(__name__)
 
-from . import estimation_tools, _smcpp, util
+from . import estimation_tools, _smcpp, util, spline
 from .estimation_result import EstimationResult
 from .model import SMCModel
 from .observe import Observer
@@ -37,11 +37,18 @@ class Population(Observer):
         logger.info("n=%d" % n)
         ## At this point, data have not been thinned or anything. 
 
+        if args.spline == "cubic":
+            spline_class = spline.CubicSpline
+        elif args.spline == "akima":
+            spline_class = spline.AkimaSpline
+        elif args.spline == "pchip":
+            spline_class = spline.PChipSpline
+
         ## Initialize model
         exponential_pieces = args.exponential_pieces or []
         knots = np.cumsum(estimation_tools.construct_time_points(t1, tK, [5, 5, 4, 4, 3, 3, 2, 2, 1, 1]))
         logger.debug("knots in coalescent scaling:\n%s", str(knots))
-        self._model = SMCModel(time_points, knots)
+        self._model = SMCModel(time_points, knots, spline_class)
 
         ## Set theta and rho to their default parameters
         self._L = sum([obs[:,0].sum() for obs in dataset])

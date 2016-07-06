@@ -6,14 +6,14 @@ from ad import adnumber, ADF
 import ad.admath
 logger = logging.getLogger(__name__)
 
-from . import _smcpp, estimation_tools
-from .spline import PChipSpline as CubicSpline
+from . import _smcpp, estimation_tools, spline
 from .observe import Observable
 
 class SMCModel(Observable):
 
-    def __init__(self, s, knots):
+    def __init__(self, s, knots, spline_class=spline.PChipSpline):
         Observable.__init__(self)
+        self._spline_class = spline_class
         self._s = s
         self._knots = knots
         self.y = np.zeros_like(knots, dtype='object')
@@ -40,7 +40,7 @@ class SMCModel(Observable):
         return self._y[ind]
 
     def _refit(self):
-        self._spline = CubicSpline(np.log(self._knots), self._y)
+        self._spline = self._spline_class(np.log(self._knots), self._y)
 
     @property
     def y(self):

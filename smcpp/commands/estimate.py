@@ -44,6 +44,9 @@ def init_parser(parser):
     optimizer.add_argument('--regularizer', 
             choices=[x + y for x in ["", "log"] for y in ["abs", "quadratic", "curvature"]],
             default="quadratic", help="type of regularization to apply")
+    optimizer.add_argument('--spline',
+            choices=["cubic", "akima", "pchip"],
+            default="pchip", help="type of spline representation to use")
     optimizer.add_argument('--lbfgs-factor', type=float, help="stopping criterion for optimizer", default=1e9)
     optimizer.add_argument('--Nmin', type=float, help="Lower bound on effective population size (in units of N0)", default=.01)
     optimizer.add_argument('--Nmax', type=float, help="Upper bound on effective population size (in units of N0)", default=100)
