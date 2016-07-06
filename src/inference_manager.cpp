@@ -382,12 +382,16 @@ double InferenceManager::R(const ParameterVector params, double t)
     return (*eta.getR())(t);
 }
 
-Matrix<adouble> sfs_cython(int n, const ParameterVector &p, std::vector<double> s, 
-        double t1, double t2)
+Matrix<adouble> sfs_cython(const int n, const ParameterVector p, const std::vector<double> s, 
+        const double t1, const double t2, bool below_only)
 { 
     PiecewiseExponentialRateFunction<adouble> eta(p, s, {t1, t2});
     ConditionedSFS<adouble> csfs(n - 2, 1);
-    std::vector<Matrix<adouble> > v = csfs.compute(eta);
+    std::vector<Matrix<adouble> > v;
+    if (below_only)
+        v = csfs.compute_below(eta);
+    else
+        v = csfs.compute(eta);
     return v[0];
 }
 /*

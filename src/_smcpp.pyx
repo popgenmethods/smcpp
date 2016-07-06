@@ -286,7 +286,14 @@ def balance_hidden_states(model, int M):
     ret.append(np.inf)
     return np.array(ret)
 
-def raw_sfs(model, int n, double t1, double t2):
+def random_coal_times(model, t1, t2, K):
+    cdef ParameterVector pv = make_params(model)
+    cdef vector[double] v = []
+    cdef vector[double] s = model.s
+    cdef PiecewiseExponentialRateFunction[double] *eta = new PiecewiseExponentialRateFunction[double](pv, s, v)
+    return [eta.random_time(t1, t2, np.random.randint(sys.maxint)) for _ in range(K)]
+
+def raw_sfs(model, int n, double t1, double t2, below_only=False):
     cdef ParameterVector pv = make_params(model)
     cdef Matrix[adouble] dsfs
     cdef Matrix[double] sfs
@@ -294,8 +301,9 @@ def raw_sfs(model, int n, double t1, double t2):
     cdef double[:, ::1] vret = ret
     cdef vector[pair[int, int]] derivs
     cdef vector[double] _s = model.s
+    cdef bool bo = below_only
     with nogil:
-        dsfs = sfs_cython(n, pv, _s, t1, t2)
+        dsfs = sfs_cython(n, pv, _s, t1, t2, bo)
     _check_abort()
     return _store_admatrix_helper(dsfs, model.dlist)
 

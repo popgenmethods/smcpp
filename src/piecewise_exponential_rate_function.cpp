@@ -447,6 +447,15 @@ T exp1_conditional(T a, T b, std::mt19937 &gen)
         return a - log1p(expm1(-(b - a)) * unif);
 }
 
+// This helper function exists for cython
+template <typename T>
+double PiecewiseExponentialRateFunction<T>::random_time(const double a, const double b, const int seed) const
+{
+    std::mt19937 gen(seed);
+    return toDouble(random_time(1., T(a), T(b), gen));
+}
+
+
 template <typename T>
 T PiecewiseExponentialRateFunction<T>::random_time(const double fac, const T &a, const T &b, std::mt19937 &gen) const
 {
@@ -458,12 +467,6 @@ T PiecewiseExponentialRateFunction<T>::random_time(const double fac, const T &a,
     return (*getRinv())(exp1_conditional(R(a), Rb, gen) / fac);
 }
 
-
-template <typename T>
-T PiecewiseExponentialRateFunction<T>::random_time(const T &a, const T &b, std::mt19937 &gen) const
-{
-    return random_time(1.0, a, b, gen);
-}
 
 template <typename T>
 std::vector<T> PiecewiseExponentialRateFunction<T>::average_coal_times() const

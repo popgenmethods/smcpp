@@ -105,8 +105,8 @@ ConditionedSFS<T>::ConditionedSFS(int n, int H) :
     Uinv_mp2(mei.Uinv.reverse().leftCols(n).template cast<double>())
 {}
 
-    template <typename T>
-void ConditionedSFS<T>::compute_below(const PiecewiseExponentialRateFunction<T> &eta)
+template <typename T>
+std::vector<Matrix<T> > ConditionedSFS<T>::compute_below(const PiecewiseExponentialRateFunction<T> &eta)
 {
     DEBUG << "compute below";
     tjj_below.setZero();
@@ -130,6 +130,7 @@ void ConditionedSFS<T>::compute_below(const PiecewiseExponentialRateFunction<T> 
         check_nan(csfs_below[h]);
     }
     DEBUG << "compute below finished";
+    return csfs_below;
 }
 
     template <typename T>
@@ -153,15 +154,14 @@ inline T doubly_compensated_summation(const std::vector<T> &x)
     return s;
 }
 
-    template <typename T>
-void ConditionedSFS<T>::compute_above(const PiecewiseExponentialRateFunction<T> &eta)
+template <typename T>
+std::vector<Matrix<T> > ConditionedSFS<T>::compute_above(const PiecewiseExponentialRateFunction<T> &eta)
 {
     DEBUG << "compute above";
 #pragma omp parallel for
     for (int j = 2; j < n + 3; ++j)
         eta.tjj_double_integral_above(n, j, C_above);
     Matrix<T> tmp;
-    Timer t1;
 #pragma omp parallel for
     for (int h = 0; h < H; ++h)
     {
@@ -190,14 +190,15 @@ void ConditionedSFS<T>::compute_above(const PiecewiseExponentialRateFunction<T> 
         csfs_above[h].block(2, 0, 1, n) = tmp2.transpose().lazyProduct(Uinv_mp2);
         check_nan(csfs_above[h]);
     }
+    return csfs_above;
 }
 
-    template <typename T>
+template <typename T>
 std::vector<Matrix<T> >& ConditionedSFS<T>::compute(const PiecewiseExponentialRateFunction<T> &eta)
 {
     DEBUG << "compute called";
-    compute_above(eta);
-    compute_below(eta);
+    csfs_above = compute_above(eta);
+    csfs_below = compute_below(eta);
     for (int i = 0; i < H; ++i)
     {
         csfs[i] = csfs_above[i] + csfs_below[i];
