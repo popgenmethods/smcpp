@@ -90,7 +90,6 @@ class InferenceManager
     PiecewiseExponentialRateFunction<adouble> getEta();
 };
 
-Matrix<adouble> sfs_cython(int n, const ParameterVector &p, std::vector<double> s,
-        double t1, double t2);
+Matrix<adouble> sfs_cython(const int, const ParameterVector, const std::vector<double>, const double, const double, bool);
 
 #endif
