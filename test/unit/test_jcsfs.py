@@ -20,5 +20,5 @@ def model2():
     return ret
 
 def test_jcsfs(model1, model2):
-    jcsfs = JointCSFS(8, 8, 2, 0, model1, model2, 1.0)
+    jcsfs = JointCSFS(8, 4, 2, 0, model1, model2, 1.0)
     jcsfs._jcsfs_helper_tau_below_split(0.5, 0.8)

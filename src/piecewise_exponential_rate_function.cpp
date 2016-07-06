@@ -449,7 +449,7 @@ T exp1_conditional(T a, T b, std::mt19937 &gen)
 
 // This helper function exists for cython
 template <typename T>
-double PiecewiseExponentialRateFunction<T>::random_time(const double a, const double b, const int seed) const
+double PiecewiseExponentialRateFunction<T>::random_time(const double a, const double b, const long long seed) const
 {
     std::mt19937 gen(seed);
     return toDouble(random_time(1., T(a), T(b), gen));

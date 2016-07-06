@@ -62,4 +62,4 @@ cdef extern from "piecewise_exponential_rate_function.h":
     cdef cppclass PiecewiseExponentialRateFunction[T]:
         PiecewiseExponentialRateFunction(const ParameterVector, const vector[double], const vector[double])
         T R(T x)
-        T random_time(const double, const double, const int)
+        T random_time(const double, const double, const long long)
