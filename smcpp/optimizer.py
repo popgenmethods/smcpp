@@ -56,7 +56,11 @@ class PopulationOptimizer(object):
             if ll < llold:
                 logger.warn("Log-likelihood decreased")
             llold = ll
+            hso = np.sum(self._pop._im.xisums, axis=(0, 1))
+            hso /= hso.sum()
+            logger.debug("hidden state occupancy: %s", hso)
             self._pop.dump(os.path.join(self._outdir, ".pop0.iter%d" % i))
+
         ## Optimization concluded
         self._pop.dump(os.path.join(self._outdir, "pop0.final"))
         return llold
@@ -112,10 +116,10 @@ class PopulationOptimizer(object):
                 f1, _ = self._f(x0c)
                 logger.info((i, f1, f0, (f1 - f0) / eps, fp[i]))
         bounds = np.log(self._pop.bounds[0, self._coords])
-        # res = scipy.optimize.fmin_l_bfgs_b(self._f, x0, None, pgtol=.01, factr=1e7, bounds=bounds)
-        res = scipy.optimize.fmin_tnc(self._f, x0, None, bounds=bounds)
+        res = scipy.optimize.fmin_l_bfgs_b(self._f, x0, None, pgtol=.01, factr=1e7, bounds=bounds)
+        # res = scipy.optimize.fmin_tnc(self._f, x0, None, bounds=bounds)
         logger.debug(res)
-        # if res[2]['warnflag']:
-        #     logger.warn(res[2])
+        if res[2]['warnflag']:
+            logger.warn(res[2])
         model[self._coords] = res[0]
         return res[1]
