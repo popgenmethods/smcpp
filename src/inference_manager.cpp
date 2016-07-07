@@ -158,28 +158,10 @@ void InferenceManager::recompute_emission_probs()
     DEBUG << "done subemissions";
     subemissions[0] = Matrix<adouble>::Zero(M, 2);
     PiecewiseExponentialRateFunction<adouble> eta = getEta();
+    std::vector<adouble> avg_ct = eta.average_coal_times();
     for (int m = 0; m < M; ++m)
     {
-        double hsm = hidden_states[m], hsm1 = hidden_states[m + 1];
-        adouble Rhsm = exp(-eta.R(hsm)), Rhsm1;
-        if (Rhsm - Rhsm1 < 1e-8)
-        {
-            // Probability of coalescence in this interval is low
-            // so just approximate by midpoint to avoid numerical issues.
-            subemissions[0](m, 1) = (hsm + hsm1) / 2.0;
-        }
-        else
-        {
-            if (std::isinf(hsm1))
-                Rhsm1 = 0.0;
-            else
-                Rhsm1 = exp(-eta.R(hsm1));
-            subemissions[0](m, 1) = eta.R_integral(hsm, hsm1);
-            subemissions[0](m, 1) += hsm * Rhsm;
-            if (!std::isinf(hsm1))
-                subemissions[0](m, 1) -= hsm1 * Rhsm1;
-            subemissions[0](m, 1) /= (Rhsm - Rhsm1);
-        }
+        subemissions[0](m, 1) = avg_ct[m];
         check_nan(subemissions[0](m, 1));
     }
     subemissions[0].col(1) *= 2. * theta;
