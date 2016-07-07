@@ -110,7 +110,7 @@ class Population(Observer):
         # We remember the initialized model for use in split estimation
         if args.init_model is not None:
             er = EstimationResult.load(args.init_model)
-            self._model[:] = er.model[:]
+            self._model[:] = er._spline[1]
             rho = er.rho
             theta = er.theta
         self._init_model_y = self._model.y.copy() 
@@ -123,6 +123,7 @@ class Population(Observer):
             logger.info("Balancing hidden states...")
             self._balance_hidden_states(args.M)
 
+        logger.info("%d hidden states (pre-merge):\n%s" % (len(self._hidden_states), str(self._hidden_states)))
         ## break up long spans
         self._dataset, attrs = estimation_tools.break_long_spans(dataset, rho, args.length_cutoff)
 
