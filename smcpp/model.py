@@ -73,3 +73,11 @@ class SMCModel(Observable):
 
     def copy(self):
         return SMCModel.from_dict(self.to_dict())
+
+class PiecewiseModel(object):
+    def __init__(self, s, a):
+        self.s = s
+        self.a = a
+        self.dlist = []
+    def stepwise_values(self):
+        return self.a
