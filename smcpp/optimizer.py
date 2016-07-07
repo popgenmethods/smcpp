@@ -17,8 +17,6 @@ class PopulationOptimizer(object):
         self._penalty = regularization_penalty
         logger.debug("Initializing model")
         logger.debug("Performing initial E step")
-        # import IPython
-        # IPython.embed()
         self._pop.E_step()
 
     def run(self, niter, blocks, fix_rho):

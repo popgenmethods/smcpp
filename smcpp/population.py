@@ -46,7 +46,7 @@ class Population(Observer):
 
         ## Initialize model
         exponential_pieces = args.exponential_pieces or []
-        knots = np.cumsum(estimation_tools.construct_time_points(t1, tK, [5, 5, 4, 4, 3, 3, 2, 2, 1, 1]))
+        knots = np.cumsum(estimation_tools.construct_time_points(t1, tK, [1]*10))
         logger.debug("knots in coalescent scaling:\n%s", str(knots))
         self._model = SMCModel(time_points, knots, spline_class)
 
@@ -122,6 +122,9 @@ class Population(Observer):
         else:
             logger.info("Balancing hidden states...")
             self._balance_hidden_states(args.M)
+
+        # Reset model to ones.
+        self._model[:] = 0.
 
         logger.info("%d hidden states (pre-merge):\n%s" % (len(self._hidden_states), str(self._hidden_states)))
         ## break up long spans
