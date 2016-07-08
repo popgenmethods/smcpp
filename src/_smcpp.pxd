@@ -28,7 +28,7 @@ ctypedef map[block_key, Vector[double]]* pBlockMap
 
 cdef extern from "inference_manager.h":
     cdef cppclass block_key:
-        int& operator[](int)
+        int& operator()(int)
     ctypedef vector[vector[adouble]] ParameterVector
     cdef cppclass InferenceManager nogil:
         InferenceManager(const int, const vector[int],
@@ -40,11 +40,9 @@ cdef extern from "inference_manager.h":
         void Estep(bool)
         vector[double] loglik()
         vector[adouble] Q()
-        double R(const ParameterVector, double t)
         bool debug
         bool saveGamma
         bool folded
-        int spanCutoff
         vector[double] hidden_states
         adouble getRegularizer()
         vector[pMatrixD] getGammas()

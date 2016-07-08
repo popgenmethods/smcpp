@@ -9,9 +9,8 @@ struct InferenceBundle
 {
     Vector<adouble> *pi;
     TransitionBundle *tb;
-    std::map<block_key, Vector<adouble> > *emission_probs;
+    std::map<int, Vector<adouble> > *emission_probs;
     bool *saveGamma;
-    int *spanCutoff;
 };
 
 #endif

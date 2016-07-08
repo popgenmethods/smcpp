@@ -2,24 +2,23 @@
 
 #include "inference_manager.h"
 
+template <int P>
 InferenceManager::InferenceManager(
-            const int n, const std::vector<int> obs_lengths,
-            const std::vector<int*> observations,
-            const std::vector<double> hidden_states,
-            const std::vector<double> s) :
+        const Vector<int, P> n,
+        const std::vector<int> obs_lengths,
+        const std::vector<int*> observations,
+        const std::vector<double> hidden_states,
+        ConditionedSFSBase<adouble, P> csfs) :
     debug(false), saveGamma(false), folded(false),
-    hidden_states(hidden_states), s(s),
-    n(n), 
+    hidden_states(hidden_states),
+    n(n), nprod((n + 1).prod()),
     obs(map_obs(observations, obs_lengths)),
-    M(hidden_states.size() - 1), 
-    csfs(n, M),
+    M(hidden_states.size() - 1),
+    csfs(csfs),
     pi(M),
-    nbs(fill_nbs()),
-    subEmissionCoeffs(fill_subemissions()),
     targets(fill_targets()),
     tb(targets, &emission_probs),
-    spanCutoff(1),
-    ib{&pi, &tb, &emission_probs, &saveGamma, &spanCutoff},
+    ib{&pi, &tb, &emission_probs, &saveGamma},
     dirty({true, true, true})
 {
     if (*std::min_element(hidden_states.begin(), hidden_states.end()) != 0.)
@@ -27,18 +26,21 @@ InferenceManager::InferenceManager(
     pi = Vector<adouble>::Zero(M);
     transition = Matrix<adouble>::Zero(M, M);
     transition.setZero();
-    emission = Matrix<adouble>::Zero(M, 3 * (n + 1));
+    emission = Matrix<adouble>::Zero(M, 3 * nprod),
     emission.setZero();
     hmms.resize(obs.size());
 
 #pragma omp parallel for
     for (unsigned int i = 0; i < obs.size(); ++i)
     {
+        // Move all validation to Python
+        /*
         int max_n = obs[i].middleCols(1, 2).rowwise().sum().maxCoeff();
         if (max_n > n + 2 - 1)
             throw std::runtime_error("Dataset did not validate: an observation has derived allele count greater than n + 1");
         if (obs[i](0, 0) > 1)
             throw std::runtime_error("Dataset did not validate: first observation must have span=1");
+            */
         DEBUG << "creating HMM";
         hmmptr h(new HMM(i, obs[i], &ib));
         hmms[i] = std::move(h);
@@ -47,45 +49,51 @@ InferenceManager::InferenceManager(
     populate_emission_probs();
 }
 
-std::vector<Eigen::Matrix<int, Eigen::Dynamic, 4, Eigen::RowMajor> > InferenceManager::map_obs(
-        const std::vector<int*> &observations, const std::vector<int> &obs_lengths
-        )
+template <int P>
+std::vector<Eigen::Matrix<int, Eigen::Dynamic, 2 + 2 * P, Eigen::RowMajor> > InferenceManager::map_obs(
+        const std::vector<int*> &observations, const std::vector<int> &obs_lengths)
 {
-    std::vector<Eigen::Matrix<int, Eigen::Dynamic, 4, Eigen::RowMajor> > ret;
+    std::vector<Eigen::Matrix<int, Eigen::Dynamic, 2 + 2 * P, Eigen::RowMajor> > ret;
     for (unsigned int i = 0; i < observations.size(); ++i)
-        ret.push_back(Eigen::Matrix<int, Eigen::Dynamic, 4, Eigen::RowMajor>::Map(observations[i], obs_lengths[i], 4));
+        ret.push_back(Eigen::Matrix<int, Eigen::Dynamic, 2 + 2 * P, Eigen::RowMajor>::Map(
+                    observations[i], obs_lengths[i], 2 + 2 * P));
     return ret;
 };
 
-std::set<std::pair<int, block_key> > InferenceManager::fill_targets()
+template <size_t P>
+std::set<std::pair<int, block_key<P> > > InferenceManager::fill_targets()
 {
-    std::set<std::pair<int, block_key> > ret;
+    std::set<std::pair<int, block_key<P> > > ret;
     for (auto ob : obs)
         for (int i = 0; i < ob.rows(); ++i)
             if (ob(i, 0) > 1)
-                ret.insert({ob(i, 0), {ob(i, 1), ob(i, 2), ob(i, 3)}});
+                ret.insert({ob(i, 0), ob.row(i).tail<1 + 2 * P>().transpose()});
     return ret;
 }
 
-std::vector<int> InferenceManager::fill_nbs()
+template <size_t P>
+std::array<std::vector<int>, P> InferenceManager::fill_nbs()
 {
-    std::set<int> s;
+    std::array<std::set<int>, P> s;
     for (auto ob : obs)
         for (int i = 0; i < ob.rows(); ++i)
-            s.insert(ob(i, 3));
-    return std::vector<int>(s.begin(), s.end());
+            for (int p = 0; p < P; ++p)
+                s[p].insert(ob(i, 2 + 2 * p));
+    std::array<std::vector<int>, P> ret;
+    for (int p = 0; p < P; ++p)
+        ret[p] = std::vector<int>(s[p].begin(), s[p].end());
 }
 
 void InferenceManager::recompute_initial_distribution()
 {
-    const PiecewiseExponentialRateFunction<adouble> eta = getEta();
+    const PiecewiseExponentialRateFunction<adouble> eta = getDemography().distinguishedEta();
     auto R = eta.getR();
     int M = eta.hidden_states.size() - 1;
     for (int m = 0; m < M - 1; ++m)
     {
         pi(m) = exp(-(*R)(hidden_states[m])) - exp(-(*R)(hidden_states[m + 1]));
-        assert(pi(m) > 0.0); 
-        assert(pi(m) < 1.0); 
+        assert(pi(m) > 0.0);
+        assert(pi(m) < 1.0);
     }
     pi(M - 1) = exp(-(*R)(hidden_states[M - 1]));
     pi = pi.unaryExpr([] (const adouble &x) { if (x < 1e-20) return adouble(1e-20); return x; });
@@ -96,11 +104,10 @@ void InferenceManager::recompute_initial_distribution()
 void InferenceManager::populate_emission_probs()
 {
     Vector<adouble> tmp;
-    block_key key;
     for (auto ob : obs)
         for (int i = 0; i < ob.rows(); ++i)
         {
-            key = {ob(i, 1), ob(i, 2), ob(i, 3)}; 
+            block_key<P> key = ob.row(i).tail<1 + 2 * P>().transpose();
             if (emission_probs.count(key) == 0)
             {
                 emission_probs.insert({key, tmp});
@@ -109,6 +116,7 @@ void InferenceManager::populate_emission_probs()
         }
 }
 
+/*
 std::map<int, Matrix<double> > InferenceManager::fill_subemissions()
 {
     std::map<int, Matrix<double> > ret;
@@ -126,18 +134,20 @@ std::map<int, Matrix<double> > InferenceManager::fill_subemissions()
     }
     return ret;
 }
+*/
 
 void InferenceManager::recompute_emission_probs()
 {
-    Eigen::Matrix<adouble, 3, Eigen::Dynamic, Eigen::RowMajor> em_tmp(3, n + 1);
+    Eigen::Matrix<adouble, 3, Eigen::Dynamic, Eigen::RowMajor> em_tmp(3, nprod);
     std::vector<Matrix<adouble> > new_sfss = incorporate_theta(sfss, theta);
     for (int m = 0; m < M; ++m)
     {
         check_nan(new_sfss[m]);
         em_tmp = new_sfss[m];
-        emission.row(m) = Matrix<adouble>::Map(em_tmp.data(), 1, 3 * (n + 1));
+        emission.row(m) = Matrix<adouble>::Map(em_tmp.data(), 1, 3 * nprod);
     }
     DEBUG << "recompute B";
+    /*
     std::map<int, Matrix<adouble> > subemissions;
     DEBUG << "subemissions";
 #pragma omp parallel for
@@ -156,19 +166,19 @@ void InferenceManager::recompute_emission_probs()
     // than by marginalizing. (in particular, the derivatives)
     // std::cerr << "old sub[0]\n" << subemissions[0].template cast<double>() << std::endl;
     DEBUG << "done subemissions";
-    subemissions[0] = Matrix<adouble>::Zero(M, 2);
-    PiecewiseExponentialRateFunction<adouble> eta = getEta();
+    */
+    Matrix<adouble> e2 = Matrix<adouble>::Zero(M, 2);
+    Demography<adouble, P> demo = getDemography();
+    PiecewiseExponentialRateFunction<adouble> eta = demo.distinguishedEta();
     std::vector<adouble> avg_ct = eta.average_coal_times();
     for (int m = 0; m < M; ++m)
     {
-        subemissions[0](m, 1) = avg_ct[m];
-        check_nan(subemissions[0](m, 1));
+        e2(m, 1) = avg_ct[m];
+        check_nan(e2(m, 1));
     }
-    subemissions[0].col(1) *= 2. * theta;
-    subemissions[0].col(0).fill(eta.one);
-    subemissions[0].col(0) -= subemissions[0].col(1);
-    // std::cerr << "new sub[0]\n" << subemissions[0].template cast<double>() << std::endl;
-    DEBUG << "emission keys";
+    e2.col(1) *= 2. * theta;
+    e2.col(0).fill(eta.one);
+    e2.col(0) -= e2.col(1);
 #pragma omp parallel for
     for (auto it = bpm_keys.begin(); it < bpm_keys.end(); ++it)
     {
@@ -185,8 +195,8 @@ void InferenceManager::recompute_emission_probs()
             if (nb > 0)
             {
                 if (a == -1)
-                    tmp += (emission_nb.col(b) + 
-                            emission_nb.col((nb + 1) + b) + 
+                    tmp += (emission_nb.col(b) +
+                            emission_nb.col((nb + 1) + b) +
                             emission_nb.col(2 * (nb + 1) + b));
                 else
                     tmp += emission_nb.col(a * (nb + 1) + b);
@@ -212,16 +222,9 @@ void InferenceManager::recompute_emission_probs()
     DEBUG << "recompute done";
 }
 
-PiecewiseExponentialRateFunction<adouble> InferenceManager::getEta()
+template <size_t P>
+void InferenceManager::setParams(const std::array<ParameterVector, P> params)
 {
-    return PiecewiseExponentialRateFunction<adouble>(params, s, hidden_states);
-}
-
-void InferenceManager::setParams(const ParameterVector params)
-{
-    for (auto &pp : params)
-        if (pp.size() != params[0].size())
-            throw std::runtime_error("params must have matching sizes");
     this->params = params;
     dirty.params = true;
 }
@@ -244,15 +247,15 @@ void InferenceManager::parallel_do(std::function<void(hmmptr&)> lambda)
     for (auto it = hmms.begin(); it < hmms.end(); ++it)
         lambda(*it);
     /*
-    std::vector<std::future<void>> results;
-    for (auto &hmmptr : hmms)
-        results.emplace_back(tp.enqueue(std::bind(lambda, std::ref(hmmptr))));
-    for (auto &res : results) 
-        res.wait();
-        */
+       std::vector<std::future<void>> results;
+       for (auto &hmmptr : hmms)
+       results.emplace_back(tp.enqueue(std::bind(lambda, std::ref(hmmptr))));
+       for (auto &res : results)
+       res.wait();
+       */
 }
 
-template <typename T>
+    template <typename T>
 std::vector<T> InferenceManager::parallel_select(std::function<T(hmmptr &)> lambda)
 {
     std::vector<T> ret(hmms.size());
@@ -261,14 +264,14 @@ std::vector<T> InferenceManager::parallel_select(std::function<T(hmmptr &)> lamb
         ret[i] = lambda(hmms[i]);
     return ret;
     /*
-    std::vector<std::future<T>> results;
-    for (auto &hmmptr : hmms)
-        results.emplace_back(tp.enqueue(std::bind(lambda, std::ref(hmmptr))));
-    std::vector<T> ret; 
-    for (auto &res : results) 
-        ret.push_back(res.get());
-    return ret;
-    */
+       std::vector<std::future<T>> results;
+       for (auto &hmmptr : hmms)
+       results.emplace_back(tp.enqueue(std::bind(lambda, std::ref(hmmptr))));
+       std::vector<T> ret;
+       for (auto &res : results)
+       ret.push_back(res.get());
+       return ret;
+       */
 }
 template std::vector<double> InferenceManager::parallel_select(std::function<double(hmmptr &)>);
 template std::vector<adouble> InferenceManager::parallel_select(std::function<adouble(hmmptr &)>);
@@ -280,16 +283,16 @@ void InferenceManager::Estep(bool fbonly)
     parallel_do([fbonly] (hmmptr &hmm) { hmm->Estep(fbonly); });
 }
 
+template <size_t P>
 void InferenceManager::do_dirty_work()
 {
-    // First set derivatives correctly. PiecewiseExponentialRateFunction
-    // will already do this for all the params.
-    PiecewiseExponentialRateFunction<adouble> eta = getEta();
-    // Next figure out what changed and recompute accordingly.
+    Demography<adouble, P> demo = getDemography();
+    PiecewiseExponentialRateFunction<adouble> eta = demo.distinguishedRateFunction();
+    // Figure out what changed and recompute accordingly.
     if (dirty.params)
     {
         recompute_initial_distribution();
-        sfss = csfs.compute(eta);
+        sfss = csfs.compute(demo);
     }
     if (dirty.theta or dirty.params)
         recompute_emission_probs();
@@ -313,19 +316,18 @@ std::vector<adouble> InferenceManager::Q(void)
         q2 += ps[i][1];
         q3 += ps[i][2];
     }
-    DEBUG1 << "\nq1:" << q1.value() << " [" << q1.derivatives().transpose() << "]\nq2:" 
-            << q2.value() << " [" << q2.derivatives().transpose() << "]\nq3:" << q3.value()
-            << " [" << q3.derivatives().transpose() << "]\n";
+    DEBUG1 << "\nq1:" << q1.value() << " [" << q1.derivatives().transpose() << "]\nq2:"
+        << q2.value() << " [" << q2.derivatives().transpose() << "]\nq3:" << q3.value()
+        << " [" << q3.derivatives().transpose() << "]\n";
     return {q1, q2, q3};
 }
 
-std::vector<std::map<block_key, Vector<double> >*> InferenceManager::getGammaSums()
+template <size_t P>
+std::vector<std::map<block_key<P>, Vector<double> >*> InferenceManager::getGammaSums()
 {
-    std::vector<std::map<block_key, Vector<double> >*> ret;
+    std::vector<std::map<block_key<P>, Vector<double> >*> ret;
     for (auto &hmm : hmms)
-    {
         ret.push_back(&hmm->gamma_sums);
-    }
     return ret;
 }
 
@@ -333,9 +335,7 @@ std::vector<Matrix<double>*> InferenceManager::getGammas()
 {
     std::vector<Matrix<double>*> ret;
     for (auto &hmm : hmms)
-    {
         ret.push_back(&hmm->gamma);
-    }
     return ret;
 }
 
@@ -343,9 +343,7 @@ std::vector<Matrix<double>*> InferenceManager::getXisums()
 {
     std::vector<Matrix<double>*> ret;
     for (auto &hmm : hmms)
-    {
         ret.push_back(&hmm->xisum);
-    }
     return ret;
 }
 
@@ -366,7 +364,8 @@ Matrix<adouble>& InferenceManager::getEmission(void)
     return emission;
 }
 
-std::map<block_key, Vector<adouble> >& InferenceManager::getEmissionProbs()
+template <size_t P>
+std::map<block_key<P>, Vector<adouble> >& InferenceManager::getEmissionProbs()
 {
     return emission_probs;
 }
@@ -376,15 +375,9 @@ std::vector<double> InferenceManager::loglik(void)
     return parallel_select<double>([] (hmmptr &hmm) { return hmm->loglik(); });
 }
 
-double InferenceManager::R(const ParameterVector params, double t)
-{
-    PiecewiseExponentialRateFunction<double> eta(params, s, std::vector<double>());
-    return (*eta.getR())(t);
-}
-
-Matrix<adouble> sfs_cython(const int n, const ParameterVector p, const std::vector<double> s, 
+Matrix<adouble> sfs_cython(const int n, const ParameterVector p, const std::vector<double> s,
         const double t1, const double t2, bool below_only)
-{ 
+{
     PiecewiseExponentialRateFunction<adouble> eta(p, s, {t1, t2});
     ConditionedSFS<adouble> csfs(n - 2, 1);
     std::vector<Matrix<adouble> > v;
@@ -394,52 +387,3 @@ Matrix<adouble> sfs_cython(const int n, const ParameterVector p, const std::vect
         v = csfs.compute(eta);
     return v[0];
 }
-/*
-int main(int argc, char** argv)
-{
-    std::vector<int> L = {3000};
-    std::vector<int> obs;
-    for (int i = 0; i < L[0]; ++i)
-    {
-        if (i % 2)
-        {
-            obs.push_back(1);
-            obs.push_back(1);
-            obs.push_back(0);
-        }
-        else
-        {
-            obs.push_back(100);
-            obs.push_back(0);
-            obs.push_back(0);
-        }
-    }
-    std::vector<int*> vobs = {obs.data()};
-    std::vector<double> hs = {0.0,1.0,2.0,10.0};
-    int emask[] = {0, 1, 0};
-    std::vector<int*> vemask = {emask};
-    InferenceManager im(0, L, vobs, hs, emask, 5, {0}, 4 * 1e4 * 1e-8, 4 * 1e4 * 1e-8, 50);
-    std::vector<std::vector<double> > params = {
-        {0.2, 1.0, 2.0},
-        {1.0, 1.0, 2.0},
-        {1.0, 0.1, 0.1}
-    };
-    std::vector<std::pair<int, int> > deriv = { {1,0} };
-    im.setParams<adouble>(params, deriv);
-    im.Estep();
-    adouble Q0 = im.Q(0.0)[0];
-    Matrix<adouble> T = im.getTransition();
-    Matrix<adouble> E = im.getEmission();
-    params[1][0] += 1e-8;
-    im.setParams<double>(params, deriv);
-    double Q1 = im.Q(0.0)[0].value();
-    Matrix<adouble> T2 = im.getTransition();
-    Matrix<adouble> E2 = im.getEmission();
-    std::cout << (Q1 - Q0.value()) * 1e8 << " " << Q0.derivatives() << std::endl << std::endl;
-    std::cout << "[" << E2.template cast<double>() << "]" << std::endl;
-    std::cout << (E2.template cast<double>() - E.template cast<double>()) * 1e8 << std::endl << std::endl;
-    std::cout << E.unaryExpr([](adouble x) { return x.derivatives()(0); }).template cast<double>() << std::endl << std::endl;
-    std::cout << (T2.template cast<double>() - T.template cast<double>()) * 1e8 << std::endl << std::endl;
-    std::cout << T.unaryExpr([](adouble x) { return x.derivatives()(0); }).template cast<double>() << std::endl << std::endl;
-}
-*/

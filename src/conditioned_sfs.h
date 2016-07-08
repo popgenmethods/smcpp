@@ -27,28 +27,29 @@ class improper_sfs_exception : public std::exception
     }
 };
 
-class ConditionedSFSBase
+template <typename T, size_t P>
+class ConditionedSFS
 {
-    protected:
-    static std::map<int, below_coeff> below_coeffs_memo;
-    static MatrixCache& cached_matrices(int n);
-    static std::map<int, MatrixCache> matrix_cache;
+    public:
+    virtual std::vector<Matrix<T> > compute(Demography<P> demo);
 };
 
 template <typename T>
-class ConditionedSFS : public ConditionedSFSBase
+class OnePopConditionedSFS : public ConditionedSFS<T, 1>
 {
     public:
-    ConditionedSFS(int, int);
-    std::vector<Matrix<T> >& compute(const PiecewiseExponentialRateFunction<T> &);
+    OnePopConditionedSFS(int, int);
+    std::vector<Matrix<T> > compute(const Demography<T, 1> &);
 
     // private:
-    // Methods
-    void construct_ad_vars();
-    std::vector<Matrix<T> > compute_below(const PiecewiseExponentialRateFunction<T> &);
-    std::vector<Matrix<T> > compute_above(const PiecewiseExponentialRateFunction<T> &);
+    std::vector<Matrix<T> > compute_below(const Demography<T, 1> &);
+    std::vector<Matrix<T> > compute_above(const Demography<T, 1> &);
 
     // Variables
+    static std::map<int, below_coeff> below_coeffs_memo;
+    static MatrixCache& cached_matrices(int n);
+    static std::map<int, MatrixCache> matrix_cache;
+
     const int n, H;
     const MoranEigensystem mei;
     const MatrixCache mcache;

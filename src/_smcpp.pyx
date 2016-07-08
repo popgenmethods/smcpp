@@ -148,12 +148,6 @@ cdef class PyInferenceManager:
         _check_abort()
         logger.debug("Forward-backward algorithm finished.")
 
-    property span_cutoff:
-        def __get__(self):
-            return self._im.spanCutoff
-        def __set__(self, bint sc):
-            self._im.spanCutoff = sc
-
     property save_gamma:
         def __get__(self):
             return self._im.saveGamma

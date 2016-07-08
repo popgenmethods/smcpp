@@ -24,11 +24,13 @@ struct eigensystem
     }
 };
 
+template <size_t P>
 class TransitionBundle
 {
     public:
-    TransitionBundle(const std::set<std::pair<int, block_key> > &targets_s,
-            const std::map<block_key, Vector<adouble> >* emission_probs) : 
+    TransitionBundle(
+            const std::set<std::pair<int, block_key<P> > > &targets_s,
+            const std::map<block_key<P>, Vector<adouble> >* emission_probs) : 
         targets(targets_s.begin(), targets_s.end()),
         emission_probs(emission_probs) {}
 
@@ -44,7 +46,7 @@ class TransitionBundle
         {
             Matrix<double> tmp;
             int span = it->first;
-            block_key key = it->second;
+            block_key<P> key = it->second;
 #pragma omp critical(checkEigensystem)
             {
                 if (eigensystems.count(key) == 0)
@@ -71,13 +73,12 @@ class TransitionBundle
     Matrix<double> Td;
     Eigen::VectorXcd d;
     Eigen::MatrixXcd P, Pinv;
-    // std::map<std::pair<int, block_key>, Matrix<double> > span_Qs;
-    std::map<std::pair<int, block_key>, Matrix<std::complex<double> > > span_Qs;
-    std::map<block_key, eigensystem> eigensystems;
+    std::map<std::pair<int, block_key<P> >, Matrix<std::complex<double> > > span_Qs;
+    std::map<block_key<P>, eigensystem> eigensystems;
 
     private:
-    const std::vector<std::pair<int, block_key> > targets;
-    const std::map<block_key, Vector<adouble> >* emission_probs;
+    const std::vector<std::pair<int, block_key<P> > > targets;
+    const std::map<block_key<P>, Vector<adouble> >* emission_probs;
 };
 
 #endif

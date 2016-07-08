@@ -94,7 +94,7 @@ mpq_class pnkb_undist(int n, int m, int l3)
 }
 
 template <typename T>
-ConditionedSFS<T>::ConditionedSFS(int n, int H) :
+OnePopConditionedSFS<T>::OnePopConditionedSFS(int n, int H) :
     n(n), H(H),
     mei(compute_moran_eigensystem(n)), mcache(cached_matrices(n)),
     tjj_below(H, n + 1),
@@ -106,7 +106,7 @@ ConditionedSFS<T>::ConditionedSFS(int n, int H) :
 {}
 
 template <typename T>
-std::vector<Matrix<T> > ConditionedSFS<T>::compute_below(const PiecewiseExponentialRateFunction<T> &eta)
+std::vector<Matrix<T> > OnePopConditionedSFS<T>::compute_below(const PiecewiseExponentialRateFunction<T> &eta)
 {
     DEBUG << "compute below";
     tjj_below.setZero();
@@ -155,7 +155,7 @@ inline T doubly_compensated_summation(const std::vector<T> &x)
 }
 
 template <typename T>
-std::vector<Matrix<T> > ConditionedSFS<T>::compute_above(const PiecewiseExponentialRateFunction<T> &eta)
+std::vector<Matrix<T> > OnePopConditionedSFS<T>::compute_above(const PiecewiseExponentialRateFunction<T> &eta)
 {
     DEBUG << "compute above";
 #pragma omp parallel for
@@ -194,7 +194,7 @@ std::vector<Matrix<T> > ConditionedSFS<T>::compute_above(const PiecewiseExponent
 }
 
 template <typename T>
-std::vector<Matrix<T> >& ConditionedSFS<T>::compute(const PiecewiseExponentialRateFunction<T> &eta)
+std::vector<Matrix<T> >& OnePopConditionedSFS<T>::compute(const PiecewiseExponentialRateFunction<T> &eta)
 {
     DEBUG << "compute called";
     csfs_above = compute_above(eta);
@@ -217,7 +217,7 @@ std::vector<Matrix<T> >& ConditionedSFS<T>::compute(const PiecewiseExponentialRa
     return csfs;
 }
 
-    template <typename T>
+template <typename T>
 std::vector<Matrix<T> > incorporate_theta(const std::vector<Matrix<T> > &csfs, double theta)
 {
     std::vector<Matrix<T> > ret(csfs.size());
@@ -261,8 +261,8 @@ std::vector<Matrix<T> > incorporate_theta(const std::vector<Matrix<T> > &csfs, d
 template std::vector<Matrix<double> > incorporate_theta(const std::vector<Matrix<double> > &csfs, double theta);
 template std::vector<Matrix<adouble> > incorporate_theta(const std::vector<Matrix<adouble> > &csfs, double theta);
 
-std::map<int, MatrixCache> ConditionedSFSBase::matrix_cache;
-MatrixCache& ConditionedSFSBase::cached_matrices(int n)
+std::map<int, MatrixCache> OnePopConditionedSFS::matrix_cache;
+MatrixCache& OnePopConditionedSFS::cached_matrices(int n)
 {
     const MoranEigensystem mei = compute_moran_eigensystem(n);
     if (matrix_cache.count(n) == 0)
@@ -329,38 +329,5 @@ void print_sfs(int n, const std::vector<double> &sfs)
     }
 }
 
-template class ConditionedSFS<double>;
-template class ConditionedSFS<adouble>;
-
-/*
-int csfs_main(int argc, char** argv)
-{
-    int n = atoi(argv[1]);
-    ConditionedSFS<adouble> csfs(n, 50);
-    doProgress(true);
-    // ConditionedSFS<double> csfs2(0);
-    std::vector<std::vector<double> > params = {
-        {0.2, 1.0, 2.0, 0.2, 1.0, 2.0, 0.2, 1.0, 2.0},
-        {1.0, 1.0, 2.0, 1.0, 1.0, 2.0, 1.0, 1.0, 2.0},
-        {1.0, 0.1, 0.1, 1.0, 0.1, 0.1, 1.0, 0.1, 0.1}
-    };
-    std::vector<double> hs;
-    for (int i = 0; i < 50; ++i)
-        hs.push_back((double)i / 5.0);
-    std::vector<std::pair<int, int> > deriv;
-    for (int i = 0; i < 2; ++i)
-        for (int j = 0; j < 9; ++j)
-            deriv.emplace_back(i, j);
-    PiecewiseExponentialRateFunction<adouble> eta(params, deriv, hs);
-    // params[1][0] += 1e-8;
-    // PiecewiseExponentialRateFunction<double> eta2(params, deriv, hs);
-    std::vector<Matrix<adouble> > cs = csfs.compute(eta, 4 * 1e-4 * 50);
-    for (int h = 0; h < hs.size() - 1; ++h)
-    {
-        std::cout << h;
-        std::cout << cs[h].template cast<double>() << std::endl << std::endl;
-        std::cout << cs[h].unaryExpr([](adouble x) { return x.derivatives()(0); }).template cast<double>()
-            << std::endl << std::endl;
-    }
-}
-*/
+template class OnePopConditionedSFS<double>;
+template class OnePopConditionedSFS<adouble>;
