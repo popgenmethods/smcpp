@@ -7,10 +7,10 @@
 #include <gmpxx.h>
 
 #include "common.h"
-#include "piecewise_exponential_rate_function.h"
+#include "piecewise_constant_rate_function.h"
 #include "moran_eigensystem.h"
 #include "mpq_support.h"
-#include "timer.h"
+#include "demography.h"
 
 typedef struct 
 {
@@ -27,26 +27,38 @@ class improper_sfs_exception : public std::exception
     }
 };
 
-template <typename T, size_t P>
+template <typename T>
 class ConditionedSFS
 {
     public:
-    virtual std::vector<Matrix<T> > compute(Demography<P> demo);
+    virtual std::vector<Matrix<T> > recompute();
+};
+
+template <typename T, size_t P>
+class NPopConditionedSFS : public ConditionedSFS<T>
+{
+    public:
+    void setDemography(const Demography<T, P> demo)
+    {
+        this->demo = demo;
+    }
+
+    protected:
+    Demography<T, P> demo;
 };
 
 template <typename T>
-class OnePopConditionedSFS : public ConditionedSFS<T, 1>
+class OnePopConditionedSFS : public NPopConditionedSFS<T, 1>
 {
     public:
     OnePopConditionedSFS(int, int);
-    std::vector<Matrix<T> > compute(const Demography<T, 1> &);
+    std::vector<Matrix<T> > recompute();
 
     // private:
-    std::vector<Matrix<T> > compute_below(const Demography<T, 1> &);
-    std::vector<Matrix<T> > compute_above(const Demography<T, 1> &);
+    std::vector<Matrix<T> > compute_below(const PiecewiseConstantRateFunction<T> &);
+    std::vector<Matrix<T> > compute_above(const PiecewiseConstantRateFunction<T> &);
 
     // Variables
-    static std::map<int, below_coeff> below_coeffs_memo;
     static MatrixCache& cached_matrices(int n);
     static std::map<int, MatrixCache> matrix_cache;
 

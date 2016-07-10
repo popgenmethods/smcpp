@@ -24,7 +24,7 @@ Matrix<T> HJTransition<T>::matrix_exp(T c_rho, T c_eta)
 template <typename T>
 void HJTransition<T>::compute(void)
 {
-    const PiecewiseExponentialRateFunction<T> *eta = this->eta;
+    const PiecewiseConstantRateFunction<T> *eta = this->eta;
     std::vector<T> avg_coal_times = eta->average_coal_times();
     std::vector<Matrix<T> > expms;
     std::vector<Matrix<T> > expm_prods;
@@ -83,13 +83,13 @@ void HJTransition<T>::compute(void)
             this->Phi(j - 1, k - 1) = expm_prods[eta->hs_indices[j]](0, 1) * p_coal;
         }
     }
-    T thresh = 1e-20 * eta->one;
+    T thresh(1e-20);
     this->Phi = this->Phi.unaryExpr([thresh] (const T &x) { if (x < thresh) return thresh; return x; });
     check_nan(this->Phi);
 }
 
 template <typename T>
-Matrix<T> compute_transition(const PiecewiseExponentialRateFunction<T> &eta, const double rho)
+Matrix<T> compute_transition(const PiecewiseConstantRateFunction<T> &eta, const double rho)
 {
     DEBUG << "computing transition";
     Matrix<T> ret = HJTransition<T>(eta, rho).matrix();
@@ -97,5 +97,5 @@ Matrix<T> compute_transition(const PiecewiseExponentialRateFunction<T> &eta, con
     return ret;
 }
 
-template Matrix<double> compute_transition(const PiecewiseExponentialRateFunction<double> &eta, const double rho);
-template Matrix<adouble> compute_transition(const PiecewiseExponentialRateFunction<adouble> &eta, const double rho);
+template Matrix<double> compute_transition(const PiecewiseConstantRateFunction<double> &eta, const double rho);
+template Matrix<adouble> compute_transition(const PiecewiseConstantRateFunction<adouble> &eta, const double rho);

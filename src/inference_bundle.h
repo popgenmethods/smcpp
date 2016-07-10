@@ -2,6 +2,7 @@
 #define INFERENCE_BUNDLE_H
 
 #include "common.h"
+#include "block_key.h"
 
 class TransitionBundle;
 
@@ -9,7 +10,7 @@ struct InferenceBundle
 {
     Vector<adouble> *pi;
     TransitionBundle *tb;
-    std::map<int, Vector<adouble> > *emission_probs;
+    std::map<block_key, Vector<adouble> > *emission_probs;
     bool *saveGamma;
 };
 

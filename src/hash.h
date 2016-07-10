@@ -1,6 +1,8 @@
 #ifndef HASH_H
 #define HASH_H
 
+#include <map>
+
 namespace hash_helpers
 {
     template<typename T>

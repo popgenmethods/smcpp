@@ -5,22 +5,23 @@ template <typename T, size_t P>
 class Demography
 {
     public:
-    virtual PiecewiseExponentialRateFunction<T> distinguishedEta();
+    virtual PiecewiseConstantRateFunction<T> distinguishedEta();
 };
 
+template <typename T>
 class OnePopDemography : public Demography<T, 1>
 {
     public:
-    OnePopDemography(ParameterVector params) : 
-        eta(PiecewiseExponentialRateFunction(params)) {}
+    OnePopDemography(ParameterVector params, std::vector<double> hidden_states) : 
+        eta(PiecewiseConstantRateFunction<T>(params, hidden_states)) {}
 
-    PiecewiseExponentialRateFunction<T> distinguishedEta()
+    PiecewiseConstantRateFunction<T> distinguishedEta()
     {
         return eta;
     }
 
     private:
-    PiecewiseExponentialRateFunction<T> eta;
+    PiecewiseConstantRateFunction<T> eta;
 };
 
 template <typename T>
@@ -28,17 +29,17 @@ class TwoPopDemography : public Demography<T, 2>
 {
     public:
     TwoPopDemography(ParameterVector params1, ParameterVector params2, double split_time) : 
-        eta1(PiecewiseExponentialRateFunction(params1)),
-        eta2(PiecewiseExponentialRateFunction(params2)),
+        eta1(PiecewiseConstantRateFunction<T>(params1)),
+        eta2(PiecewiseConstantRateFunction<T>(params2)),
         split(split) {}
 
-    PiecewiseExponentialRateFunction<T> distinguishedEta()
+    PiecewiseConstantRateFunction<T> distinguishedEta()
     {
         return eta1;
     }
 
     private:
-    PiecewiseExponentialRateFunction<T> eta1, eta2;
+    PiecewiseConstantRateFunction<T> eta1, eta2;
     double split;
 };
 

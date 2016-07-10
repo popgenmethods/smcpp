@@ -28,8 +28,6 @@ class PiecewiseConstantRateFunction
     double random_time(const double, const double, const long long) const;
     void print_debug() const;
     
-    private:
-    Matrix<T> tjj_all_above(const int, const MatrixXq&, const MatrixXq&, const MatrixXq&, const MatrixXq&) const;
     void tjj_double_integral_above(const int, long, std::vector<Matrix<T> > &) const;
     void tjj_double_integral_below(const int, const int, Matrix<T>&) const;
 
@@ -44,16 +42,15 @@ class PiecewiseConstantRateFunction
     std::vector<std::vector<adouble>> params;
     const int nder;
     int K;
-    std::vector<T> ada, ts, Rrng;
     std::vector<double> s;
     void compute_antiderivative();
     feval<T> _eta, _R, _Rinv;
-    std::vector<int> hs_indices;
 
     public:
+    std::vector<T> ada, ts, Rrng;
+    std::vector<int> hs_indices;
     const std::vector<double> hidden_states;
     const double tmax;
-    const T zero, one;
 };
 
 template <typename T>

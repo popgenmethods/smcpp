@@ -42,16 +42,14 @@ PiecewiseConstantRateFunction<T>::PiecewiseConstantRateFunction(
     s(_vconv<double>(params[1])),
     ts(K + 1), Rrng(K), 
     hidden_states(hidden_states),
-    tmax(std::accumulate(s.begin(), s.end(), 0.0)),
-    zero(_conv<T>(adouble(0.0, Vector<double>::Zero(nder)))),
-    one(_conv<T>(adouble(1.0, Vector<double>::Zero(nder))))
+    tmax(std::accumulate(s.begin(), s.end(), 0.0))
 {
     for (auto &pp : params)
         if (pp.size() != params[0].size())
             throw std::runtime_error("all params must have same size");
     // Final piece is required to be flat.
-    ts[0] = zero;
-    Rrng[0] = zero;
+    ts[0] = 0.;
+    Rrng[0] = 0.;
     // These constant values need to have compatible derivative shape
     // with the calculated values.
     // Fix last piece to be constant
@@ -159,7 +157,7 @@ void PiecewiseConstantRateFunction<T>::print_debug() const
 template <typename T>
 void PiecewiseConstantRateFunction<T>::compute_antiderivative()
 {
-    Rrng[0] = zero;
+    Rrng[0] = 0.;
     for (int k = 0; k < K; ++k)
         Rrng[k + 1] = Rrng[k] + ada[k] * (ts[k + 1] - ts[k]);
 }
@@ -176,7 +174,7 @@ T PiecewiseConstantRateFunction<T>::R_integral(const T a, const T b, const T log
     // int_a^b exp(-R(t)) dt
     int ip_a = insertion_point(a, ts, 0, ts.size());
     int ip_b = (std::isinf(toDouble(b))) ? ts.size() - 2 : insertion_point(b, ts, 0, ts.size());
-    T ret = zero, r, left, right, diff, Rleft;
+    T ret = 0., r, left, right, diff, Rleft;
     for (int i = ip_a; i < ip_b + 1; ++i)
     {
         left = dmax(a, ts[i]);
@@ -253,7 +251,7 @@ void PiecewiseConstantRateFunction<T>::tjj_double_integral_above(const int n, lo
                         if (-rp * (Rrng[m + 1] - Rrng[m]) > 20)
                         {
                             log_coef += -rp * Rrng[m + 1];
-                            fac = -one / rp;
+                            fac = -1. / rp;
                         }
                         else
                         {
@@ -266,7 +264,7 @@ void PiecewiseConstantRateFunction<T>::tjj_double_integral_above(const int n, lo
                         if (-rp * (Rrng[m] - Rrng[m + 1]) > 20)
                         {
                             log_coef += -rp * Rrng[m];
-                            fac = one / rp;
+                            fac = 1. / rp;
                         }
                         else
                         {
@@ -300,7 +298,7 @@ void PiecewiseConstantRateFunction<T>::tjj_double_integral_below(
     {
         Vector<T> ts_integrals(n + 1);
         T log_coef = -Rrng[m];
-        T fac = one;
+        T fac = 1.;
         if (m < K - 1)
             fac = -expm1(-(Rrng[m + 1] - Rrng[m]));
         for (int j = 2; j < n + 3; ++j)

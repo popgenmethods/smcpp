@@ -106,7 +106,7 @@ OnePopConditionedSFS<T>::OnePopConditionedSFS(int n, int H) :
 {}
 
 template <typename T>
-std::vector<Matrix<T> > OnePopConditionedSFS<T>::compute_below(const PiecewiseExponentialRateFunction<T> &eta)
+std::vector<Matrix<T> > OnePopConditionedSFS<T>::compute_below(const PiecewiseConstantRateFunction<T> &eta)
 {
     DEBUG << "compute below";
     tjj_below.setZero();
@@ -124,7 +124,7 @@ std::vector<Matrix<T> > OnePopConditionedSFS<T>::compute_below(const PiecewiseEx
     DEBUG << "filling csfs_below";
     for (int h = 0; h < H; ++h) 
     {
-        csfs_below[h].fill(eta.zero);
+        csfs_below[h].setZero();
         csfs_below[h].block(0, 1, 1, n) = M0_below.row(h);
         csfs_below[h].block(1, 0, 1, n + 1) = M1_below.row(h);
         check_nan(csfs_below[h]);
@@ -155,7 +155,7 @@ inline T doubly_compensated_summation(const std::vector<T> &x)
 }
 
 template <typename T>
-std::vector<Matrix<T> > OnePopConditionedSFS<T>::compute_above(const PiecewiseExponentialRateFunction<T> &eta)
+std::vector<Matrix<T> > OnePopConditionedSFS<T>::compute_above(const PiecewiseConstantRateFunction<T> &eta)
 {
     DEBUG << "compute above";
 #pragma omp parallel for
@@ -165,10 +165,10 @@ std::vector<Matrix<T> > OnePopConditionedSFS<T>::compute_above(const PiecewiseEx
 #pragma omp parallel for
     for (int h = 0; h < H; ++h)
     {
-        csfs_above[h].fill(eta.zero);
+        csfs_above[h].setZero();
         Matrix<T> C0 = C_above[h].transpose(), C2 = C_above[h].colwise().reverse().transpose();
         Vector<T> tmp0(mcache.X0.cols()), tmp2(mcache.X2.cols());
-        tmp0.fill(eta.zero);
+        tmp0.setZero();
         for (int j = 0; j < mcache.X0.cols(); ++j)
         {
             std::vector<T> v;
@@ -178,7 +178,7 @@ std::vector<Matrix<T> > OnePopConditionedSFS<T>::compute_above(const PiecewiseEx
             tmp0(j) = doubly_compensated_summation(v);
         }
         csfs_above[h].block(0, 1, 1, n) = tmp0.transpose().lazyProduct(Uinv_mp0);
-        tmp2.fill(eta.zero);
+        tmp2.setZero();
         for (int j = 0; j < mcache.X2.cols(); ++j)
         {
             std::vector<T> v;
@@ -194,11 +194,11 @@ std::vector<Matrix<T> > OnePopConditionedSFS<T>::compute_above(const PiecewiseEx
 }
 
 template <typename T>
-std::vector<Matrix<T> >& OnePopConditionedSFS<T>::compute(const PiecewiseExponentialRateFunction<T> &eta)
+std::vector<Matrix<T> > OnePopConditionedSFS<T>::recompute()
 {
     DEBUG << "compute called";
-    csfs_above = compute_above(eta);
-    csfs_below = compute_below(eta);
+    csfs_above = compute_above(this->demo.distinguishedEta());
+    csfs_below = compute_below(this->demo.distinguishedEta());
     for (int i = 0; i < H; ++i)
     {
         csfs[i] = csfs_above[i] + csfs_below[i];
@@ -261,8 +261,11 @@ std::vector<Matrix<T> > incorporate_theta(const std::vector<Matrix<T> > &csfs, d
 template std::vector<Matrix<double> > incorporate_theta(const std::vector<Matrix<double> > &csfs, double theta);
 template std::vector<Matrix<adouble> > incorporate_theta(const std::vector<Matrix<adouble> > &csfs, double theta);
 
-std::map<int, MatrixCache> OnePopConditionedSFS::matrix_cache;
-MatrixCache& OnePopConditionedSFS::cached_matrices(int n)
+template <typename T>
+std::map<int, MatrixCache> OnePopConditionedSFS<T>::matrix_cache;
+
+template <typename T>
+MatrixCache& OnePopConditionedSFS<T>::cached_matrices(int n)
 {
     const MoranEigensystem mei = compute_moran_eigensystem(n);
     if (matrix_cache.count(n) == 0)

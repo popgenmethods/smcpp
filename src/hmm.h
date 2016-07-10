@@ -1,7 +1,6 @@
 #ifndef HMM_H
 #define HMM_H
 
-#include <unordered_map>
 #include <map>
 
 #include "common.h"
@@ -9,10 +8,10 @@
 #include "inference_bundle.h"
 #include "transition_bundle.h"
 
-class InferenceManager;
-
 class HMM
 {
+    friend class InferenceManager;
+
     public:
     HMM(const int hmm_num, const Matrix<int> &obs, const InferenceBundle *ib);
     void Estep(bool);
@@ -24,7 +23,7 @@ class HMM
     HMM& operator=(HMM const&) = delete;
     // Methods
     void domain_error(double);
-    inline block_key ob_key(int i) { return {obs(i, 1), obs(i, 2), obs(i, 3)}; }
+    inline block_key ob_key(int i) { return block_key(obs.row(i).transpose().tail(obs.cols() - 1)); }
 
     // Instance variables
     const int hmm_num;
@@ -35,7 +34,6 @@ class HMM
     Matrix<double> alpha_hat, xisum, gamma;
     Vector<double> c, gamma0;
     std::map<block_key, Vector<double> > gamma_sums;
-    friend class InferenceManager;
 };
 
 #endif

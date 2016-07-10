@@ -13,13 +13,13 @@
 #include <unsupported/Eigen/MatrixFunctions>
 
 #include "prettyprint.hpp"
+#include "hash.h"
 
 #define EIGEN_NO_AUTOMATIC_RESIZING 1
 
 // Maximum time (in coalescent units) considered for all integrals and hidden states.
 // Technically this is not necessary -- the method works with T_MAX=infinity -- but
 // the derivatives and integrals seem a bit more accurate when everything is finite.
-typedef std::array<int, 3> block_key;
 
 template <typename T> using Matrix = Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic>;
 template <typename T> using Vector = Eigen::Matrix<T, Eigen::Dynamic, 1>;
@@ -51,6 +51,8 @@ struct Functor
 #include <unsupported/Eigen/AutoDiff>
 
 typedef Eigen::AutoDiffScalar<Eigen::VectorXd> adouble;
+typedef std::vector<std::vector<adouble>> ParameterVector;
+
 inline double toDouble(const adouble &a) { return a.value(); }
 inline double toDouble(const double &d) { return d; }
 

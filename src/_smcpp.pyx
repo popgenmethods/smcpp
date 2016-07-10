@@ -45,7 +45,10 @@ cdef ParameterVector make_params(model):
             aa = adnumber(aa)
         r.push_back(double_vec_to_adouble(aa.x, [aa.d(da) for da in dlist]))
     ret.push_back(r)
-    ret.push_back(r)
+    cdef vector[adouble] cs
+    for ss in model.s:
+        cs.push_back(adouble(ss))
+    ret.push_back(cs)
     return ret
 
 cdef _make_em_matrix(vector[pMatrixD] mats):
@@ -68,17 +71,18 @@ def validate_observation(ob):
                 "Please encode / fold these as non-segregating (homozygous dominant).")
 
 cdef class PyInferenceManager:
-    cdef InferenceManager *_im
     cdef int _n
     cdef int _num_hmms
     cdef object _observations, _model, _theta, _rho
     cdef public long long seed
+    cdef vector[double] _hs
+    cdef vector[int] _Ls
+    cdef InferenceManager* _im
+    cdef vector[int*] _obs_ptrs
 
-    def __cinit__(self, int n, observations, hidden_states, s):
+    def __cinit__(self, observations, hidden_states):
         self.seed = 1
-        self._n = n
         cdef int[:, ::1] vob
-        cdef vector[int*] obs
         if len(observations) == 0:
             raise RuntimeError("Observations list is empty")
         self._observations = observations
@@ -90,18 +94,12 @@ cdef class PyInferenceManager:
         for ob in observations:
             validate_observation(ob)
             vob = ob
-            obs.push_back(&vob[0, 0])
+            self._obs_ptrs.push_back(&vob[0, 0])
             Ls.append(ob.shape[0])
         self._num_hmms = len(observations)
-        cdef vector[double] hs = hidden_states
-        cdef vector[double] _s = s
-        cdef vector[int] _Ls = Ls
-        with nogil:
-            self._im = new InferenceManager(n, _Ls, obs, hs, _s)
+        self._hs = hidden_states
+        self._Ls = Ls
         _check_abort()
-
-    def __dealloc__(self):
-        del self._im
 
     property folded:
         def __get__(self):
@@ -130,15 +128,6 @@ cdef class PyInferenceManager:
             self._rho = rho
             self._im.setRho(rho)
 
-    property model:
-        def __get__(self):
-            return self._model
-
-        def __set__(self, model):
-            self._model = model
-            sv = model.stepwise_values()
-            cdef ParameterVector params = make_params(model)
-            self._im.setParams(params)
 
     def E_step(self, forward_backward_only=False):
         logger.debug("Forward-backward algorithm...")
@@ -160,55 +149,55 @@ cdef class PyInferenceManager:
         def __set__(self, hs):
             self._im.hidden_states = hs
 
-    property emission_probs:
-        def __get__(self):
-            cdef map[block_key, Vector[adouble]] ep = self._im.getEmissionProbs()
-            cdef map[block_key, Vector[adouble]].iterator it = ep.begin()
-            cdef pair[block_key, Vector[adouble]] p
-            ret = {}
-            while it != ep.end():
-                p = deref(it)
-                key = [0] * 3
-                for i in range(3):
-                    key[i] = p.first[i]
-                M = p.second.size()
-                v = np.zeros(M)
-                if self._model.dlist:
-                    dv = np.zeros([M, len(self._model.dlist)])
-                for i in range(M):
-                    v[i] = p.second(i).value()
-                    for j in range(len(self._model.dlist)):
-                        dv[i, j] = p.second(i).derivatives()(j)
-                ret[tuple(key)] = (v, dv) if len(self._model.dlist) else v
-                inc(it)
-            return ret
+    # property emission_probs:
+    #     def __get__(self):
+    #         cdef map[block_key, Vector[adouble]] ep = self._im.getEmissionProbs()
+    #         cdef map[block_key, Vector[adouble]].iterator it = ep.begin()
+    #         cdef pair[block_key, Vector[adouble]] p
+    #         ret = {}
+    #         while it != ep.end():
+    #             p = deref(it)
+    #             key = [0] * 3
+    #             for i in range(3):
+    #                 key[i] = p.first[i]
+    #             M = p.second.size()
+    #             v = np.zeros(M)
+    #             if self._model.dlist:
+    #                 dv = np.zeros([M, len(self._model.dlist)])
+    #             for i in range(M):
+    #                 v[i] = p.second(i).value()
+    #                 for j in range(len(self._model.dlist)):
+    #                     dv[i, j] = p.second(i).derivatives()(j)
+    #             ret[tuple(key)] = (v, dv) if len(self._model.dlist) else v
+    #             inc(it)
+    #         return ret
 
 
-    property gamma_sums:
-        def __get__(self):
-            ret = []
-            cdef vector[pBlockMap] gs = self._im.getGammaSums()
-            cdef vector[pBlockMap].iterator it = gs.begin()
-            cdef map[block_key, Vector[double]].iterator map_it
-            cdef pair[block_key, Vector[double]] p
-            cdef double[::1] vary
-            cdef int M = len(self.hidden_states) - 1
-            while it != gs.end():
-                map_it = deref(it).begin()
-                pairs = {}
-                while map_it != deref(it).end():
-                    p = deref(map_it)
-                    bk = [0, 0, 0]
-                    ary = np.zeros(M)
-                    for i in range(3):
-                        bk[i] = p.first[i]
-                    for i in range(M):
-                        ary[i] = p.second(i)
-                    pairs[tuple(bk)] = ary
-                    inc(map_it)
-                inc(it)
-                ret.append(pairs)
-            return ret
+    # property gamma_sums:
+    #     def __get__(self):
+    #         ret = []
+    #         cdef vector[pBlockMap] gs = self._im.getGammaSums()
+    #         cdef vector[pBlockMap].iterator it = gs.begin()
+    #         cdef map[block_key, Vector[double]].iterator map_it
+    #         cdef pair[block_key, Vector[double]] p
+    #         cdef double[::1] vary
+    #         cdef int M = len(self.hidden_states) - 1
+    #         while it != gs.end():
+    #             map_it = deref(it).begin()
+    #             pairs = {}
+    #             while map_it != deref(it).end():
+    #                 p = deref(map_it)
+    #                 bk = [0, 0, 0]
+    #                 ary = np.zeros(M)
+    #                 for i in range(3):
+    #                     bk[i] = p.first[i]
+    #                 for i in range(M):
+    #                     ary[i] = p.second(i)
+    #                 pairs[tuple(bk)] = ary
+    #                 inc(map_it)
+    #             inc(it)
+    #             ret.append(pairs)
+    #         return ret
 
     property gammas:
         def __get__(self):
@@ -260,12 +249,33 @@ cdef class PyInferenceManager:
         _check_abort()
         return sum(llret)
 
+cdef class PyOnePopInferenceManager(PyInferenceManager):
+    cdef OnePopInferenceManager* _im1
+    def __cinit__(self, n, observations, hidden_states):
+        self._n = n
+        PyInferenceManager.__cinit__(self, observations, hidden_states)
+        with nogil:
+            self._im1 = new OnePopInferenceManager(self._n, self._Ls, self._obs_ptrs, self._hs)
+            self._im = self._im1
+
+    def __dealloc__(self):
+        del self._im1
+
+    property model:
+        def __get__(self):
+            return self._model
+
+        def __set__(self, model):
+            self._model = model
+            sv = model.stepwise_values()
+            cdef ParameterVector params = make_params(model)
+            self._im1.setParams(params)
+
 def balance_hidden_states(model, int M):
     M -= 1
     cdef ParameterVector pv = make_params(model)
     cdef vector[double] v = []
-    cdef vector[double] s = model.s
-    cdef PiecewiseExponentialRateFunction[double] *eta = new PiecewiseExponentialRateFunction[double](pv, s, v)
+    cdef PiecewiseConstantRateFunction[double] *eta = new PiecewiseConstantRateFunction[double](pv, v)
     try:
         ret = [0.0]
         t = 0
@@ -283,8 +293,7 @@ def balance_hidden_states(model, int M):
 def random_coal_times(model, t1, t2, K):
     cdef ParameterVector pv = make_params(model)
     cdef vector[double] v = []
-    cdef vector[double] s = model.s
-    cdef PiecewiseExponentialRateFunction[double] *eta = new PiecewiseExponentialRateFunction[double](pv, s, v)
+    cdef PiecewiseConstantRateFunction[double] *eta = new PiecewiseConstantRateFunction[double](pv, v)
     times = [eta.random_time(t1, t2, np.random.randint(sys.maxint)) for _ in range(K)]
     return zip(times, [eta.R(t) for t in times])
 

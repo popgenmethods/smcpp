@@ -33,7 +33,6 @@ void HMM::Estep(bool fbOnly)
     alpha_hat.col(0) = ib->pi->template cast<double>().cwiseProduct(ib->emission_probs->at(ob_key(0)).template cast<double>());
 	c(0) = alpha_hat.col(0).sum();
     alpha_hat.col(0) /= c(0);
-    block_key key;
     Eigen::DiagonalMatrix<double, Eigen::Dynamic, Eigen::Dynamic> B;
     DEBUG << "forward algorithm (HMM #" << hmm_num << ")";
     int prog = (int)((double)L * 0.1);
@@ -45,7 +44,7 @@ void HMM::Estep(bool fbOnly)
             DEBUG << "hmm " << hmm_num << ": " << (int)(100. * (double)ell / (double)L) << "%";
             prog += (int)((double)L * 0.1);
         }
-        key = ob_key(ell);
+        block_key key = ob_key(ell);
         gamma_sums.emplace(key, z);
         B = ib->emission_probs->at(key).template cast<double>().asDiagonal();
         int span = obs(ell, 0);
@@ -84,8 +83,8 @@ void HMM::Estep(bool fbOnly)
     {
         v.setZero();
         int span = obs(ell, 0);
-        key = ob_key(ell);
-        B = ib->emission_probs->at(ob_key(ell)).template cast<double>().asDiagonal();
+        block_key key = ob_key(ell);
+        B = ib->emission_probs->at(key).template cast<double>().asDiagonal();
         if (span > 1 and tb->eigensystems.count(key) > 0)
         {
             eigensystem es = tb->eigensystems.at(key);
