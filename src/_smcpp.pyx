@@ -272,6 +272,24 @@ cdef class PyOnePopInferenceManager(_PyInferenceManager):
             cdef ParameterVector params = make_params(model)
             self._im1.setParams(params)
 
+cdef class PyRateFunction:
+    cdef PiecewiseConstantRateFunction[adouble] *_eta
+    cdef object _model
+    def __cinit__(self, model, hs):
+        self._model = model
+        cdef ParameterVector params = make_params(model)
+        self._eta = new PiecewiseConstantRateFunction[adouble](params, hs)
+
+    def __dealloc__(self):
+        del self._eta
+
+    def R(self, t):
+        cdef adouble Rt = self._eta.R(adouble(t))
+        ret = adnumber(Rt.value())
+        for i, dl in enumerate(self._model.dlist):
+            ret.d()[dl] = Rt.derivatives()(i)
+        return ret
+
 def balance_hidden_states(model, int M):
     M -= 1
     cdef ParameterVector pv = make_params(model)

@@ -45,7 +45,6 @@ cdef extern from "inference_manager.h":
         bool saveGamma
         bool folded
         vector[double] hidden_states
-        adouble getRegularizer()
         vector[pMatrixD] getGammas()
         vector[pMatrixD] getXisums()
         # vector[pBlockMap] getGammaSums()
