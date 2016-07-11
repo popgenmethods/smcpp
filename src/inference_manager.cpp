@@ -3,16 +3,18 @@
 #include "inference_manager.h"
 
 InferenceManager::InferenceManager(
+        const int npop,
         const int sfs_dim,
         const std::vector<int> obs_lengths,
         const std::vector<int*> observations,
         const std::vector<double> hidden_states,
-        const ConditionedSFS<adouble> csfs) :
+        const ConditionedSFS<adouble> *csfs) :
     saveGamma(false), folded(false),
+    npop(npop),
+    sfs_dim(sfs_dim),
     hidden_states(hidden_states),
     obs(map_obs(observations, obs_lengths)),
     M(hidden_states.size() - 1),
-    sfs_dim(sfs_dim),
     csfs(csfs),
     pi(M),
     targets(fill_targets()),
@@ -54,16 +56,15 @@ InferenceManager::InferenceManager(
 
 void InferenceManager::recompute_initial_distribution()
 {
-    const PiecewiseConstantRateFunction<adouble> eta = getDistinguishedEta();
-    auto R = eta.getR();
+    const PiecewiseConstantRateFunction<adouble> eta = demo->distinguishedEta();
     int M = eta.hidden_states.size() - 1;
     for (int m = 0; m < M - 1; ++m)
     {
-        pi(m) = exp(-(*R)(hidden_states[m])) - exp(-(*R)(hidden_states[m + 1]));
+        pi(m) = exp(-(eta.R(hidden_states[m]))) - exp(-(eta.R(hidden_states[m + 1])));
         assert(pi(m) > 0.0);
         assert(pi(m) < 1.0);
     }
-    pi(M - 1) = exp(-(*R)(hidden_states[M - 1]));
+    pi(M - 1) = exp(-(eta.R(hidden_states[M - 1])));
     pi = pi.unaryExpr([] (const adouble &x) { if (x < 1e-20) return adouble(1e-20); return x; });
     pi /= pi.sum();
     check_nan(pi);
@@ -214,20 +215,17 @@ std::vector<double> InferenceManager::loglik(void)
 }
 
 // Begin stuff for NPop inference manager
-template <size_t P>
 std::vector<Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> > 
-    NPopInferenceManager<P>::map_obs(
-        const std::vector<int*> &observations, const std::vector<int> &obs_lengths)
+    InferenceManager::map_obs(const std::vector<int*> &observations, const std::vector<int> &obs_lengths)
 {
     std::vector<Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> > ret;
     for (unsigned int i = 0; i < observations.size(); ++i)
         ret.push_back(Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>::Map(
-                    observations[i], obs_lengths[i], 2 + 2 * P));
+                    observations[i], obs_lengths[i], 2 + 2 * npop));
     return ret;
 }
 
-template <size_t P>
-void NPopInferenceManager<P>::populate_emission_probs()
+void InferenceManager::populate_emission_probs()
 {
     Vector<adouble> tmp;
     for (auto ob : obs)
@@ -245,15 +243,14 @@ void NPopInferenceManager<P>::populate_emission_probs()
     }
 }
 
-template <size_t P>
-void NPopInferenceManager<P>::do_dirty_work()
+void InferenceManager::do_dirty_work()
 {
-    PiecewiseConstantRateFunction<adouble> eta = getDistinguishedEta();
+    PiecewiseConstantRateFunction<adouble> eta = demo->distinguishedEta();
     // Figure out what changed and recompute accordingly.
     if (dirty.demo)
     {
         recompute_initial_distribution();
-        sfss = csfs.compute();
+        sfss = csfs->compute(*demo);
     }
     if (dirty.theta or dirty.demo)
         recompute_emission_probs();
@@ -265,8 +262,7 @@ void NPopInferenceManager<P>::do_dirty_work()
     dirty = {false, false, false};
 }
 
-template <size_t P>
-std::set<std::pair<int, block_key> > NPopInferenceManager<P>::fill_targets()
+std::set<std::pair<int, block_key> > InferenceManager::fill_targets()
 {
     std::set<std::pair<int, block_key> > ret;
     for (auto ob : obs)
@@ -277,6 +273,12 @@ std::set<std::pair<int, block_key> > NPopInferenceManager<P>::fill_targets()
                 ret.insert({ob(i, 0), block_key(ob.row(i).tail(q).transpose())});
     }
     return ret;
+}
+
+void InferenceManager::setDemography(const Demography<adouble> *demo)
+{
+    this->demo.reset(demo);
+    dirty.demo = true;
 }
 
 template <typename Derived, size_t P>
@@ -350,7 +352,7 @@ void NPopInferenceManager<P>::recompute_emission_probs()
     DEBUG << "done subemissions";
     */
     Matrix<adouble> e2 = Matrix<adouble>::Zero(M, 2);
-    PiecewiseConstantRateFunction<adouble> eta = demo.distinguishedEta();
+    PiecewiseConstantRateFunction<adouble> eta = demo->distinguishedEta();
     std::vector<adouble> avg_ct = eta.average_coal_times();
     for (int m = 0; m < M; ++m)
     {
@@ -420,24 +422,20 @@ void NPopInferenceManager<P>::recompute_emission_probs()
     DEBUG << "recompute done";
 }
 
-template <size_t P>
-void NPopInferenceManager<P>::setDemography(const Demography<adouble> demo)
-{
-    this->demo = demo;
-    csfs.setDemography(demo);
-    dirty.demo = true;
-}
-
 Matrix<adouble> sfs_cython(const int n, const ParameterVector p, 
         const double t1, const double t2, bool below_only)
 {
     std::vector<double> hs{t1, t2};
     OnePopConditionedSFS<adouble> csfs(n - 2, 1);
     std::vector<Matrix<adouble> > v;
-    csfs.setDemography(OnePopDemography<adouble>(p,hs));
+    OnePopDemography<adouble> demo(p, hs);
     if (below_only)
-        v = csfs.compute_below();
+        v = csfs.compute_below(demo.distinguishedEta());
     else
-        v = csfs.compute();
+        v = csfs.compute(demo);
     return v[0];
 }
+
+template class NPopInferenceManager<1>;
+template class OnePopDemography<adouble>;
+template class OnePopDemography<double>;

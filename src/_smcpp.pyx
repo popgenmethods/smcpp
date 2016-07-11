@@ -70,8 +70,7 @@ def validate_observation(ob):
         raise RuntimeError("Error: data set contains sites where every individual is homozygous recessive. "
                 "Please encode / fold these as non-segregating (homozygous dominant).")
 
-cdef class PyInferenceManager:
-    cdef int _n
+cdef class _PyInferenceManager:
     cdef int _num_hmms
     cdef object _observations, _model, _theta, _rho
     cdef public long long seed
@@ -80,7 +79,7 @@ cdef class PyInferenceManager:
     cdef InferenceManager* _im
     cdef vector[int*] _obs_ptrs
 
-    def __cinit__(self, observations, hidden_states):
+    def __my_cinit__(self, observations, hidden_states):
         self.seed = 1
         cdef int[:, ::1] vob
         if len(observations) == 0:
@@ -249,11 +248,13 @@ cdef class PyInferenceManager:
         _check_abort()
         return sum(llret)
 
-cdef class PyOnePopInferenceManager(PyInferenceManager):
+cdef class PyOnePopInferenceManager(_PyInferenceManager):
+    cdef int _n
     cdef OnePopInferenceManager* _im1
     def __cinit__(self, n, observations, hidden_states):
+        # This is needed because cinit cannot be inherited
         self._n = n
-        PyInferenceManager.__cinit__(self, observations, hidden_states)
+        self.__my_cinit__(observations, hidden_states)
         with nogil:
             self._im1 = new OnePopInferenceManager(self._n, self._Ls, self._obs_ptrs, self._hs)
             self._im = self._im1

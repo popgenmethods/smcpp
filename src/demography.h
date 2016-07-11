@@ -5,7 +5,8 @@ template <typename T>
 class Demography
 {
     public:
-    virtual PiecewiseConstantRateFunction<T> distinguishedEta() const;
+    virtual ~Demography() = default;
+    virtual PiecewiseConstantRateFunction<T> distinguishedEta() const = 0;
 };
 
 template <typename T>

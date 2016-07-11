@@ -18,10 +18,12 @@ class InferenceManager
     public:
     InferenceManager(
             const int,
+            const int,
             const std::vector<int>, 
             const std::vector<int*>,
             const std::vector<double>,
-            const ConditionedSFS<adouble> csfs);
+            const ConditionedSFS<adouble> *csfs);
+    virtual ~InferenceManager() = default;
 
     void setRho(const double);
     void setTheta(const double);
@@ -29,6 +31,8 @@ class InferenceManager
     void Estep(bool);
     std::vector<adouble> Q();
     std::vector<double> loglik();
+
+    void setDemography(const Demography<adouble> *demo);
 
     template <typename T>
     std::vector<Matrix<T> > sfs(const PiecewiseConstantRateFunction<T>&);
@@ -47,24 +51,26 @@ class InferenceManager
     protected:
     typedef std::unique_ptr<HMM> hmmptr;
 
-    virtual PiecewiseConstantRateFunction<adouble> getDistinguishedEta();
-    virtual std::vector<Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> > 
-        map_obs(const std::vector<int*>&, const std::vector<int>&);
-    virtual std::set<std::pair<int, block_key> > fill_targets();
-    virtual void populate_emission_probs();
-    virtual void recompute_emission_probs();
-    virtual void do_dirty_work();
-
     // Methods
     void parallel_do(std::function<void(hmmptr &)>);
     template <typename T> std::vector<T> parallel_select(std::function<T(hmmptr &)>);
     void recompute_initial_distribution();
+    PiecewiseConstantRateFunction<adouble> getDistinguishedEta();
+    std::vector<Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> > 
+        map_obs(const std::vector<int*>&, const std::vector<int>&);
+    std::set<std::pair<int, block_key> > fill_targets();
+    void populate_emission_probs();
+    void do_dirty_work();
+
+    // These methods will differ according to number of populations and must be overridden.
+    virtual void recompute_emission_probs() = 0;
 
     // Passed-in parameters
-    std::vector<Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> > obs;
-    const int M, sfs_dim;
-    ConditionedSFS<adouble> csfs;
+    std::unique_ptr<const ConditionedSFS<adouble> > csfs;
 
+    // Other members
+    const int npop, sfs_dim, M;
+    std::vector<Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> > obs;
     double theta, rho;
     std::vector<hmmptr> hmms;
     Vector<adouble> pi;
@@ -76,6 +82,8 @@ class InferenceManager
 
     InferenceBundle ib;
     struct { bool theta, rho, demo; } dirty;
+
+    std::unique_ptr<const Demography<adouble> > demo;
 };
 
 template <size_t P>
@@ -87,27 +95,17 @@ class NPopInferenceManager : public InferenceManager
             const std::vector<int> obs_lengths,
             const std::vector<int*> observations,
             const std::vector<double> hidden_states,
-            const ConditionedSFS<adouble> csfs) :
-        InferenceManager((n.array() + 1).prod(), obs_lengths, observations, hidden_states, csfs), n(n) {}
+            const ConditionedSFS<adouble> *csfs) :
+        InferenceManager(P, (n.array() + 1).prod(), obs_lengths, observations, hidden_states, csfs), n(n) {}
+
+    virtual ~NPopInferenceManager() = default;
 
     protected:
     // Virtual overrides
-    PiecewiseConstantRateFunction<adouble> getDistinguishedEta();
-    std::vector<Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> > 
-        map_obs(const std::vector<int*>&, const std::vector<int>&);
-    std::set<std::pair<int, block_key> > fill_targets();
-    void populate_emission_probs();
     void recompute_emission_probs();
-    void do_dirty_work();
-
-    // Other methods
-    void setDemography(const Demography<adouble>);
 
     // Passed-in parameters
     const FixedVector<int, P> n;
-
-    // Other parameters
-    Demography<adouble> demo;
 };
 
 class OnePopInferenceManager final : public NPopInferenceManager<1>
@@ -118,12 +116,13 @@ class OnePopInferenceManager final : public NPopInferenceManager<1>
             const std::vector<int> obs_lengths,
             const std::vector<int*> observations,
             const std::vector<double> hidden_states) :
-        NPopInferenceManager((Eigen::Array<int, 1, 1>() << n).finished(), 
+        NPopInferenceManager(FixedVector<int, 1>::Constant(n),
                 obs_lengths, observations, hidden_states, 
-                OnePopConditionedSFS<adouble>(n, hidden_states.size() - 1)) {}
+                new OnePopConditionedSFS<adouble>(n, hidden_states.size() - 1)) {}
+                
     void setParams(const ParameterVector params)
     {
-        setDemography(OnePopDemography<adouble>(params, hidden_states));
+        setDemography(new OnePopDemography<adouble>(params, hidden_states));
     }
 };
 

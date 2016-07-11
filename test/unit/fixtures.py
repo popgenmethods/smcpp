@@ -14,7 +14,7 @@ def im():
     M = len(hidden_states) - 1
     s = np.diff(np.logspace(np.log10(.01), np.log10(3.), 41))
     obs_list = [np.array([[1, 0, 10, n - 2], [10, 0, 0, n - 2], [1, 2, 2, n - 5]], dtype=np.int32)]
-    im = smcpp._smcpp.PyInferenceManager(n - 2, obs_list, hidden_states, s)
+    im = smcpp._smcpp.PyOnePopInferenceManager(n - 2, obs_list, hidden_states)
     im.rho = 4.0 * N0 * rho
     im.theta = 4.0 * N0 * theta
     knots = np.logspace(np.log10(.01), np.log10(3.), K)

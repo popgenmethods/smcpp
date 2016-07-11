@@ -31,29 +31,19 @@ template <typename T>
 class ConditionedSFS
 {
     public:
-    virtual std::vector<Matrix<T> > compute() const;
-    void setDemography(const Demography<T> demo);
-
-    protected:
-    Demography<T> demo;
-};
-
-template <typename T, size_t P>
-class NPopConditionedSFS : public ConditionedSFS<T>
-{
-    public:
+    virtual std::vector<Matrix<T> > compute(const Demography<T> &demo) const = 0;
 };
 
 template <typename T>
-class OnePopConditionedSFS : public NPopConditionedSFS<T, 1>
+class OnePopConditionedSFS : public ConditionedSFS<T>
 {
     public:
     OnePopConditionedSFS(int, int);
-    std::vector<Matrix<T> > compute() const;
+    std::vector<Matrix<T> > compute(const Demography<T> &demo) const;
 
     // private:
-    std::vector<Matrix<T> > compute_below() const;
-    std::vector<Matrix<T> > compute_above() const;
+    std::vector<Matrix<T> > compute_below(const PiecewiseConstantRateFunction<T> eta) const;
+    std::vector<Matrix<T> > compute_above(const PiecewiseConstantRateFunction<T> eta) const;
 
     // Variables
     static MatrixCache& cached_matrices(int n);

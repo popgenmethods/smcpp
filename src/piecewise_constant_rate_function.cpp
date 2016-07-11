@@ -61,9 +61,9 @@ PiecewiseConstantRateFunction<T>::PiecewiseConstantRateFunction(
     ts[K] = INFINITY;
 
     int ip;
-    for (T h : hidden_states)
+    for (double h : hidden_states)
     {
-        if (std::isinf(toDouble(h)))
+        if (std::isinf(h))
         {
             hs_indices.push_back(ts.size() - 1);
             continue;
@@ -86,57 +86,50 @@ PiecewiseConstantRateFunction<T>::PiecewiseConstantRateFunction(
     K = ada.size();
     Rrng.resize(K + 1);
     compute_antiderivative();
-
-    _eta.reset(new PExpEvaluator<T>(ada, ts, Rrng));
-    _R.reset(new PExpIntegralEvaluator<T>(ada, ts, Rrng));
-    _Rinv.reset(new PExpInverseIntegralEvaluator<T>(ada, ts, Rrng));
 }
 
 template <typename T>
-inline T _double_integral_below_helper(const int rate, const T &tsm, const T &tsm1, const T &ada, 
+inline T _double_integral_below_helper(const int rate, const double &tsm, const double &tsm1, const T &ada, 
         const T &Rrng, const T &log_denom)
 {
     const int l1r = 1 + rate;
-    T _tsm = tsm, _tsm1 = tsm1;
-    T _ada = ada, _Rrng = Rrng; // don't ask
-    T z = _tsm - _tsm;
-    const T l1rinv = 1 / (z + l1r);
-    T diff = _tsm1 - _tsm;
-    T _adadiff = _ada * diff;
+    const double l1rinv = 1. / (double)l1r;
+    double diff = tsm1 - tsm;
+    T adadiff = ada * diff;
     if (rate == 0)
     {
         if (tsm1 == INFINITY)
-            return exp(-_Rrng - log_denom) / _ada;
+            return exp(-Rrng - log_denom) / ada;
         else
-            return exp(-_Rrng - log_denom) * (1 - exp(-_adadiff) * (1 + _adadiff)) / _ada;
+            return exp(-Rrng - log_denom) * (1. - exp(-adadiff) * (1. + adadiff)) / ada;
     }
     if (tsm1 == INFINITY)
-        return exp(-l1r * _Rrng - log_denom) * (1 - l1rinv) / (rate * _ada);
-    return exp(-l1r * _Rrng - log_denom) * (expm1(-l1r * _adadiff) * l1rinv - expm1(-_adadiff)) / (rate * _ada);
+        return exp(-l1r * Rrng - log_denom) * (1. - l1rinv) / (rate * ada);
+    return exp(-l1r * Rrng - log_denom) * (expm1(-l1r * adadiff) * l1rinv - expm1(-adadiff)) / (rate * ada);
 }
 
-template <typename U>
-inline U _double_integral_above_helper(const int rate, const int lam, const U &_tsm, 
-        const U &_tsm1, const U &_ada, const U &_Rrng, const U &log_coef)
+template <typename T>
+inline T _double_integral_above_helper(const int rate, const int lam, const double tsm, 
+        const double tsm1, const T ada, const T Rrng, const T log_coef)
 {
-    U diff = _tsm1 - _tsm;
-    U adadiff = _ada * diff;
+    double diff = tsm1 - tsm;
+    T adadiff = ada * diff;
     long l1 = lam + 1;
     if (rate == 0)
-        return exp(-l1 * _Rrng + log_coef) * (expm1(-l1 * adadiff) + l1 * adadiff) / l1 / l1 / _ada;
+        return exp(-l1 * Rrng + log_coef) * (expm1(-l1 * adadiff) + l1 * adadiff) / l1 / l1 / ada;
     if (l1 == rate)
     {
-        if (_tsm1 == INFINITY)
-            return exp(-rate * _Rrng + log_coef) / rate / rate / _ada;
-        return exp(-rate * _Rrng + log_coef) * (1 - exp(-rate * adadiff) * (1 + rate * adadiff)) / rate / rate / _ada;
+        if (tsm1 == INFINITY)
+            return exp(-rate * Rrng + log_coef) / rate / rate / ada;
+        return exp(-rate * Rrng + log_coef) * (1 - exp(-rate * adadiff) * (1 + rate * adadiff)) / rate / rate / ada;
     }
-    if (_tsm1 == INFINITY)
-        return exp(-l1 * _Rrng + log_coef) / l1 / rate / _ada;
+    if (tsm1 == INFINITY)
+        return exp(-l1 * Rrng + log_coef) / l1 / rate / ada;
     // return -exp(-l1 * _Rrng + log_coef) * (expm1(-l1 * adadiff) / l1 + (exp(-rate * adadiff) - exp(-l1 * adadiff)) / (l1 - rate)) / rate / _ada;
     if (rate < l1)
-        return -exp(-l1 * _Rrng + log_coef) * (expm1(-l1 * adadiff) / l1 + (exp(-rate * adadiff) * -expm1(-(l1 - rate) * adadiff) / (l1 - rate))) / rate / _ada;
+        return -exp(-l1 * Rrng + log_coef) * (expm1(-l1 * adadiff) / l1 + (exp(-rate * adadiff) * -expm1(-(l1 - rate) * adadiff) / (l1 - rate))) / rate / ada;
     else
-        return -exp(-l1 * _Rrng + log_coef) * (expm1(-l1 * adadiff) / l1 + (exp(-l1 * adadiff) * expm1(-(rate - l1) * adadiff) / (l1 - rate))) / rate / _ada;
+        return -exp(-l1 * Rrng + log_coef) * (expm1(-l1 * adadiff) / l1 + (exp(-l1 * adadiff) * expm1(-(rate - l1) * adadiff) / (l1 - rate))) / rate / ada;
 }
 
 template <typename T>
@@ -163,18 +156,13 @@ void PiecewiseConstantRateFunction<T>::compute_antiderivative()
 }
 
 template <typename T>
-T PiecewiseConstantRateFunction<T>::R_integral(const T a, const T b) const
-{
-    return R_integral(a, b, 0);
-}
-
-template <typename T>
-T PiecewiseConstantRateFunction<T>::R_integral(const T a, const T b, const T log_denom) const
+T PiecewiseConstantRateFunction<T>::R_integral(const double a, const double b, const T log_denom) const
 {
     // int_a^b exp(-R(t)) dt
     int ip_a = insertion_point(a, ts, 0, ts.size());
     int ip_b = (std::isinf(toDouble(b))) ? ts.size() - 2 : insertion_point(b, ts, 0, ts.size());
-    T ret = 0., r, left, right, diff, Rleft;
+    T ret = 0., r, Rleft;
+    double left, right, diff;
     for (int i = ip_a; i < ip_b + 1; ++i)
     {
         left = dmax(a, ts[i]);
@@ -194,7 +182,7 @@ T PiecewiseConstantRateFunction<T>::R_integral(const T a, const T b, const T log
 
 
 template <typename T>
-inline T _single_integral(const int rate, const T &tsm, const T &tsm1, 
+inline T _single_integral(const int rate, const double &tsm, const double &tsm1, 
         const T &ada, const T &Rrng, const T &log_coef)
 {
     // = int_ts[m]^ts[m+1] exp(-rate * R(t)) dt
@@ -332,24 +320,22 @@ T exp1_conditional(T a, T b, std::mt19937 &gen)
         return a - log1p(expm1(-(b - a)) * unif);
 }
 
-// This helper function exists for cython
 template <typename T>
-double PiecewiseConstantRateFunction<T>::random_time(const double a, const double b, const long long seed) const
+T PiecewiseConstantRateFunction<T>::random_time(const double a, const double b, const long long seed) const
 {
     std::mt19937 gen(seed);
-    return toDouble(random_time(1., T(a), T(b), gen));
+    return random_time(1., a, b, gen);
 }
 
-
 template <typename T>
-T PiecewiseConstantRateFunction<T>::random_time(const double fac, const T &a, const T &b, std::mt19937 &gen) const
+T PiecewiseConstantRateFunction<T>::random_time(const double fac, const double a, const double b, std::mt19937 &gen) const
 {
     T Rb;
     if (b == INFINITY)
         Rb = INFINITY;
     else
         Rb = R(b);
-    return (*getRinv())(exp1_conditional(R(a), Rb, gen) / fac);
+    return Rinv(exp1_conditional(R(a), Rb, gen) / fac);
 }
 
 
@@ -375,6 +361,21 @@ std::vector<T> PiecewiseConstantRateFunction<T>::average_coal_times() const
             throw std::runtime_error("erroneous average coalescence time");
     }
     return ret;
+}
+
+template <typename T>
+T PiecewiseConstantRateFunction<T>::R(const T t) const
+{
+    int ip = insertion_point(toDouble(t), ts, 0, ts.size());
+    return Rrng[ip] + ada[ip] * (t - ts[ip]);
+}
+
+
+template <typename T>
+T PiecewiseConstantRateFunction<T>::Rinv(const T y) const
+{
+    int ip = insertion_point(toDouble(y), ts, 0, ts.size());
+    return (y - Rrng[ip]) / ada[ip] + ts[ip];
 }
 
 
