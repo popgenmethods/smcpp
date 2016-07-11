@@ -5,8 +5,8 @@ import smcpp._smcpp, smcpp.model
 
 @pytest.fixture
 def im():
-    K = 10
-    hidden_states = np.concatenate([[0.], np.logspace(-2, 1, 10), [np.inf]])
+    K = 5
+    hidden_states = np.concatenate([[0.], np.logspace(-2, 1, 5), [np.inf]])
     N0 = 10000.
     theta = 1.25e-8
     rho = theta / 4.
