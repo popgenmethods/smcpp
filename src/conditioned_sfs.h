@@ -31,20 +31,17 @@ template <typename T>
 class ConditionedSFS
 {
     public:
-    virtual std::vector<Matrix<T> > recompute();
+    virtual std::vector<Matrix<T> > compute() const;
+    void setDemography(const Demography<T> demo);
+
+    protected:
+    Demography<T> demo;
 };
 
 template <typename T, size_t P>
 class NPopConditionedSFS : public ConditionedSFS<T>
 {
     public:
-    void setDemography(const Demography<T, P> demo)
-    {
-        this->demo = demo;
-    }
-
-    protected:
-    Demography<T, P> demo;
 };
 
 template <typename T>
@@ -52,11 +49,11 @@ class OnePopConditionedSFS : public NPopConditionedSFS<T, 1>
 {
     public:
     OnePopConditionedSFS(int, int);
-    std::vector<Matrix<T> > recompute();
+    std::vector<Matrix<T> > compute() const;
 
     // private:
-    std::vector<Matrix<T> > compute_below(const PiecewiseConstantRateFunction<T> &);
-    std::vector<Matrix<T> > compute_above(const PiecewiseConstantRateFunction<T> &);
+    std::vector<Matrix<T> > compute_below() const;
+    std::vector<Matrix<T> > compute_above() const;
 
     // Variables
     static MatrixCache& cached_matrices(int n);
@@ -65,8 +62,7 @@ class OnePopConditionedSFS : public NPopConditionedSFS<T, 1>
     const int n, H;
     const MoranEigensystem mei;
     const MatrixCache mcache;
-    Matrix<T> tjj_below, M0_below, M1_below;
-    std::vector<Matrix<T> > csfs, csfs_below, csfs_above, C_above;
+    // std::vector<Matrix<T> > csfs, csfs_below, csfs_above, C_above;
     const Matrix<double> Uinv_mp0, Uinv_mp2;
 };
 

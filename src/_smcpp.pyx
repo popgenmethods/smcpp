@@ -304,10 +304,9 @@ def raw_sfs(model, int n, double t1, double t2, below_only=False):
     ret = aca(np.zeros([3, n - 1]))
     cdef double[:, ::1] vret = ret
     cdef vector[pair[int, int]] derivs
-    cdef vector[double] _s = model.s
     cdef bool bo = below_only
     with nogil:
-        dsfs = sfs_cython(n, pv, _s, t1, t2, bo)
+        dsfs = sfs_cython(n, pv, t1, t2, bo)
     _check_abort()
     return _store_admatrix_helper(dsfs, model.dlist)
 

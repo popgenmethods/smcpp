@@ -57,8 +57,7 @@ cdef extern from "inference_manager.h":
         OnePopInferenceManager(const int, const vector[int],
                 const vector[int*], const vector[double]) except +
         void setParams(const ParameterVector)
-    Matrix[adouble] sfs_cython(const int, const ParameterVector, const vector[double], 
-            const double, const double, bool) nogil
+    Matrix[adouble] sfs_cython(const int, const ParameterVector, const double, const double, bool) nogil
 
 
 cdef extern from "piecewise_constant_rate_function.h":

@@ -3,7 +3,7 @@
 #include "inference_manager.h"
 
 InferenceManager::InferenceManager(
-        const int n_undistinguished,
+        const int sfs_dim,
         const std::vector<int> obs_lengths,
         const std::vector<int*> observations,
         const std::vector<double> hidden_states,
@@ -12,7 +12,7 @@ InferenceManager::InferenceManager(
     hidden_states(hidden_states),
     obs(map_obs(observations, obs_lengths)),
     M(hidden_states.size() - 1),
-    n_undistinguished(n_undistinguished),
+    sfs_dim(sfs_dim),
     csfs(csfs),
     pi(M),
     targets(fill_targets()),
@@ -29,7 +29,7 @@ InferenceManager::InferenceManager(
     // tensor in "flattened" matrix form. Note that this is actually
     // 1 larger along each axis than the true number, because the SFS
     // ranges in {0, 1, ..., n_pop_k}.
-    emission = Matrix<adouble>::Zero(M, 3 * n_undistinguished);
+    emission = Matrix<adouble>::Zero(M, 3 * sfs_dim);
     emission.setZero();
     hmms.resize(obs.size());
 
@@ -253,7 +253,7 @@ void NPopInferenceManager<P>::do_dirty_work()
     if (dirty.demo)
     {
         recompute_initial_distribution();
-        sfss = csfs.recompute();
+        sfss = csfs.compute();
     }
     if (dirty.theta or dirty.demo)
         recompute_emission_probs();
@@ -274,55 +274,58 @@ std::set<std::pair<int, block_key> > NPopInferenceManager<P>::fill_targets()
         const int q = ob.cols() - 1;
         for (int i = 0; i < ob.rows(); ++i)
             if (ob(i, 0) > 1)
-                ret.insert({ob(i, 0), ob.row(i).tail(q).transpose()});
+                ret.insert({ob(i, 0), block_key(ob.row(i).tail(q).transpose())});
     }
     return ret;
 }
 
-template <typename T>
-T marginalizeSFS(const Vector<T> &sfs, Vector<int> n, Vector<int> b, Vector<int> nb)
+template <typename Derived, size_t P>
+Vector<typename Derived::Scalar> marginalizeSFS(const Eigen::MatrixBase<Derived> &sfs, FixedVector<int, P> n, FixedVector<int, P> b, FixedVector<int, P> nb)
 {
-    T ret(0.);
-    Vector<T> marginal_sfs;
-    assert(n.size() == b.size());
-    assert(b.size() == nb.size());
-    assert(sfs.size() == (n.array() + 1).prod());
-    if (n.size() == 1)
-    {
-        marginal_sfs = sfs;
-        assert(n(0) + 1 == sfs.size());
-    }
-    else
-    {
-        marginal_sfs = Vector<T>::Zero(n(0) + 1);
-        int tl = n.size() - 1;
-        int slice = (n.tail(tl).array() + 1).prod();
-        assert((n(0) + 1) * slice == sfs.size());
-        for (int i = 0; i < n(0) + 1; ++i)
-            marginal_sfs(i) = marginalizeSFS(sfs.segment(i * slice, slice), 
-                n.tail(tl), b.tail(tl), nb.tail(tl));
-    }
+    typedef typename Derived::Scalar T;
+    assert(sfs.cols() == (n.array() + 1).prod());
+    int M = sfs.rows();
+    Vector<T> ret = Vector<T>::Zero(M);
+    Matrix<T> marginal_sfs = Matrix<T>::Zero(M, n(0) + 1);
+    int tl = n.size() - 1;
+    int slice = (n.tail(tl).array() + 1).prod();
+    assert((n(0) + 1) * slice == sfs.cols());
+    for (int i = 0; i < n(0) + 1; ++i)
+        marginal_sfs.col(i) = marginalizeSFS(sfs.middleCols(i * slice, slice), 
+            n.tail(tl), b.tail(tl), nb.tail(tl));
+    return marginalizeSFS(marginal_sfs, n.head(1), b.head(1), nb.head(1));
+}
+
+template <typename Derived>
+Vector<typename Derived::Scalar> marginalizeSFS(const Eigen::MatrixBase<Derived> &sfs, FixedVector<int, 1> n, FixedVector<int, 1> b, FixedVector<int, 1> nb)
+{
+    typedef typename Derived::Scalar T;
+    int M = sfs.rows();
+    Vector<T> ret = Vector<T>::Zero(M);
+    assert(sfs.cols() == n(0) + 1);
     for (unsigned int n1 = b(0); n1 < n(0) + b(0) - nb(0) + 1; ++n1)
+    {
         // n1: number of derived in sample of size n
         // n2: number of ancestral "    "   "   "
         // must have: b(0) <= n1, nb(0) - b(0) <= n2 = n - n1 => n1 <= n + b - nb
         unsigned int n2 = n(0) - n1;
         // p(k) =  C(n_1, k) C(n_2, t - k) / C(n_1 + n_2, t)
         // gsl_ran_hypergeometric_pdf(unsigned int k, unsigned int n1, unsigned int n2, unsigned int t)
-        ret += gsl_ran_hypergeometric_pdf(b(0), n1, n2, nb(0)) * marginal_sfs(n1);
+        ret += gsl_ran_hypergeometric_pdf(b(0), n1, n2, nb(0)) * sfs.col(n1);
+    }
     return ret;
 }
 
 template <size_t P>
 void NPopInferenceManager<P>::recompute_emission_probs()
 {
-    Eigen::Matrix<adouble, 3, Eigen::Dynamic, Eigen::RowMajor> em_tmp(3, n_undistinguished);
+    Eigen::Matrix<adouble, 3, Eigen::Dynamic, Eigen::RowMajor> em_tmp(3, sfs_dim);
     std::vector<Matrix<adouble> > new_sfss = incorporate_theta(sfss, theta);
     for (int m = 0; m < M; ++m)
     {
         check_nan(new_sfss[m]);
         em_tmp = new_sfss[m];
-        emission.row(m) = Matrix<adouble>::Map(em_tmp.data(), 1, 3 * n_undistinguished);
+        emission.row(m) = Matrix<adouble>::Map(em_tmp.data(), 1, 3 * sfs_dim);
     }
     
     DEBUG << "recompute B";
@@ -360,31 +363,48 @@ void NPopInferenceManager<P>::recompute_emission_probs()
 #pragma omp parallel for
     for (auto it = bpm_keys.begin(); it < bpm_keys.end(); ++it)
     {
-        int a = (*it)[0], b = (*it)[1], nb = (*it)[2];
-        std::set<std::array<int, 2> > ab {{a, b}};
-        if (folded and nb > 0)
-            ab.insert({a == -1 ? -1 : 2 - a, nb - b});
+        block_key key = *it;
+        std::set<block_key> keys;
+        keys.insert(key);
+        if (folded)
+        {
+            Vector<int> new_key(it->size());
+            new_key(0) = (key(0) == -1) ? -1 : 2 - key(0);
+            for (size_t p = 0; p < P; ++p)
+            {
+                int b = key(1 + 2 * p), nb = key(2 + 2 * p);
+                new_key(1 + 2 * p) = nb - b;
+                new_key(2 + 2 * p) = nb;
+            }
+            keys.emplace(new_key);
+        }
         Vector<adouble> tmp(M);
         tmp.setZero();
-        Matrix<adouble> emission_nb = subemissions.at(nb);
-        for (std::array<int, 2> tup : ab)
+        for (block_key k : keys)
         {
-            a = tup[0]; b = tup[1];
-            if (nb > 0)
+            int a = k(0);
+            bool reduced = true;
+            FixedVector<int, P> b, nb;
+            for (int p = 0; p < P; ++p)
             {
-                if (a == -1)
-                    tmp += (emission_nb.col(b) +
-                            emission_nb.col((nb + 1) + b) +
-                            emission_nb.col(2 * (nb + 1) + b));
-                else
-                    tmp += emission_nb.col(a * (nb + 1) + b);
+                b(p) = k(1 + 2 * p);
+                nb(p) = k(2 + 2 * p);
+                reduced &= nb(p) == 0;
             }
-            else
+            if (reduced)
             {
                 if (a == -1)
                     tmp.setOnes();
                 else
-                    tmp += emission_nb.col(a); // nb = 0 => b = 0 => a = a(nb + 1) + b
+                    tmp = e2.col(a % 2);
+            }
+            else
+            {
+                if (a == -1)
+                    for (int i = 0; i < 3; ++i)
+                        tmp += marginalizeSFS(emission.middleCols(i * sfs_dim, sfs_dim), n, b, nb);
+                else
+                    tmp = marginalizeSFS(emission.middleCols(a * sfs_dim, sfs_dim), n, b, nb);
             }
         }
         if (tmp.maxCoeff() > 1.0 or tmp.minCoeff() <= 0.0)
@@ -401,22 +421,23 @@ void NPopInferenceManager<P>::recompute_emission_probs()
 }
 
 template <size_t P>
-void NPopInferenceManager<P>::setDemography(const Demography<abouble, P> demo)
+void NPopInferenceManager<P>::setDemography(const Demography<adouble> demo)
 {
     this->demo = demo;
     csfs.setDemography(demo);
     dirty.demo = true;
 }
 
-Matrix<adouble> sfs_cython(const int n, const ParameterVector p, const std::vector<double> s,
+Matrix<adouble> sfs_cython(const int n, const ParameterVector p, 
         const double t1, const double t2, bool below_only)
 {
-    PiecewiseConstantRateFunction<adouble> eta(p, s, {t1, t2});
-    ConditionedSFS<adouble> csfs(n - 2, 1);
+    std::vector<double> hs{t1, t2};
+    OnePopConditionedSFS<adouble> csfs(n - 2, 1);
     std::vector<Matrix<adouble> > v;
+    csfs.setDemography(OnePopDemography<adouble>(p,hs));
     if (below_only)
-        v = csfs.compute_below(eta);
+        v = csfs.compute_below();
     else
-        v = csfs.compute(eta);
+        v = csfs.compute();
     return v[0];
 }

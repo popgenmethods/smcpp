@@ -94,21 +94,26 @@ mpq_class pnkb_undist(int n, int m, int l3)
 }
 
 template <typename T>
+void ConditionedSFS<T>::setDemography(const Demography<T> demo)
+{
+    this->demo = demo;
+}
+
+template <typename T>
 OnePopConditionedSFS<T>::OnePopConditionedSFS(int n, int H) :
     n(n), H(H),
     mei(compute_moran_eigensystem(n)), mcache(cached_matrices(n)),
-    tjj_below(H, n + 1),
-    M0_below(H, n), M1_below(H, n + 1),
-    csfs(H, Matrix<T>::Zero(3, n + 1)), csfs_below(H, Matrix<T>::Zero(3, n + 1)), csfs_above(H, Matrix<T>::Zero(3, n + 1)),
-    C_above(H, Matrix<T>::Zero(n + 1, n)),
     Uinv_mp0(mei.Uinv.rightCols(n).template cast<double>()), 
     Uinv_mp2(mei.Uinv.reverse().leftCols(n).template cast<double>())
 {}
 
 template <typename T>
-std::vector<Matrix<T> > OnePopConditionedSFS<T>::compute_below(const PiecewiseConstantRateFunction<T> &eta)
+std::vector<Matrix<T> > OnePopConditionedSFS<T>::compute_below() const
 {
     DEBUG << "compute below";
+    const PiecewiseConstantRateFunction<T> eta = this->demo.distinguishedEta();
+    std::vector<Matrix<T> > csfs_below(H, Matrix<T>::Zero(3, n + 1));
+    Matrix<T> tjj_below(H, n + 1);
     tjj_below.setZero();
 #pragma omp parallel for
     for (int h = 0; h < H; ++h)
@@ -118,22 +123,22 @@ std::vector<Matrix<T> > OnePopConditionedSFS<T>::compute_below(const PiecewiseCo
     //     tjj_below.row(h - 1) = ts_integrals.block(eta.hs_indices[h - 1], 0, 
     //             eta.hs_indices[h] - eta.hs_indices[h - 1], n + 1).colwise().sum();
     DEBUG << "matrix products below (M0)";
-    M0_below = tjj_below * mcache.M0.template cast<T>();
+    Matrix<T> M0_below = tjj_below * mcache.M0.template cast<T>();
     DEBUG << "matrix products below (M1)";
-    M1_below = tjj_below * mcache.M1.template cast<T>();
+    Matrix<T> M1_below = tjj_below * mcache.M1.template cast<T>();
     DEBUG << "filling csfs_below";
     for (int h = 0; h < H; ++h) 
     {
         csfs_below[h].setZero();
         csfs_below[h].block(0, 1, 1, n) = M0_below.row(h);
-        csfs_below[h].block(1, 0, 1, n + 1) = M1_below.row(h);
+        csfs_below[h].block(2, 0, 1, n + 1) = M1_below.row(h);
         check_nan(csfs_below[h]);
     }
     DEBUG << "compute below finished";
     return csfs_below;
 }
 
-    template <typename T>
+template <typename T>
 inline T doubly_compensated_summation(const std::vector<T> &x)
 {
     if (x.size() == 0)
@@ -155,8 +160,10 @@ inline T doubly_compensated_summation(const std::vector<T> &x)
 }
 
 template <typename T>
-std::vector<Matrix<T> > OnePopConditionedSFS<T>::compute_above(const PiecewiseConstantRateFunction<T> &eta)
+std::vector<Matrix<T> > OnePopConditionedSFS<T>::compute_above() const
 {
+    const PiecewiseConstantRateFunction<T> eta = this->demo.distinguishedEta();
+    std::vector<Matrix<T> > C_above(H, Matrix<T>::Zero(n + 1, n)), csfs_above(H, Matrix<T>::Zero(3, n + 1));
     DEBUG << "compute above";
 #pragma omp parallel for
     for (int j = 2; j < n + 3; ++j)
@@ -194,11 +201,12 @@ std::vector<Matrix<T> > OnePopConditionedSFS<T>::compute_above(const PiecewiseCo
 }
 
 template <typename T>
-std::vector<Matrix<T> > OnePopConditionedSFS<T>::recompute()
+std::vector<Matrix<T> > OnePopConditionedSFS<T>::compute() const
 {
     DEBUG << "compute called";
-    csfs_above = compute_above(this->demo.distinguishedEta());
-    csfs_below = compute_below(this->demo.distinguishedEta());
+    std::vector<Matrix<T> > csfs_above = compute_above();
+    std::vector<Matrix<T> > csfs_below = compute_below();
+    std::vector<Matrix<T> > csfs(H, Matrix<T>::Zero(3, n + 1));
     for (int i = 0; i < H; ++i)
     {
         csfs[i] = csfs_above[i] + csfs_below[i];

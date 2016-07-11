@@ -9,6 +9,16 @@ struct block_key
     block_key(const Vector<int> &vals) : vals(vals) {}
     const Vector<int> vals;
 
+    int operator()(int k) const { return vals(k); }
+
+    int size() const { return vals.size(); }
+
+    friend std::ostream & operator<<(std::ostream& stream, const block_key &bk)
+    {
+        stream << bk.vals;
+        return stream;
+    }
+
     bool operator<(const block_key &other) const
     {
         assert(vals.size() == other.vals.size());

@@ -1,31 +1,31 @@
 #ifndef DEMOGRAPHY_H
 #define DEMOGRAPHY_H
 
-template <typename T, size_t P>
+template <typename T>
 class Demography
 {
     public:
-    virtual PiecewiseConstantRateFunction<T> distinguishedEta();
+    virtual PiecewiseConstantRateFunction<T> distinguishedEta() const;
 };
 
 template <typename T>
-class OnePopDemography : public Demography<T, 1>
+class OnePopDemography : public Demography<T>
 {
     public:
     OnePopDemography(ParameterVector params, std::vector<double> hidden_states) : 
         eta(PiecewiseConstantRateFunction<T>(params, hidden_states)) {}
 
-    PiecewiseConstantRateFunction<T> distinguishedEta()
+    PiecewiseConstantRateFunction<T> distinguishedEta() const
     {
         return eta;
     }
 
     private:
-    PiecewiseConstantRateFunction<T> eta;
+    const PiecewiseConstantRateFunction<T> eta;
 };
 
 template <typename T>
-class TwoPopDemography : public Demography<T, 2>
+class TwoPopDemography : public Demography<T>
 {
     public:
     TwoPopDemography(ParameterVector params1, ParameterVector params2, double split_time) : 

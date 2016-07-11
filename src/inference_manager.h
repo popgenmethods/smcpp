@@ -10,7 +10,6 @@
 #include "inference_bundle.h"
 #include "demography.h"
 #include "block_key.h"
-#include "ndarray.h"
 
 class HMM;
 
@@ -63,8 +62,8 @@ class InferenceManager
 
     // Passed-in parameters
     std::vector<Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> > obs;
-    const int M, n_undistinguished;
-    const ConditionedSFS<adouble> csfs;
+    const int M, sfs_dim;
+    ConditionedSFS<adouble> csfs;
 
     double theta, rho;
     std::vector<hmmptr> hmms;
@@ -84,12 +83,12 @@ class NPopInferenceManager : public InferenceManager
 {
     public:
     NPopInferenceManager(
-            const Eigen::Array<int, P, 1> n, 
+            const FixedVector<int, P> n,
             const std::vector<int> obs_lengths,
             const std::vector<int*> observations,
             const std::vector<double> hidden_states,
             const ConditionedSFS<adouble> csfs) :
-        InferenceManager((n + 1).prod(), obs_lengths, observations, hidden_states, csfs), n(n) {}
+        InferenceManager((n.array() + 1).prod(), obs_lengths, observations, hidden_states, csfs), n(n) {}
 
     protected:
     // Virtual overrides
@@ -102,13 +101,13 @@ class NPopInferenceManager : public InferenceManager
     void do_dirty_work();
 
     // Other methods
-    void setDemography(const Demography<adouble, P>);
+    void setDemography(const Demography<adouble>);
 
     // Passed-in parameters
-    const Eigen::Array<int, P, 1> n;
+    const FixedVector<int, P> n;
 
     // Other parameters
-    Demography<adouble, P> demo;
+    Demography<adouble> demo;
 };
 
 class OnePopInferenceManager final : public NPopInferenceManager<1>
@@ -133,6 +132,6 @@ class TwoPopInferenceManager : NPopInferenceManager<2>
 
 };
 
-Matrix<adouble> sfs_cython(const int, const ParameterVector, const std::vector<double>, const double, const double, bool);
+Matrix<adouble> sfs_cython(const int, const ParameterVector, const double, const double, bool);
 
 #endif

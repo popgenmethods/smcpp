@@ -17,12 +17,9 @@
 
 #define EIGEN_NO_AUTOMATIC_RESIZING 1
 
-// Maximum time (in coalescent units) considered for all integrals and hidden states.
-// Technically this is not necessary -- the method works with T_MAX=infinity -- but
-// the derivatives and integrals seem a bit more accurate when everything is finite.
-
 template <typename T> using Matrix = Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic>;
 template <typename T> using Vector = Eigen::Matrix<T, Eigen::Dynamic, 1>;
+template <typename T, size_t P> using FixedVector = Eigen::Matrix<T, P, 1>;
 
 template <typename _Scalar, int NX=Eigen::Dynamic, int NY=Eigen::Dynamic>
 struct Functor
