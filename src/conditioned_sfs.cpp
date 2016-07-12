@@ -310,27 +310,5 @@ MatrixCache& OnePopConditionedSFS<T>::cached_matrices(int n)
     return matrix_cache[n];
 }
 
-void print_sfs(int n, const std::vector<double> &sfs)
-{
-    std::vector<double> rsfs(n, 0);
-    double x;
-    int k = 0;
-    for (int i = 0; i < 3; i++)
-    {
-        printf("%i:\t", i);
-        for (int j = 0; j < n; j++)
-        {
-            x = sfs[k++];
-            rsfs[i + j] += x;
-            printf("%i:%e ", j, x);
-        }
-        printf("\n");
-    }
-    for (int i = 0; i < n; i++)
-    {
-        printf("%i:%f\n", i, rsfs[i]);
-    }
-}
-
 template class OnePopConditionedSFS<double>;
 template class OnePopConditionedSFS<adouble>;

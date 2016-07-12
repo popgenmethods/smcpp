@@ -3,6 +3,7 @@ import numpy as np
 import functools
 import multiprocessing
 from logging import getLogger
+import inflect
 logger = getLogger(__name__)
 
 from . import estimation_tools, _smcpp, util, spline
@@ -33,6 +34,10 @@ class Population(Observer):
         ## Parse each data set into an array of observations
         logger.info("Loading data...")
         dataset = util.parse_text_datasets(dataset_files)
+        self._npop = dataset[0].shape[1] // 2 - 1
+        for ds in dataset:
+            assert ds.shape[1] == 2 * (self._npop + 1)
+        logger.info(inflect.engine().no("population", self._npop))
         n = 2 + max([obs[:, -1].max() for obs in dataset])
         logger.info("n=%d" % n)
         ## At this point, data have not been thinned or anything. 
@@ -138,7 +143,7 @@ class Population(Observer):
 
         ## Create inference object which will be used for all further calculations.
         logger.debug("Creating inference manager...")
-        self._im = _smcpp.PyInferenceManager(n - 2, self._dataset, self._hidden_states, time_points)
+        self._im = _smcpp.PyOnePopInferenceManager(n - 2, self._dataset, self._hidden_states)
         self._im.model = self._model
         self._im.theta = theta
         self._im.rho = rho
