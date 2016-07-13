@@ -4,11 +4,12 @@ import gzip
 import numpy as np
 import functools
 import multiprocessing
-from logging import getLogger
 import os
 from future.moves.itertools import zip_longest
 
-logger = getLogger(__name__)
+from . import logging
+
+logger = logging.getLogger(__name__)
 
 # Section 7. of MSMC supplemental
 def build_sawtooth():

@@ -15,6 +15,9 @@ import traceback
 logger = getLogger(__name__)
 
 # Package imports
+from ..pool import init_pool
+init_pool()
+
 from .. import _smcpp, util, estimation_tools
 from ..model import SMCModel
 from ..population import Population

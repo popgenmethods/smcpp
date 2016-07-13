@@ -1,9 +1,12 @@
 from __future__ import absolute_import, division, print_function
 import os
 import logging
+import multiprocessing
+
+from logging import INFO, WARNING, DEBUG, NOTSET, CRITICAL
 
 def init_logging(outdir, verbose, debug_log=os.devnull):
-    logging.addLevelName(logging.DEBUG-1, 'DEBUG1')
+    logging.addLevelName(DEBUG - 1, 'DEBUG1')
     root = logging.getLogger()
     while len(root.handlers) > 0:
         root.removeHandler(logging.root.handlers[-1])
@@ -11,13 +14,21 @@ def init_logging(outdir, verbose, debug_log=os.devnull):
     sh = logging.StreamHandler()
     sh.setFormatter(fmt)
     if verbose:
-        sh.setLevel(logging.DEBUG - verbose + 1)
+        sh.setLevel(DEBUG - verbose + 1)
     else:
-        sh.setLevel(logging.INFO)
+        sh.setLevel(INFO)
     root.addHandler(sh)
     fh = logging.FileHandler(debug_log, "wt")
-    fh.setLevel(logging.DEBUG)
+    fh.setLevel(DEBUG)
     fh.setFormatter(fmt)
     root.addHandler(fh)
-    root.setLevel(logging.NOTSET)
+    root.setLevel(NOTSET)
 
+def getLogger(name):
+    if multiprocessing.current_process().name == "MainProcess":
+        return logging.getLogger(__name__)
+    else:
+        # return multiprocessing.get_logger()
+        logger = multiprocessing.log_to_stderr()
+        logger.setLevel(multiprocessing.SUBDEBUG)
+        return logger

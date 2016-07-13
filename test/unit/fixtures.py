@@ -1,6 +1,9 @@
 import pytest
 import numpy as np
 
+import smcpp.pool
+smcpp.pool.init_pool()
+
 import smcpp._smcpp, smcpp.model
 
 @pytest.fixture

@@ -4,10 +4,11 @@ import json
 import logging
 from ad import adnumber, ADF
 import ad.admath
-logger = logging.getLogger(__name__)
 
-from . import _smcpp, estimation_tools, spline
+from . import _smcpp, estimation_tools, spline, logging
 from .observe import Observable
+
+logger = logging.getLogger(__name__)
 
 class SMCModel(Observable):
 

@@ -39,6 +39,7 @@ cdef extern from "inference_manager.h":
         void setTheta(const double)
         void setRho(const double)
         void Estep(bool)
+        void setParams(const ParameterVector &)
         vector[double] loglik()
         vector[adouble] Q()
         bool debug
@@ -55,7 +56,10 @@ cdef extern from "inference_manager.h":
     cdef cppclass OnePopInferenceManager(InferenceManager) nogil:
         OnePopInferenceManager(const int, const vector[int],
                 const vector[int*], const vector[double]) except +
-        void setParams(const ParameterVector)
+    cdef cppclass TwoPopInferenceManager(InferenceManager) nogil:
+        TwoPopInferenceManager(const int, const int, const vector[int],
+                const vector[int*], const vector[double]) except +
+        void setParams(const ParameterVector, const vector[double*])
     Matrix[adouble] sfs_cython(const int, const ParameterVector, const double, const double, bool) nogil
 
 

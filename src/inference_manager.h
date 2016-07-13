@@ -8,8 +8,8 @@
 #include "transition.h"
 #include "transition_bundle.h"
 #include "inference_bundle.h"
-#include "demography.h"
 #include "block_key.h"
+#include "marginalize_sfs.h"
 
 class HMM;
 
@@ -32,10 +32,7 @@ class InferenceManager
     std::vector<adouble> Q();
     std::vector<double> loglik();
 
-    void setDemography(const Demography<adouble> *demo);
-
-    template <typename T>
-    std::vector<Matrix<T> > sfs(const PiecewiseConstantRateFunction<T>&);
+    void setParams(const ParameterVector &params);
 
     bool saveGamma, folded;
     std::vector<double> hidden_states;
@@ -55,7 +52,6 @@ class InferenceManager
     void parallel_do(std::function<void(hmmptr &)>);
     template <typename T> std::vector<T> parallel_select(std::function<T(hmmptr &)>);
     void recompute_initial_distribution();
-    PiecewiseConstantRateFunction<adouble> getDistinguishedEta();
     std::vector<Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> > 
         map_obs(const std::vector<int*>&, const std::vector<int>&);
     std::set<std::pair<int, block_key> > fill_targets();
@@ -81,9 +77,9 @@ class InferenceManager
     std::vector<Matrix<adouble> > sfss;
 
     InferenceBundle ib;
-    struct { bool theta, rho, demo; } dirty;
+    struct { bool theta, rho, eta; } dirty;
 
-    std::unique_ptr<const Demography<adouble> > demo;
+    std::unique_ptr<const PiecewiseConstantRateFunction<adouble> > eta;
 };
 
 template <size_t P>
@@ -119,16 +115,26 @@ class OnePopInferenceManager final : public NPopInferenceManager<1>
         NPopInferenceManager(FixedVector<int, 1>::Constant(n),
                 obs_lengths, observations, hidden_states, 
                 new OnePopConditionedSFS<adouble>(n, hidden_states.size() - 1)) {}
-                
-    void setParams(const ParameterVector params)
-    {
-        setDemography(new OnePopDemography<adouble>(params, hidden_states));
-    }
 };
 
-class TwoPopInferenceManager : NPopInferenceManager<2>
+class TwoPopInferenceManager : public NPopInferenceManager<2>
 {
-
+    public:
+    TwoPopInferenceManager(
+            const int n1, const int n2,
+            const std::vector<int> obs_lengths,
+            const std::vector<int*> observations,
+            const std::vector<double> hidden_states) :
+        NPopInferenceManager(
+                (FixedVector<int, 2>() << n1, n2).finished(),
+                obs_lengths, observations, hidden_states, 
+                nullptr) {}
+                
+    void setParams(const ParameterVector &params, std::vector<double*> newSFS)
+    {
+        InferenceManager::setParams(params);
+        csfs.reset(new DummySFS<adouble>(sfs_dim, hidden_states.size() - 1, newSFS));
+    }
 };
 
 Matrix<adouble> sfs_cython(const int, const ParameterVector, const double, const double, bool);

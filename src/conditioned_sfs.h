@@ -10,7 +10,6 @@
 #include "piecewise_constant_rate_function.h"
 #include "moran_eigensystem.h"
 #include "mpq_support.h"
-#include "demography.h"
 
 typedef struct 
 {
@@ -31,7 +30,7 @@ template <typename T>
 class ConditionedSFS
 {
     public:
-    virtual std::vector<Matrix<T> > compute(const Demography<T> &demo) const = 0;
+    virtual std::vector<Matrix<T> > compute(const PiecewiseConstantRateFunction<T> &) const = 0;
 };
 
 template <typename T>
@@ -39,11 +38,11 @@ class OnePopConditionedSFS : public ConditionedSFS<T>
 {
     public:
     OnePopConditionedSFS(int, int);
-    std::vector<Matrix<T> > compute(const Demography<T> &demo) const;
+    std::vector<Matrix<T> > compute(const PiecewiseConstantRateFunction<T> &) const;
 
     // private:
-    std::vector<Matrix<T> > compute_below(const PiecewiseConstantRateFunction<T> eta) const;
-    std::vector<Matrix<T> > compute_above(const PiecewiseConstantRateFunction<T> eta) const;
+    std::vector<Matrix<T> > compute_below(const PiecewiseConstantRateFunction<T> &) const;
+    std::vector<Matrix<T> > compute_above(const PiecewiseConstantRateFunction<T> &) const;
 
     // Variables
     static MatrixCache& cached_matrices(int n);
@@ -55,6 +54,32 @@ class OnePopConditionedSFS : public ConditionedSFS<T>
     // std::vector<Matrix<T> > csfs, csfs_below, csfs_above, C_above;
     const Matrix<double> Uinv_mp0, Uinv_mp2;
 };
+
+template <typename T>
+class DummySFS : public ConditionedSFS<T>
+{
+    public:
+    DummySFS(const int dim, const int M, const std::vector<double*> sfs) : dim(dim), M(M), precomputedSFS(storeSFS(sfs)) {}
+
+    std::vector<Matrix<T> > compute(const PiecewiseConstantRateFunction<T> &) const
+    {
+        return precomputedSFS;
+    }
+
+    private:
+    std::vector<Matrix<T> > storeSFS(const std::vector<double*> newSFS)
+    {
+        std::vector<Matrix<T> > ret(M, Matrix<T>::Zero(3, dim));
+        for (int m = 0; m < M; ++m)
+            ret[m] = Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>::Map(newSFS[m], 3, dim).template cast<adouble>();
+        return ret;
+    }
+
+    const int dim, M;
+    const std::vector<Matrix<T> > precomputedSFS;
+};
+
+
 
 template <typename T>
 std::vector<Matrix<T> > incorporate_theta(const std::vector<Matrix<T> > &, const double);

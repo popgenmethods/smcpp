@@ -5,7 +5,6 @@ import ad.admath
 
 from . import _smcpp
 
-
 def _TDMASolve(a, b, c, d):
     # a, b, c == diag(-1, 0, 1)
     n = len(d)  # n is the numbers of rows, a and c has length n-1

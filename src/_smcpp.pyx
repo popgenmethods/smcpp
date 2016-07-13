@@ -4,12 +4,13 @@ from cython.operator cimport dereference as deref, preincrement as inc
 import random
 import sys
 import numpy as np
-import logging
 import collections
 import scipy.optimize
 import collections
 import wrapt
 from ad import adnumber, ADF
+
+import smcpp.logging as logging
 
 init_eigen();
 logger = logging.getLogger(__name__)
@@ -100,6 +101,9 @@ cdef class _PyInferenceManager:
         self._Ls = Ls
         _check_abort()
 
+    def __dealloc__(self):
+        del self._im
+
     property folded:
         def __get__(self):
             return self._im.folded
@@ -135,6 +139,15 @@ cdef class _PyInferenceManager:
             self._im.Estep(fbOnly)
         _check_abort()
         logger.debug("Forward-backward algorithm finished.")
+
+    property model:
+        def __get__(self):
+            return self._model
+        def __set__(self, model):
+            self._model = model
+            cdef ParameterVector params = make_params(model)
+            with nogil:
+                self._im.setParams(params)
 
     property save_gamma:
         def __get__(self):
@@ -249,28 +262,42 @@ cdef class _PyInferenceManager:
         return sum(llret)
 
 cdef class PyOnePopInferenceManager(_PyInferenceManager):
-    cdef int _n
-    cdef OnePopInferenceManager* _im1
-    def __cinit__(self, n, observations, hidden_states):
+    def __cinit__(self, int n, observations, hidden_states):
         # This is needed because cinit cannot be inherited
-        self._n = n
         self.__my_cinit__(observations, hidden_states)
         with nogil:
-            self._im1 = new OnePopInferenceManager(self._n, self._Ls, self._obs_ptrs, self._hs)
-            self._im = self._im1
+            self._im = new OnePopInferenceManager(n, self._Ls, self._obs_ptrs, self._hs)
 
-    def __dealloc__(self):
-        del self._im1
+cdef class PyTwoPopInferenceManager(_PyInferenceManager):
+    cdef vector[double*] _emissions_vec
+    cdef object _emissions
+    cdef TwoPopInferenceManager* _im2
+
+    def __cinit__(self, int n1, int n2, observations, hidden_states):
+        # This is needed because cinit cannot be inherited
+        self.__my_cinit__(observations, hidden_states)
+        with nogil:
+            self._im2 = new TwoPopInferenceManager(n1, n2, self._Ls, self._obs_ptrs, self._hs)
+            self._im = self._im2
+
+    property emissions:
+        def __set__(self, emissions):
+            self._emissions = emissions
+            self._emissions_vec.clear()
+            cdef double[:, :, :] emission_view
+            for row in self._emissions:
+                emission_view = row
+                self._emissions_vec.push_back(&emission_view[0, 0, 0])
 
     property model:
         def __get__(self):
-            return self._model
+            return self._models
 
         def __set__(self, model):
-            self._model = model
-            sv = model.stepwise_values()
+            assert len(self._emissions) == len(self._hs) - 1
             cdef ParameterVector params = make_params(model)
-            self._im1.setParams(params)
+            with nogil:
+                self._im2.setParams(params, self._emissions_vec)
 
 cdef class PyRateFunction:
     cdef PiecewiseConstantRateFunction[adouble] *_eta

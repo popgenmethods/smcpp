@@ -2,15 +2,14 @@ from __future__ import absolute_import, division, print_function
 import numpy as np
 import functools
 import multiprocessing
-from logging import getLogger
 import inflect
-logger = getLogger(__name__)
 
-from . import estimation_tools, _smcpp, util, spline
+from . import estimation_tools, _smcpp, util, spline, logging
 from .estimation_result import EstimationResult
 from .model import SMCModel
 from .observe import Observer
 
+logger = logging.getLogger(__name__)
 
 def _tied_property(attr):
     def getx(self):

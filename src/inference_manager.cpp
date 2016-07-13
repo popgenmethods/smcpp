@@ -1,5 +1,3 @@
-#include "gsl/gsl_randist.h"
-
 #include "inference_manager.h"
 
 InferenceManager::InferenceManager(
@@ -56,15 +54,14 @@ InferenceManager::InferenceManager(
 
 void InferenceManager::recompute_initial_distribution()
 {
-    const PiecewiseConstantRateFunction<adouble> eta = demo->distinguishedEta();
-    int M = eta.hidden_states.size() - 1;
+    int M = eta->hidden_states.size() - 1;
     for (int m = 0; m < M - 1; ++m)
     {
-        pi(m) = exp(-(eta.R(hidden_states[m]))) - exp(-(eta.R(hidden_states[m + 1])));
+        pi(m) = exp(-(eta->R(hidden_states[m]))) - exp(-(eta->R(hidden_states[m + 1])));
         assert(pi(m) > 0.0);
         assert(pi(m) < 1.0);
     }
-    pi(M - 1) = exp(-(eta.R(hidden_states[M - 1])));
+    pi(M - 1) = exp(-(eta->R(hidden_states[M - 1])));
     pi = pi.unaryExpr([] (const adouble &x) { if (x < 1e-20) return adouble(1e-20); return x; });
     pi /= pi.sum();
     check_nan(pi);
@@ -245,18 +242,17 @@ void InferenceManager::populate_emission_probs()
 
 void InferenceManager::do_dirty_work()
 {
-    PiecewiseConstantRateFunction<adouble> eta = demo->distinguishedEta();
     // Figure out what changed and recompute accordingly.
-    if (dirty.demo)
+    if (dirty.eta)
     {
         recompute_initial_distribution();
-        sfss = csfs->compute(*demo);
+        sfss = csfs->compute(*eta);
     }
-    if (dirty.theta or dirty.demo)
+    if (dirty.theta or dirty.eta)
         recompute_emission_probs();
-    if (dirty.demo or dirty.rho)
-        transition = compute_transition(eta, rho);
-    if (dirty.theta or dirty.demo or dirty.rho)
+    if (dirty.eta or dirty.rho)
+        transition = compute_transition(*eta, rho);
+    if (dirty.theta or dirty.eta or dirty.rho)
         tb.update(transition);
     // restore pristine status
     dirty = {false, false, false};
@@ -275,47 +271,10 @@ std::set<std::pair<int, block_key> > InferenceManager::fill_targets()
     return ret;
 }
 
-void InferenceManager::setDemography(const Demography<adouble> *demo)
+void InferenceManager::setParams(const ParameterVector &params)
 {
-    this->demo.reset(demo);
-    dirty.demo = true;
-}
-
-template <typename Derived, size_t P>
-Vector<typename Derived::Scalar> marginalizeSFS(const Eigen::MatrixBase<Derived> &sfs, FixedVector<int, P> n, FixedVector<int, P> b, FixedVector<int, P> nb)
-{
-    typedef typename Derived::Scalar T;
-    assert(sfs.cols() == (n.array() + 1).prod());
-    int M = sfs.rows();
-    Vector<T> ret = Vector<T>::Zero(M);
-    Matrix<T> marginal_sfs = Matrix<T>::Zero(M, n(0) + 1);
-    int tl = n.size() - 1;
-    int slice = (n.tail(tl).array() + 1).prod();
-    assert((n(0) + 1) * slice == sfs.cols());
-    for (int i = 0; i < n(0) + 1; ++i)
-        marginal_sfs.col(i) = marginalizeSFS(sfs.middleCols(i * slice, slice), 
-            n.tail(tl), b.tail(tl), nb.tail(tl));
-    return marginalizeSFS(marginal_sfs, n.head(1), b.head(1), nb.head(1));
-}
-
-template <typename Derived>
-Vector<typename Derived::Scalar> marginalizeSFS(const Eigen::MatrixBase<Derived> &sfs, FixedVector<int, 1> n, FixedVector<int, 1> b, FixedVector<int, 1> nb)
-{
-    typedef typename Derived::Scalar T;
-    int M = sfs.rows();
-    Vector<T> ret = Vector<T>::Zero(M);
-    assert(sfs.cols() == n(0) + 1);
-    for (unsigned int n1 = b(0); n1 < n(0) + b(0) - nb(0) + 1; ++n1)
-    {
-        // n1: number of derived in sample of size n
-        // n2: number of ancestral "    "   "   "
-        // must have: b(0) <= n1, nb(0) - b(0) <= n2 = n - n1 => n1 <= n + b - nb
-        unsigned int n2 = n(0) - n1;
-        // p(k) =  C(n_1, k) C(n_2, t - k) / C(n_1 + n_2, t)
-        // gsl_ran_hypergeometric_pdf(unsigned int k, unsigned int n1, unsigned int n2, unsigned int t)
-        ret += gsl_ran_hypergeometric_pdf(b(0), n1, n2, nb(0)) * sfs.col(n1);
-    }
-    return ret;
+    eta.reset(new PiecewiseConstantRateFunction<adouble>(params, hidden_states));
+    dirty.eta = true;
 }
 
 template <size_t P>
@@ -352,8 +311,7 @@ void NPopInferenceManager<P>::recompute_emission_probs()
     DEBUG << "done subemissions";
     */
     Matrix<adouble> e2 = Matrix<adouble>::Zero(M, 2);
-    PiecewiseConstantRateFunction<adouble> eta = demo->distinguishedEta();
-    std::vector<adouble> avg_ct = eta.average_coal_times();
+    std::vector<adouble> avg_ct = eta->average_coal_times();
     for (int m = 0; m < M; ++m)
     {
         e2(m, 1) = avg_ct[m];
@@ -404,9 +362,9 @@ void NPopInferenceManager<P>::recompute_emission_probs()
             {
                 if (a == -1)
                     for (int i = 0; i < 3; ++i)
-                        tmp += marginalizeSFS(emission.middleCols(i * sfs_dim, sfs_dim), n, b, nb);
+                        tmp += marginalize_sfs<P>()(emission.middleCols(i * sfs_dim, sfs_dim), n, b, nb);
                 else
-                    tmp = marginalizeSFS(emission.middleCols(a * sfs_dim, sfs_dim), n, b, nb);
+                    tmp = marginalize_sfs<P>()(emission.middleCols(a * sfs_dim, sfs_dim), n, b, nb);
             }
         }
         if (tmp.maxCoeff() > 1.0 or tmp.minCoeff() <= 0.0)
@@ -428,14 +386,13 @@ Matrix<adouble> sfs_cython(const int n, const ParameterVector p,
     std::vector<double> hs{t1, t2};
     OnePopConditionedSFS<adouble> csfs(n - 2, 1);
     std::vector<Matrix<adouble> > v;
-    OnePopDemography<adouble> demo(p, hs);
+    PiecewiseConstantRateFunction<adouble> eta(p, hs);
     if (below_only)
-        v = csfs.compute_below(demo.distinguishedEta());
+        v = csfs.compute_below(eta);
     else
-        v = csfs.compute(demo);
+        v = csfs.compute(eta);
     return v[0];
 }
 
 template class NPopInferenceManager<1>;
-template class OnePopDemography<adouble>;
-template class OnePopDemography<double>;
+template class NPopInferenceManager<2>;

@@ -279,6 +279,7 @@ template <typename T>
 void PiecewiseConstantRateFunction<T>::tjj_double_integral_below(
         const int n, const int h, Matrix<T> &tgt) const
 {
+    DEBUG << "in tjj_double_integral_below";
     T log_denom = -Rrng[hs_indices[h]];
     if (Rrng[hs_indices[h + 1]] != INFINITY)
         log_denom += log(-expm1(-(Rrng[hs_indices[h + 1]] - Rrng[hs_indices[h]])));
@@ -302,6 +303,7 @@ void PiecewiseConstantRateFunction<T>::tjj_double_integral_below(
         }
         tgt.row(h) += ts_integrals.transpose();
     }
+    DEBUG << "exiting tjj_double_integral_below";
 }
 
 template <typename T>
