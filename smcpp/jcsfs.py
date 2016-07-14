@@ -2,11 +2,10 @@ from __future__ import absolute_import, division, print_function
 import momi, momi.demography
 import scipy.linalg, scipy.stats
 import numpy as np
+import multiprocessing as mp
+import ctypes
 
-from . import pool
-pool.init_pool()
-
-from . import _smcpp, model, logging
+from . import model, logging, _smcpp, pool
 
 logger = logging.getLogger(__name__)
 
@@ -45,20 +44,27 @@ class JointCSFS(object):
         assert a2 == 0, "distinguished lineages originating in different populations not currently supported"
 
     def compute(self):
-        p = pool.get_pool()
         args = tuple([getattr(self, "_" + x) for x in "split, a1, a2, n1, n2, model1, model2, Rts1, Rts2, K".split(", ")])
-        self._jcsfs[:] = list(p.map(_parallel_helper, ((t1, t2) + args for t1, t2 in self._hs_pairs)))
+        processes = []
+        ary = mp.Array('d', self._jcsfs.size)
+        for i, (t1, t2) in enumerate(self._hs_pairs):
+            processes.append(mp.Process(target=_parallel_helper, args=(ary, self._jcsfs.shape, i, t1, t2) + args))
+            processes[-1].start()
+        for p in processes:
+            p.join()
+        # self._jcsfs[:] = list(p.imap(_parallel_helper, ((t1, t2) + args for t1, t2 in self._hs_pairs), 1))
         return self._jcsfs
 
-def _parallel_helper(tup):
-    t1, t2, split = tup[:3]
+def _parallel_helper(ary, shape, i, t1, t2, split, *args):
+    jcsfs = np.ctypeslib.as_array(ary.get_obj())
+    jcsfs.shape = shape
+    print(t1, t2)
     if t1 < t2 <= split:
-        return _jcsfs_helper_tau_below_split(t1, t2, split, *tup[3:])
+        jcsfs[i] = _jcsfs_helper_tau_below_split(t1, t2, split, *args)
     elif split <= t1 < t2:
-        return _jcsfs_helper_tau_above_split(t1, t2, split, *tup[3:])
-    else:
-        # raise RuntimeError("hidden states cannot span the split")
-        aoeu
+        jcsfs[i] = _jcsfs_helper_tau_above_split(t1, t2, split, *args)
+    return
+
 
 def _jcsfs_helper_tau_above_split(t1, t2, split, a1, a2, n1, n2, model1, model2, Rts1, Rts2, K):
     '''JCSFS conditional on distinguished lineages coalescing at t1 < t2 <= split'''
@@ -92,6 +98,7 @@ def _jcsfs_helper_tau_above_split(t1, t2, split, a1, a2, n1, n2, model1, model2,
     # sample tau, compute sfs at tau, then moran transition to t_s, 
     configs = [((x, n1 + n2 + 1 - x),) for x in range(1, n1 + n2 + 1)]
     for tau, Rtau in _smcpp.random_coal_times(model1, t1, t2, K):
+        logger.debug((t1, t2, tau, Rtau))
         # Compute regular old sfs using momi
         m1s = _cumsum0(model1.s)
         tm1 = np.searchsorted(m1s, tau) - 1
