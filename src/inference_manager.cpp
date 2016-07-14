@@ -18,7 +18,8 @@ InferenceManager::InferenceManager(
     targets(fill_targets()),
     tb(targets, &emission_probs),
     ib{&pi, &tb, &emission_probs, &saveGamma},
-    dirty({true, true, true})
+    dirty({true, true, true}),
+    tp(ThreadPool::getInstance())
 {
     if (*std::min_element(hidden_states.begin(), hidden_states.end()) != 0.)
         throw std::runtime_error("first hidden interval should be [0, <something>)");
@@ -33,7 +34,6 @@ InferenceManager::InferenceManager(
     emission.setZero();
     hmms.resize(obs.size());
 
-// #pragma omp parallel for
     ThreadPool &tp = ThreadPool::getInstance();
     InferenceBundle *ibp = &ib;
     for (unsigned int i = 0; i < obs.size(); ++i)
@@ -107,35 +107,23 @@ void InferenceManager::setTheta(const double theta)
 
 void InferenceManager::parallel_do(std::function<void(hmmptr&)> lambda)
 {
-#pragma omp parallel for
-    for (auto it = hmms.begin(); it < hmms.end(); ++it)
-        lambda(*it);
-    /*
-       std::vector<std::future<void>> results;
-       for (auto &hmmptr : hmms)
-       results.emplace_back(tp.enqueue(std::bind(lambda, std::ref(hmmptr))));
-       for (auto &res : results)
-       res.wait();
-       */
+    std::vector<std::future<void>> results;
+    for (auto &hmmptr : hmms)
+        results.emplace_back(tp.enqueue(std::bind(lambda, std::ref(hmmptr))));
+    for (auto &res : results)
+        res.wait();
 }
 
-    template <typename T>
+template <typename T>
 std::vector<T> InferenceManager::parallel_select(std::function<T(hmmptr &)> lambda)
 {
-    std::vector<T> ret(hmms.size());
-#pragma omp parallel for
-    for (unsigned int i = 0; i < hmms.size(); ++i)
-        ret[i] = lambda(hmms[i]);
+    std::vector<std::future<T>> results;
+    for (auto &hmmptr : hmms)
+        results.emplace_back(tp.enqueue(std::bind(lambda, std::ref(hmmptr))));
+    std::vector<T> ret;
+    for (auto &res : results)
+        ret.push_back(res.get());
     return ret;
-    /*
-       std::vector<std::future<T>> results;
-       for (auto &hmmptr : hmms)
-       results.emplace_back(tp.enqueue(std::bind(lambda, std::ref(hmmptr))));
-       std::vector<T> ret;
-       for (auto &res : results)
-       ret.push_back(res.get());
-       return ret;
-       */
 }
 template std::vector<double> InferenceManager::parallel_select(std::function<double(hmmptr &)>);
 template std::vector<adouble> InferenceManager::parallel_select(std::function<adouble(hmmptr &)>);
@@ -295,26 +283,6 @@ void NPopInferenceManager<P>::recompute_emission_probs()
     }
     
     DEBUG << "recompute B";
-    /*
-    std::map<int, Matrix<adouble> > subemissions;
-    DEBUG << "subemissions";
-#pragma omp parallel for
-    for (auto it = nbs.begin(); it < nbs.end(); ++it)
-    {
-        int nb = *it;
-        Matrix<adouble> M = emission.lazyProduct(subEmissionCoeffs.at(nb));
-        M.col(0) += M.rightCols(1);
-        M.rightCols(1).fill(0.);
-#pragma omp critical(subemissions)
-        {
-            subemissions[nb] = M;
-        }
-    }
-    // subemissions[0] is computed more easily / accurately by direct method
-    // than by marginalizing. (in particular, the derivatives)
-    // std::cerr << "old sub[0]\n" << subemissions[0].template cast<double>() << std::endl;
-    DEBUG << "done subemissions";
-    */
     Matrix<adouble> e2 = Matrix<adouble>::Zero(M, 2);
     std::vector<adouble> avg_ct = eta->average_coal_times();
     for (int m = 0; m < M; ++m)
@@ -325,63 +293,66 @@ void NPopInferenceManager<P>::recompute_emission_probs()
     e2.col(1) *= 2. * theta;
     e2.col(0).setOnes();
     e2.col(0) -= e2.col(1);
-#pragma omp parallel for
+    std::vector<std::future<void> > results;
     for (auto it = bpm_keys.begin(); it < bpm_keys.end(); ++it)
-    {
-        block_key key = *it;
-        std::set<block_key> keys;
-        keys.insert(key);
-        if (folded)
+        results.emplace_back(tp.enqueue([this, it, e2]
         {
-            Vector<int> new_key(it->size());
-            new_key(0) = (key(0) == -1) ? -1 : 2 - key(0);
-            for (size_t p = 0; p < P; ++p)
+            block_key key = *it;
+            std::set<block_key> keys;
+            keys.insert(key);
+            if (this->folded)
             {
-                int b = key(1 + 2 * p), nb = key(2 + 2 * p);
-                new_key(1 + 2 * p) = nb - b;
-                new_key(2 + 2 * p) = nb;
+                Vector<int> new_key(it->size());
+                new_key(0) = (key(0) == -1) ? -1 : 2 - key(0);
+                for (size_t p = 0; p < P; ++p)
+                {
+                    int b = key(1 + 2 * p), nb = key(2 + 2 * p);
+                    new_key(1 + 2 * p) = nb - b;
+                    new_key(2 + 2 * p) = nb;
+                }
+                keys.emplace(new_key);
             }
-            keys.emplace(new_key);
-        }
-        Vector<adouble> tmp(M);
-        tmp.setZero();
-        for (block_key k : keys)
-        {
-            int a = k(0);
-            bool reduced = true;
-            FixedVector<int, P> b, nb;
-            for (int p = 0; p < P; ++p)
+            Vector<adouble> tmp(M);
+            tmp.setZero();
+            for (block_key k : keys)
             {
-                b(p) = k(1 + 2 * p);
-                nb(p) = k(2 + 2 * p);
-                reduced &= nb(p) == 0;
-            }
-            if (reduced)
-            {
-                if (a == -1)
-                    tmp.setOnes();
+                int a = k(0);
+                bool reduced = true;
+                FixedVector<int, P> b, nb;
+                for (int p = 0; p < P; ++p)
+                {
+                    b(p) = k(1 + 2 * p);
+                    nb(p) = k(2 + 2 * p);
+                    reduced &= nb(p) == 0;
+                }
+                if (reduced)
+                {
+                    if (a == -1)
+                        tmp.setOnes();
+                    else
+                        tmp = e2.col(a % 2);
+                }
                 else
-                    tmp = e2.col(a % 2);
+                {
+                    if (a == -1)
+                        for (int i = 0; i < 3; ++i)
+                            tmp += marginalize_sfs<P>()(emission.middleCols(i * sfs_dim, sfs_dim), n, b, nb);
+                    else
+                        tmp = marginalize_sfs<P>()(emission.middleCols(a * sfs_dim, sfs_dim), n, b, nb);
+                }
             }
-            else
+            if (tmp.maxCoeff() > 1.0 or tmp.minCoeff() <= 0.0)
             {
-                if (a == -1)
-                    for (int i = 0; i < 3; ++i)
-                        tmp += marginalize_sfs<P>()(emission.middleCols(i * sfs_dim, sfs_dim), n, b, nb);
-                else
-                    tmp = marginalize_sfs<P>()(emission.middleCols(a * sfs_dim, sfs_dim), n, b, nb);
+                std::cout << *it << std::endl;
+                std::cout << tmp.template cast<double>().transpose() << std::endl;
+                std::cout << tmp.maxCoeff() << std::endl;
+                throw std::runtime_error("probability vector not in [0, 1]");
             }
-        }
-        if (tmp.maxCoeff() > 1.0 or tmp.minCoeff() <= 0.0)
-        {
-            std::cout << *it << std::endl;
-            std::cout << tmp.template cast<double>().transpose() << std::endl;
-            std::cout << tmp.maxCoeff() << std::endl;
-            throw std::runtime_error("probability vector not in [0, 1]");
-        }
-        check_nan(tmp);
-        emission_probs.at(*it) = tmp;
-    }
+            check_nan(tmp);
+            this->emission_probs.at(*it) = tmp;
+        }));
+    for (auto &&result : results) 
+        result.wait();
     DEBUG << "recompute done";
 }
 

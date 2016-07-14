@@ -11,6 +11,8 @@
 #include <functional>
 #include <stdexcept>
 
+#include "common.h"
+
 template <typename T>
 class Singleton
 {
@@ -36,7 +38,7 @@ class ThreadPool : public Singleton<ThreadPool>
     friend class Singleton<ThreadPool>;
     public:
         ThreadPool(size_t);
-        ThreadPool() : ThreadPool(std::thread::hardware_concurrency() or 8) {}
+        ThreadPool() : ThreadPool(std::thread::hardware_concurrency()) {}
         ~ThreadPool();
         template<class F, class... Args>
             auto enqueue(F&& f, Args&&... args)

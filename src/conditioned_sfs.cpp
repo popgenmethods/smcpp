@@ -98,7 +98,8 @@ OnePopConditionedSFS<T>::OnePopConditionedSFS(int n, int H) :
     n(n), H(H),
     mei(compute_moran_eigensystem(n)), mcache(cached_matrices(n)),
     Uinv_mp0(mei.Uinv.rightCols(n).template cast<double>()), 
-    Uinv_mp2(mei.Uinv.reverse().leftCols(n).template cast<double>())
+    Uinv_mp2(mei.Uinv.reverse().leftCols(n).template cast<double>()),
+    tp(ThreadPool::getInstance())
 {}
 
 template <typename T>
@@ -109,15 +110,14 @@ std::vector<Matrix<T> > OnePopConditionedSFS<T>::compute_below(const PiecewiseCo
     Matrix<T> tjj_below(H, n + 1);
     tjj_below.setZero();
     DEBUG << "tjj_double_integral below starts";
-// #pragma omp parallel for
-    ThreadPool &tp = ThreadPool::getInstance();
     std::vector< std::future<void> > results;
     for (int h = 0; h < H; ++h)
         results.emplace_back(tp.enqueue([&eta, h, &tjj_below, this]
         { 
             eta.tjj_double_integral_below(this->n, h, tjj_below);
         }));
-    for (auto &&result : results) result.get();
+    for (auto &&result : results) 
+        result.wait();
     DEBUG << "tjj_double_integral below finished";
     // for (int h = 1; h < H + 1; ++h)
     //     tjj_below.row(h - 1) = ts_integrals.block(eta.hs_indices[h - 1], 0, 
@@ -164,7 +164,6 @@ std::vector<Matrix<T> > OnePopConditionedSFS<T>::compute_above(const PiecewiseCo
 {
     std::vector<Matrix<T> > C_above(H, Matrix<T>::Zero(n + 1, n)), csfs_above(H, Matrix<T>::Zero(3, n + 1));
     DEBUG << "compute above";
-    ThreadPool &tp = ThreadPool::getInstance();
     std::vector< std::future<void> > results;
     for (int j = 2; j < n + 3; ++j)
         results.emplace_back(
@@ -172,9 +171,9 @@ std::vector<Matrix<T> > OnePopConditionedSFS<T>::compute_above(const PiecewiseCo
             {
                 eta.tjj_double_integral_above(n, j, C_above);
             }));
-    for(auto && result: results) result.get();
+    for(auto && result: results) 
+        result.wait();
     Matrix<T> tmp;
-// #pragma omp parallel for
     results.clear();
     for (int h = 0; h < H; ++h)
         results.emplace_back(tp.enqueue([h, this, &csfs_above, &C_above] ()

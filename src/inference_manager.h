@@ -81,6 +81,7 @@ class InferenceManager
     struct { bool theta, rho, eta; } dirty;
 
     std::unique_ptr<const PiecewiseConstantRateFunction<adouble> > eta;
+    ThreadPool& tp;
 };
 
 template <size_t P>

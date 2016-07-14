@@ -41,10 +41,10 @@ class OnePopConditionedSFS : public ConditionedSFS<T>
     OnePopConditionedSFS(int, int);
     std::vector<Matrix<T> > compute(const PiecewiseConstantRateFunction<T> &) const;
 
-    // private:
     std::vector<Matrix<T> > compute_below(const PiecewiseConstantRateFunction<T> &) const;
     std::vector<Matrix<T> > compute_above(const PiecewiseConstantRateFunction<T> &) const;
 
+    private:
     // Variables
     static MatrixCache& cached_matrices(int n);
     static std::map<int, MatrixCache> matrix_cache;
@@ -54,6 +54,7 @@ class OnePopConditionedSFS : public ConditionedSFS<T>
     const MatrixCache mcache;
     // std::vector<Matrix<T> > csfs, csfs_below, csfs_above, C_above;
     const Matrix<double> Uinv_mp0, Uinv_mp2;
+    ThreadPool &tp;
 };
 
 template <typename T>
