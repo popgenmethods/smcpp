@@ -10,6 +10,7 @@
 #include "inference_bundle.h"
 #include "block_key.h"
 #include "marginalize_sfs.h"
+#include "ThreadPool.h"
 
 class HMM;
 

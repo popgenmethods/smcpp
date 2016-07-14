@@ -10,6 +10,7 @@
 #include "piecewise_constant_rate_function.h"
 #include "moran_eigensystem.h"
 #include "mpq_support.h"
+#include "ThreadPool.h"
 
 typedef struct 
 {

@@ -33,7 +33,9 @@ InferenceManager::InferenceManager(
     emission.setZero();
     hmms.resize(obs.size());
 
-#pragma omp parallel for
+// #pragma omp parallel for
+    ThreadPool &tp = ThreadPool::getInstance();
+    InferenceBundle *ibp = &ib;
     for (unsigned int i = 0; i < obs.size(); ++i)
     {
         // Move all validation to Python
@@ -44,9 +46,12 @@ InferenceManager::InferenceManager(
            if (obs[i](0, 0) > 1)
            throw std::runtime_error("Dataset did not validate: first observation must have span=1");
            */
-        DEBUG << "creating HMM";
-        hmmptr h(new HMM(i, obs[i], &ib));
-        hmms[i] = std::move(h);
+        tp.enqueue([i, ibp, this] 
+        {
+            DEBUG << "creating HMM";
+            hmmptr h(new HMM(i, this->obs[i], ibp));
+            this->hmms[i] = std::move(h);
+        });
     }
     // Collect all the block keys for recomputation later
     populate_emission_probs();

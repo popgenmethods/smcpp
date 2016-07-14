@@ -109,9 +109,15 @@ std::vector<Matrix<T> > OnePopConditionedSFS<T>::compute_below(const PiecewiseCo
     Matrix<T> tjj_below(H, n + 1);
     tjj_below.setZero();
     DEBUG << "tjj_double_integral below starts";
-#pragma omp parallel for
+// #pragma omp parallel for
+    ThreadPool &tp = ThreadPool::getInstance();
+    std::vector< std::future<void> > results;
     for (int h = 0; h < H; ++h)
-        eta.tjj_double_integral_below(n, h, tjj_below);
+        results.emplace_back(tp.enqueue([&eta, h, &tjj_below, this]
+        { 
+            eta.tjj_double_integral_below(this->n, h, tjj_below);
+        }));
+    for (auto &&result : results) result.get();
     DEBUG << "tjj_double_integral below finished";
     // for (int h = 1; h < H + 1; ++h)
     //     tjj_below.row(h - 1) = ts_integrals.block(eta.hs_indices[h - 1], 0, 
@@ -158,38 +164,47 @@ std::vector<Matrix<T> > OnePopConditionedSFS<T>::compute_above(const PiecewiseCo
 {
     std::vector<Matrix<T> > C_above(H, Matrix<T>::Zero(n + 1, n)), csfs_above(H, Matrix<T>::Zero(3, n + 1));
     DEBUG << "compute above";
-#pragma omp parallel for
+    ThreadPool &tp = ThreadPool::getInstance();
+    std::vector< std::future<void> > results;
     for (int j = 2; j < n + 3; ++j)
-        eta.tjj_double_integral_above(n, j, C_above);
+        results.emplace_back(
+            tp.enqueue([&eta, j, this, &C_above] ()
+            {
+                eta.tjj_double_integral_above(n, j, C_above);
+            }));
+    for(auto && result: results) result.get();
     Matrix<T> tmp;
-#pragma omp parallel for
+// #pragma omp parallel for
+    results.clear();
     for (int h = 0; h < H; ++h)
-    {
-        csfs_above[h].setZero();
-        Matrix<T> C0 = C_above[h].transpose(), C2 = C_above[h].colwise().reverse().transpose();
-        Vector<T> tmp0(mcache.X0.cols()), tmp2(mcache.X2.cols());
-        tmp0.setZero();
-        for (int j = 0; j < mcache.X0.cols(); ++j)
+        results.emplace_back(tp.enqueue([h, this, &csfs_above, &C_above] ()
         {
-            std::vector<T> v;
-            for (int i = 0; i < mcache.X0.rows(); ++i)
-                v.push_back(mcache.X0(i, j) * C0(i, j));
-            std::sort(v.begin(), v.end(), [] (T x, T y) { return myabs(x) > myabs(y); });
-            tmp0(j) = doubly_compensated_summation(v);
-        }
-        csfs_above[h].block(0, 1, 1, n) = tmp0.transpose().lazyProduct(Uinv_mp0);
-        tmp2.setZero();
-        for (int j = 0; j < mcache.X2.cols(); ++j)
-        {
-            std::vector<T> v;
-            for (int i = 0; i < mcache.X2.rows(); ++i)
-                v.push_back(mcache.X2(i, j) * C2(i, j));
-            std::sort(v.begin(), v.end(), [] (T x, T y) { return myabs(x) > myabs(y); });
-            tmp2(j) = doubly_compensated_summation(v);
-        }
-        csfs_above[h].block(2, 0, 1, n) = tmp2.transpose().lazyProduct(Uinv_mp2);
-        check_nan(csfs_above[h]);
-    }
+            csfs_above[h].setZero();
+            Matrix<T> C0 = C_above[h].transpose(), C2 = C_above[h].colwise().reverse().transpose();
+            Vector<T> tmp0(this->mcache.X0.cols()), tmp2(this->mcache.X2.cols());
+            tmp0.setZero();
+            for (int j = 0; j < this->mcache.X0.cols(); ++j)
+            {
+                std::vector<T> v;
+                for (int i = 0; i < this->mcache.X0.rows(); ++i)
+                    v.push_back(this->mcache.X0(i, j) * C0(i, j));
+                std::sort(v.begin(), v.end(), [] (T x, T y) { return myabs(x) > myabs(y); });
+                tmp0(j) = doubly_compensated_summation(v);
+            }
+            csfs_above[h].block(0, 1, 1, n) = tmp0.transpose().lazyProduct(Uinv_mp0);
+            tmp2.setZero();
+            for (int j = 0; j < this->mcache.X2.cols(); ++j)
+            {
+                std::vector<T> v;
+                for (int i = 0; i < this->mcache.X2.rows(); ++i)
+                    v.push_back(this->mcache.X2(i, j) * C2(i, j));
+                std::sort(v.begin(), v.end(), [] (T x, T y) { return myabs(x) > myabs(y); });
+                tmp2(j) = doubly_compensated_summation(v);
+            }
+            csfs_above[h].block(2, 0, 1, n) = tmp2.transpose().lazyProduct(Uinv_mp2);
+            check_nan(csfs_above[h]);
+        }));
+    for(auto && result: results) result.get();
     return csfs_above;
 }
 
