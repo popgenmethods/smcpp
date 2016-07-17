@@ -11,6 +11,7 @@ import logging
 import sys
 from collections import Counter
 import re
+import six
 from cStringIO import StringIO
 
 import smcpp.util
@@ -119,7 +120,7 @@ def parse_scrm(n, L, output, include_trees):
 
 def simulate(n, N0, theta, rho, L, include_trees=False, scrm_args=[]):
     # scrm will emit positions in [0, L] (inclusive).
-    seeds = np.random.randint(0, sys.maxint, size=3)
+    seeds = np.random.randint(0, six.MAXSIZE, size=3)
     r = 4 * N0 * rho * (L - 1)
     t = 4 * N0 * theta * L
     args = [n, 1, '-p', int(math.log10(L)) + 2, '-t', t, '-r', r, L, '-oSFS', '-seeds'] + list(seeds) + scrm_args

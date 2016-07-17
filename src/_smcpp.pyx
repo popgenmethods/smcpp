@@ -8,6 +8,7 @@ import collections
 import scipy.optimize
 import collections
 import wrapt
+import six
 from ad import adnumber, ADF
 
 import smcpp.logging as logging
@@ -19,8 +20,8 @@ abort = False
 cdef void logger_cb(const char* name, const char* level, const char* message) with gil:
     global abort
     try:
-        lvl = {"INFO": logging.INFO, "DEBUG": logging.DEBUG - 1, "DEBUG1": logging.DEBUG,
-                "CRITICAL": logging.CRITICAL, "WARNING": logging.WARNING}
+        lvl = {b"INFO": logging.INFO, b"DEBUG": logging.DEBUG - 1, b"DEBUG1": logging.DEBUG,
+                b"CRITICAL": logging.CRITICAL, b"WARNING": logging.WARNING}
         logging.getLogger(name).log(lvl[level.upper()], message)
     except KeyboardInterrupt:
         logging.getLogger(name).critical("Aborting")
@@ -63,6 +64,30 @@ cdef _make_em_matrix(vector[pMatrixD] mats):
         store_matrix(mats[i][0], &v[0, 0])
         ret.append(ary)
     return ret
+
+cdef object _adouble_to_ad(const adouble x, dlist):
+    if len(dlist) == 0:
+        return x.value()
+    r = adnumber(x.value())
+    cdef double[::1] vjac
+    jac = aca(np.zeros([len(dlist)]))
+    vjac = jac
+    fill_jacobian(x, &vjac[0])
+    for i, d in enumerate(dlist):
+        r.d()[d] = jac[i]
+    return r
+
+cdef _store_admatrix_helper(Matrix[adouble] &mat, dlist):
+    nder = len(dlist)
+    m = mat.rows()
+    n = mat.cols()
+    cdef int i
+    cdef int j
+    ary = aca(np.zeros([m, n]))
+    for i in range(m):
+        for j in range(n):
+            ary[i, j] = _adouble_to_ad(mat(i, j), dlist)
+    return ary
 
 def validate_observation(ob):
     if np.isfortran(ob):
@@ -243,15 +268,8 @@ cdef class _PyInferenceManager:
         for i in range(1, K):
             q += ad_rets[i]
         r = adnumber(toDouble(q))
-        cdef double[::1] vjac
-        dlist = self._model.dlist
-        if dlist:
-            r = adnumber(r)
-            jac = aca(np.zeros([len(dlist)]))
-            vjac = jac
-            fill_jacobian(q, &vjac[0])
-            for i, d in enumerate(dlist):
-                r.d()[d] = jac[i]
+        if self._model.dlist:
+            r = _adouble_to_ad(q, self._model.dlist)
         return r
 
     def loglik(self):
@@ -291,10 +309,11 @@ cdef class PyTwoPopInferenceManager(_PyInferenceManager):
 
     property model:
         def __get__(self):
-            return self._models
+            return self._model
 
         def __set__(self, model):
             assert len(self._emissions) == len(self._hs) - 1
+            self._model = model
             cdef ParameterVector params = make_params(model)
             with nogil:
                 self._im2.setParams(params, self._emissions_vec)
@@ -339,9 +358,18 @@ def balance_hidden_states(model, int M):
 def random_coal_times(model, t1, t2, K):
     cdef ParameterVector pv = make_params(model)
     cdef vector[double] v = []
-    cdef PiecewiseConstantRateFunction[double] *eta = new PiecewiseConstantRateFunction[double](pv, v)
-    times = [eta.random_time(t1, t2, np.random.randint(sys.maxint)) for _ in range(K)]
-    return zip(times, [eta.R(t) for t in times])
+    cdef unique_ptr[PiecewiseConstantRateFunction[adouble]] eta
+    eta.reset(new PiecewiseConstantRateFunction[adouble](pv, v))
+    cdef adouble t
+    times = []
+    for _ in range(K):
+        ary = []
+        t = eta.get().random_time(t1, t2, np.random.randint(six.MAXSIZE))
+        ary = [_adouble_to_ad(t, model.dlist)]
+        t = eta.get().R(t)
+        ary.append(_adouble_to_ad(t, model.dlist))
+        times.append(ary)
+    return times
 
 def raw_sfs(model, int n, double t1, double t2, below_only=False):
     cdef ParameterVector pv = make_params(model)
@@ -356,28 +384,6 @@ def raw_sfs(model, int n, double t1, double t2, below_only=False):
     _check_abort()
     return _store_admatrix_helper(dsfs, model.dlist)
 
-cdef _store_admatrix_helper(Matrix[adouble] &mat, dlist):
-    cdef double[:, ::1] v
-    cdef double[:, :, ::1] av
-    nder = len(dlist)
-    m = mat.rows()
-    n = mat.cols()
-    ary = aca(np.zeros([m, n]))
-    v = ary
-    if not dlist:
-        store_matrix(mat, &v[0, 0])
-        return ary
-    else:
-        jac = aca(np.zeros([m, n, nder]))
-        av = jac
-        store_matrix(mat, &v[0, 0], &av[0, 0, 0])
-        ary2 = np.zeros_like(ary, dtype=object)
-        for i in range(m):
-            for j in range(n):
-                ary2[i, j] = adnumber(ary[i, j])
-                for k in range(nder):
-                    ary2[i, j].d()[dlist[k]] = jac[i, j, k]
-        return ary2
 
 def thin_data(data, int thinning, int offset=0):
     '''Implement the thinning procedure needed to break up correlation

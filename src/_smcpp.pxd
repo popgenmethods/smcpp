@@ -2,6 +2,7 @@ from libcpp.vector cimport vector
 from libcpp.pair cimport pair
 from libcpp.map cimport map
 from libcpp cimport bool
+from libcpp.memory cimport unique_ptr
 
 cdef extern from "common.h":
     ctypedef vector[vector[adouble]] ParameterVector
@@ -17,6 +18,7 @@ cdef extern from "common.h":
     cdef cppclass Matrix[T]:
         int rows()
         int cols()
+        T& operator()(int, int)
     cdef double toDouble(const adouble &)
     void init_eigen()
     void init_logger_cb(void(*)(const char*, const char*, const char*))
@@ -67,4 +69,4 @@ cdef extern from "piecewise_constant_rate_function.h":
     cdef cppclass PiecewiseConstantRateFunction[T]:
         PiecewiseConstantRateFunction(const ParameterVector, const vector[double])
         T R(T x)
-        double random_time(const double, const double, const long long)
+        T random_time(const double, const double, const long long)
