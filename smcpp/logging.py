@@ -28,7 +28,4 @@ def getLogger(name):
     if multiprocessing.current_process().name == "MainProcess":
         return logging.getLogger(__name__)
     else:
-        # return multiprocessing.get_logger()
-        logger = multiprocessing.log_to_stderr()
-        logger.setLevel(multiprocessing.SUBDEBUG)
-        return logger
+        return multiprocessing.get_logger()

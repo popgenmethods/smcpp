@@ -34,4 +34,5 @@ class MoranEigensystem:
         self._Uinv = np.linalg.inv(self._U)
 
     def expm(self, R):
-        return (self._U * (self._D * R)[None, :]).dot(self._Uinv)
+        ed = np.exp(self._D * R)
+        return (self._U * ed[None, :]).dot(self._Uinv)
