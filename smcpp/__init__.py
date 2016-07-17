@@ -11,6 +11,3 @@ def _my_apply_chain_rule(ad_funcs, variables, lc_wrt_args, qc_wrt_args, cp_wrt_a
             lc_wrt_vars[var1] += dh*fdv1
     return (lc_wrt_vars, {}, {})
 ad._apply_chain_rule = _my_apply_chain_rule
-
-from . import pool
-pool.init_pool()
