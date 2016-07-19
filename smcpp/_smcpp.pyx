@@ -22,7 +22,7 @@ cdef void logger_cb(const char* name, const char* level, const char* message) wi
     try:
         lvl = {b"INFO": logging.INFO, b"DEBUG": logging.DEBUG - 1, b"DEBUG1": logging.DEBUG,
                 b"CRITICAL": logging.CRITICAL, b"WARNING": logging.WARNING}
-        logging.getLogger(name).log(lvl[level.upper()], message)
+        logging.getLogger(name).log(lvl[level.upper()], message.decode("UTF-8"))
     except KeyboardInterrupt:
         logging.getLogger(name).critical("Aborting")
         abort = True
@@ -297,6 +297,7 @@ cdef class PyTwoPopInferenceManager(_PyInferenceManager):
         with nogil:
             self._im2 = new TwoPopInferenceManager(n1, n2, self._Ls, self._obs_ptrs, self._hs)
             self._im = self._im2
+        self.emissions = np.zeros([len(hidden_states) - 1, 3, n1 + 1, n2 + 1])
 
     property emissions:
         def __set__(self, emissions):
@@ -392,28 +393,34 @@ def thin_data(data, int thinning, int offset=0):
     cdef int i = offset
     out = []
     cdef int[:, :] vdata = data
+    cdef int j
     cdef int k = data.shape[0]
-    cdef int span, a, b, nb, a1
+    cdef int span, a, a1
+    cdef int npop = data.shape[1] // 2 - 1
+    b = np.zeros(npop, dtype=int)
+    nb = np.zeros(npop, dtype=int)
+    thin = [0, 0] * npop
     for j in range(k):
         span = vdata[j, 0]
         a = vdata[j, 1]
-        b = vdata[j, 2]
-        nb = vdata[j, 3]
+        b[:] = vdata[j, 2::2]
+        nb[:] = vdata[j, 3::2]
         a1 = a
         if a1 == 2:
             a1 = 0
         while span > 0:
             if i < thinning and i + span >= thinning:
                 if thinning - i > 1:
-                    out.append([thinning - i - 1, a1, 0, 0])
-                if a == 2 and b == nb:
-                    out.append([1, 0, 0, nb])
+                    out.append([thinning - i - 1, a1] + thin)
+                if a == 2 and np.all(b == nb):
+                    fold = sum([[0, nbi] for nbi in nb])
+                    out.append([1, 0] + fold)
                 else:
-                    out.append([1, a, b, nb])
+                    out.append([1] + list(vdata[j, 1:]))
                 span -= thinning - i
                 i = 0
             else:
-                out.append([span, a1, 0, 0])
+                out.append([span, a1] + thin)
                 i += span
                 break
     return np.array(out, dtype=np.int32)
