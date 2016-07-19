@@ -1,5 +1,14 @@
 #include "inference_manager.h"
 
+PiecewiseConstantRateFunction<adouble>* defaultEta(const std::vector<double> &hidden_states)
+{
+    std::vector<std::vector<adouble> > params;
+    std::vector<adouble> p{adouble(1.0)};
+    params.push_back(p);
+    params.push_back(p);
+    return new PiecewiseConstantRateFunction<adouble>(params, hidden_states);
+}
+
 InferenceManager::InferenceManager(
         const int npop,
         const int sfs_dim,
@@ -19,6 +28,7 @@ InferenceManager::InferenceManager(
     tb(targets, &emission_probs),
     ib{&pi, &tb, &emission_probs, &saveGamma},
     dirty({true, true, true}),
+    eta(defaultEta(hidden_states)),
     tp(ThreadPool::getInstance())
 {
     if (*std::min_element(hidden_states.begin(), hidden_states.end()) != 0.)
