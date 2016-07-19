@@ -27,11 +27,11 @@ def lazy_extensions():
     extensions = [
             Extension(
                 "smcpp._smcpp",
-                sources=["src/_smcpp.pyx"] + cpps,
+                sources=["smcpp/_smcpp.pyx"] + cpps,
                 language="c++",
                 include_dirs=["src", np.get_include()] + include_dirs,
-                # extra_compile_args=["-O0", "-ggdb3", "-std=c++11", "-Wfatal-errors", "-Wno-unused-variable", "-Wno-unused-function", "-D_GLIBCXX_DEBUG", "-fopenmp"],
-                extra_compile_args=["-O2", "-std=c++11", "-Wno-deprecated-declarations"],
+                extra_compile_args=["-O0", "-ggdb3", "-std=c++11", "-Wfatal-errors", "-Wno-unused-variable", "-Wno-unused-function", "-D_GLIBCXX_DEBUG"],
+                # extra_compile_args=["-O2", "-std=c++11", "-Wno-deprecated-declarations"],
                 libraries=['gmp', 'gmpxx', 'gsl', 'gslcblas'],
                 extra_link_args=['-rdynamic'],
                 )]
@@ -40,7 +40,8 @@ def lazy_extensions():
                 Extension(
                     "smcpp._newick",
                     # sources=["src/_pypsmcpp.pyx", "src/conditioned_sfs.cpp", "src/hmm.cpp"],
-                    sources=["src/_newick.pyx"],
+                    sources=["smcpp/_newick.pyx"],
+                    include_dirs=["src"],
                     language="c++",
                     extra_compile_args=["-O2", "-std=c++11", "-Wfatal-errors", "-Wno-unused-variable", "-Wno-unused-function"]
                     )
