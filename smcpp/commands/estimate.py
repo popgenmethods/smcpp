@@ -8,22 +8,21 @@ import sys
 import itertools
 import sys
 import time
-from logging import getLogger
 import os
 import traceback
 
-logger = getLogger(__name__)
 
 # Package imports
+from ..logging import getLogger, setup_logging
+
+logger = getLogger(__name__)
 
 from .. import _smcpp, util, estimation_tools
 from ..model import SMCModel
 from ..analysis import Analysis
 from ..optimizer import SMCPPOptimizer
-from ..logging import init_logging
 
 np.set_printoptions(linewidth=120, suppress=True)
-
 
 def init_parser(parser):
     '''Configure parser and parse args.'''
@@ -51,7 +50,7 @@ def init_parser(parser):
     optimizer.add_argument('--block-size', type=int, default=3,
                            help="number of blocks to optimizer at a time for coordinate ascent")
     optimizer.add_argument('--regularization-penalty',
-                           type=float, help="regularization penalty", default=None)
+                           type=float, help="regularization penalty", default=.01)
     optimizer.add_argument('--pretrain-penalty', type=float,
                            help="regularization penalty for pretraining", default=1e-7)
     optimizer.add_argument('--regularizer',
@@ -86,7 +85,7 @@ def init_parser(parser):
                         help="Estimate divergence time using data set(s) from a second subpopulation")
     parser.add_argument("-o", "--outdir", help="output directory",
                         default=".", widget="DirChooser")
-    parser.add_argument('-v', '--verbose', action='count',
+    parser.add_argument('-v', '--verbose', action='count', default=0,
                         help="increase debugging output, specify multiply times for more")
     parser.add_argument(
         'data', nargs="+", help="data file(s) in SMC++ format", widget="MultiFileChooser")
@@ -109,8 +108,8 @@ def main(args):
         pass  # directory exists
 
     ## Initialize the logger
-    init_logging(args.outdir, args.verbose,
-                 os.path.join(args.outdir, ".debug.txt"))
+    setup_logging(args.verbose, os.path.join(args.outdir, ".debug.txt"))
+
     ## Save all the command line args and stuff
     logger.debug(sys.argv)
     logger.debug(args)

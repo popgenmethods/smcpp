@@ -6,7 +6,7 @@ from logging import getLogger
 logger = getLogger(__name__)
 import scipy.optimize
 import scipy.interpolate
-import multiprocessing
+import multiprocessing as mp
 import ad.admath, ad.linalg
 
 from . import _smcpp, util
@@ -36,87 +36,14 @@ def construct_time_points(t1, tK, pieces):
         count += p
     return np.concatenate([t1, time_points])
 
-##
-## Regularization
-##
-def regularizer(model, penalty, f, dump_piecewise=False):
-    ## Regularizer
-    reg = 0
-    cs = np.concatenate([[0], np.cumsum(model[2])])
-    if f[:3] == "log":
-        g = ad.admath.log10
-        f = f[3:]
-    else:
-        g = lambda x: x
-    if f in ("quadratic", "abs"):
-        for i in range(1, model.K):
-            reg += regularizer._regs[f](g(model[0, i - 1]), g(model[0, i]))
-        return penalty * reg
-    ## Spline fit / curvature penalty
-    assert f == "curvature"
-    x = np.cumsum(model[2]).astype("float")
-    y = np.array([g(_) for _ in model[0]], dtype=object)
-
-    # d2y = np.diff(y, 2)
-    # dx = np.diff(x)
-    # avgdx = (dx[1:] + dx[:-1]) / 2.
-    # curv = d2y / avgdx
-    # alpha = 1
-    # ecurv = (np.exp(alpha * x)[:-2] * curv**2).sum()
-    # return penalty * ecurv
-
-    # dydx = np.diff(y) / np.diff(x)
-    # mon = dydx[1:] * dydx[:-1]
-    # mon[mon > 0] *= 0
-    # return -penalty * mon.sum()
-    xy = list(zip(x, y))
-    
-    xavg = (x[1:] + x[:-1]) / 2.
-    yavg = (y[1:] + y[:-1]) / 2.
-    xy += list(zip(xavg, yavg))
-    pts = sorted(xy)
-    x, y = np.array(pts).T
-
-    return penalty * (np.diff(y, 2)**2).sum()
-    
-    ## Curvature 
-    # (d'')^2 = (6au + 2b)^2 = 36a^2 u^2 + 24aub + 4b^2
-    # int(d''^2, {u,0,1}) = 36a^2 / 3 + 24ab / 2 + 4b^2
-    curv = 0
-    for k in range(len(x) - 1):
-        a, b = coef[(4 * k):(4 * k + 2)]
-        x1, x2 = x[k:(k + 2)]
-        xi = x2 - x1
-        curv += (12 * a**2 * xi**3 + 12 * a * b * xi**2 + 4 * b**2 * xi)
-        print(x1, x2, a, b, curv)
-    if dump_piecewise:
-        s = "Piecewise[{"
-        arr = []
-        for k in range(len(x) - 1):
-            u = "(x-(%.2f))" % x[k]
-            arr.append("{" + "+".join(
-                "%.6f*%s^%d" % (float(xi), u, 3 - i) 
-                for i, xi in enumerate(coef[(4 * k):(4 * (k + 1))])) + ",x>=%.2f&&x<%.2f}" % (x[k], x[k + 1]))
-        s += ",\n".join(arr) + "}];"
-        print(s, file=sys.stderr)
-        print("curv: %f" % curv, file=sys.stderr)
-    return penalty * curv
-regularizer._regs = {
-        'abs': lambda x, y: abs(x - y),
-        'quadratic': lambda x, y: (x - y)**2,
-        'logabs': lambda x, y: abs(ad.admath.log(x / y)),
-        'logquadratic': lambda x, y: (ad.admath.log(x / y))**2
-        }
-
-## TODO: move this to util
 def _thin_helper(args):
     thinned = np.array(_smcpp.thin_data(*args), dtype=np.int32)
     return util.compress_repeated_obs(thinned)
 
 def thin_dataset(dataset, thinning):
     '''Only emit full SFS every <thinning> sites'''
-    p = multiprocessing.Pool()
-    ret = p.map(_thin_helper, [(chrom, thinning, i) for i, chrom in enumerate(dataset)])
+    p = mp.get_context("spawn").Pool()
+    ret = list(p.map(_thin_helper, [(chrom, thinning, i) for i, chrom in enumerate(dataset)]))
     p.close()
     p.join()
     p.terminate()
@@ -163,27 +90,37 @@ def pretrain(model, sample_csfs, bounds, theta0, folded, penalty):
 def break_long_spans(dataset, rho, length_cutoff):
     # Spans longer than this are broken up
     # FIXME: should depend on rho
-    span_cutoff = 1000000
+    span_cutoff = 100000
     obs_list = []
     obs_attributes = {}
     for fn, obs in enumerate(dataset):
-        long_spans = np.where((obs[:, 0] >= span_cutoff) & (obs[:, 1] == -1) & (obs[:, 3] == 0))[0]
+        miss = obs[0].copy()
+        miss[:] = 0
+        miss[:2] = [1, -1]
+        long_spans = np.where(
+            (obs[:, 0] >= span_cutoff) &
+            (obs[:, 1] == -1) &
+            np.all(obs[:, 3::2] == 0, axis=1))[0]
         cob = 0
         logger.debug("Long missing spans: \n%s" % str(obs[long_spans]))
         positions = np.insert(np.cumsum(obs[:, 0]), 0, 0)
         for x in long_spans:
             s = obs[cob:x, 0].sum()
             if s > length_cutoff:
-                obs_list.append(np.insert(obs[cob:x], 0, [1, -1, 0, 0], 0))
+                obs_list.append(np.insert(obs[cob:x], 0, miss, 0))
                 sums = obs_list[-1].sum(axis=0)
                 s2 = obs_list[-1][:,1][obs_list[-1][:,1]>=0].sum()
-                obs_attributes.setdefault(fn, []).append((positions[cob], positions[x], sums[0], 1. * s2 / sums[0], 1. * sums[2] / sums[0]))
+                obs_attributes.setdefault(fn, []).append(
+                    (positions[cob], positions[x],
+                     sums[0], 1. * s2 / sums[0], 1. * sums[2] / sums[0]))
             else:
                 logger.info("omitting sequence length < %d as less than length cutoff %d" % (s, length_cutoff))
             cob = x + 1
         s = obs[cob:, 0].sum()
+        miss = np.zeros_like(obs[0])
+        miss[:2] = [1, -1]
         if s > length_cutoff:
-            obs_list.append(np.insert(obs[cob:], 0, [1, -1, 0, 0], 0))
+            obs_list.append(np.insert(obs[cob:], 0, miss, 0))
             sums = obs_list[-1].sum(axis=0)
             s2 = obs_list[-1][:,1][obs_list[-1][:,1]>=0].sum()
             obs_attributes.setdefault(fn, []).append((positions[cob], positions[-1], sums[0], 1. * s2 / sums[0], 1. * sums[2] / sums[0]))

@@ -4,13 +4,14 @@ import multiprocessing
 import inflect
 import sys
 
-from . import estimation_tools, _smcpp, util, logging
+from . import estimation_tools, _smcpp, util, logging, optimizer
 from .spline import PChipSpline, CubicSpline, AkimaSpline
 from .estimation_result import EstimationResult
 from .model import SMCModel
 from .observe import Observer
 
 logger = logging.getLogger(__name__)
+
 
 def _tied_property(attr):
     def getx(self):
@@ -30,9 +31,11 @@ class Analysis(Observer):
         self._perform_thinning(args.thinning)
         self._normalize_data(args.length_cutoff)
         self._init_inference_manager(args.folded)
+        self._init_optimizer(args.outdir, args.block_size, args.fix_rho)
 
         # Misc. parameter initialiations
         self._penalty = args.regularization_penalty
+        self._niter = args.em_iterations
     
     ## PRIVATE INIT FUNCTIONS
     def _load_data(self, files):
@@ -66,9 +69,9 @@ class Analysis(Observer):
                 Lseg += conds.sum()
             segfrac = 1. * Lseg / self._L
             self._theta = segfrac / (1. / np.arange(1, np.sum(self._n))).sum()
-        logger.info("theta: %f", theta)
+        logger.info("theta: %f", self._theta)
         self._rho = rho or self._theta / 4.
-        logger.info("rho: %f", rho)
+        logger.info("rho: %f", self._rho)
 
     def _init_bounds(self, Nmin):
         ## Construct bounds
@@ -162,12 +165,26 @@ class Analysis(Observer):
         self._im.folded = folded
         self._model.register(self)
 
+    def _init_optimizer(self, outdir, block_size, fix_rho):
+        if self._npop == 1:
+            self._optimizer = optimizer.SMCPPOptimizer(self)
+        elif self._npop == 2:
+            self._im = optimizer.TwoPopOptimizer(self)
+        self._optimizer.block_size = block_size
+        self._optimizer.register(optimizer.AnalysisSaver(outdir))
+        if not fix_rho:
+            self._optimizer.register(optimizer.ParameterOptimizer("rho", (1e-6, 1e-2)))
+
     # FIXME re-enable this
     # def _pretrain(self, theta, folded, penalty):
     #     estimation_tools.pretrain(self._model, self._sfs, self._bounds, theta, folded, penalty)
     ## END OF PRIVATE FUNCTIONS
 
     ## PUBLIC INTERFACE
+    def run(self):
+        'Perform the analysis.'
+        self._optimizer.run(self._niter)
+
     def Q(self):
         'Value of Q() function in M-step.'
         return self._im.Q() + self._penalty * self._model.regularizer()

@@ -1,123 +1,164 @@
 from __future__ import absolute_import, division, print_function
 import numpy as np
 import scipy.optimize
-import logging
 import os.path, os
 import ad, ad.admath
+from abc import ABCMeta, abstractmethod
 
-from . import estimation_tools, spg
+from . import estimation_tools, logging
+from .observe import Observer, Observable
 
 logger = logging.getLogger(__name__)
 
-class PopulationOptimizer(object):
-    _npop = 1
-    def __init__(self, population, outdir, regularization_penalty):
-        self._pop = population
-        self._outdir = outdir
-        self._penalty = regularization_penalty
-        logger.debug("Initializing model")
-        logger.debug("Performing initial E step")
-        self._pop.E_step()
 
-    def run(self, niter, blocks, fix_rho):
-        pop = self._pop
-        model = pop.model
-        ll = pop.loglik()
-        reg = model.regularizer()
-        llold = ll - self._penalty * reg
-        logger.info("ll:%f reg:%f" % (ll, reg))
-        logger.info("Starting loglik: %f" % llold)
-        for i in range(niter):
-            logger.info("EM iteration %d/%d" % (i + 1, niter))
-            logger.info("\tM-step...")
-            if not fix_rho:
-                self._optimize_param("rho")
-            logger.debug("starting model:\n%s\n%s" % (
-                np.array_str(model.y.astype('float'), precision=3),
-                np.array_str(model.stepwise_values().astype(
-                    'float'), precision=3)))
-            for b in range(0, model.K - blocks + 1, blocks - 2):
-            # for b in range(0, model.K):
-                self._coords = list(range(b, min(model.K, b + blocks)))
-                logger.info("optimizing coords:\n%s" % str(self._coords))
-                self._optimize()
-            logger.info("Current model:\n%s" % 
-                    np.array_str(np.array(model.stepwise_values()).astype(float), precision=2))
-            model._spline.dump()
-            logger.info("\tE-step...")
-            self._pop.E_step()
-            ll = self._pop.loglik()
-            reg = model.regularizer()
-            logger.info("ll:%f reg:%f" % (ll, reg))
-            ll -= self._penalty * reg
-            logger.info("\tNew/old loglik: %f/%f" % (ll, llold))
-            if ll < llold:
-                logger.warn("Log-likelihood decreased")
-            llold = ll
-            hso = np.sum(self._pop._im.xisums, axis=(0, 1))
-            hso /= hso.sum()
-            logger.debug("hidden state occupancy: %s", hso)
-            self._pop.dump(os.path.join(self._outdir, ".pop0.iter%d" % i))
+class AbstractOptimizer(Observable):
+    '''
+    Abstract representation of the execution flow of the optimizer.
+    '''
+    def __init__(self, analysis):
+        Observable.__init__(self)
+        self._analysis = analysis
 
-        ## Optimization concluded
-        self._pop.dump(os.path.join(self._outdir, "pop0.final"))
-        return llold
+    @abstractmethod
+    def _coordinates(self, i):
+        'Return a list of groups of coordinates to be optimized at iteration i.'
+        return []
 
-    def _f_param(self, x, param):
-        setattr(self._pop, param, x)
-        q = -float(self._pop.Q()) # will return adouble, don't want
-        logger.debug("f_%s: q(%f)=%f" % (param, x, q))
-        return q
+    @abstractmethod
+    def _bounds(self, coords):
+        'Return a list of bounds for each coordinate in :coords:.'
+        return []
 
-    def _f(self, xs):
-        model = self._pop.model
-        xs = ad.adnumber(xs)
-        model[self._coords] = xs
-        q = -self._pop.Q()
-        reg = model.regularizer()
-        logger.debug("\n" + np.array_str(model.y.astype(float), precision=2, max_line_width=100))
-        logger.debug("\n" + np.array_str(model.stepwise_values().astype(float), precision=2, max_line_width=100))
-        logger.debug((float(q), float(reg), float(q + reg)))
-        logger.debug("dq:\n" + np.array_str(np.array(list(map(q.d, xs))), max_line_width=100, precision=2))
-        logger.debug("dreg:\n" + np.array_str(np.array(list(map(reg.d, xs))), max_line_width=100, precision=2))
-        q += self._penalty * reg
+    def _f(self, x, analysis, coords):
+        x = ad.adnumber(x)
+        analysis.model[coords] = x
+        q = -analysis.Q()
         ret = [q.x, np.array(list(map(q.d, xs)))]
         return ret
+        # logger.debug("\n" + np.array_str(model.y.astype(float), precision=2, max_line_width=100))
+        # logger.debug("\n" + np.array_str(model.stepwise_values().astype(float), precision=2, max_line_width=100))
+        # logger.debug((float(q), float(reg), float(q + reg)))
+        # logger.debug("dq:\n" + np.array_str(np.array(list(map(q.d, xs))), max_line_width=100, precision=2))
+        # logger.debug("dreg:\n" + np.array_str(np.array(list(map(reg.d, xs))), max_line_width=100, precision=2))
 
-    def _optimize_param(self, param):
-        logger.debug("Updating %s" % param)
-        if param == "theta":
-            d = (3, -1)
-        elif param == "rho":
-            d = (4, -1)
-        else:
+    def run(self, niter):
+        self.update_observers('begin')
+        model = self._analysis.model
+        self._analysis.E_step()
+        for i in range(niter):
+            # Perform model optimization
+            self.update_observers('pre-M step', i=i, niter=niter)
+            coord_list = self._coordinates(i)
+            for coords in coord_list:
+                bounds = self._bounds(coords)
+                x0 = model[coords]
+                res = scipy.optimize.minimize(self._f, x0, 
+                        args=(self._analysis, coords,), 
+                        bounds=bounds, 
+                        method="L-BFGS-B")
+            self.update_observers('post-M step', results=res, i=i)
+            # Perform E-step
+            self.update_observers('pre-E step', i=i)
+            self._analysis.E_step()
+            self.update_observers('post-E step', i=i)
+        # Conclude the optimization and perform any necessary callbacks.
+        self.update_observers('optimization finished')
+
+    def update_observers(self, *args, **kwargs):
+        kwargs.update({'analysis': self._analysis})
+        Observable.update_observers(self, *args, **kwargs)
+
+## LISTENER CLASSES
+class HiddenStateOccupancyPrinter(Observer):
+
+    def update(self, message, *args, **kwargs):
+        if message == "post-E step":
+            hso = np.sum(kwargs['analysis']._im.xisums, axis=(0, 1))
+            hso /= hso.sum()
+            logger.debug("hidden state occupancy: %s", hso)
+
+class ProgressPrinter(Observer):
+
+    def update(self, message, *args, **kwargs):
+        if message == "pre-M step":
+            logger.info("Optimization iteration %d of %d...", kwargs['i'] + 1, kwargs['niter'])
+        elif message == "pre-E step":
+            logger.info("Running E-step...")
+        elif message == "post-E step":
+            logger.info("E-step completed.")
+
+class LoglikelihoodPrinter(Observer):
+
+    def update(self, message, *args, **kwargs):
+        if message == "post-E step":
+            ll = kwargs['analysis'].loglik()
+            logger.info("Loglik: %f", ll)
+
+class AnalysisSaver(Observer):
+
+    def __init__(self, outdir):
+        self._outdir = outdir
+
+    def update(self, message, *args, **kwargs):
+        dump = kwargs['analysis'].dump
+        if message == "post-E step":
+            dump(os.path.join(self._outdir, ".model.iter%d" % i))
+        elif message == "optimization finished":
+            dump(os.path.join(self._outdir, "model.iter%d" % i))
+
+class ParameterOptimizer(Observer):
+
+    def __init__(self, param, bounds):
+        self._param = param
+        self._bounds = bounds
+
+    def update(self, message, *args, **kwargs):
+        if message != "pre-M step":
+            return
+        param = self._param
+        logger.debug("Updating %s", param)
+        analysis = kwargs['analysis']
+        if param not in ("theta", "rho"):
             raise RuntimeError("unrecognized param")
-        x0 = getattr(self._pop, param)
-        logger.info("old %s: f(%g)=%g" % (param, x0, self._f_param(x0, param)))
-        bounds = (1e-6, 1e-2)
-        res = scipy.optimize.minimize_scalar(self._f_param, args=(param,), method='bounded', bounds=bounds)
-        logger.info("new %s: f(%g)=%g" % (param, res.x, res.fun))
-        setattr(self._pop, param, res.x)
+        x0 = getattr(analysis, param)
+        logger.debug("Old %s: Q(%g)=%g", param, x0,
+                     self._f(x0, analysis, param))
+        res = scipy.optimize.minimize_scalar(self._f,
+                                             args=(analysis, param),
+                                             method='bounded',
+                                             bounds=self._bounds)
+        logger.debug("New %s: Q(%g)=%g", param, res.x, res.fun)
+        setattr(analysis, param, res.x)
 
-    def _optimize(self):
-        model = self._pop.model
-        logger.debug("Performing a round of optimization")
-        x0 = model[self._coords].astype('float')
-        if os.environ.get("SMCPP_GRADIENT_CHECK", False):
-            logger.info("pre gradient check")
-            eps = 1e-6
-            logger.info("gradient check")
-            f0, fp = self._f(x0)
-            for i in range(len(x0)):
-                x0c = x0.copy()
-                x0c[i] += eps
-                f1, _ = self._f(x0c)
-                logger.info((i, f1, f0, (f1 - f0) / eps, fp[i]))
-        bounds = np.log(self._pop.bounds[0, self._coords])
-        res = scipy.optimize.fmin_l_bfgs_b(self._f, x0, None, pgtol=.01, factr=1e7, bounds=bounds)
-        # res = scipy.optimize.fmin_tnc(self._f, x0, None, bounds=bounds)
-        logger.debug(res)
-        if res[2]['warnflag']:
-            logger.warn(res[2])
-        model[self._coords] = res[0]
-        return res[1]
+    def _f(self, x, analysis, param):
+        setattr(analysis, param, x)
+        # derivatives curretly not supported for 1D optimization. not
+        # clear if they really help.
+        return -float(analysis.Q()) 
+
+class SMCPPOptimizer(AbstractOptimizer):
+    'Model fitting for one population.'
+    def __init__(self, analysis):
+        AbstractOptimizer.__init__(self, analysis)
+        self.register(LoglikelihoodPrinter())
+        self.register(HiddenStateOccupancyPrinter())
+        self.register(ProgressPrinter())
+
+    def _coordinates(self):
+        model = self._analysis.model
+        return [list(range(b, min(model.K, b + self.block_size))) 
+                for b in range(0, model.K - self.block_size + 1, self.block_size - 2)]
+
+class TwoPopulationOptimizer(SMCPPOptimizer):
+
+    def __init__(self, analysis, outdir, fix_rho, split_bounds=None):
+        AnalysisOptimizer.__init__(analysis)
+        if split_bounds is not None:
+            self.register(ParameterOptimizer("split", split_bounds))
+
+    def _coordinates(self):
+        model = self._analysis.model
+        c1 = [list(range(b, min(model.K, b + self.block_size))) 
+                for b in range(0, model.K - self.block_size + 1, self.block_size - 2)]
+        c2 = [tuple(a for a in cc if model.split_ind <= a) for cc in c1]
+        return [(i, cc) for i, c in enumerate([c1, c2]) for cc in c]

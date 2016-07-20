@@ -7,7 +7,7 @@ import sys
 from pysam import VariantFile, TabixFile
 logger = getLogger(__name__)
 
-from ..logging import init_logging
+from ..logging import setup_logging
 from ..util import optional_gzip, RepeatingWriter
 
 
@@ -19,17 +19,20 @@ def init_parser(parser):
     parser.add_argument("--missing-cutoff", "-c", metavar="c", type=int, default=None,
             help="treat runs of homozygosity longer than <c> base pairs as missing")
     parser.add_argument("--mask", "-m", help="BED-formatted mask of missing regions", widget="FileChooser")
+    parser.add_argument("--pop2", "-p", nargs="+", metavar="sample_id",
+            help="Column(s) representing second population")
     parser.add_argument("vcf", metavar="vcf[.gz]", help="input VCF file", widget="FileChooser")
     parser.add_argument("out", metavar="out[.gz]", help="output SMC++ file", widget="FileChooser")
     parser.add_argument("contig", help="contig to parse")
-    parser.add_argument("sample_ids", nargs="+", help="Column(s) to pull from the VCF, or file containing the same.")
+    parser.add_argument("sample_ids", nargs="+", metavar="sample_id",
+            help="Column(s) to pull from the VCF, or file containing the same.")
 
 def validate(args):
     if args.missing_cutoff and args.mask:
         raise RuntimeError("--missing-cutoff and --mask are mutually exclusive")
 
 def main(args):
-    init_logging(".", False)
+    setup_logging(0, None)
     validate(args)
     if len(args.sample_ids) == 1:
         try:
@@ -39,14 +42,24 @@ def main(args):
             pass
     dist = args.sample_ids[args.distinguished_index]
     undist = [sid for j, sid in enumerate(args.sample_ids) if j != args.distinguished_index]
+    npop = 1
+    if args.pop2:
+        logger.info("Population 1:")
+        npop = 2
     logger.info("Distinguished sample: " + dist)
     logger.info("Undistinguished samples: " + ",".join(undist))
+    if args.pop2:
+        logger.info("Population 2:")
+        logger.info("Undistinguished samples: " + ",".join(args.pop2))
+        p2 = args.pop2
+
+    ## Start parsing
     vcf = VariantFile(args.vcf)
     with optional_gzip(args.out, "wt") as out:
         samples = list(vcf.header.samples)
         if dist not in samples:
             raise RuntimeError("Distinguished lineage not found in data?")
-        missing = [u for u in undist if u not in samples]
+        missing = [u for slist in [undist, p2] for u in slist if u not in samples]
         if missing:
             msg = "The following samples were not found in the data: %s. " % ", ".join(missing)
             if args.ignore_missing:
@@ -54,8 +67,8 @@ def main(args):
             else:
                 msg += "If you want to continue without these samples, use --ignore-missing."
                 raise RuntimeError(msg)
-        undist = [u for u in undist if u not in missing]
-        nb = 2 * len(undist)
+        undist = [[u for u in slist if u not in missing] for slist in [undist, p2]][:npop]
+        nb = [2 * len(u) for u in undist]
 
         # function to convert a VCF record to our format <span, dist gt, undist gt, # undist>
         def rec2gt(rec):
@@ -64,10 +77,11 @@ def main(args):
                 a = -1
             else:
                 a = sum(allele != ref for allele in rec.samples[dist].alleles)
-            bs = [allele != ref for u in undist for allele in rec.samples[u].alleles if allele is not None]
-            b = sum(bs)
-            nb = len(bs)
-            return [a, b, nb]
+            bs = [[allele != ref for u in slist for allele in rec.samples[u].alleles if allele is not None]
+                   for slist in undist]
+            b = [sum(_) for _ in bs]
+            nb = [len(_) for _ in bs]
+            return [a] + list(sum(zip(b, nb), tuple()))
 
         region_iterator = vcf.fetch(contig=args.contig)
         contig_length = vcf.header.contigs[args.contig].length
@@ -105,22 +119,24 @@ def main(args):
                         yield "mask", cmask
                         cmask = next(mask_iterator, None)
 
+        nb_miss = [0, 0] * len(nb)
+        nb_nonseg = list(sum(zip([0] * len(nb), nb), tuple()))
         with RepeatingWriter(out) as rw:
             records = interleaved()
             last_pos = 0
             for ty, rec in records:
                 if ty == "mask":
                     span = rec[1] - last_pos
-                    rw.write([span, 0, 0, nb])
-                    rw.write([rec[2] - rec[1] + 1, -1, 0, 0])
+                    rw.write([span, 0] + nb_nonseg)
+                    rw.write([rec[2] - rec[1] + 1, -1] + nb_miss)
                     last_pos = rec[2]
                     continue
                 abnb = rec2gt(rec)
                 span = rec.pos - last_pos - 1
                 if 1 <= span <= args.missing_cutoff:
-                    rw.write([span, 0, 0, nb])
+                    rw.write([span, 0] + nb_nonseg)
                 elif span > args.missing_cutoff:
-                    rw.write([span, -1, 0, 0])
+                    rw.write([span, -1] + nb_miss)
                 rw.write([1] + abnb)
                 last_pos = rec.pos
-            rw.write([contig_length - last_pos, 0, 0, nb])
+            rw.write([contig_length - last_pos, 0] + nb_nonseg)

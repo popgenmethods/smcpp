@@ -10,7 +10,6 @@ class Observer(object):
 
 
 class Observable(object):
- 
     def __init__(self):
         self.observers = []
  

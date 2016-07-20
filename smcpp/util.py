@@ -225,7 +225,9 @@ def config2dict(cp):
 
 def compress_repeated_obs(dataset):
     # pad with illegal value at starting position
-    dataset = np.insert(dataset, 0, [1, -999, 0, 0], 0)
+    nonce = np.zeros_like(dataset[0])
+    nonce[:2] = [1, -999]
+    dataset = np.insert(dataset, 0, nonce, 0)
     nonreps = np.any(dataset[1:, 1:] != dataset[:-1, 1:], axis=1)
     newob = dataset[1:][nonreps]
     csw = np.cumsum(dataset[:, 0])[np.where(nonreps)]
@@ -261,7 +263,8 @@ class RepeatingWriter:
 
     def _write_last_ob(self):
         if self.last_ob is not None and self.last_ob[0] > 0:
-            self.f.write("%d %d %d %d\n" % tuple(self.last_ob))
+            fmtstr = " ".join(["%d"] * len(self.last_ob)) + "\n"
+            self.f.write(fmtstr % tuple(self.last_ob))
             self.i += 1
 
     def __enter__(self):

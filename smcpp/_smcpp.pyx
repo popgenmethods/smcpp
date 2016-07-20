@@ -158,12 +158,10 @@ cdef class _PyInferenceManager:
 
 
     def E_step(self, forward_backward_only=False):
-        logger.debug("Forward-backward algorithm...")
         cdef bool fbOnly = forward_backward_only
         with nogil:
             self._im.Estep(fbOnly)
         _check_abort()
-        logger.debug("Forward-backward algorithm finished.")
 
     property model:
         def __get__(self):

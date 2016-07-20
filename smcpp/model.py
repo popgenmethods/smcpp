@@ -11,7 +11,6 @@ from .observe import Observable
 logger = logging.getLogger(__name__)
 
 class SMCModel(Observable):
-
     def __init__(self, s, knots, spline_class=spline.PChipSpline):
         Observable.__init__(self)
         self._spline_class = spline_class
