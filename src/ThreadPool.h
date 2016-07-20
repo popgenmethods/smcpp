@@ -1,3 +1,27 @@
+// Portions of this code (the thread pool part) are from 
+// https://github.com/progschj/ThreadPool. The original copyright
+// notice is reproduced below.
+// 
+// Copyright (c) 2012 Jakob Progsch, Václav Zeman
+// 
+// This software is provided 'as-is', without any express or implied
+// warranty. In no event will the authors be held liable for any damages
+// arising from the use of this software.
+// 
+// Permission is granted to anyone to use this software for any purpose,
+// including commercial applications, and to alter it and redistribute it
+// freely, subject to the following restrictions:
+// 
+//    1. The origin of this software must not be misrepresented; you must not
+//    claim that you wrote the original software. If you use this software
+//    in a product, an acknowledgment in the product documentation would be
+//    appreciated but is not required.
+// 
+//    2. Altered source versions must be plainly marked as such, and must not be
+//    misrepresented as being the original software.
+// 
+//    3. This notice may not be removed or altered from any source
+//    distribution.
 #ifndef THREAD_POOL_H
 #define THREAD_POOL_H
 
@@ -43,6 +67,10 @@ class ThreadPool : public Singleton<ThreadPool>
         template<class F, class... Args>
             auto enqueue(F&& f, Args&&... args)
             -> std::future<typename std::result_of<F(Args...)>::type>;
+        template<class R, class Iter, class U = typename std::iterator_traits<Iter>::value_type>
+            auto parfor(std::function<R(U)>&& F, Iter&& iter) -> std::vector<R>;
+        template<class R> 
+            auto parfor(std::function<R(int)>&& F, const int M) -> std::vector<R>;
     private:
         // need to keep track of threads so we can join them
         std::vector< std::thread > workers;
@@ -83,8 +111,28 @@ class ThreadPool : public Singleton<ThreadPool>
                 );
 }
 
+template<class R, class Iter, class U = typename std::iterator_traits<Iter>::value_type>
+auto parfor(std::function<R(U)>&& F, Iter&& it) -> std::vector<R> 
+{
+    std::future<R> results;
+    std::vector<R> ret;
+    for (U &u : it)
+        results.emplace_back(enqueue(std::bind(F, u)));
+    for (auto &res : results)
+        ret.push_back(res.get());
+    return ret;
+}
+
+template<class R> 
+    auto parfor(std::function<R(int)>&& F, int M) -> std::vector<R>
+{
+    std::vector<int> rng(M);
+    std::iota(rng.begin(), rng.end(), 0);
+    return parfor(F, rng);
+}
+
 // add new work item to the pool
-    template<class F, class... Args>
+template<class F, class... Args>
 auto ThreadPool::enqueue(F&& f, Args&&... args)
     -> std::future<typename std::result_of<F(Args...)>::type>
 {
