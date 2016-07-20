@@ -48,14 +48,6 @@ InferenceManager::InferenceManager(
     InferenceBundle *ibp = &ib;
     for (unsigned int i = 0; i < obs.size(); ++i)
     {
-        // Move all validation to Python
-        /*
-           int max_n = obs[i].middleCols(1, 2).rowwise().sum().maxCoeff();
-           if (max_n > n + 2 - 1)
-           throw std::runtime_error("Dataset did not validate: an observation has derived allele count greater than n + 1");
-           if (obs[i](0, 0) > 1)
-           throw std::runtime_error("Dataset did not validate: first observation must have span=1");
-           */
         tp.enqueue([i, ibp, this] 
         {
             DEBUG << "creating HMM";
@@ -81,27 +73,6 @@ void InferenceManager::recompute_initial_distribution()
     pi /= pi.sum();
     check_nan(pi);
 }
-
-/*
-   std::map<int, Matrix<double> > InferenceManager::fill_subemissions()
-{
-    std::map<int, Matrix<double> > ret;
-    for (int m : nbs)
-    {
-        // FIXME: this direct sum representation is pretty wasteful
-        Matrix<double> M(3 * (n + 1), 3 * (m + 1));
-        M.setZero();
-        for (int i = 0; i < n + 1; ++i)
-            for (int j = 0; j < m + 1; ++j)
-                M(i, j) = gsl_ran_hypergeometric_pdf(j, i, n - i, m);
-        M.block(n + 1, m + 1, n + 1, m + 1) = M.block(0, 0, n + 1, m + 1);
-        M.block(2 * (n + 1), 2 * (m + 1), n + 1, m + 1) = M.block(0, 0, n + 1, m + 1);
-        ret.insert({m, M});
-    }
-    return ret;
-}
-*/
-
 
 void InferenceManager::setRho(const double rho)
 {
@@ -370,7 +341,7 @@ Matrix<adouble> sfs_cython(const int n, const ParameterVector p,
         const double t1, const double t2, bool below_only)
 {
     std::vector<double> hs{t1, t2};
-    OnePopConditionedSFS<adouble> csfs(n - 2, 1);
+    OnePopConditionedSFS<adouble> csfs(n);
     std::vector<Matrix<adouble> > v;
     PiecewiseConstantRateFunction<adouble> eta(p, hs);
     if (below_only)

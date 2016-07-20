@@ -116,7 +116,7 @@ class OnePopInferenceManager final : public NPopInferenceManager<1>
             const std::vector<double> hidden_states) :
         NPopInferenceManager(FixedVector<int, 1>::Constant(n),
                 obs_lengths, observations, hidden_states, 
-                new OnePopConditionedSFS<adouble>(n, hidden_states.size() - 1)) {}
+                new OnePopConditionedSFS<adouble>(n)) {}
 };
 
 class TwoPopInferenceManager : public NPopInferenceManager<2>

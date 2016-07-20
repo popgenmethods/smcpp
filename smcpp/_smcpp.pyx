@@ -331,6 +331,7 @@ cdef class PyRateFunction:
             self._eta.reset(new PiecewiseConstantRateFunction[adouble](params, _hs))
 
     def R(self, t):
+        assert np.isfinite(t)
         cdef adouble Rt = self._eta.get().R(adouble(t))
         return _adouble_to_ad(Rt, self._model.dlist)
 
@@ -350,7 +351,7 @@ def raw_sfs(model, int n, double t1, double t2, below_only=False):
     cdef ParameterVector pv = make_params(model)
     cdef Matrix[adouble] dsfs
     cdef Matrix[double] sfs
-    ret = aca(np.zeros([3, n - 1]))
+    ret = aca(np.zeros([3, n + 1]))
     cdef double[:, ::1] vret = ret
     cdef vector[pair[int, int]] derivs
     cdef bool bo = below_only

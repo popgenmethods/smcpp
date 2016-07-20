@@ -94,8 +94,8 @@ mpq_class pnkb_undist(int n, int m, int l3)
 }
 
 template <typename T>
-OnePopConditionedSFS<T>::OnePopConditionedSFS(int n, int H) :
-    n(n), H(H),
+OnePopConditionedSFS<T>::OnePopConditionedSFS(int n) : 
+    n(n),
     mei(compute_moran_eigensystem(n)), mcache(cached_matrices(n)),
     Uinv_mp0(mei.Uinv.rightCols(n).template cast<double>()), 
     Uinv_mp2(mei.Uinv.reverse().leftCols(n).template cast<double>()),
@@ -106,33 +106,31 @@ template <typename T>
 std::vector<Matrix<T> > OnePopConditionedSFS<T>::compute_below(const PiecewiseConstantRateFunction<T> &eta) const
 {
     DEBUG << "compute below";
-    std::vector<Matrix<T> > csfs_below(H, Matrix<T>::Zero(3, n + 1));
-    Matrix<T> tjj_below(H, n + 1);
+    const int M = eta.hidden_states.size() - 1;
+    std::vector<Matrix<T> > csfs_below(M, Matrix<T>::Zero(3, n + 1));
+    Matrix<T> tjj_below(M, n + 1);
     tjj_below.setZero();
     DEBUG << "tjj_double_integral below starts";
     std::vector< std::future<void> > results;
-    for (int h = 0; h < H; ++h)
-        results.emplace_back(tp.enqueue([&eta, h, &tjj_below, this]
+    for (int m = 0; m < M; ++m)
+        results.emplace_back(tp.enqueue([&eta, m, &tjj_below, this]
         { 
-            eta.tjj_double_integral_below(this->n, h, tjj_below);
+            eta.tjj_double_integral_below(this->n, m, tjj_below);
         }));
     for (auto &&result : results) 
         result.wait();
     DEBUG << "tjj_double_integral below finished";
-    // for (int h = 1; h < H + 1; ++h)
-    //     tjj_below.row(h - 1) = ts_integrals.block(eta.hs_indices[h - 1], 0, 
-    //             eta.hs_indices[h] - eta.hs_indices[h - 1], n + 1).colwise().sum();
     DEBUG << "matrix products below (M0)";
     Matrix<T> M0_below = tjj_below * mcache.M0.template cast<T>();
     DEBUG << "matrix products below (M1)";
     Matrix<T> M1_below = tjj_below * mcache.M1.template cast<T>();
     DEBUG << "filling csfs_below";
-    for (int h = 0; h < H; ++h) 
+    for (int m = 0; m < M; ++m) 
     {
-        csfs_below[h].setZero();
-        csfs_below[h].block(0, 1, 1, n) = M0_below.row(h);
-        csfs_below[h].block(2, 0, 1, n + 1) = M1_below.row(h);
-        check_nan(csfs_below[h]);
+        csfs_below[m].setZero();
+        csfs_below[m].block(0, 1, 1, n) = M0_below.row(m);
+        csfs_below[m].block(1, 0, 1, n + 1) = M1_below.row(m);
+        check_nan(csfs_below[m]);
     }
     DEBUG << "compute below finished";
     return csfs_below;
@@ -162,7 +160,9 @@ inline T doubly_compensated_summation(const std::vector<T> &x)
 template <typename T>
 std::vector<Matrix<T> > OnePopConditionedSFS<T>::compute_above(const PiecewiseConstantRateFunction<T> &eta) const
 {
-    std::vector<Matrix<T> > C_above(H, Matrix<T>::Zero(n + 1, n)), csfs_above(H, Matrix<T>::Zero(3, n + 1));
+    const int M = eta.hidden_states.size() - 1;
+    std::vector<Matrix<T> > C_above(M, Matrix<T>::Zero(n + 1, n)), 
+        csfs_above(M, Matrix<T>::Zero(3, n + 1));
     DEBUG << "compute above";
     std::vector< std::future<void> > results;
     for (int j = 2; j < n + 3; ++j)
@@ -175,11 +175,11 @@ std::vector<Matrix<T> > OnePopConditionedSFS<T>::compute_above(const PiecewiseCo
         result.wait();
     Matrix<T> tmp;
     results.clear();
-    for (int h = 0; h < H; ++h)
-        results.emplace_back(tp.enqueue([h, this, &csfs_above, &C_above] ()
+    for (int m = 0; m < M; ++m)
+        results.emplace_back(tp.enqueue([m, this, &csfs_above, &C_above] ()
         {
-            csfs_above[h].setZero();
-            Matrix<T> C0 = C_above[h].transpose(), C2 = C_above[h].colwise().reverse().transpose();
+            csfs_above[m].setZero();
+            Matrix<T> C0 = C_above[m].transpose(), C2 = C_above[m].colwise().reverse().transpose();
             Vector<T> tmp0(this->mcache.X0.cols()), tmp2(this->mcache.X2.cols());
             tmp0.setZero();
             for (int j = 0; j < this->mcache.X0.cols(); ++j)
@@ -190,7 +190,7 @@ std::vector<Matrix<T> > OnePopConditionedSFS<T>::compute_above(const PiecewiseCo
                 std::sort(v.begin(), v.end(), [] (T x, T y) { return myabs(x) > myabs(y); });
                 tmp0(j) = doubly_compensated_summation(v);
             }
-            csfs_above[h].block(0, 1, 1, n) = tmp0.transpose().lazyProduct(Uinv_mp0);
+            csfs_above[m].block(0, 1, 1, n) = tmp0.transpose().lazyProduct(Uinv_mp0);
             tmp2.setZero();
             for (int j = 0; j < this->mcache.X2.cols(); ++j)
             {
@@ -200,8 +200,8 @@ std::vector<Matrix<T> > OnePopConditionedSFS<T>::compute_above(const PiecewiseCo
                 std::sort(v.begin(), v.end(), [] (T x, T y) { return myabs(x) > myabs(y); });
                 tmp2(j) = doubly_compensated_summation(v);
             }
-            csfs_above[h].block(2, 0, 1, n) = tmp2.transpose().lazyProduct(Uinv_mp2);
-            check_nan(csfs_above[h]);
+            csfs_above[m].block(2, 0, 1, n) = tmp2.transpose().lazyProduct(Uinv_mp2);
+            check_nan(csfs_above[m]);
         }));
     for(auto && result: results) result.get();
     return csfs_above;
@@ -211,23 +211,12 @@ template <typename T>
 std::vector<Matrix<T> > OnePopConditionedSFS<T>::compute(const PiecewiseConstantRateFunction<T> &eta) const
 {
     DEBUG << "compute called";
+    const int M = eta.hidden_states.size() - 1;
     std::vector<Matrix<T> > csfs_above = compute_above(eta);
     std::vector<Matrix<T> > csfs_below = compute_below(eta);
-    std::vector<Matrix<T> > csfs(H, Matrix<T>::Zero(3, n + 1));
-    for (int i = 0; i < H; ++i)
-    {
-        csfs[i] = csfs_above[i] + csfs_below[i];
-        // T h1 = eta.R(eta.hidden_states[i]), d;
-        // if (eta.hidden_states[i + 1] < INFINITY)
-        // {
-        //     T h2 = eta.R(eta.hidden_states[i + 1]);
-        //     d = -exp(-h1) * expm1(h1 - h2);
-        // }
-        // else
-        //     d = exp(-h1);
-        // check_nan(d);
-        // csfs[i] /= d;
-    }
+    std::vector<Matrix<T> > csfs(M, Matrix<T>::Zero(3, n + 1));
+    for (int m = 0; m < M; ++m)
+        csfs[m] = csfs_above[m] + csfs_below[m];
     DEBUG << "compute finished";
     return csfs;
 }
