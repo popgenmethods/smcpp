@@ -157,7 +157,7 @@ std::vector<adouble> InferenceManager::Q(void)
         q2 += ps[i][1];
         q3 += ps[i][2];
     }
-    DEBUG1 << "\nq1:" << q1.value() << " [" << q1.derivatives().transpose() << "]\nq2:"
+    DEBUG << "\nq1:" << q1.value() << " [" << q1.derivatives().transpose() << "]\nq2:"
         << q2.value() << " [" << q2.derivatives().transpose() << "]\nq3:" << q3.value()
         << " [" << q3.derivatives().transpose() << "]\n";
     return {q1, q2, q3};
