@@ -7,7 +7,7 @@ from logging import INFO, WARNING, DEBUG, NOTSET, CRITICAL
 
 def getLogger(name):
     if multiprocessing.current_process().name == "MainProcess":
-        return logging.getLogger(__name__)
+        return logging.getLogger(name)
     else:
         return multiprocessing.get_logger()
 

@@ -127,3 +127,18 @@ def break_long_spans(dataset, rho, length_cutoff):
         else:
             logger.info("omitting sequence length < %d as less than length cutoff %d" % (s, length_cutoff))
     return obs_list, obs_attributes
+
+def balance_hidden_states(model, M):
+    M -= 1
+    eta = _smcpp.PyRateFunction(model, [])
+    ret = [0.0]
+    t = 0
+    for m in range(1, M):
+        def f(t):
+            Rt = float(eta.R(t))
+            return np.exp(-Rt) - 1.0 * (M - m) / M
+        res = scipy.optimize.brentq(f, ret[-1], 1000.)
+        ret.append(res)
+    ret.append(np.inf)
+    return np.array(ret)
+

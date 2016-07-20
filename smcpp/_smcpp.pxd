@@ -66,7 +66,7 @@ cdef extern from "inference_manager.h":
 
 
 cdef extern from "piecewise_constant_rate_function.h":
-    cdef cppclass PiecewiseConstantRateFunction[T]:
+    cdef cppclass PiecewiseConstantRateFunction[T] nogil:
         PiecewiseConstantRateFunction(const ParameterVector, const vector[double])
         T R(T x)
         T random_time(const double, const double, const long long)

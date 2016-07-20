@@ -19,12 +19,15 @@ logger = logging.getLogger(__name__)
 abort = False
 cdef void logger_cb(const char* name, const char* level, const char* message) with gil:
     global abort
+    name_s = name.decode("UTF-8")
+    level_s = level.decode("UTF-8")
+    message_s = message.decode("UTF-8")
     try:
-        lvl = {b"INFO": logging.INFO, b"DEBUG": logging.DEBUG - 1, b"DEBUG1": logging.DEBUG,
-                b"CRITICAL": logging.CRITICAL, b"WARNING": logging.WARNING}
-        logging.getLogger(name).log(lvl[level.upper()], message.decode("UTF-8"))
+        lvl = {"INFO": logging.INFO, "DEBUG": logging.DEBUG - 1, "DEBUG1": logging.DEBUG,
+               "CRITICAL": logging.CRITICAL, "WARNING": logging.WARNING}
+        logging.getLogger(name_s).log(lvl[level_s.upper()], message_s)
     except KeyboardInterrupt:
-        logging.getLogger(name).critical("Aborting")
+        logging.getLogger(name_s).critical("Aborting")
         abort = True
 
 def _check_abort():
@@ -313,62 +316,35 @@ cdef class PyTwoPopInferenceManager(_PyInferenceManager):
         def __set__(self, model):
             assert len(self._emissions) == len(self._hs) - 1
             self._model = model
-            cdef ParameterVector params = make_params(model)
+            cdef ParameterVector params = make_params(model.distinguished_model)
             with nogil:
                 self._im2.setParams(params, self._emissions_vec)
 
 cdef class PyRateFunction:
-    cdef PiecewiseConstantRateFunction[adouble] *_eta
+    cdef unique_ptr[PiecewiseConstantRateFunction[adouble]] _eta
     cdef object _model
     def __cinit__(self, model, hs):
         self._model = model
         cdef ParameterVector params = make_params(model)
-        self._eta = new PiecewiseConstantRateFunction[adouble](params, hs)
-
-    def __dealloc__(self):
-        del self._eta
+        cdef vector[double] _hs = hs
+        with nogil:
+            self._eta.reset(new PiecewiseConstantRateFunction[adouble](params, _hs))
 
     def R(self, t):
-        cdef adouble Rt = self._eta.R(adouble(t))
-        ret = adnumber(Rt.value())
-        for i, dl in enumerate(self._model.dlist):
-            ret.d()[dl] = Rt.derivatives()(i)
-        return ret
+        cdef adouble Rt = self._eta.get().R(adouble(t))
+        return _adouble_to_ad(Rt, self._model.dlist)
 
-def balance_hidden_states(model, int M):
-    M -= 1
-    cdef ParameterVector pv = make_params(model)
-    cdef vector[double] v = []
-    cdef PiecewiseConstantRateFunction[double] *eta = new PiecewiseConstantRateFunction[double](pv, v)
-    try:
-        ret = [0.0]
-        t = 0
-        for m in range(1, M):
-            def f(double t):
-                cdef double Rt = eta.R(t)
-                return np.exp(-Rt) - 1.0 * (M - m) / M
-            res = scipy.optimize.brentq(f, ret[-1], 1000.)
-            ret.append(res)
-    finally:
-        del eta
-    ret.append(np.inf)
-    return np.array(ret)
-
-def random_coal_times(model, t1, t2, K):
-    cdef ParameterVector pv = make_params(model)
-    cdef vector[double] v = []
-    cdef unique_ptr[PiecewiseConstantRateFunction[adouble]] eta
-    eta.reset(new PiecewiseConstantRateFunction[adouble](pv, v))
-    cdef adouble t
-    times = []
-    for _ in range(K):
-        ary = []
-        t = eta.get().random_time(t1, t2, np.random.randint(six.MAXSIZE))
-        ary = [_adouble_to_ad(t, model.dlist)]
-        t = eta.get().R(t)
-        ary.append(_adouble_to_ad(t, model.dlist))
-        times.append(ary)
-    return times
+    def random_coal_times(self, t1, t2, K):
+        cdef adouble t
+        times = []
+        for _ in range(K):
+            ary = []
+            t = self._eta.get().random_time(t1, t2, np.random.randint(six.MAXSIZE))
+            ary = [_adouble_to_ad(t, self._model.dlist)]
+            t = self._eta.get().R(t)
+            ary.append(_adouble_to_ad(t, self._model.dlist))
+            times.append(ary)
+        return times
 
 def raw_sfs(model, int n, double t1, double t2, below_only=False):
     cdef ParameterVector pv = make_params(model)

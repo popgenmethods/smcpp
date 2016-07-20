@@ -36,8 +36,8 @@ def test_inference():
             ,ad.adnumber(0.0019921562626012993),ad.adnumber(0.004958301100037235)
             ,ad.adnumber(0.003199704865436452),ad.adnumber(0.0050129872575249744)]
     model2[:] = model1[:]
-    jcsfs = smcpp.jcsfs.JointCSFS(n - 2, n - 1, 2, 0, model1, model2, hs[-10], hs)
-    im.emissions = jcsfs.compute()[:, :, 0, :]
+    jcsfs = smcpp.jcsfs.JointCSFS(n - 2, n - 1, 2, 0, hs).compute(model1, model2, hs[3])
+    im.emissions = jcsfs[:, :, 0, :]
     im.model = model1
     im.theta = 0.0025000000000000001
     im.rho = 0.0031206103977654887

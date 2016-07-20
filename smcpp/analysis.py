@@ -4,10 +4,10 @@ import multiprocessing
 import inflect
 import sys
 
-from . import estimation_tools, _smcpp, util, logging, optimizer
+from . import estimation_tools, _smcpp, util, logging, optimizer, jcsfs
 from .spline import PChipSpline, CubicSpline, AkimaSpline
 from .estimation_result import EstimationResult
-from .model import SMCModel
+from .model import SMCModel, SMCTwoPopulationModel
 from .observe import Observer
 
 logger = logging.getLogger(__name__)
@@ -26,14 +26,16 @@ class Analysis(Observer):
     def __init__(self, files, args):
         self._load_data(files)
         self._init_parameters(args.theta, args.rho)
-        self._init_model(args.pieces, args.N0, args.t1, args.tK, args.spline)
+        self._init_model(args.pieces, args.N0, args.t1, args.tK, args.spline, args.split)
         self._init_hidden_states(args.hidden_states, args.M)
+        self._init_bounds(args.Nmin)
         self._perform_thinning(args.thinning)
         self._normalize_data(args.length_cutoff)
         self._init_inference_manager(args.folded)
         self._init_optimizer(args.outdir, args.block_size, args.fix_rho)
 
         # Misc. parameter initialiations
+        self._N0 = args.N0
         self._penalty = args.regularization_penalty
         self._niter = args.em_iterations
     
@@ -77,8 +79,8 @@ class Analysis(Observer):
         ## Construct bounds
         # P(seg) is at most theta * 2 * N_max / H_n << 1
         # For now, just base bounds off of population 1. 
-        Hn = (1. / np.arange(1, self.n[0])).sum()
-        Nmax = .1 / (2 * self.theta * Hn)
+        Hn = np.log(self._n.sum())
+        Nmax = .1 / (2 * self._theta * Hn)
         logger.debug("Nmax calculated to be %g" % Nmax)
         self._bounds = (Nmin, Nmax)
 
@@ -108,14 +110,15 @@ class Analysis(Observer):
             logger.warn("Not thinning yet n = %d > 0. This probably "
                         "isn't what you desire, see --thinning", self._n.sum() // 2 + 1)
         
-    def _init_model(self, pieces, N0, t1, tK, spline):
+    def _init_model(self, pieces, N0, t1, tK, spline, split=None):
         ## Initialize model
         # FIXME currently disabled.
         # exponential_pieces = args.exponential_pieces or []
         pieces = estimation_tools.extract_pieces(pieces)
         t1 = np.array(t1)
-        t1 /= 2. * N0
-        tK /= 2. * N0
+        fac = 2. * N0
+        t1 /= fac
+        tK /= fac
         time_points = estimation_tools.construct_time_points(t1, tK, pieces)
         logger.debug("time points in coalescent scaling:\n%s", str(time_points))
         knots = np.cumsum(estimation_tools.construct_time_points(t1, tK, [1]*10))
@@ -126,16 +129,27 @@ class Analysis(Observer):
             spline_class = AkimaSpline
         elif spline == "pchip":
             spline_class = PChipSpline
-        self._model = SMCModel(time_points, knots, spline_class)
-        logger.debug("initial model:\n%s" % np.array_str(self._model.y, precision=3))
+        if self._npop == 1:
+            if split is not None:
+                logger.warn("--split was specified, but only one population found in data")
+            self._model = SMCModel(time_points, knots, spline_class)
+            logger.debug("initial model:\n%s" % np.array_str(self._model.y, precision=3))
+        else:
+            if split is None:
+                raise RuntimeError("Initial value of split must be specified for two-population model")
+            split /= 2. * N0
+            self._model = SMCTwoPopulationModel(
+                SMCModel(time_points, knots, spline_class),
+                SMCModel(time_points, knots, spline_class),
+                split)
 
     def _init_hidden_states(self, hidden_states, M):
         ## choose hidden states based on prior model
         if hidden_states:
             self._hidden_states = hidden_states
         else:
-            hs = _smcpp.balance_hidden_states(self._model, M)
-            cs = np.cumsum(self._model.s)
+            hs = estimation_tools.balance_hidden_states(self._model.distinguished_model, M)
+            cs = np.cumsum(self._model.distinguished_model.s)
             cs = cs[cs <= hs[1]]
             self._hidden_states = np.sort(np.unique(np.concatenate([cs, hs])))
         logger.debug("%d hidden states:\n%s" % (len(self._hidden_states), str(self._hidden_states)))
@@ -156,20 +170,24 @@ class Analysis(Observer):
             self._im = _smcpp.PyOnePopInferenceManager(self._n[0], self._data, self._hidden_states)
         elif self._npop == 2:
             self._im = _smcpp.PyTwoPopInferenceManager(self._n[0], self._n[1], self._data, self._hidden_states)
+            self._jcsfs = jcsfs.JointCSFS(self._n[0], self._n[1], 2, 0, self._hidden_states)
         else:
             logger.error("Only 1 or 2 populations are supported at this time")
             sys.exit(1)
         self._im.model = self._model
+        # Model should completely live in the IM now
+        del self._model
         self._im.theta = self._theta
         self._im.rho = self._rho
         self._im.folded = folded
-        self._model.register(self)
+        # Receive updates whel model changes
+        self.model.register(self)
 
     def _init_optimizer(self, outdir, block_size, fix_rho):
         if self._npop == 1:
             self._optimizer = optimizer.SMCPPOptimizer(self)
         elif self._npop == 2:
-            self._im = optimizer.TwoPopOptimizer(self)
+            self._optimizer = optimizer.TwoPopulationOptimizer(self)
         self._optimizer.block_size = block_size
         self._optimizer.register(optimizer.AnalysisSaver(outdir))
         if not fix_rho:
@@ -214,10 +232,17 @@ class Analysis(Observer):
     theta = _tied_property("theta")
     rho = _tied_property("rho")
 
-    def update(self, *args, **kwargs):
+    def update(self, message, *args, **kwargs):
         'Keep inference manager and model in sync by listening for model changes.'
-        if args[0] == "model update":
-            self._im.model = self._model
+        if message == "model update":
+            if self._npop == 2:
+                # Must recompute the joint CSFS and store it manually upon
+                # each model update.
+                # Right now we only support a2=0 so slice on third axis.
+                self._im.emissions = self._jcsfs.compute(self.model.model1,
+                                                         self.model.model2, 
+                                                         self.model.split)[:, :, 0]
+            self._im.model = self.model
 
     def dump(self, filename):
         'Dump result of this analysis to :filename:.'

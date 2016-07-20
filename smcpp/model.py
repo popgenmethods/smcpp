@@ -71,5 +71,44 @@ class SMCModel(Observable):
         r.y = d['y']
         return r
 
+    @property
+    def distinguished_model(self):
+        return self
+
     def copy(self):
         return SMCModel.from_dict(self.to_dict())
+
+class SMCTwoPopulationModel(Observable):
+    def __init__(self, model1, model2, split):
+        Observable.__init__(self)
+        self._models = [model1, model2]
+        self._split = split
+
+    @property
+    def split(self):
+        return self._split
+
+    @split.setter
+    def split(self, x):
+        self._split = x
+        self.update_observers('model update')
+
+    @property
+    def model1(self):
+        return self._models[0]
+
+    @property
+    def model2(self):
+        return self._models[1]
+
+    @property
+    def distinguished_model(self):
+        return self.model1
+
+    def regularizer(self):
+        return sum([m.regularizer() for m in self._models])
+
+    def __setitem__(self, coords, x):
+        for (a, cc), xx in zip(coords, x):
+            self.models[a][cc] = xx
+        self.update_observers('model update')

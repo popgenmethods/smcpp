@@ -48,14 +48,23 @@ class JointCSFS(object):
         self._a1 = a1
         self._a2 = a2
         self._hs = hidden_states
-        ## FIXME this is hacky. should be replaced by calls to eta, probably
-        self._jcsfs = np.zeros([len(hidden_states) - 1, self._a1 + 1, self._n1 + 1, self._a2 + 1, self._n2 + 1])
+        self._jcsfs = np.zeros([
+            len(hidden_states) - 1, self._a1 +
+            1, self._n1 + 1, self._a2 + 1, self._n2 + 1
+        ])
         self._hs_pairs = list(zip(hidden_states[:-1], hidden_states[1:]))
-        self._pool = mp.get_context("spawn").Pool()
         self._Mn1n20 = MoranEigensystem(n1 + n2, 0)
         self._Mn10 = MoranEigensystem(n1, 0)
         self._Mn11 = MoranEigensystem(n1, 1)
         self._Mn2 = MoranEigensystem(n2)
+
+        # Create a pool of workers to speed up computations below.
+        # *Very* important to use "spawn" here and not "fork". The
+        # latter has big problems with multithreading in _smcpp. I kept
+        # getting deadlocks.
+        self._pool = mp.get_context("spawn").Pool()
+
+        # For now we only support a2=0.
         assert a1 + a2 == 2
         assert 0 <= a1 <= 2
         assert 0 <= a2 <= 1
@@ -66,7 +75,9 @@ class JointCSFS(object):
         args = (split, model1, model2, Rts1, Rts2) + \
             tuple([getattr(self, "_" + s)
                    for s in "a1 a2 n1 n2 Mn1n20 Mn10 Mn11 Mn2 K".split()])
-        self._jcsfs[:] = list(self._pool.map(_parallel_helper,
+        mapfun = self._pool.map
+        mapfun = map
+        self._jcsfs[:] = list(mapfun(_parallel_helper,
             [_ParallelArgs(t1, t2, *args) for t1, t2 in self._hs_pairs]))
         return self._jcsfs
 
@@ -82,9 +93,9 @@ def _parallel_helper(pargs):
         return _jcsfs_helper_tau_above_split(pargs)
     else:
         assert t1 < split < t2
-        r1 = _jcsfs_helper_tau_below_split(pargs)
-        r2 = _jcsfs_helper_tau_above_split(pargs)
-        R1t1, R1t2 = [exp(-_R(pargs.model1, t)) for t in (t1, t2)]
+        r1 = _jcsfs_helper_tau_below_split(pargs._replace(t2=split))
+        r2 = _jcsfs_helper_tau_above_split(pargs._replace(t1=split))
+        R1t1, R1t2 = [np.exp(-_R(pargs.model1, t)) for t in (t1, t2)]
         w = (pargs.Rts1 - R1t1) / (pargs.Rts1 - pargs.Rts2)
         return r1 * w + r2 * (1. - w)
 
@@ -119,8 +130,8 @@ def _jcsfs_helper_tau_above_split(pargs):
     # sample tau, compute sfs at tau, then moran transition to t_s, 
     configs = [((x, n1 + n2 + 1 - x),) for x in range(1, n1 + n2 + 1)]
 
-    for tau, Rtau in _smcpp.random_coal_times(model1, t1, t2, K):
-        logger.debug((t1, t2, tau, Rtau))
+    eta = _smcpp.PyRateFunction(model1, [])
+    for tau, Rtau in eta.random_coal_times(t1, t2, K):
         # Compute regular old sfs using momi
         m1s = _cumsum0(model1.s)
         tm1 = np.searchsorted(m1s, tau) - 1
@@ -186,7 +197,8 @@ def _jcsfs_helper_tau_below_split(pargs):
                for b1 in range(n1 + 2)
                for b2 in range(n2 + 1)
                if 0 < b1 + b2 < n1 + n2 + 1]
-    for t, Rt in _smcpp.random_coal_times(model1, t1, t2, K):
+    eta = _smcpp.PyRateFunction(model1, [])
+    for t, Rt in eta.random_coal_times(t1, t2, K):
         # Compute jsfs using momi
         m1s = _cumsum0(model1.s)
         tm1 = np.searchsorted(m1s, t) - 1

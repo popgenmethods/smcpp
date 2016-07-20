@@ -35,16 +35,22 @@ def init_parser(parser):
                        help="span of model pieces", default="32*1")
     model.add_argument('--t1', type=float, nargs="+",
                        help="span of first piece(s), in generations", default=[400.])
-    model.add_argument(
-        '--tK', type=float, help="end-point of last piece, in generations", default=40000.)
-    model.add_argument('--exponential-pieces', type=int,
-                       nargs="+", help="piece(s) which have exponential growth")
+    model.add_argument('--tK', type=float, help="end-point of last piece, in generations", 
+                       default=40000.)
+    # model.add_argument('--exponential-pieces', type=int,
+    #                    nargs="+", help="piece(s) which have exponential growth")
+    model.add_argument('--split', type=float, 
+                       help="initial guess (in generations) for location of split "
+                            "in two-population models.")
+    model.add_argument('--fix-split', type=bool, 
+                       help="initial guess (in generations) for location of split "
+                            "in two-population models.")
     hmm.add_argument('--thinning', help="emit full SFS every <k>th site",
                      default=None, type=int, metavar="k")
     hmm.add_argument('--no-pretrain', help="do not pretrain model",
                      action="store_true", default=False)
-    hmm.add_argument(
-        '--M', type=int, help="number of hidden states", default=32)
+    hmm.add_argument('--M', 
+                     type=int, help="number of hidden states", default=32)
     hmm.add_argument('--em-iterations', type=int,
                      help="number of EM steps to perform", default=20)
     optimizer.add_argument('--block-size', type=int, default=3,
@@ -62,12 +68,9 @@ def init_parser(parser):
                            default="pchip", help="type of spline representation to use")
     optimizer.add_argument('--lbfgs-factor', type=float,
                            help="stopping criterion for optimizer", default=1e9)
-    optimizer.add_argument(
-        '--Nmin', type=float, help="Lower bound on effective population size (in units of N0)", default=.01)
-    optimizer.add_argument(
-        '--Nmax', type=float, help="Upper bound on effective population size (in units of N0)", default=100)
-    hmm.add_argument('--init-model', type=str,
-                     help="model to use as starting point in optimization")
+    optimizer.add_argument('--Nmin', type=float,
+                           help="Lower bound on effective population size (in units of N0)",
+                           default=.01)
     hmm.add_argument('--hidden-states', type=float, nargs="+")
     pop_params.add_argument('--N0', default=1e4, type=float,
                             help="reference effective (diploid) population size to scale output.")
@@ -81,14 +84,12 @@ def init_parser(parser):
                             help="use folded SFS for emission probabilites. useful if polarization is not known.")
     hmm.add_argument('--length-cutoff',
                      help="omit sequences < cutoff", default=0, type=int)
-    parser.add_argument("-p", "--second-population", nargs="+", widget="MultiFileChooser",
-                        help="Estimate divergence time using data set(s) from a second subpopulation")
     parser.add_argument("-o", "--outdir", help="output directory",
                         default=".", widget="DirChooser")
     parser.add_argument('-v', '--verbose', action='count', default=0,
                         help="increase debugging output, specify multiply times for more")
-    parser.add_argument(
-        'data', nargs="+", help="data file(s) in SMC++ format", widget="MultiFileChooser")
+    parser.add_argument('data', nargs="+", help="data file(s) in SMC++ format", 
+                        widget="MultiFileChooser")
 
 
 def validate_args(args):

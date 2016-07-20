@@ -31,9 +31,10 @@ class AbstractOptimizer(Observable):
 
     def _f(self, x, analysis, coords):
         x = ad.adnumber(x)
+        analysis.model[:] = analysis.model[:].astype('float')
         analysis.model[coords] = x
         q = -analysis.Q()
-        ret = [q.x, np.array(list(map(q.d, xs)))]
+        ret = [q.x, np.array(list(map(q.d, x)))]
         return ret
         # logger.debug("\n" + np.array_str(model.y.astype(float), precision=2, max_line_width=100))
         # logger.debug("\n" + np.array_str(model.stepwise_values().astype(float), precision=2, max_line_width=100))
@@ -48,11 +49,13 @@ class AbstractOptimizer(Observable):
         for i in range(niter):
             # Perform model optimization
             self.update_observers('pre-M step', i=i, niter=niter)
-            coord_list = self._coordinates(i)
+            coord_list = self._coordinates()
             for coords in coord_list:
+                self.update_observers('M step', coords=coords)
                 bounds = self._bounds(coords)
                 x0 = model[coords]
-                res = scipy.optimize.minimize(self._f, x0, 
+                res = scipy.optimize.minimize(self._f, x0,
+                        jac=True, 
                         args=(self._analysis, coords,), 
                         bounds=bounds, 
                         method="L-BFGS-B")
@@ -65,7 +68,7 @@ class AbstractOptimizer(Observable):
         self.update_observers('optimization finished')
 
     def update_observers(self, *args, **kwargs):
-        kwargs.update({'analysis': self._analysis})
+        kwargs.update({'analysis': self._analysis, 'model': self._analysis.model})
         Observable.update_observers(self, *args, **kwargs)
 
 ## LISTENER CLASSES
@@ -75,16 +78,19 @@ class HiddenStateOccupancyPrinter(Observer):
         if message == "post-E step":
             hso = np.sum(kwargs['analysis']._im.xisums, axis=(0, 1))
             hso /= hso.sum()
-            logger.debug("hidden state occupancy: %s", hso)
+            logger.debug("hidden state occupancy:\n%s", np.array_str(hso, precision=2))
 
 class ProgressPrinter(Observer):
 
     def update(self, message, *args, **kwargs):
         if message == "pre-M step":
-            logger.info("Optimization iteration %d of %d...", kwargs['i'] + 1, kwargs['niter'])
-        elif message == "pre-E step":
+            logger.info("Optimization iteration %d of %d...",
+                        kwargs['i'] + 1, kwargs['niter'])
+        if message == "M step":
+            logger.debug("Optimizing coordinates %s", kwargs['coords'])
+        if message == "pre-E step":
             logger.info("Running E-step...")
-        elif message == "post-E step":
+        if message == "post-E step":
             logger.info("E-step completed.")
 
 class LoglikelihoodPrinter(Observer):
@@ -102,36 +108,39 @@ class AnalysisSaver(Observer):
     def update(self, message, *args, **kwargs):
         dump = kwargs['analysis'].dump
         if message == "post-E step":
+            i = kwargs['i']
             dump(os.path.join(self._outdir, ".model.iter%d" % i))
         elif message == "optimization finished":
-            dump(os.path.join(self._outdir, "model.iter%d" % i))
+            dump(os.path.join(self._outdir, "model.final"))
 
 class ParameterOptimizer(Observer):
 
-    def __init__(self, param, bounds):
+    def __init__(self, param, bounds, target="analysis"):
         self._param = param
         self._bounds = bounds
+        self._target = target
 
     def update(self, message, *args, **kwargs):
         if message != "pre-M step":
             return
         param = self._param
         logger.debug("Updating %s", param)
+        tgt = kwargs[self._target]
         analysis = kwargs['analysis']
-        if param not in ("theta", "rho"):
+        if param not in ("theta", "rho", "split"):
             raise RuntimeError("unrecognized param")
-        x0 = getattr(analysis, param)
+        x0 = getattr(tgt, param)
         logger.debug("Old %s: Q(%g)=%g", param, x0,
-                     self._f(x0, analysis, param))
+                     self._f(x0, analysis, tgt, param))
         res = scipy.optimize.minimize_scalar(self._f,
-                                             args=(analysis, param),
+                                             args=(analysis, tgt, param),
                                              method='bounded',
                                              bounds=self._bounds)
         logger.debug("New %s: Q(%g)=%g", param, res.x, res.fun)
-        setattr(analysis, param, res.x)
+        setattr(tgt, param, res.x)
 
-    def _f(self, x, analysis, param):
-        setattr(analysis, param, x)
+    def _f(self, x, analysis, tgt, param):
+        setattr(tgt, param, x)
         # derivatives curretly not supported for 1D optimization. not
         # clear if they really help.
         return -float(analysis.Q()) 
@@ -148,13 +157,16 @@ class SMCPPOptimizer(AbstractOptimizer):
         model = self._analysis.model
         return [list(range(b, min(model.K, b + self.block_size))) 
                 for b in range(0, model.K - self.block_size + 1, self.block_size - 2)]
+    
+    def _bounds(self, coords):
+        return np.log([self._analysis._bounds] * len(coords))
+    
 
 class TwoPopulationOptimizer(SMCPPOptimizer):
 
-    def __init__(self, analysis, outdir, fix_rho, split_bounds=None):
-        AnalysisOptimizer.__init__(analysis)
-        if split_bounds is not None:
-            self.register(ParameterOptimizer("split", split_bounds))
+    def __init__(self, analysis):
+        SMCPPOptimizer.__init__(self, analysis)
+        self.register(ParameterOptimizer("split", (0., np.inf), "model"))
 
     def _coordinates(self):
         model = self._analysis.model
