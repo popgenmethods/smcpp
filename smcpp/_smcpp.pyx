@@ -11,7 +11,7 @@ import wrapt
 import six
 from ad import adnumber, ADF
 
-import smcpp.logging as logging
+from . import logging
 
 init_eigen();
 logger = logging.getLogger(__name__)
@@ -297,7 +297,7 @@ cdef class PyTwoPopInferenceManager(_PyInferenceManager):
         with nogil:
             self._im2 = new TwoPopInferenceManager(n1, n2, self._Ls, self._obs_ptrs, self._hs)
             self._im = self._im2
-        self.emissions = np.zeros([len(hidden_states) - 1, 3, n1 + 1, n2 + 1])
+        self.emissions = np.full([len(hidden_states) - 1, 3, n1 + 1, n2 + 1], 1e-20)
 
     property emissions:
         def __set__(self, emissions):
