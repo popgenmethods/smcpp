@@ -1,6 +1,7 @@
 # Apply a monkeypatch to ad to prevent the O(k^2) computation of 2nd derivatives
 import logging
 import ad
+from types import SimpleNamespace
 
 def init_logging():
     # Get rid of any pre-existing stuff
@@ -12,9 +13,9 @@ def init_logging():
     sh = logging.StreamHandler()
     sh.setFormatter(fmt)
     sh.setLevel(logging.INFO)
+    sh.addFilter(SimpleNamespace(filter=lambda record: record.name.startswith("smcpp")))
     root.addHandler(sh)
     root.setLevel(logging.NOTSET)
-    logging.getLogger('momi').setLevel(logging.INFO)
 
 init_logging()
 
