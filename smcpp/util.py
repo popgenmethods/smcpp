@@ -44,7 +44,7 @@ human = {
         'N0': 10000.
         }
 
-def undistinguished_sfs(sfs, folded):
+def undistinguished_sfs(sfs, folded=False):
     n = sfs.shape[1] - 1
     new_shape = [n + 2] + list(sfs.shape[2:])
     usfs = np.zeros(new_shape, dtype=sfs.dtype)

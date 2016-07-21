@@ -252,5 +252,5 @@ class Analysis(Observer):
     def dump(self, filename):
         'Dump result of this analysis to :filename:.'
         d = {'N0': self._N0, 'theta': self._theta, 'rho': self._rho}
-        d['model'] = self.model.to_d()
+        d['model'] = self.model.to_dict()
         json.dump(d, open(filename + ".json", "wt"), sort_keys=True, indent=4)

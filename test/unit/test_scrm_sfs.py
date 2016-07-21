@@ -13,7 +13,7 @@ theta = 1.25e-8
 
 def _scrm_sfs(args):
     np.random.seed(args[-1])
-    return scrm.distinguished_sfs(*(args[:-1]))
+    return scrm.sfs(*(args[:-1]))
 
 class PiecewiseModel:
     def __init__(self, s, a):

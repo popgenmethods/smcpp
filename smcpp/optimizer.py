@@ -46,6 +46,13 @@ class AbstractOptimizer(Observable):
         # logger.debug("dq:\n" + np.array_str(np.array(list(map(q.d, xs))), max_line_width=100, precision=2))
         # logger.debug("dreg:\n" + np.array_str(np.array(list(map(reg.d, xs))), max_line_width=100, precision=2))
 
+    def _minimize(self, x0, coords, bounds):
+        return scipy.optimize.minimize(self._f, x0,
+                                       jac=True,
+                                       args=(self._analysis, coords,),
+                                       bounds=bounds,
+                                       method="L-BFGS-B")
+
     def run(self, niter):
         self.update_observers('begin')
         model = self._analysis.model
@@ -58,11 +65,7 @@ class AbstractOptimizer(Observable):
                 self.update_observers('M step', coords=coords)
                 bounds = self._bounds(coords)
                 x0 = model[coords]
-                res = scipy.optimize.minimize(self._f, x0,
-                        jac=True, 
-                        args=(self._analysis, coords,), 
-                        bounds=bounds, 
-                        method="L-BFGS-B")
+                res = self._minimize(x0, coords, bounds)
             self.update_observers('post-M step', results=res, i=i)
             # Perform E-step
             self.update_observers('pre-E step', i=i)
@@ -103,6 +106,12 @@ class LoglikelihoodPrinter(Observer):
         if message == "post-E step":
             ll = kwargs['analysis'].loglik()
             logger.info("Loglik: %f", ll)
+
+class ModelPrinter(Observer):
+    def update(self, message, *args, **kwargs):
+        if message == "post-E step":
+            logger.info("Model: %s", kwargs['model'].to_s())
+
 
 class AnalysisSaver(Observer):
 
@@ -159,6 +168,7 @@ class SMCPPOptimizer(AbstractOptimizer):
         self.register(LoglikelihoodPrinter())
         self.register(HiddenStateOccupancyPrinter())
         self.register(ProgressPrinter())
+        self.register(ModelPrinter())
 
     def _coordinates(self):
         model = self._analysis.model
@@ -182,6 +192,17 @@ class TwoPopulationOptimizer(SMCPPOptimizer):
                   for ub in [K - self.block_size,
                              self._analysis.model.split_ind]]
         return [(i, cc) for i, c in enumerate([c1, c2]) for cc in c]
+
+    def _minimize(self, x0, coords, bounds):
+        return scipy.optimize.minimize(self._f, x0,
+                                       jac=False,
+                                       args=(self._analysis, coords,),
+                                       bounds=bounds,
+                                       method="L-BFGS-B")
+
+    # Don't use derivatives in 2-pop case
+    def _f(self, x, analysis, coords):
+        return SMCPPOptimizer._f(self, x, analysis, coords)[0]
 
     def _bounds(self, coords):
         return SMCPPOptimizer._bounds(self, coords[1])

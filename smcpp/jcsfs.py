@@ -5,7 +5,7 @@ import numpy as np
 import multiprocessing as mp
 from collections import namedtuple
 
-from . import model, logging, _smcpp
+from . import model, logging, _smcpp, util
 from .moran_eigensystem import MoranEigensystem
 
 import time
@@ -105,15 +105,14 @@ def _parallel_helper(pargs):
 
 
 def _jcsfs_helper_tau_above_split(pargs):
-    '''JCSFS conditional on distinguished lineages coalescing at t1 < t2 <= split'''
+    '''JCSFS conditional on distinguished lineages coalescing at split <= t1 < t2'''
     t1, t2, split, model1, model2, Rts1, Rts2, a1, a2, \
             n1, n2, Mn1n20, Mn10, Mn11, Mn2, K = pargs
     assert split <= t1 < t2
     assert a1 == 2
     ret = np.zeros([a1 + 1, n1 + 1, a2 + 1, n2 + 1])
-    # Two parts: branch length between split and tau, and branch
-    # length above tau.
-    #
+    # To compute this we calculate the CSFS at split time and then propagate forward
+    # by hypergeometric sampling and Moran model (a la momi)
     s = model1.s
     a = model1.stepwise_values()
     cs = _cumsum0(s)
@@ -121,47 +120,14 @@ def _jcsfs_helper_tau_above_split(pargs):
     cs[i - 1] = split
     sp = np.diff(cs[i - 1:])
     ap = a[i - 1:]
-    # dlist = set(model1.dlist) & {a.d().keys() for a in ap if hasattr(a, 'd')}
     shim_model = PiecewiseModel(sp, ap, [])
-    # compute the "time beneath tau" between split and tau, here tau is
-    # integrated out. This calls csfs_below on n1 + n2 + 2 lineages.
-    rsfs = _smcpp.raw_sfs(shim_model, n1 + n2, t1, t2, True).astype('float')
-    S2 = np.arange(1, n1 + n2 + 1, dtype=float) / (n1 + n2 + 1)
-    S0 = 1. - S2
+    # CSFS with time "shifted back" by split units
+    rsfs = _smcpp.raw_sfs(shim_model, n1 + n2, t1 - split, t2 - split).astype('float')
     eMn10 = Mn10.expm(float(Rts1))
     eMn11 = Mn11.expm(float(Rts1))
     eMn12 = eMn10[::-1, ::-1]
     eMn2 = Mn2.expm(float(Rts2))
-    # add additional time above tau by numerical integration
-    # sample tau, compute sfs at tau, then moran transition to t_s, 
-    configs = [((x, n1 + n2 + 1 - x),) for x in range(1, n1 + n2 + 1)]
-
-    eta = _smcpp.PyRateFunction(model1, [])
-    for tau, Rtau in eta.random_coal_times(t1, t2, K):
-        # Compute regular old sfs using momi
-        m1s = _cumsum0(model1.s)
-        tm1 = np.searchsorted(m1s, tau) - 1
-        m1s[tm1] = tau
-        m1s = m1s[tm1:]
-        m1a = model1.stepwise_values()[tm1:].astype('float')
-        # "shift time back" by t
-        m1s -= float(tau)
-        events = _model_to_momi_events(m1s, m1a, "pop1")
-        demo = momi.demography.make_demography(events, ["pop1"], (n1 + n2 + 1,))
-        mconf = momi.config_array(("pop1",), configs)
-        esfs = momi.expected_sfs(demo, mconf, mut_rate=1.0)
-        # esfs is esfs at tau. first compute transition down to t_s.
-        # there are two cases to consider depending on whether a mutation
-        # hits distinguished lineages.
-        eMn1n20 = Mn1n20.expm(float(Rtau - Rts1))
-        eMn1n22 = eMn1n20[::-1, ::-1]
-        sfs0_ts = (esfs * S0).dot(eMn1n20[1:])
-        sfs2_ts = (esfs * S2).dot(eMn1n22[:-1])
-        rsfs[0] += sfs0_ts / K
-        rsfs[2] += sfs2_ts / K
-        assert(np.all(rsfs >= 0))
-
-    # Moran transition in each subpopulation from t_S to present
+    # Moran transition in each subpopulation from split to present
     for b1 in range(n1 + 1):
         for b2 in range(n2 + 1):
             for nseg in range(n1 + n2 + 1):
@@ -181,6 +147,21 @@ def _jcsfs_helper_tau_above_split(pargs):
                             h * rsfs[2, nseg] *
                             eMn12[np1, b1] * eMn2[np2, b2]
                             )
+    # to add in the time beneath split, we fudge slightly and just compute
+    # another csfs conditioned on coalescence in (split, split + epsilon).
+    rsfs_below = _smcpp.raw_sfs(model1, n1, split - 1e-6, split + 1e-6, True).astype('float')
+    ret[:, :, 0, 0] += rsfs_below
+    # Since population 2 has no distinguished lineages, we get this by
+    # marginalizing over the csfs.
+    if n2 > 0:
+        if n2 == 1:
+            ret[0, 0, 0, 1] += split
+        else:
+            # n2 >= 2
+            rsfs_below = _smcpp.raw_sfs(model2, n2 - 2, split - 1e-6, split + 1e-6).astype('float')
+            rsfs_below = util.undistinguished_sfs(rsfs_below, False)
+            aoeu
+            ret[0, 0, 0] += rsfs_below
     assert(np.all(ret >= 0))
     return ret
 

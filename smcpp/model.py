@@ -35,11 +35,6 @@ class SMCModel(Observable):
     def knots(self):
         return self._knots
 
-    def to_d(self):
-        return {'s': list(self._s), 'knots': list(self._knots),
-                'y': list(self._y.astype('float')),
-                'spline_class': self._spline_class.__name__}
-
     def __setitem__(self, key, item):
         self._y[key] = item[:]
         self._refit()
@@ -70,13 +65,20 @@ class SMCModel(Observable):
     def stepwise_values(self):
         return np.array(ad.admath.exp(self._spline.eval(np.log(np.cumsum(self._s)))))
 
+    def to_s(self, until=-0):
+        ary = self[:until].astype('float')
+        fmt = " ".join(["{:>5.2f}"] * len(ary))
+        return fmt.format(*ary)
+
     def to_dict(self):
-        x = np.array([self.stepwise_values(), self.stepwise_values(), self._s])
-        return {'x': x.astype('float').tolist(), 'y': self._y, 's': self._s, 'knots': self._knots}
+        return {'s': list(self._s), 'knots': list(self._knots),
+                'y': list(self._y.astype('float')),
+                'spline_class': self._spline_class.__name__}
 
     @classmethod
     def from_dict(klass, d):
-        r = klass(d['s'], d['knots'])
+        spc = getattr(spline, d['spline_class'])
+        r = klass(d['s'], d['knots'], spc)
         r.y = d['y']
         return r
 
@@ -124,10 +126,16 @@ class SMCTwoPopulationModel(Observable):
     def dlist(self):
         return self._models[0].dlist + self._models[1].dlist
 
-    def to_d(self):
-        return {'model1': self._models[0].to_d(),
-                'model2': self._models[1].to_d(),
+    def to_dict(self):
+        return {'model1': self._models[0].to_dict(),
+                'model2': self._models[1].to_dict(),
                 'split': self._split}
+
+    def to_s(self):
+        return "\nPop. 1:\n{}\nPop. 2:\n{}\n\tSplit:{}".format(
+            self._models[0].to_s(), 
+            self._models[1].to_s(self.split_ind),
+            self.split)
 
     # FIXME this counts the part before the split twice
     def regularizer(self):
