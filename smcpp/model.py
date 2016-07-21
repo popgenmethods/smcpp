@@ -10,6 +10,17 @@ from .observe import Observable
 
 logger = logging.getLogger(__name__)
 
+# Dummy class used for JCSFS and a few other places
+class PiecewiseModel(object):
+
+    def __init__(self, s, a, dlist):
+        self.s = s
+        self.a = a
+        self.dlist = dlist
+
+    def stepwise_values(self):
+        return self.a
+
 class SMCModel(Observable):
     def __init__(self, s, knots, spline_class=spline.PChipSpline):
         Observable.__init__(self)
@@ -153,3 +164,5 @@ class SMCTwoPopulationModel(Observable):
         a, cc = coords
         self._models[a][cc] = x
         self.update_observers('model update')
+
+
