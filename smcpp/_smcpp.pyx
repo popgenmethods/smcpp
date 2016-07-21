@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 abort = False
 cdef void logger_cb(const char* name, const char* level, const char* message) with gil:
     global abort
-    name_s = name.decode("UTF-8")
+    name_s = "smcpp._smcpp:" + name.decode("UTF-8")
     level_s = level.decode("UTF-8")
     message_s = message.decode("UTF-8")
     try:
@@ -40,7 +40,7 @@ init_logger_cb(logger_cb);
 # flat arrays
 aca = np.ascontiguousarray
 
-cdef ParameterVector make_params(model):
+cdef ParameterVector make_params(model) except *:
     cdef ParameterVector ret
     cdef vector[adouble] r
     a = model.stepwise_values()

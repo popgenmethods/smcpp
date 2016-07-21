@@ -376,7 +376,7 @@ T PiecewiseConstantRateFunction<T>::R(const T t) const
 template <typename T>
 T PiecewiseConstantRateFunction<T>::Rinv(const T y) const
 {
-    int ip = insertion_point(toDouble(y), ts, 0, ts.size());
+    int ip = insertion_point(toDouble(y), Rrng, 0, Rrng.size());
     return (y - Rrng[ip]) / ada[ip] + ts[ip];
 }
 
