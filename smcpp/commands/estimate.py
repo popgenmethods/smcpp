@@ -42,7 +42,7 @@ def init_parser(parser):
     model.add_argument('--split', type=float, 
                        help="initial guess (in generations) for location of split "
                             "in two-population models.")
-    model.add_argument('--fix-split', type=bool, 
+    model.add_argument('--fix-split', default=False, action="store_true",
                        help="initial guess (in generations) for location of split "
                             "in two-population models.")
     hmm.add_argument('--thinning', help="emit full SFS every <k>th site",

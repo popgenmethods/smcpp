@@ -49,44 +49,6 @@ def thin_dataset(dataset, thinning):
     p.terminate()
     return ret
     
-def pretrain(model, sample_csfs, bounds, theta0, folded, penalty):
-    '''Pre-train model by fitting to observed SFS. Changes model in place!'''
-    logger.debug("pretraining")
-    n = sample_csfs.shape[1] + 1
-    def undist(sfs):
-        return util.undistinguished_sfs(sfs, folded)
-    sample_sfs = undist(sample_csfs)
-    K = model.K
-    coords = np.arange(K)
-    def f(x):
-        x = ad.adnumber(x)
-        model[coords] = x
-        logger.debug("requesting sfs")
-        sfs = _smcpp.raw_sfs(model, n, 0., np.inf)
-        sfs[0, 0] = 0
-        sfs *= theta0
-        sfs[0, 0] = 1. - sfs.sum()
-        logger.debug("done")
-        usfs = undist(sfs)
-        kl = -(sample_sfs * ad.admath.log(usfs)).sum()
-        reg = penalty * model.regularizer()
-        kl += reg
-        ret = (kl.x, np.array(list(map(kl.d, x))))
-        logger.debug("\n%s" % np.array_str(model[:].astype('float'), precision=3))
-        logger.debug((reg, ret))
-        return ret
-    x0 = model[coords].astype('float')
-    res = scipy.optimize.fmin_tnc(f, 
-            x0,
-            None,
-            bounds=np.log(bounds[0][coords]),
-            xtol=0.01,
-            disp=False)
-    for cc, xx in zip(coords, res[0]):
-        model[cc] = xx 
-    logger.info("pre-trained model:\n%s" % np.array_str(model[:].astype('float'), precision=2))
-    return _smcpp.raw_sfs(model, n, 0., np.inf).astype('float')
-
 def break_long_spans(dataset, rho, length_cutoff):
     # Spans longer than this are broken up
     # FIXME: should depend on rho

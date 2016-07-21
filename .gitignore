@@ -10,8 +10,8 @@ build/
 .gdb_history
 *.so
 build/
-src/_expm.cpp
 src/*.o
+smcpp/*.cpp
 valgrind-python.supp
 environ.sh
 .nfs*

@@ -29,9 +29,13 @@ class AbstractOptimizer(Observable):
         'Return a list of bounds for each coordinate in :coords:.'
         return []
 
+    # In the one population case, this method adds derivative information to x
+    def _prepare_x(self, x):
+        return ad.adnumber(x)
+
     def _f(self, x, analysis, coords):
-        x = ad.adnumber(x)
-        analysis.model[:] = analysis.model[:].astype('float')
+        x = self._prepare_x(x)
+        analysis.model.reset_derivatives()
         analysis.model[coords] = x
         q = -analysis.Q()
         ret = [q.x, np.array(list(map(q.d, x)))]
@@ -130,7 +134,7 @@ class ParameterOptimizer(Observer):
         if param not in ("theta", "rho", "split"):
             raise RuntimeError("unrecognized param")
         x0 = getattr(tgt, param)
-        logger.debug("Old %s: Q(%g)=%g", param, x0,
+        logger.debug("Old %s: Q(%f)=%f", param, x0,
                      self._f(x0, analysis, tgt, param))
         res = scipy.optimize.minimize_scalar(self._f,
                                              args=(analysis, tgt, param),
@@ -143,10 +147,13 @@ class ParameterOptimizer(Observer):
         setattr(tgt, param, x)
         # derivatives curretly not supported for 1D optimization. not
         # clear if they really help.
-        return -float(analysis.Q()) 
+        ret = -float(analysis.Q()) 
+        logger.debug("%s f(%f)=%f", param, x, ret)
+        return ret
 
 class SMCPPOptimizer(AbstractOptimizer):
     'Model fitting for one population.'
+
     def __init__(self, analysis):
         AbstractOptimizer.__init__(self, analysis)
         self.register(LoglikelihoodPrinter())
@@ -163,14 +170,23 @@ class SMCPPOptimizer(AbstractOptimizer):
     
 
 class TwoPopulationOptimizer(SMCPPOptimizer):
+    'Model fitting for two populations.'
 
     def __init__(self, analysis):
         SMCPPOptimizer.__init__(self, analysis)
-        self.register(ParameterOptimizer("split", (0., np.inf), "model"))
 
     def _coordinates(self):
-        model = self._analysis.model
-        c1 = [list(range(b, min(model.K, b + self.block_size))) 
-                for b in range(0, model.K - self.block_size + 1, self.block_size - 2)]
-        c2 = [tuple(a for a in cc if model.split_ind <= a) for cc in c1]
+        K = self._analysis.model.distinguished_model.K
+        c1, c2 = [[list(range(b, min(K, b + self.block_size)))
+                   for b in range(0, ub + 1, self.block_size - 2)]
+                  for ub in [K - self.block_size,
+                             self._analysis.model.split_ind]]
         return [(i, cc) for i, c in enumerate([c1, c2]) for cc in c]
+
+    def _bounds(self, coords):
+        return SMCPPOptimizer._bounds(self, coords[1])
+
+    # In the two population case, this method doesn't add derivatives since
+    # we don't support them.
+    def _prepare_x(self, x):
+        return x

@@ -79,6 +79,7 @@ class JointCSFS(object):
         mapfun = map
         self._jcsfs[:] = list(mapfun(_parallel_helper,
             [_ParallelArgs(t1, t2, *args) for t1, t2 in self._hs_pairs]))
+        assert np.all(np.isfinite(self._jcsfs))
         return self._jcsfs
 
 _ParallelArgs = namedtuple("_ParallelArgs",
@@ -88,16 +89,19 @@ _ParallelArgs = namedtuple("_ParallelArgs",
 def _parallel_helper(pargs):
     t1, t2, split = pargs[:3]
     if t1 < t2 <= split:
-        return _jcsfs_helper_tau_below_split(pargs)
+        ret = _jcsfs_helper_tau_below_split(pargs)
     elif split <= t1 < t2:
-        return _jcsfs_helper_tau_above_split(pargs)
+        ret = _jcsfs_helper_tau_above_split(pargs)
     else:
         assert t1 < split < t2
         r1 = _jcsfs_helper_tau_below_split(pargs._replace(t2=split))
         r2 = _jcsfs_helper_tau_above_split(pargs._replace(t1=split))
-        R1t1, R1t2 = [np.exp(-_R(pargs.model1, t)) for t in (t1, t2)]
-        w = (pargs.Rts1 - R1t1) / (pargs.Rts1 - pargs.Rts2)
-        return r1 * w + r2 * (1. - w)
+        eR1t1, eR1t2, eRts = [np.exp(-_R(pargs.model1, t)) for t in (t1, t2, split)]
+        w = (eRts - eR1t2) / (eR1t1 - eR1t2)
+        assert 0 <= w <= 1
+        ret = r1 * (1. - w) + r2 * w
+    assert np.all(np.isfinite(ret))
+    return ret
 
 
 def _jcsfs_helper_tau_above_split(pargs):
@@ -119,7 +123,9 @@ def _jcsfs_helper_tau_above_split(pargs):
     ap = a[i - 1:]
     # dlist = set(model1.dlist) & {a.d().keys() for a in ap if hasattr(a, 'd')}
     shim_model = PiecewiseModel(sp, ap, [])
-    rsfs = _smcpp.raw_sfs(shim_model, n1 + n2 + 2, t1, t2, True).astype('float')
+    # compute the "time beneath tau" between split and tau, here tau is
+    # integrated out. This calls csfs_below on n1 + n2 + 2 lineages.
+    rsfs = _smcpp.raw_sfs(shim_model, n1 + n2, t1, t2, True).astype('float')
     S2 = np.arange(1, n1 + n2 + 1, dtype=float) / (n1 + n2 + 1)
     S0 = 1. - S2
     eMn10 = Mn10.expm(float(Rts1))
@@ -175,6 +181,7 @@ def _jcsfs_helper_tau_above_split(pargs):
                             h * rsfs[2, nseg] *
                             eMn12[np1, b1] * eMn2[np2, b2]
                             )
+    assert(np.all(ret >= 0))
     return ret
 
 def _jcsfs_helper_tau_below_split(pargs):
@@ -186,7 +193,7 @@ def _jcsfs_helper_tau_below_split(pargs):
     ret = np.zeros([a1 + 1, n1 + 1, a2 + 1, n2 + 1])
     S2 = np.diag(np.arange(1, n1 + 1, dtype=float)) / (n1 + 1)
     S0 = np.eye(n1) - S2
-    rsfs = _smcpp.raw_sfs(model1, n1 + 2, t1, t2, True)
+    rsfs = _smcpp.raw_sfs(model1, n1, t1, t2, True)
     ret[:, :, 0, 0] = rsfs
     m2s = _cumsum0(model2.s)
     tm2 = np.searchsorted(m2s, split)
@@ -220,6 +227,7 @@ def _jcsfs_helper_tau_below_split(pargs):
         ret[2, n1, 0] += sfs[-1] / K
         ret[0, :, 0] += sfs[1:-1].T.dot(S0).dot(trans0[1:]).T / K
         ret[2, :, 0] += sfs[1:-1].T.dot(S2).dot(trans2[:-1]).T / K
+        assert(np.all(ret >= 0))
     return ret
 
 def _cumsum0(ary):
@@ -251,7 +259,7 @@ def _modified_rate_matrix(N, a):
 
 def _R(model, t):
     # integral of cumulate rate function.
-    return _smcpp.PyRateFunction(model, [0., np.inf]).R(t)
+    return _smcpp.PyRateFunction(model, []).R(t)
 
 def _model_to_momi_events(s, a, pop):
     return [("-en", tt, pop, aa) for tt, aa in zip(s, a)]

@@ -14,7 +14,7 @@ def init_logging():
     sh.setLevel(logging.INFO)
     root.addHandler(sh)
     root.setLevel(logging.NOTSET)
-    logging.getLogger("momi").setLevel(logging.INFO)
+    logging.getLogger('momi').setLevel(logging.INFO)
 
 init_logging()
 

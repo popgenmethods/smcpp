@@ -20,11 +20,8 @@ def model2():
     return ret
 
 @pytest.fixture
-def jcsfs(model1, model2):
-    return JointCSFS(8, 4, 2, 0, model1, model2, 1.0)
+def jcsfs():
+    return JointCSFS(2, 2, 2, 0, [0.0, 0.5, 1.0, np.inf])
 
-def test_jcsfs_below(jcsfs):
-    jcsfs._jcsfs_helper_tau_below_split(0.5, 0.8)
-
-def test_jcsfs_above(jcsfs):
-    jcsfs._jcsfs_helper_tau_above_split(1.2, 1.3)
+def test_jcsfs(jcsfs, model1, model2):
+    print(jcsfs.compute(model1, model2, 0.25))

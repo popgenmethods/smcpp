@@ -27,12 +27,21 @@ class SMCModel(Observable):
     def K(self):
         return len(self.knots)
 
+    def reset_derivatives(self):
+        self._y = self._y.astype('float')
+        self._refit()
+
     @property
     def knots(self):
         return self._knots
 
+    def to_d(self):
+        return {'s': list(self._s), 'knots': list(self._knots),
+                'y': list(self._y.astype('float')),
+                'spline_class': self._spline_class.__name__}
+
     def __setitem__(self, key, item):
-        self._y[key] = item
+        self._y[key] = item[:]
         self._refit()
         self.update_observers('model update')
           
@@ -88,6 +97,12 @@ class SMCTwoPopulationModel(Observable):
     def split(self):
         return self._split
 
+    @property
+    def split_ind(self):
+        'Return k such that model2.t[k] <= split < model2.t[k + 1]'
+        cs = np.cumsum(self._models[1]._knots)
+        return np.searchsorted(cs, self._split)
+
     @split.setter
     def split(self, x):
         self._split = x
@@ -105,10 +120,28 @@ class SMCTwoPopulationModel(Observable):
     def distinguished_model(self):
         return self.model1
 
+    @property 
+    def dlist(self):
+        return self._models[0].dlist + self._models[1].dlist
+
+    def to_d(self):
+        return {'model1': self._models[0].to_d(),
+                'model2': self._models[1].to_d(),
+                'split': self._split}
+
+    # FIXME this counts the part before the split twice
     def regularizer(self):
         return sum([m.regularizer() for m in self._models])
 
+    def reset_derivatives(self):
+        for m in self._models:
+            m.reset_derivatives()
+
+    def __getitem__(self, coords):
+        a, cc = coords
+        return self._models[a][cc]
+
     def __setitem__(self, coords, x):
-        for (a, cc), xx in zip(coords, x):
-            self.models[a][cc] = xx
+        a, cc = coords
+        self._models[a][cc] = x
         self.update_observers('model update')

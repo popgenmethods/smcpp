@@ -2,7 +2,9 @@ import numpy as np
 import functools
 import multiprocessing
 import inflect
+import json
 import sys
+import os.path
 
 from . import estimation_tools, _smcpp, util, logging, optimizer, jcsfs
 from .spline import PChipSpline, CubicSpline, AkimaSpline
@@ -32,7 +34,7 @@ class Analysis(Observer):
         self._perform_thinning(args.thinning)
         self._normalize_data(args.length_cutoff)
         self._init_inference_manager(args.folded)
-        self._init_optimizer(args.outdir, args.block_size, args.fix_rho)
+        self._init_optimizer(args.outdir, args.block_size, args.fix_rho, args.fix_split)
 
         # Misc. parameter initialiations
         self._N0 = args.N0
@@ -183,11 +185,14 @@ class Analysis(Observer):
         # Receive updates whel model changes
         self.model.register(self)
 
-    def _init_optimizer(self, outdir, block_size, fix_rho):
+    def _init_optimizer(self, outdir, block_size, fix_rho, fix_split):
         if self._npop == 1:
             self._optimizer = optimizer.SMCPPOptimizer(self)
         elif self._npop == 2:
             self._optimizer = optimizer.TwoPopulationOptimizer(self)
+            if not fix_split:
+                smax = np.sum(self.model.distinguished_model.s)
+                self._optimizer.register(optimizer.ParameterOptimizer("split", (0., smax), "model"))
         self._optimizer.block_size = block_size
         self._optimizer.register(optimizer.AnalysisSaver(outdir))
         if not fix_rho:
@@ -205,7 +210,7 @@ class Analysis(Observer):
 
     def Q(self):
         'Value of Q() function in M-step.'
-        return self._im.Q() + self._penalty * self._model.regularizer()
+        return self._im.Q() + self._penalty * self.model.regularizer()
 
     def E_step(self):
         'Perform E-step.'
@@ -213,7 +218,7 @@ class Analysis(Observer):
 
     def loglik(self):
         'Log-likelihood of data after most recent E-step.'
-        return self._im.loglik() + self._penalty * float(self._model.regularizer())
+        return self._im.loglik() + self._penalty * float(self.model.regularizer())
 
     @property
     def bounds(self):
@@ -246,7 +251,6 @@ class Analysis(Observer):
 
     def dump(self, filename):
         'Dump result of this analysis to :filename:.'
-        er = EstimationResult()
-        for attr in ['model', 'N0', 'theta', 'rho']:
-            setattr(er, attr, getattr(self, attr))
-        er.dump(filename)
+        d = {'N0': self._N0, 'theta': self._theta, 'rho': self._rho}
+        d['model'] = self.model.to_d()
+        json.dump(d, open(filename + ".json", "wt"), sort_keys=True, indent=4)
