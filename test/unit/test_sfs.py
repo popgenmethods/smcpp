@@ -15,7 +15,6 @@ def test_d(im):
     print(model.stepwise_values())
     im.model = model
     im.E_step()
-    im.Q()
     em1 = im.emission
     print(em1)
     M = em1.shape[0]

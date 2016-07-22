@@ -166,13 +166,15 @@ class ParameterOptimizer(Observer):
         return ret
 
 class AsciiPlotter(Observer):
+    def __init__(self, gnuplot_path):
+        self._gnuplot_path = gnuplot_path
     def update(self, message, *args, **kwargs):
         if message != "post-M step":
             return
         model = kwargs['model']
         x = np.cumsum(model.s)
         y = model.stepwise_values()
-        gnuplot = subprocess.Popen(["/usr/bin/gnuplot"], 
+        gnuplot = subprocess.Popen([self._gnuplot_path], 
                                    stdin=subprocess.PIPE,
                                    stdout=subprocess.PIPE)
         def write(x):
@@ -182,8 +184,8 @@ class AsciiPlotter(Observer):
         width = columns * 3 // 5
         height = 25
         write("set term dumb {} {}".format(width, height))
-        write("set xlabel Time")
-        write("set ylabel N0")
+        write("set xlabel \"Time\"")
+        write("set ylabel \"N0\"")
         write("unset key")
         write("set logscale xy")
         write("plot '-' using 1:2 with lines")
@@ -203,13 +205,17 @@ class SMCPPOptimizer(AbstractOptimizer):
         self.register(HiddenStateOccupancyPrinter())
         self.register(ProgressPrinter())
         self.register(ModelPrinter())
-        self.register(AsciiPlotter())
+        gnuplot = shutil.which("gnuplot")
+        if gnuplot:
+            self.register(AsciiPlotter(gnuplot))
 
     def _coordinates(self):
         model = self._analysis.model
         ret = []
         for b in range(model.K - self.block_size + 1):
             ret.append(list(range(b, min(model.K, b + self.block_size))))
+        # After all coordinate-wise updates, optimize over whole function
+        ret.append(list(range(model.K)))
         return ret
     
     def _bounds(self, coords):

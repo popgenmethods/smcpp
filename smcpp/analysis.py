@@ -14,7 +14,6 @@ from .observe import Observer
 
 logger = logging.getLogger(__name__)
 
-
 def _tied_property(attr):
     def getx(self):
         return getattr(self._im, attr)
