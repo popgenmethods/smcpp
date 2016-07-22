@@ -11,11 +11,12 @@ def getLogger(name):
     else:
         return multiprocessing.get_logger()
 
-def setup_logging(verbosity, debug_log):
+def setup_logging(verbosity, debug_log=None):
     root = logging.getLogger()
     sh = root.handlers[0]
     sh.setLevel([INFO, DEBUG, DEBUG - 1][verbosity])
-    fh = logging.FileHandler(debug_log, "wt")
-    fh.setLevel(DEBUG)
-    fh.setFormatter(sh.formatter)
-    root.addHandler(fh)
+    if debug_log is not None:
+        fh = logging.FileHandler(debug_log, "wt")
+        fh.setLevel(DEBUG)
+        fh.setFormatter(sh.formatter)
+        root.addHandler(fh)

@@ -242,7 +242,7 @@ def exp_quantiles(M):
 
 @contextmanager
 def optional_gzip(f, mode):
-    with gzip.GzipFile(f, mode) if f.endswith(".gz") else open(f, mode) as o:
+    with gzip.open(f, mode) if f.endswith(".gz") else open(f, mode) as o:
         yield o
 
 class RepeatingWriter:

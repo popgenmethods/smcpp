@@ -19,7 +19,7 @@ def init_parser(parser):
     parser.add_argument("--missing-cutoff", "-c", metavar="c", type=int, default=None,
             help="treat runs of homozygosity longer than <c> base pairs as missing")
     parser.add_argument("--mask", "-m", help="BED-formatted mask of missing regions", widget="FileChooser")
-    parser.add_argument("--pop2", "-p", nargs="+", metavar="sample_id",
+    parser.add_argument("--pop2", "-p", nargs="+", metavar="sample_id", default=[],
             help="Column(s) representing second population")
     parser.add_argument("vcf", metavar="vcf[.gz]", help="input VCF file", widget="FileChooser")
     parser.add_argument("out", metavar="out[.gz]", help="output SMC++ file", widget="FileChooser")
@@ -32,7 +32,7 @@ def validate(args):
         raise RuntimeError("--missing-cutoff and --mask are mutually exclusive")
 
 def main(args):
-    setup_logging(0, None)
+    setup_logging(0)
     validate(args)
     if len(args.sample_ids) == 1:
         try:
@@ -48,10 +48,10 @@ def main(args):
         npop = 2
     logger.info("Distinguished sample: " + dist)
     logger.info("Undistinguished samples: " + ",".join(undist))
+    p2 = args.pop2
     if args.pop2:
         logger.info("Population 2:")
         logger.info("Undistinguished samples: " + ",".join(args.pop2))
-        p2 = args.pop2
 
     ## Start parsing
     vcf = VariantFile(args.vcf)
