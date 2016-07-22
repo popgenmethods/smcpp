@@ -13,17 +13,13 @@
 #include <unsupported/Eigen/MatrixFunctions>
 
 #include "prettyprint.hpp"
+#include "hash.h"
 
 #define EIGEN_NO_AUTOMATIC_RESIZING 1
 
-// Maximum time (in coalescent units) considered for all integrals and hidden states.
-// Technically this is not necessary -- the method works with T_MAX=infinity -- but
-// the derivatives and integrals seem a bit more accurate when everything is finite.
-typedef std::array<int, 3> block_key;
-const double T_MAX = 500.0;
-
 template <typename T> using Matrix = Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic>;
 template <typename T> using Vector = Eigen::Matrix<T, Eigen::Dynamic, 1>;
+template <typename T, size_t P> using FixedVector = Eigen::Matrix<T, P, 1>;
 
 template <typename _Scalar, int NX=Eigen::Dynamic, int NY=Eigen::Dynamic>
 struct Functor
@@ -52,6 +48,8 @@ struct Functor
 #include <unsupported/Eigen/AutoDiff>
 
 typedef Eigen::AutoDiffScalar<Eigen::VectorXd> adouble;
+typedef std::vector<std::vector<adouble>> ParameterVector;
+
 inline double toDouble(const adouble &a) { return a.value(); }
 inline double toDouble(const double &d) { return d; }
 
@@ -91,6 +89,8 @@ namespace Eigen {
 using std::exp;
 using std::expm1;
 using std::log1p;
+using std::cosh;
+using std::sinh;
 
 EIGEN_AUTODIFF_DECLARE_GLOBAL_UNARY(expm1,
   Scalar expm1x = expm1(x.value());
@@ -106,6 +106,18 @@ EIGEN_AUTODIFF_DECLARE_GLOBAL_UNARY(ceil,
 EIGEN_AUTODIFF_DECLARE_GLOBAL_UNARY(log1p,
   Scalar log1px = std::log1p(x.value());
   return ReturnType(log1px, x.derivatives() * (Scalar(1) / (Scalar(1) + x.value())));
+)
+
+EIGEN_AUTODIFF_DECLARE_GLOBAL_UNARY(sinh,
+  Scalar sinhx = std::sinh(x.value());
+  Scalar coshx = std::cosh(x.value());
+  return ReturnType(sinhx, x.derivatives() * coshx);
+)
+
+EIGEN_AUTODIFF_DECLARE_GLOBAL_UNARY(cosh,
+  Scalar sinhx = std::sinh(x.value());
+  Scalar coshx = std::cosh(x.value());
+  return ReturnType(coshx, x.derivatives() * sinhx);
 )
 
 #undef EIGEN_AUTODIFF_DECLARE_GLOBAL_UNARY
@@ -205,26 +217,11 @@ void check_nan(const Eigen::DenseBase<Derived> &M)
             }
             catch (std::runtime_error)
             {
-                CRITICAL << i << " " << j << " " << M.coeff(i, j);
+                CRITICAL << M.rows() << " " << M.cols() << " " << i << " " << j << " " << M.coeff(i, j);
+                crash_backtrace("", -1);
                 throw;
             }
         }
-}
-
-template <typename T>
-void _check_nan(const Vector<T> &x) 
-{ 
-    for (int i = 0; i < x.rows(); ++i) 
-    {
-        try
-        {
-            _check_nan(x(i));
-        }
-        catch (std::runtime_error)
-        {
-            CRITICAL << i << " " << x(i);
-        }
-    }
 }
 
 template <typename T>
@@ -232,6 +229,15 @@ void check_nan(const Eigen::AutoDiffScalar<T> &x)
 {
     check_nan(x.value());
     check_nan(x.derivatives());
+}
+
+inline adouble double_vec_to_adouble(const double &x, const std::vector<double> &dx)
+{
+    adouble ret;
+    Vector<double> vdx(dx.size());
+    for (unsigned int i = 0; i < dx.size(); ++i)
+        vdx(i) = dx[i];
+    return adouble(x, vdx);
 }
 
 #endif

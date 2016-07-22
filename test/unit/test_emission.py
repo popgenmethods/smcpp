@@ -2,23 +2,20 @@ import pytest
 import numpy as np
 import ad
 
+from fixtures import *
+
 import smcpp._smcpp, smcpp.model
-from fixtures import im
 
 def test_d(im):
-    eps = 1e-4
+    eps = 1e-8
     model = im.model
-    K = model.K
-    model[:] = ad.adnumber(np.arange(1, K + 1, dtype=float) / K)
+    K = len(model[:])
+    model[:] = ad.adnumber(np.random.normal(0, .1, size=K))
     y = model[:].copy()
-    print(y)
-    print(model.stepwise_values())
     im.model = model
     im.E_step()
     im.Q()
-    trans1 = im.transition
-    print(trans1)
-    M = trans1.shape[0]
+    e1 = im.emission
     I = np.eye(K)
     for k in range(K):
         aa = [float(_) for _ in y]
@@ -26,13 +23,12 @@ def test_d(im):
         model[:] = aa
         im.model = model
         im.Q()
-        trans2 = im.transition
-        for i in range(M):
-            for j in range(M):
-                dx = trans1[i, j].d(y[k])
-                dx2 = (trans2[i,j] - float(trans1[i,j])) / eps
-                print(k, i, j, dx, dx2, (dx - dx2) / dx)
-    assert False
+        e2 = im.emission
+        for i in range(e1.shape[0]):
+            for j in range(e1.shape[1]):
+                d1 = e1[i, j].d(y[k])
+                d2 = (e2[i,j] - float(e1[i,j])) / eps
+                # print(k, i, j, (d1 - d2) / d2 if d2 != 0.0 else d1 == d2)
 
 # def test_equal_jac_nojac(constant_demo_1, hs):
 #     from timeit import default_timer as timer

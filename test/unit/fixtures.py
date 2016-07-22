@@ -1,41 +1,26 @@
 import pytest
 import numpy as np
-import cPickle
-import scipy.integrate
+
+import smcpp.pool
+smcpp.pool.init_pool()
+
+import smcpp._smcpp, smcpp.model
 
 @pytest.fixture
-def mock_dataset():
-    return cPickle.load(open("test/test_dataset.dat", "rb"))
-
-@pytest.fixture
-def constant_demo_1():
-    a = np.array([1.0])
-    b = np.array([1.0])
-    s = np.array([1.0])
-    return (a, b, s)
-
-@pytest.fixture
-def constant_demo_1000():
-    a = 1. / np.array([1000.0])
-    b = 1. / np.array([1000.0])
-    s = np.array([1.0])
-    return (a, b, s)
-
-@pytest.fixture
-def demo():
-    a = np.array([.2, 1., 2., 3.])
-    b = np.array([.3, 2., 1., 3.5])
-    s = np.array([0.1, 0.2, 0.3, 0.4])
-    return (a, b, s)
-
-@pytest.fixture
-def fake_obs():
-    L = 10000
-    n = 25
-    ary = []
-    for ell in range(L):
-        ary.append([np.random.randint(1, 1000), 0, 0])
-        d = np.random.randint(0, 3)
-        ary.append([1, d, np.random.randint(not d, n + 1 - (d == 2))])
-    return np.array(ary, dtype=np.int32)
-
+def im():
+    K = 5
+    hidden_states = np.concatenate([[0.], np.logspace(-2, 1, 5), [np.inf]])
+    N0 = 10000.
+    theta = 1.25e-8
+    rho = theta / 4.
+    n = 26
+    M = len(hidden_states) - 1
+    s = np.diff(np.logspace(np.log10(.01), np.log10(3.), 41))
+    obs_list = [np.array([[1, 0, 10, n - 2], [10, 0, 0, n - 2], [1, 2, 2, n - 5]], dtype=np.int32)]
+    im = smcpp._smcpp.PyOnePopInferenceManager(n - 2, obs_list, hidden_states)
+    im.rho = 4.0 * N0 * rho
+    im.theta = 4.0 * N0 * theta
+    knots = np.logspace(np.log10(.01), np.log10(3.), K)
+    model = smcpp.model.SMCModel(s, knots)
+    im.model = model
+    return im

@@ -1,4 +1,4 @@
-from __future__ import division
+
 import bitarray
 import numpy as np
 import math
@@ -11,7 +11,8 @@ import logging
 import sys
 from collections import Counter
 import re
-from cStringIO import StringIO
+import six
+from six.moves import cStringIO as StringIO
 
 import smcpp.util
 
@@ -63,11 +64,11 @@ def demography_from_params(params):
 
 def print_data_stats(positions, haps):
     gaps = positions[1:] - positions[:-1]
-    print("Minimum gap: %d" % np.min(gaps))
-    print("Average gap: %d" % np.mean(gaps))
-    print("# seg. sites: %d" % gaps.shape[0])
+    print(("Minimum gap: %d" % np.min(gaps)))
+    print(("Average gap: %d" % np.mean(gaps)))
+    print(("# seg. sites: %d" % gaps.shape[0]))
     i = np.argmin(gaps)
-    print(positions[(i-3):(i+3)])
+    print((positions[(i-3):(i+3)]))
 
 def parse_scrm(n, L, output, include_trees):
     coal_times = []
@@ -119,7 +120,7 @@ def parse_scrm(n, L, output, include_trees):
 
 def simulate(n, N0, theta, rho, L, include_trees=False, scrm_args=[]):
     # scrm will emit positions in [0, L] (inclusive).
-    seeds = np.random.randint(0, sys.maxint, size=3)
+    seeds = np.random.randint(0, six.MAXSIZE, size=3)
     r = 4 * N0 * rho * (L - 1)
     t = 4 * N0 * theta * L
     args = [n, 1, '-p', int(math.log10(L)) + 2, '-t', t, '-r', r, L, '-oSFS', '-seeds'] + list(seeds) + scrm_args
@@ -138,21 +139,20 @@ def simulate(n, N0, theta, rho, L, include_trees=False, scrm_args=[]):
     return ret
 
 def distinguished_sfs(n, M, N0, theta, demography, t0=0.0, t1=np.inf):
-    seeds = np.random.randint(0, sys.maxint, size=3)
+    seeds = np.random.randint(0, six.MAXSIZE, size=3)
     t = 4 * N0 * theta
-    args = [n, M, '-t', t, '-seeds'] + list(seeds) + demography
+    args = [n + 2, M, '-t', t, '-seeds'] + list(seeds) + demography
     if t0 > 0.0 or t1 < np.inf:
         args.append("-T")
     cmd = os.environ['SCRM_PATH'] + " " + " ".join(map(str, args))
-    print(args)
     output = scrm(*args, _iter=True)
-    avgsfs = np.zeros([3, n - 1], dtype=float)
+    avgsfs = np.zeros([3, n + 1], dtype=float)
     fs = frozenset([0, 1])
     m = 0
     for k, lines in splitter(output):
         if k == 0:
             continue
-        sfs = np.zeros([3, n - 1], dtype=float)
+        sfs = np.zeros([3, n + 1], dtype=float)
         if t0 > 0.0 or t1 < np.inf:
             import smcpp._newick as _newick
             newick = next(lines)
@@ -167,11 +167,11 @@ def distinguished_sfs(n, M, N0, theta, demography, t0=0.0, t1=np.inf):
             continue
         next(lines) # positions
         bits = np.array([np.fromstring(str(line.strip()), np.uint8) - 48 for line in lines if line.strip()])
-        assert (n, segsites) == bits.shape
+        assert (n + 2, segsites) == bits.shape
         for col in range(segsites):
             sfs[bits[:2, col].sum(), bits[2:, col].sum()] += 1
         avgsfs += sfs
-    print(m, M)
+    print((m, M))
     return avgsfs / m
 
 def tjj_transition(n, N0, rho, L, hidden_states, demography=[], seed=None):
@@ -185,7 +185,7 @@ def tjj_transition(n, N0, rho, L, hidden_states, demography=[], seed=None):
         ary.append([int(span), float(tjj), 0])
     ary = np.array(ary)
     ary[:, 2] = np.searchsorted(hidden_states, ary[:, 1]) - 1
-    print(ary.mean(axis=0))
+    print((ary.mean(axis=0)))
     M = len(hidden_states) - 1
     trans = np.zeros([M, M])
     last = ary[0]
@@ -199,12 +199,12 @@ def tjj_transition(n, N0, rho, L, hidden_states, demography=[], seed=None):
 
 def sfs(n, M, N0, theta, demography):
     t = 4 * N0 * theta
-    args = [n, M, '-t', t, '-oSFS'] + demography
+    args = [n + 2, M, '-t', t, '-oSFS'] + demography
     cmd = os.environ['SCRM_PATH'] + " " + " ".join(map(str, args))
     output = check_output(
             """%s | grep SFS | tail -n+2 | cut -f2- -d' ' | Rscript -e 'cat(colSums(read.table(file("stdin"))))'""" % cmd, shell=True)
     ret = np.array([float(x) for x in output.split()])
-    assert ret.shape == (n - 1,)
+    assert ret.shape == (n + 1,)
     ret = np.append([M - ret.sum(),], ret)
     assert ret.sum() == M
     return ret / M
@@ -234,7 +234,7 @@ def empirical_transition(M, N0, rho, demography, hidden_states):
         h1.append(float(ct1))
         h2.append(float(ct2))
     ch1, ch2 = np.searchsorted(hidden_states, [h1, h2])
-    c = Counter(zip(ch1, ch2))
+    c = Counter(list(zip(ch1, ch2)))
     for a, b in c:
         M[a - 1, b - 1] = c[(a, b)]
     return M

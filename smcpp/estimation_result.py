@@ -1,4 +1,5 @@
 from __future__ import absolute_import, division, print_function
+import numpy as np
 import json
 
 class EstimationResult(object):
@@ -11,7 +12,9 @@ class EstimationResult(object):
 
     @model.setter
     def model(self, model):
-        self._model = [[float(x) for x in row] for row in model]
+        v = model.stepwise_values()
+        self._model = np.array([v, v, model.s]).astype('float').tolist()
+        self._spline = np.array([model._knots, model.y]).astype('float').tolist()
 
     def dump(self, filename):
         json.dump(self.__dict__, open(filename + ".json", "wt"))

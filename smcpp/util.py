@@ -4,11 +4,12 @@ import gzip
 import numpy as np
 import functools
 import multiprocessing
-from logging import getLogger
 import os
 from future.moves.itertools import zip_longest
 
-logger = getLogger(__name__)
+from . import logging, _smcpp, model
+
+logger = logging.getLogger(__name__)
 
 # Section 7. of MSMC supplemental
 def build_sawtooth():
@@ -43,7 +44,7 @@ human = {
         'N0': 10000.
         }
 
-def undistinguished_sfs(sfs, folded):
+def undistinguished_sfs(sfs, folded=False):
     n = sfs.shape[1] - 1
     new_shape = [n + 2] + list(sfs.shape[2:])
     usfs = np.zeros(new_shape, dtype=sfs.dtype)
@@ -224,7 +225,9 @@ def config2dict(cp):
 
 def compress_repeated_obs(dataset):
     # pad with illegal value at starting position
-    dataset = np.insert(dataset, 0, [1, -999, 0, 0], 0)
+    nonce = np.zeros_like(dataset[0])
+    nonce[:2] = [1, -999]
+    dataset = np.insert(dataset, 0, nonce, 0)
     nonreps = np.any(dataset[1:, 1:] != dataset[:-1, 1:], axis=1)
     newob = dataset[1:][nonreps]
     csw = np.cumsum(dataset[:, 0])[np.where(nonreps)]
@@ -239,7 +242,7 @@ def exp_quantiles(M):
 
 @contextmanager
 def optional_gzip(f, mode):
-    with gzip.GzipFile(f, mode) if f.endswith(".gz") else open(f, mode) as o:
+    with gzip.open(f, mode) if f.endswith(".gz") else open(f, mode) as o:
         yield o
 
 class RepeatingWriter:
@@ -260,7 +263,8 @@ class RepeatingWriter:
 
     def _write_last_ob(self):
         if self.last_ob is not None and self.last_ob[0] > 0:
-            self.f.write("%d %d %d %d\n" % tuple(self.last_ob))
+            fmtstr = " ".join(["%d"] * len(self.last_ob)) + "\n"
+            self.f.write(fmtstr % tuple(self.last_ob))
             self.i += 1
 
     def __enter__(self):

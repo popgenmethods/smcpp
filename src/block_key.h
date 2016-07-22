@@ -1,65 +1,55 @@
 #ifndef BLOCK_KEY_H
 #define BLOCK_KEY_H
 
-#include <map>
+#include "common.h"
 #include "hash.h"
 
-struct block_power
-{
-    int a, b, nb;
-    bool operator==(const block_power &other) const
-    {
-        return std::array<int, 3>{a, b, nb} == std::array<int, 3>{other.a, other.b, other.nb};
-    }
-    bool operator<(const block_power &other) const
-    {
-        return std::array<int, 3>{a, b, nb} < std::array<int, 3>{other.a, other.b, other.nb};
-    }
-    friend std::ostream& operator<< (std::ostream& stream, const block_power& bp) {
-        stream << "{" << bp.a << "," << bp.b << "/" << bp.nb << "}";
-        return stream;
-    }
-};
+struct block_key 
+{ 
+    block_key(const Vector<int> &vals) : vals(vals) {}
+    const Vector<int> vals;
 
-struct block_key
-{
-    bool alt_block;
-    std::map<block_power, int> powers;
-    bool operator==(const block_key &other) const 
-    { 
-        return alt_block == other.alt_block and powers == other.powers;
-    }
-    friend std::ostream& operator<< (std::ostream& stream, const block_key& bk) {
-        stream << "(" << bk.alt_block << ", " << bk.powers << ")";
+    int operator()(int k) const { return vals(k); }
+
+    int size() const { return vals.size(); }
+
+    friend std::ostream & operator<<(std::ostream& stream, const block_key &bk)
+    {
+        stream << bk.vals;
         return stream;
     }
-};
+
+    bool operator<(const block_key &other) const
+    {
+        assert(vals.size() == other.vals.size());
+        for (int p = 0; p < vals.size(); ++p)
+        {
+            if (vals(p) != other.vals(p))
+                return vals(p) < other.vals(p);
+        }
+        return false;
+    }
+
+    size_t hash() const
+    {
+        size_t h = hash_helpers::make_hash(vals(0));
+        for (int p = 1; p < vals.size(); ++p)
+            hash_helpers::hash_combine(h, hash_helpers::make_hash(vals(p)));
+        return h;
+    }
+
+}; 
 
 namespace std
 {
-    template <>
-    struct hash<block_power>
-    {
-        size_t operator()(const block_power& bp) const
-        {
-            size_t h = hash_helpers::make_hash(bp.a);
-            hash_helpers::hash_combine(h, hash_helpers::make_hash(bp.b));
-            hash_helpers::hash_combine(h, hash_helpers::make_hash(bp.nb));
-            return h;
-        }
-    };
     template <>
     struct hash<block_key>
     {
         size_t operator()(const block_key& bk) const
         {
-            size_t h = hash_helpers::make_hash(bk.alt_block);
-            hash_helpers::hash_combine(h, hash_helpers::make_hash(bk.powers));
-            return h;
+            return bk.hash();
         }
     };
 }
-
-typedef std::vector<std::pair<bool, std::vector<std::pair<block_power, int> > > > block_key_vector;
 
 #endif

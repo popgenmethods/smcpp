@@ -1,193 +1,256 @@
 from __future__ import absolute_import, division, print_function
 import numpy as np
 import scipy.optimize
-import logging
 import os.path, os
-import ad
+import ad, ad.admath
+import subprocess
+import shutil
+from abc import ABCMeta, abstractmethod
 
-from . import estimation_tools
+from . import estimation_tools, logging
+from .observe import Observer, Observable
 
 logger = logging.getLogger(__name__)
 
-class PopulationOptimizer(object):
-    _npop = 1
-    def __init__(self, iserv, outdir):
-        self._iserv = iserv
-        self._bounds = iserv.bounds
-        self._outdir = outdir
-        self._precond = iserv.precond
-        self._K = self._iserv.model[0].K
-        self._coords = [(i, cc) for i, m in enumerate(self._iserv.model) for cc in m.coords]
-        for m in self._iserv.model:
-            if m.K != self._K:
-                raise RuntimeError("models need to have same time periods and change points")
-        logger.debug("Initializing model(s)")
-        logger.debug("Performing initial E step")
-        iserv.E_step()
 
-    def run(self, niter, blocks, fix_rho):
-        iserv = self._iserv
-        models = iserv.model
-        ll = sum([_ for _ in iserv.loglik()])
-        reg = np.sum(self._iserv.penalize(models))
-        llold = ll - reg
-        logger.info("ll:%f reg:%f" % (ll, reg))
-        logger.info("Starting loglik: %f" % llold)
-        for i in range(niter):
-            logger.info("EM iteration %d/%d" % (i + 1, niter))
-            logger.info("\tM-step...")
-            if not fix_rho:
-                self._optimize_param("rho")
-            logger.debug("starting model:\n%s" % np.array_str(models[0].x.astype(float), precision=2))
-            B = len(models[0].x[0]) // blocks
-            for b in range(blocks):
-                self._coords = [(mi, cc) for mi, m in enumerate(self._iserv.model) 
-                        for cc in m.coords if (b * B) <= cc[1] <= ((b + 2) * B)]
-                logger.info("optimizing coords:\n%s" % str(self._coords))
-                self._optimize(models)
-            # for v in [0, 1]:
-            #     self._coords = [(mi, cc) for mi, m in enumerate(self._iserv.model) for cc in m.coords[v::2]]
-            #     logger.info("optimizing coords:\n%s" % str(self._coords))
-            #     self._optimize(models)
-            logger.info("Current model(s):")
-            for j, m in enumerate(models, 1):
-                logger.info("Pop %d:\n%s" % (j, np.array_str(np.array(m.x[:2]).astype(float), precision=2)))
-            iserv.model = models
-            logger.info("\tE-step...")
-            iserv.E_step()
-            ll = np.sum(iserv.loglik())
-            reg = np.sum(iserv.penalize(models))
-            logger.info("ll:%f reg:%f" % (ll, reg))
-            ll -= reg
-            logger.info("\tNew/old loglik: %f/%f" % (ll, llold))
-            if ll < llold:
-                logger.warn("Log-likelihood decreased")
-            llold = ll
-            iserv.dump([[os.path.join(self._outdir, ".pop%d.iter%d" % (j, i))] for j in range(len(models))])
-        ## Optimization concluded
-        iserv.dump([[os.path.join(self._outdir, "pop%d.final" % j)] for j in range(len(models))])
-        return llold
+class AbstractOptimizer(Observable):
+    '''
+    Abstract representation of the execution flow of the optimizer.
+    '''
+    def __init__(self, analysis):
+        Observable.__init__(self)
+        self._analysis = analysis
 
-    def _f_param(self, x, param):
-        x0 = x[0]
-        x = ad.adnumber(x0)
-        setattr(self._iserv, param, x)
-        q = -np.mean(self._iserv.Q())
-        logger.debug("f_%s: q(%f)=%f dq=%f" % (param, x0, q.x, q.d(x)))
-        return (q.x, np.array([q.d(x)]))
+    @abstractmethod
+    def _coordinates(self, i):
+        'Return a list of groups of coordinates to be optimized at iteration i.'
+        return []
 
-    def _f(self, xs, models):
-        xs = ad.adnumber(xs)
-        for i, xx in enumerate(xs):
-            xx.tag = i
-        for i, (a, cc) in enumerate(self._coords):
-            models[a][cc] = xs[i] * models[a].precond[cc]
-        self._pre_Q(models)
-        for m in models:
-            logger.debug("\n%s" % np.array_str(m.x[:2].astype(float), precision=4))
-        self._iserv.model = models
-        q = -np.mean(self._iserv.Q())
-        reg = np.mean(self._iserv.penalize(models))
-        # logger.debug("\n" + np.array_str(models[0][0].astype(float), precision=2, max_line_width=100))
-        # logger.debug((float(ll), float(reg), float(ll + reg)))
-        # logger.debug("dll:\n" + np.array_str(np.array(list(map(ll.d, xs))), max_line_width=100, precision=2))
-        # logger.debug("dreg:\n" + np.array_str(np.array(list(map(reg.d, xs))), max_line_width=100, precision=2))
-        q += reg
-        ret = [q.x, np.array(list(map(q.d, xs)))]
+    @abstractmethod
+    def _bounds(self, coords):
+        'Return a list of bounds for each coordinate in :coords:.'
+        return []
+
+    # In the one population case, this method adds derivative information to x
+    def _prepare_x(self, x):
+        return ad.adnumber(x)
+
+    def _f(self, x, analysis, coords):
+        x = self._prepare_x(x)
+        analysis.model.reset_derivatives()
+        analysis.model[coords] = x
+        q = -analysis.Q()
+        ret = [q.x, np.array(list(map(q.d, x)))]
+        # model = analysis.model
+        # logger.debug("\n" + np.array_str(model.y.astype(float), precision=2, max_line_width=100))
+        # logger.debug("\n" + np.array_str(model.stepwise_values().astype(float), precision=2, max_line_width=100))
+        # logger.debug(ret)
         return ret
 
-    def _optimize_param(self, param):
-        logger.debug("Updating %s" % param)
-        if param == "theta":
-            d = (3, -1)
-        elif param == "rho":
-            d = (4, -1)
-        else:
+    def _minimize(self, x0, coords, bounds):
+        return scipy.optimize.minimize(self._f, x0,
+                                       jac=True,
+                                       args=(self._analysis, coords,),
+                                       bounds=bounds,
+                                       # options={'disp': True},
+                                       method="L-BFGS-B")
+
+    def run(self, niter):
+        self.update_observers('begin')
+        model = self._analysis.model
+        self._analysis.E_step()
+        for i in range(niter):
+            # Perform model optimization
+            self.update_observers('pre-M step', i=i, niter=niter)
+            coord_list = self._coordinates()
+            for coords in coord_list:
+                self.update_observers('M step', i=i, coords=coords)
+                bounds = self._bounds(coords)
+                x0 = model[coords]
+                res = self._minimize(x0, coords, bounds)
+                self.update_observers('M step finished', i=i, coords=coords, res=res)
+                model[coords] = res.x
+            self.update_observers('post-M step', i=i)
+            # Perform E-step
+            self.update_observers('pre-E step', i=i)
+            self._analysis.E_step()
+            self.update_observers('post-E step', i=i)
+        # Conclude the optimization and perform any necessary callbacks.
+        self.update_observers('optimization finished')
+
+    def update_observers(self, *args, **kwargs):
+        kwargs.update({'analysis': self._analysis, 'model': self._analysis.model})
+        Observable.update_observers(self, *args, **kwargs)
+
+## LISTENER CLASSES
+class HiddenStateOccupancyPrinter(Observer):
+
+    def update(self, message, *args, **kwargs):
+        if message == "post-E step":
+            hso = np.sum(kwargs['analysis']._im.xisums, axis=(0, 1))
+            hso /= hso.sum()
+            logger.debug("hidden state occupancy:\n%s", np.array_str(hso, precision=2))
+
+class ProgressPrinter(Observer):
+
+    def update(self, message, *args, **kwargs):
+        if message == "begin":
+            logger.info("Starting optimizer...")
+        if message == "pre-M step":
+            logger.info("Optimization iteration %d of %d...",
+                        kwargs['i'] + 1, kwargs['niter'])
+        if message == "M step":
+            logger.debug("Optimizing coordinates %s", kwargs['coords'])
+        if message == "M step finished":
+            logger.debug("Results of optimizer:\n%s", kwargs['res'])
+            logger.debug("New model:\n%s", kwargs['model'].to_s())
+
+class LoglikelihoodPrinter(Observer):
+
+    def update(self, message, *args, **kwargs):
+        if message == "post-E step":
+            ll = kwargs['analysis'].loglik()
+            logger.info("Loglik: %f", ll)
+
+class ModelPrinter(Observer):
+    def update(self, message, *args, **kwargs):
+        if message == "post-E step":
+            logger.info("Model: %s", kwargs['model'].to_s())
+
+
+class AnalysisSaver(Observer):
+
+    def __init__(self, outdir):
+        self._outdir = outdir
+
+    def update(self, message, *args, **kwargs):
+        dump = kwargs['analysis'].dump
+        if message == "post-E step":
+            i = kwargs['i']
+            dump(os.path.join(self._outdir, ".model.iter%d" % i))
+        elif message == "optimization finished":
+            dump(os.path.join(self._outdir, "model.final"))
+
+class ParameterOptimizer(Observer):
+
+    def __init__(self, param, bounds, target="analysis"):
+        self._param = param
+        self._bounds = bounds
+        self._target = target
+
+    def update(self, message, *args, **kwargs):
+        if message != "pre-M step":
+            return
+        param = self._param
+        logger.debug("Updating %s", param)
+        tgt = kwargs[self._target]
+        analysis = kwargs['analysis']
+        if param not in ("theta", "rho", "split"):
             raise RuntimeError("unrecognized param")
-        self._iserv.derivatives = [[d]] * self._npop
-        x0 = getattr(self._iserv, param)
-        logger.info("old %s: f(%g)=%g" % (param, x0, self._f_param([x0], param)[0]))
-        bounds = [(1e-6, 1e-2)]
-        ret = scipy.optimize.fmin_l_bfgs_b(self._f_param, x0, None, args=(param,), bounds=bounds, disp=False)
-        x = ret[0].item()
-        logger.info("new %s: f(%g)=%g" % (param, x, self._f_param([x], param)[0]))
-        setattr(self._iserv, param, x)
+        x0 = getattr(tgt, param)
+        logger.debug("Old %s: Q(%f)=%f", param, x0,
+                     self._f(x0, analysis, tgt, param))
+        res = scipy.optimize.minimize_scalar(self._f,
+                                             args=(analysis, tgt, param),
+                                             method='bounded',
+                                             bounds=self._bounds)
+        logger.debug("New %s: Q(%g)=%g", param, res.x, res.fun)
+        setattr(tgt, param, res.x)
 
-    def _optimize(self, models):
-        logger.debug("Performing a round of optimization")
-        x0 = np.array([float(models[i][cc] / models[i].precond[cc]) for i, cc in self._coords])
-        self._iserv.derivatives = [[cc for _, cc in self._coords]]
-        if os.environ.get("SMCPP_GRADIENT_CHECK", False):
-            logger.info("gradient check")
-            f0, fp = self._f(x0, models)
-            for i in range(len(x0)):
-                x0c = x0.copy()
-                x0c[i] += 1e-8
-                f1, _ = self._f(x0c, models)
-                logger.info((i, cc, f1, f0, (f1 - f0) / 1e-8, fp[i]))
-        bounds = [tuple(self._bounds[cc] / models[i].precond[cc]) for i, cc in self._coords]
-        # res = scipy.optimize.fmin_tnc(self._f, x0, None, args=[models], bounds=bounds)
-        res = scipy.optimize.fmin_l_bfgs_b(self._f, x0, None, args=[models], bounds=bounds, factr=1e10)
-        if res[2]['warnflag'] != 0:
-            logger.warn(res[2])
-        for xx, (i, cc) in zip(res[0], self._coords):
-            models[i][cc] = xx * models[i].precond[cc]
-        logger.info("new model: f(m)=%g" % res[1])
-        self._post_optimize(models)
-        self._iserv.model = models
-        return res[1]
+    def _f(self, x, analysis, tgt, param):
+        setattr(tgt, param, x)
+        # derivatives curretly not supported for 1D optimization. not
+        # clear if they really help.
+        ret = -float(analysis.Q()) 
+        logger.debug("%s f(%f)=%f", param, x, ret)
+        return ret
 
-    def _pre_Q(self, models):
-        pass
+class AsciiPlotter(Observer):
+    def __init__(self, gnuplot_path):
+        self._gnuplot_path = gnuplot_path
+    def update(self, message, *args, **kwargs):
+        if message != "post-M step":
+            return
+        model = kwargs['model']
+        x = np.cumsum(model.s)
+        y = model.stepwise_values()
+        gnuplot = subprocess.Popen([self._gnuplot_path], 
+                                   stdin=subprocess.PIPE,
+                                   stdout=subprocess.PIPE)
+        def write(x):
+            x += "\n"
+            gnuplot.stdin.write(x.encode())
+        columns, lines = shutil.get_terminal_size((80, 20))
+        width = columns * 3 // 5
+        height = 25
+        write("set term dumb {} {}".format(width, height))
+        write("set xlabel \"Time\"")
+        write("set ylabel \"N0\"")
+        write("unset key")
+        write("set logscale xy")
+        write("plot '-' using 1:2 with lines")
+        for i,j in zip(x,y):
+           write("%f %f" % (i,j))
+        write("exit")
+        (stdout, stderr) = gnuplot.communicate()
+        graph = stdout.decode()
+        logger.info("Current model:\n%s", graph)
 
-    def _post_optimize(self, models):
-        pass
+class SMCPPOptimizer(AbstractOptimizer):
+    'Model fitting for one population.'
 
-class TwoPopulationOptimizer(PopulationOptimizer):
-    _npop = 2
-    def _join_before_split(self, models):
-        for a, cc in self._coords:
-            if a == 0 and cc[1] >= self._split:
-                models[1][cc] = models[0][cc]
+    def __init__(self, analysis):
+        AbstractOptimizer.__init__(self, analysis)
+        self.register(LoglikelihoodPrinter())
+        self.register(HiddenStateOccupancyPrinter())
+        self.register(ProgressPrinter())
+        self.register(ModelPrinter())
+        gnuplot = shutil.which("gnuplot")
+        if gnuplot:
+            self.register(AsciiPlotter(gnuplot))
 
-    # Alias these methods to fix stuff before and after split
-    _pre_Q = _post_optimize = _join_before_split
+    def _coordinates(self):
+        model = self._analysis.model
+        ret = []
+        for b in range(model.K - self.block_size + 1):
+            ret.append(list(range(b, min(model.K, b + self.block_size))))
+        # After all coordinate-wise updates, optimize over whole function
+        ret.append(list(range(model.K)))
+        return ret
+    
+    def _bounds(self, coords):
+        return np.log([self._analysis._bounds] * len(coords))
+    
 
-    def run(self, niter, fix_rho):
-        upper = 2 * self._K
-        lower = 0
-        self._split = self._K
-        self._old_aic = np.inf
-        i = 1
-        models = self._iserv.model
-        cs = np.concatenate([np.cumsum(models[0][2]), [np.inf]])
-        ll = None
-        while True:
-            logger.info("Outer iteration %d" % i)
-            logger.info("split point %d:%g" % (self._split, cs[self._split]))
-            self._iserv.reset()
-            # Optimize the blocks of coords separately to speed things up
-            for j in range(niter):
-                logger.info("Pseudo-iteration %d/%d" % (j + 1, niter))
-                for coords in [
-                        [(0, cc) for cc in models[0].coords if cc[0] < self._split],
-                        [(1, cc) for cc in models[1].coords if cc[1] < self._split] ]:
-                    # reset models
-                    self._coords = coords
-                    ll = PopulationOptimizer.run(self, 1, fix_rho)
-                    self._iserv.E_step()
-            nc = len(models[0].coords)
-            nc += sum([cc[1] < self._split for cc in models[1].coords])
-            aic = 2 * (nc - ll)
-            logger.info("AIC old/new: %g/%g" % (self._old_aic, aic))
-            if aic < self._old_aic:
-                upper = self._split
-            else:
-                lower = self._split
-            self._old_aic = aic
-            new_split = int(0.5 * (upper + lower))
-            if abs(new_split - self._split) == 1:
-                break
-            self._split = new_split
-            i += 1
-        logger.info("split chosen to be: [%g, %g)" % (cs[self._split], cs[self._split + 1]))
+class TwoPopulationOptimizer(SMCPPOptimizer):
+    'Model fitting for two populations.'
+
+    def __init__(self, analysis):
+        SMCPPOptimizer.__init__(self, analysis)
+
+    def _coordinates(self):
+        K = self._analysis.model.distinguished_model.K
+        c1, c2 = [[list(range(b, min(K, b + self.block_size)))
+                   for b in range(0, ub + 1, self.block_size - 2)]
+                  for ub in [K - self.block_size,
+                             self._analysis.model.split_ind]]
+        return [(i, cc) for i, c in enumerate([c1, c2]) for cc in c]
+
+    def _minimize(self, x0, coords, bounds):
+        return scipy.optimize.minimize(self._f, x0,
+                                       jac=False,
+                                       args=(self._analysis, coords,),
+                                       bounds=bounds,
+                                       method="L-BFGS-B")
+
+    # Don't use derivatives in 2-pop case
+    def _f(self, x, analysis, coords):
+        return SMCPPOptimizer._f(self, x, analysis, coords)[0]
+
+    def _bounds(self, coords):
+        return SMCPPOptimizer._bounds(self, coords[1])
+
+    # In the two population case, this method doesn't add derivatives since
+    # we don't support them.
+    def _prepare_x(self, x):
+        return x

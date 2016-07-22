@@ -1,5 +1,6 @@
 #include <execinfo.h>
 #include <signal.h>
+#include <unistd.h>
 
 #include "common.h"
 
@@ -30,13 +31,12 @@ void store_matrix(const Matrix<adouble> &M, double *out, double *outjac)
         }
 }
 
+std::mutex logger_cb_mtx;
 void (*Logger::logger_cb)(const char*, const char*, const char*) = 0;
 void call_logger(const char* name, const char* level, const char* message)
 {
-#pragma omp critical(logger_cb)
-    {
-        Logger::logger_cb(name, level, message);
-    }
+    std::lock_guard<std::mutex> guard(logger_cb_mtx);
+    Logger::logger_cb(name, level, message);
 }
 
 void signal_bt(int sig)
@@ -51,6 +51,7 @@ void init_logger_cb(void(*fp)(const char*, const char*, const char*))
     signal(SIGABRT, signal_bt);
 }
 
+std::mutex crash_backtrace_mtx;
 void crash_backtrace(const char* file, const int lineno)
 {
     void *array[10];
@@ -60,8 +61,8 @@ void crash_backtrace(const char* file, const int lineno)
     size = backtrace(array, 10);
 
     // print out all the frames to stderr
-#pragma omp critical(crash_backtrace)
     {
+        std::lock_guard<std::mutex> guard(crash_backtrace_mtx);
         std::cerr << file << ":" << lineno << std::endl;
         backtrace_symbols_fd(array, size, STDERR_FILENO);
         std::cerr << std::endl << std::flush;

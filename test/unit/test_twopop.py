@@ -1,11 +1,13 @@
-import smcpp._smcpp, smcpp.model
 import numpy as np
 import sys
 import logging
 import ad
 
+
+import fixtures
+import smcpp._smcpp, smcpp.model, smcpp.jcsfs
+
 def test_inference():
-    logging.basicConfig(level=logging.DEBUG)
     hs=[0, 0.002, 0.0024992427075529156, 0.0031231070556282147, 0.0039027012668429368, 0.0048768988404573679,
             0.0060942769312431738, 0.0076155385891087321, 0.0095165396414589112, 0.011892071150027212, 0.014860586049702963, 0.018570105657341358,
             0.023205600571298769, 0.028998214001102113, 0.036236787437156658, 0.045282263373729439, 0.0565856832591419, 0.070710678118654752, 0.088361573317084705,
@@ -22,19 +24,21 @@ def test_inference():
             0.13115132347527858, 0.16388949439075173, 0.20479981185031038, 0.25592221813754867, 0.31980586869051764, 0.39963624257870101,
             0.49939398246933342]
     K = 10
-    model = smcpp.model.SMCModel(s, np.logspace(np.log10(.01), np.log10(3.), K))
-    n = 30
-    fakeobs = [[1, -1, 0, 0], [1, 1, 0, 0], [10, 0, 0, 0], [10, -1, 0, 0], [200000, 0, 0, n - 2], [1, 1, n - 4, n - 2]]
-    fakeobs *= 20
-    im = smcpp._smcpp.PyOnePopInferenceManager(n - 2, np.array([fakeobs] * 40, dtype=np.int32), hs)
-    model[:] = [ad.adnumber(0.002676322760403453),ad.adnumber(-0.010519987448975402)
+    model1 = smcpp.model.SMCModel(s, np.logspace(np.log10(.01), np.log10(3.), K))
+    model2 = smcpp.model.SMCModel(s, np.logspace(np.log10(.01), np.log10(3.), K))
+    n = 10
+    fakeobs = [[1, -1, 0, 0, 0, 0], [1, 1, 0, 0, 0, 0], [10, 0, 0, 0, 0, 0], [10, -1, 0, 0, 0, 0], [200000, 0, 0, n - 2, 0, n - 1], [1, 1, n - 4, n - 2, n - 3, n - 1]]
+    # fakeobs *= 20
+    im = smcpp._smcpp.PyTwoPopInferenceManager(n - 2, n - 1, np.array([fakeobs] * 2, dtype=np.int32), hs)
+    model1[:] = [ad.adnumber(0.002676322760403453),ad.adnumber(-0.010519987448975402)
             ,ad.adnumber(0.006727140517177145),ad.adnumber(0.0031333684894676865)
             ,ad.adnumber(-0.02302979056648467),ad.adnumber(0.0026368097606793172)
             ,ad.adnumber(0.0019921562626012993),ad.adnumber(0.004958301100037235)
             ,ad.adnumber(0.003199704865436452),ad.adnumber(0.0050129872575249744)]
-    print(model[:])
-    print(model.stepwise_values())
-    im.model = model
+    model2[:] = model1[:]
+    jcsfs = smcpp.jcsfs.JointCSFS(n - 2, n - 1, 2, 0, hs).compute(model1, model2, hs[3])
+    im.emissions = jcsfs[:, :, 0, :]
+    im.model = model1
     im.theta = 0.0025000000000000001
     im.rho = 0.0031206103977654887
     im.E_step()
