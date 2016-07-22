@@ -110,16 +110,16 @@ class SMCTwoPopulationModel(Observable):
     def split(self):
         return self._split
 
+    @split.setter
+    def split(self, x):
+        self._split = x
+        self.update_observers('model update')
+
     @property
     def split_ind(self):
         'Return k such that model2.t[k] <= split < model2.t[k + 1]'
         cs = np.cumsum(self._models[1]._knots)
         return np.searchsorted(cs, self._split)
-
-    @split.setter
-    def split(self, x):
-        self._split = x
-        self.update_observers('model update')
 
     @property
     def model1(self):
@@ -164,5 +164,3 @@ class SMCTwoPopulationModel(Observable):
         a, cc = coords
         self._models[a][cc] = x
         self.update_observers('model update')
-
-
