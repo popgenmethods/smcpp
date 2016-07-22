@@ -211,7 +211,7 @@ class Analysis(Observer):
 
     def Q(self):
         'Value of Q() function in M-step.'
-        return self._im.Q() + self._penalty * self.model.regularizer()
+        return self._im.Q() - self._penalty * self.model.regularizer()
 
     @logging.log_step("Running E-step...", "E-step completed.")
     def E_step(self):
@@ -220,7 +220,7 @@ class Analysis(Observer):
 
     def loglik(self):
         'Log-likelihood of data after most recent E-step.'
-        return self._im.loglik() + self._penalty * float(self.model.regularizer())
+        return self._im.loglik() - self._penalty * float(self.model.regularizer())
 
     @property
     def bounds(self):

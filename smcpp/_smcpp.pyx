@@ -86,7 +86,7 @@ cdef _store_admatrix_helper(Matrix[adouble] &mat, dlist):
     n = mat.cols()
     cdef int i
     cdef int j
-    ary = aca(np.zeros([m, n]))
+    ary = aca(np.zeros([m, n], dtype=object))
     for i in range(m):
         for j in range(n):
             ary[i, j] = _adouble_to_ad(mat(i, j), dlist)

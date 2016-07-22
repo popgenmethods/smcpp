@@ -47,7 +47,7 @@ class SMCModel(Observable):
         return self._knots
 
     def __setitem__(self, key, item):
-        self._y[key] = item[:]
+        self._y[key] = item
         self._refit()
         self.update_observers('model update')
           

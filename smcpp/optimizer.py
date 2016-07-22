@@ -3,6 +3,8 @@ import numpy as np
 import scipy.optimize
 import os.path, os
 import ad, ad.admath
+import subprocess
+import shutil
 from abc import ABCMeta, abstractmethod
 
 from . import estimation_tools, logging
@@ -39,18 +41,18 @@ class AbstractOptimizer(Observable):
         analysis.model[coords] = x
         q = -analysis.Q()
         ret = [q.x, np.array(list(map(q.d, x)))]
-        return ret
+        # model = analysis.model
         # logger.debug("\n" + np.array_str(model.y.astype(float), precision=2, max_line_width=100))
         # logger.debug("\n" + np.array_str(model.stepwise_values().astype(float), precision=2, max_line_width=100))
-        # logger.debug((float(q), float(reg), float(q + reg)))
-        # logger.debug("dq:\n" + np.array_str(np.array(list(map(q.d, xs))), max_line_width=100, precision=2))
-        # logger.debug("dreg:\n" + np.array_str(np.array(list(map(reg.d, xs))), max_line_width=100, precision=2))
+        # logger.debug(ret)
+        return ret
 
     def _minimize(self, x0, coords, bounds):
         return scipy.optimize.minimize(self._f, x0,
                                        jac=True,
                                        args=(self._analysis, coords,),
                                        bounds=bounds,
+                                       # options={'disp': True},
                                        method="L-BFGS-B")
 
     def run(self, niter):
@@ -62,12 +64,13 @@ class AbstractOptimizer(Observable):
             self.update_observers('pre-M step', i=i, niter=niter)
             coord_list = self._coordinates()
             for coords in coord_list:
-                self.update_observers('M step', coords=coords)
+                self.update_observers('M step', i=i, coords=coords)
                 bounds = self._bounds(coords)
                 x0 = model[coords]
                 res = self._minimize(x0, coords, bounds)
+                self.update_observers('M step finished', i=i, coords=coords, res=res)
                 model[coords] = res.x
-            self.update_observers('post-M step', results=res, i=i)
+            self.update_observers('post-M step', i=i)
             # Perform E-step
             self.update_observers('pre-E step', i=i)
             self._analysis.E_step()
@@ -98,6 +101,9 @@ class ProgressPrinter(Observer):
                         kwargs['i'] + 1, kwargs['niter'])
         if message == "M step":
             logger.debug("Optimizing coordinates %s", kwargs['coords'])
+        if message == "M step finished":
+            logger.debug("Results of optimizer:\n%s", kwargs['res'])
+            logger.debug("New model:\n%s", kwargs['model'].to_s())
 
 class LoglikelihoodPrinter(Observer):
 
@@ -159,6 +165,35 @@ class ParameterOptimizer(Observer):
         logger.debug("%s f(%f)=%f", param, x, ret)
         return ret
 
+class AsciiPlotter(Observer):
+    def update(self, message, *args, **kwargs):
+        if message != "post-M step":
+            return
+        model = kwargs['model']
+        x = np.cumsum(model.s)
+        y = model.stepwise_values()
+        gnuplot = subprocess.Popen(["/usr/bin/gnuplot"], 
+                                   stdin=subprocess.PIPE,
+                                   stdout=subprocess.PIPE)
+        def write(x):
+            x += "\n"
+            gnuplot.stdin.write(x.encode())
+        columns, lines = shutil.get_terminal_size((80, 20))
+        width = columns * 3 // 5
+        height = 25
+        write("set term dumb {} {}".format(width, height))
+        write("set xlabel Time")
+        write("set ylabel N0")
+        write("unset key")
+        write("set logscale xy")
+        write("plot '-' using 1:2 with lines")
+        for i,j in zip(x,y):
+           write("%f %f" % (i,j))
+        write("exit")
+        (stdout, stderr) = gnuplot.communicate()
+        graph = stdout.decode()
+        logger.info("Current model:\n%s", graph)
+
 class SMCPPOptimizer(AbstractOptimizer):
     'Model fitting for one population.'
 
@@ -168,11 +203,14 @@ class SMCPPOptimizer(AbstractOptimizer):
         self.register(HiddenStateOccupancyPrinter())
         self.register(ProgressPrinter())
         self.register(ModelPrinter())
+        self.register(AsciiPlotter())
 
     def _coordinates(self):
         model = self._analysis.model
-        return [list(range(b, min(model.K, b + self.block_size))) 
-                for b in range(0, model.K - self.block_size + 1, self.block_size - 2)]
+        ret = []
+        for b in range(model.K - self.block_size + 1):
+            ret.append(list(range(b, min(model.K, b + self.block_size))))
+        return ret
     
     def _bounds(self, coords):
         return np.log([self._analysis._bounds] * len(coords))
