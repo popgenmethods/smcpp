@@ -204,6 +204,7 @@ class Analysis(Observer):
     ## END OF PRIVATE FUNCTIONS
 
     ## PUBLIC INTERFACE
+    @logging.log_step("Running optimizer...", "Optimization completed.")
     def run(self):
         'Perform the analysis.'
         self._optimizer.run(self._niter)
@@ -212,6 +213,7 @@ class Analysis(Observer):
         'Value of Q() function in M-step.'
         return self._im.Q() + self._penalty * self.model.regularizer()
 
+    @logging.log_step("Running E-step...", "E-step completed.")
     def E_step(self):
         'Perform E-step.'
         return self._im.E_step()

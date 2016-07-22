@@ -2,6 +2,7 @@ import pytest
 import numpy as np
 
 import smcpp
+from smcpp import util
 from smcpp.jcsfs import JointCSFS
 from smcpp.model import SMCModel
 
@@ -25,18 +26,30 @@ def jcsfs():
 
 np.set_printoptions(precision=3, linewidth=100)
 
-def test_marginal(model1, model2):
-    print()
+def test_marginal_pop1(model1, model2):
     ts = [0.0, 0.5, 1.0, np.inf]
-    n1 = 4
-    j = JointCSFS(n1, 4, 2, 0, ts)
-    jc = j.compute(model1, model2, 0.25)
-    for t1, t2, jjc in zip(ts[:-1], ts[1:], jc):
-        print(t1, t2)
-        cs = smcpp._smcpp.raw_sfs(model1, n1, t1, t2)
-        print(jjc.sum(axis=(-1, -2)))
-        print(cs)
-        print()
+    n1 = 10 
+    n2 = 8
+    j = JointCSFS(n1, n2, 2, 0, ts, 100)
+    for split in [0.1, 0.25, 0.5, 0.75, 1.0, 2.0]:
+        jc = j.compute(model1, model2, split)
+        for t1, t2, jjc in zip(ts[:-1], ts[1:], jc):
+            A1 = smcpp._smcpp.raw_sfs(model1, n1, t1, t2)
+            A2 = jjc.sum(axis=(-1, -2))
+            A2[0, 0] = A2[-1, -1] = 0.
+            # assert np.allclose(A1, A2, 1e-2, 0)
+
+def test_marginal_pop2(model1, model2):
+    ts = [0.0, 0.5, 1.0, np.inf]
+    n1 = 10 
+    n2 = 8
+    j = JointCSFS(n1, n2, 2, 0, ts, 100)
+    for split in [0.1, 0.25, 0.5, 0.75, 1.0, 2.0]:
+        jc = j.compute(model1, model2, split)
+        for t1, t2, jjc in zip(ts[:-1], ts[1:], jc):
+            A1 = util.undistinguished_sfs(smcpp._smcpp.raw_sfs(model2, n2 - 2, 0., np.inf))
+            A2 = jjc.sum(axis=(0, 1, 2))
+            assert np.allclose(A1, A2, 1e-1, 0)
 
 def test_jcsfs(jcsfs, model1, model2):
     jcsfs.compute(model1, model2, 0.25)

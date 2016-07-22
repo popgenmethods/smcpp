@@ -66,6 +66,7 @@ class AbstractOptimizer(Observable):
                 bounds = self._bounds(coords)
                 x0 = model[coords]
                 res = self._minimize(x0, coords, bounds)
+                model[coords] = res.x
             self.update_observers('post-M step', results=res, i=i)
             # Perform E-step
             self.update_observers('pre-E step', i=i)
@@ -90,15 +91,13 @@ class HiddenStateOccupancyPrinter(Observer):
 class ProgressPrinter(Observer):
 
     def update(self, message, *args, **kwargs):
+        if message == "begin":
+            logger.info("Starting optimizer...")
         if message == "pre-M step":
             logger.info("Optimization iteration %d of %d...",
                         kwargs['i'] + 1, kwargs['niter'])
         if message == "M step":
             logger.debug("Optimizing coordinates %s", kwargs['coords'])
-        if message == "pre-E step":
-            logger.info("Running E-step...")
-        if message == "post-E step":
-            logger.info("E-step completed.")
 
 class LoglikelihoodPrinter(Observer):
 

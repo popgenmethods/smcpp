@@ -47,27 +47,17 @@ def init_parser(parser):
                             "in two-population models.")
     hmm.add_argument('--thinning', help="emit full SFS every <k>th site",
                      default=None, type=int, metavar="k")
-    hmm.add_argument('--no-pretrain', help="do not pretrain model",
-                     action="store_true", default=False)
     hmm.add_argument('--M', 
                      type=int, help="number of hidden states", default=32)
     hmm.add_argument('--em-iterations', type=int,
-                     help="number of EM steps to perform", default=20)
+                     help="number of EM steps to perform", default=10)
     optimizer.add_argument('--block-size', type=int, default=3,
                            help="number of blocks to optimizer at a time for coordinate ascent")
     optimizer.add_argument('--regularization-penalty',
                            type=float, help="regularization penalty", default=.01)
-    optimizer.add_argument('--pretrain-penalty', type=float,
-                           help="regularization penalty for pretraining", default=1e-7)
-    optimizer.add_argument('--regularizer',
-                           choices=[x + y for x in ["", "log"]
-                                    for y in ["abs", "quadratic", "curvature"]],
-                           default="quadratic", help="type of regularization to apply")
     optimizer.add_argument('--spline',
                            choices=["cubic", "akima", "pchip"],
                            default="pchip", help="type of spline representation to use")
-    optimizer.add_argument('--lbfgs-factor', type=float,
-                           help="stopping criterion for optimizer", default=1e9)
     optimizer.add_argument('--Nmin', type=float,
                            help="Lower bound on effective population size (in units of N0)",
                            default=.01)

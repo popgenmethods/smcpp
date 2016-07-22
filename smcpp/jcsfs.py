@@ -21,7 +21,7 @@ class Timer:
 logger = logging.getLogger(__name__)
 
 class JointCSFS(object):
-    def __init__(self, n1, n2, a1, a2, hidden_states):
+    def __init__(self, n1, n2, a1, a2, hidden_states, K=10):
         '''
         Return JCSFS for model1 and model2 which split at time split --
         more recently than split, model 1's size is followed.
@@ -33,7 +33,7 @@ class JointCSFS(object):
         which case the distinguished lineages are sampled from different
         populations.
         '''
-        self._K = 100
+        self._K = K
         self._n1 = n1
         self._n2 = n2
         self._a1 = a1
@@ -236,6 +236,8 @@ def _modified_rate_matrix(N, a):
 
 def _R(model, t):
     # integral of cumulate rate function.
+    if np.isinf(t):
+        return np.inf
     return _smcpp.PyRateFunction(model, []).R(t)
 
 def _model_to_momi_events(s, a, pop):

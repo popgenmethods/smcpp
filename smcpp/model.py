@@ -39,7 +39,7 @@ class SMCModel(Observable):
         return len(self.knots)
 
     def reset_derivatives(self):
-        self._y = self._y.astype('float')
+        self._y = self._y.astype('float').astype('object')
         self._refit()
 
     @property
@@ -76,7 +76,7 @@ class SMCModel(Observable):
     def stepwise_values(self):
         return np.array(ad.admath.exp(self._spline.eval(np.log(np.cumsum(self._s)))))
 
-    def to_s(self, until=-0):
+    def to_s(self, until=None):
         ary = self[:until].astype('float')
         fmt = " ".join(["{:>5.2f}"] * len(ary))
         return fmt.format(*ary)
