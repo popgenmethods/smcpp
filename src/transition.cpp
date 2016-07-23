@@ -29,9 +29,12 @@ HJTransition<T>::HJTransition(const PiecewiseConstantRateFunction<T> &eta, const
     std::vector<Matrix<T> > expm_prods;
     expms.push_back(Matrix<T>::Identity(3, 3));
     expm_prods.push_back(Matrix<T>::Identity(3, 3));
-    for (int i = 1; i < eta.ts.size(); ++i)
+    const std::vector<double> ts = eta.getTs();
+    const std::vector<int> hs_indices = eta.getHsIndices();
+    const std::vector<T> Rrng = eta.getRrng();
+    for (int i = 1; i < ts.size(); ++i)
     {
-        if (std::isinf(eta.ts[i]))
+        if (std::isinf(ts[i]))
         {
             Matrix<T> Q(3,3);
             Q << 
@@ -42,9 +45,9 @@ HJTransition<T>::HJTransition(const PiecewiseConstantRateFunction<T> &eta, const
         }
         else
         {
-            double delta = eta.ts[i] - eta.ts[i - 1];
+            double delta = ts[i] - ts[i - 1];
             double c_rho = delta * this->rho;
-            T c_eta = eta.Rrng[i] - eta.Rrng[i - 1];
+            T c_eta = Rrng[i] - Rrng[i - 1];
             expms.push_back(matrix_exp(c_rho, c_eta));
         }
         expm_prods.push_back(expm_prods.back() * expms.back());
@@ -52,34 +55,37 @@ HJTransition<T>::HJTransition(const PiecewiseConstantRateFunction<T> &eta, const
 
     std::vector<int> avc_ip;
     for (T x : avg_coal_times)
-        avc_ip.push_back(insertion_point(toDouble(x), eta.ts, 0, eta.ts.size()));
+    {
+        int ip = std::distance(ts.begin(), std::upper_bound(ts.begin(), ts.end(), toDouble(x))) - 1;
+        avc_ip.push_back(ip);
+    }
 
     this->Phi.setZero();
     for (int j = 1; j < this->M; ++j)
     {
         // subdiagonal
         for (int k = 1; k < j; ++k)
-            this->Phi(j - 1, k - 1) = expm_prods[eta.hs_indices[k]](0, 2) - expm_prods[eta.hs_indices[k - 1]](0, 2);
+            this->Phi(j - 1, k - 1) = expm_prods[hs_indices[k]](0, 2) - expm_prods[hs_indices[k - 1]](0, 2);
         // diagonal element
         // this is an approximation
         Matrix<T> A = Matrix<T>::Identity(3, 3);
-        for (int ell = eta.hs_indices[j - 1]; ell < avc_ip[j - 1]; ++ell)
+        for (int ell = hs_indices[j - 1]; ell < avc_ip[j - 1]; ++ell)
             A = A * expms[ell];
-        T delta = avg_coal_times[j - 1] - eta.ts[avc_ip[j - 1]];
+        T delta = avg_coal_times[j - 1] - ts[avc_ip[j - 1]];
         T c_rho = delta * this->rho;
-        T c_eta = eta.R(avg_coal_times[j - 1]) - eta.Rrng[avc_ip[j - 1]];
+        T c_eta = eta.R(avg_coal_times[j - 1]) - Rrng[avc_ip[j - 1]];
         A = A * matrix_exp(c_rho, c_eta);
-        Matrix<T> B = expm_prods[eta.hs_indices[j - 1]] * A;
+        Matrix<T> B = expm_prods[hs_indices[j - 1]] * A;
         this->Phi(j - 1, j - 1) = B(0, 0);
-        this->Phi(j - 1, j - 1) += expm_prods[eta.hs_indices[j - 1]](0, 0) * A(0, 2);
-        this->Phi(j - 1, j - 1) += expm_prods[eta.hs_indices[j - 1]](0, 1) * A(1, 2);
+        this->Phi(j - 1, j - 1) += expm_prods[hs_indices[j - 1]](0, 0) * A(0, 2);
+        this->Phi(j - 1, j - 1) += expm_prods[hs_indices[j - 1]](0, 1) * A(1, 2);
         // superdiagonal
         for (int k = j + 1; k < this->M; ++k)
         {
-            T p_coal = exp(-(eta.Rrng[eta.hs_indices[k - 1]] - eta.Rrng[eta.hs_indices[j]]));
+            T p_coal = exp(-(Rrng[hs_indices[k - 1]] - Rrng[hs_indices[j]]));
             if (k < this->M - 1)
-                p_coal *= -expm1(-(eta.Rrng[eta.hs_indices[k]] - eta.Rrng[eta.hs_indices[k - 1]]));
-            this->Phi(j - 1, k - 1) = expm_prods[eta.hs_indices[j]](0, 1) * p_coal;
+                p_coal *= -expm1(-(Rrng[hs_indices[k]] - Rrng[hs_indices[k - 1]]));
+            this->Phi(j - 1, k - 1) = expm_prods[hs_indices[j]](0, 1) * p_coal;
         }
     }
     T thresh(1e-20);

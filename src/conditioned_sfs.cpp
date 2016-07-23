@@ -106,7 +106,7 @@ template <typename T>
 std::vector<Matrix<T> > OnePopConditionedSFS<T>::compute_below(const PiecewiseConstantRateFunction<T> &eta) const
 {
     DEBUG << "compute below";
-    const int M = eta.hidden_states.size() - 1;
+    const int M = eta.getHiddenStates().size() - 1;
     std::vector<Matrix<T> > csfs_below(M, Matrix<T>::Zero(3, n + 1));
     Matrix<T> tjj_below(M, n + 1);
     tjj_below.setZero();
@@ -160,7 +160,7 @@ inline T doubly_compensated_summation(const std::vector<T> &x)
 template <typename T>
 std::vector<Matrix<T> > OnePopConditionedSFS<T>::compute_above(const PiecewiseConstantRateFunction<T> &eta) const
 {
-    const int M = eta.hidden_states.size() - 1;
+    const int M = eta.getHiddenStates().size() - 1;
     std::vector<Matrix<T> > C_above(M, Matrix<T>::Zero(n + 1, n)), 
         csfs_above(M, Matrix<T>::Zero(3, n + 1));
     DEBUG << "compute above";
@@ -187,7 +187,7 @@ std::vector<Matrix<T> > OnePopConditionedSFS<T>::compute_above(const PiecewiseCo
                 std::vector<T> v;
                 for (int i = 0; i < this->mcache.X0.rows(); ++i)
                     v.push_back(this->mcache.X0(i, j) * C0(i, j));
-                std::sort(v.begin(), v.end(), [] (T x, T y) { return myabs(x) > myabs(y); });
+                std::sort(v.begin(), v.end(), [] (T x, T y) { return std::abs(toDouble(x)) > std::abs(toDouble(y)); });
                 tmp0(j) = doubly_compensated_summation(v);
             }
             csfs_above[m].block(0, 1, 1, n) = tmp0.transpose().lazyProduct(Uinv_mp0);
@@ -197,7 +197,7 @@ std::vector<Matrix<T> > OnePopConditionedSFS<T>::compute_above(const PiecewiseCo
                 std::vector<T> v;
                 for (int i = 0; i < this->mcache.X2.rows(); ++i)
                     v.push_back(this->mcache.X2(i, j) * C2(i, j));
-                std::sort(v.begin(), v.end(), [] (T x, T y) { return myabs(x) > myabs(y); });
+                std::sort(v.begin(), v.end(), [] (T x, T y) { return std::abs(toDouble(x)) > std::abs(toDouble(y)); });
                 tmp2(j) = doubly_compensated_summation(v);
             }
             csfs_above[m].block(2, 0, 1, n) = tmp2.transpose().lazyProduct(Uinv_mp2);
@@ -211,7 +211,7 @@ template <typename T>
 std::vector<Matrix<T> > OnePopConditionedSFS<T>::compute(const PiecewiseConstantRateFunction<T> &eta) const
 {
     DEBUG << "compute called";
-    const int M = eta.hidden_states.size() - 1;
+    const int M = eta.getHiddenStates().size() - 1;
     std::vector<Matrix<T> > csfs_above = compute_above(eta);
     std::vector<Matrix<T> > csfs_below = compute_below(eta);
     std::vector<Matrix<T> > csfs(M, Matrix<T>::Zero(3, n + 1));

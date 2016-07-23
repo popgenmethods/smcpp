@@ -124,24 +124,6 @@ EIGEN_AUTODIFF_DECLARE_GLOBAL_UNARY(cosh,
 
 };
 
-template <typename T, typename U>
-inline unsigned int insertion_point(const T x, const std::vector<U>& ary, unsigned int first, unsigned int last)
-{
-    unsigned int mid;
-    while(first + 1 < last)
-    {
-        mid = (unsigned int)((first + last) / 2);
-        if (ary[mid] > x)
-            last = mid;
-        else    
-            first = mid;
-    }
-    return first;
-}
-
-inline double myabs(double a) { return std::abs(a); }
-inline adouble myabs(adouble a) { return Eigen::abs(a); }
-
 inline void init_eigen() { Eigen::initParallel(); }
 inline void fill_jacobian(const adouble &ll, double* outjac)
 {
@@ -153,11 +135,6 @@ inline void fill_jacobian(const adouble &ll, double* outjac)
 void store_matrix(const Matrix<double> &M, double* out);
 void store_matrix(const Matrix<adouble> &M, double* out);
 void store_matrix(const Matrix<adouble> &M, double *out, double *jac);
-
-template <typename T>
-inline T dmin(const T a, const T b) { if (a > b) return b; return a; }
-template <typename T>
-inline T dmax(const T a, const T b) { if (a > b) return a; return b; }
 
 void crash_backtrace(const char*, const int);
 

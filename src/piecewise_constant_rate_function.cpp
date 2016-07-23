@@ -3,12 +3,6 @@
 constexpr long nC2(int n) { return n * (n - 1) / 2; }
 
 template <typename T>
-inline void vec_insert(std::vector<T> &v, const int pos, const T &x)
-{
-    v.insert(v.begin() + pos, x);
-}
-
-template <typename T>
 inline T _conv(const adouble x);
 
 template <typename T>
@@ -38,11 +32,11 @@ PiecewiseConstantRateFunction<T>::PiecewiseConstantRateFunction(
         const std::vector<double> hidden_states) :
     params(params),
     nder(params[0][0].derivatives().size()),
-    K(params[0].size()), ada(_vconv<T>(params[0])),
+    K(params[0].size()), 
+    ada(_vconv<T>(params[0])),
     s(_vconv<double>(params[1])),
     ts(K + 1), Rrng(K), 
-    hidden_states(hidden_states),
-    tmax(std::accumulate(s.begin(), s.end(), 0.0))
+    hidden_states(hidden_states)
 {
     for (auto &pp : params)
         if (pp.size() != params[0].size())
@@ -68,16 +62,17 @@ PiecewiseConstantRateFunction<T>::PiecewiseConstantRateFunction(
             hs_indices.push_back(ts.size() - 1);
             continue;
         }
-        ip = insertion_point(h, ts, 0, ts.size());
-        if (myabs(ts[ip] - h) < 1e-8)
+        std::vector<double>::iterator ti = std::upper_bound(ts.begin(), ts.end(), h) - 1;
+        int ip = ti - ts.begin();
+        if (std::abs(*ti - h) < 1e-8)
         // if (ts[ip] == h)
             hs_indices.push_back(ip);
-        else if (ip + 1 < ts.size() and myabs(ts[ip + 1] - h) < 1e-8)
+        else if (ti + 1 < ts.end() and std::abs(*(ti + 1) - h) < 1e-8)
             hs_indices.push_back(ip + 1);
         else
         {
-            vec_insert(ts, ip + 1, h);
-            vec_insert<T>(ada, ip + 1, ada[ip]);
+            ts.insert(ti + 1, h);
+            ada.insert(ada.begin() + ip + 1, ada[ip]);
             check_nan(ada[ip + 1]);
             check_nan(ts[ip + 1]);
             hs_indices.push_back(ip + 1);
@@ -159,14 +154,16 @@ template <typename T>
 T PiecewiseConstantRateFunction<T>::R_integral(const double a, const double b, const T log_denom) const
 {
     // int_a^b exp(-R(t)) dt
-    int ip_a = insertion_point(a, ts, 0, ts.size());
-    int ip_b = (std::isinf(toDouble(b))) ? ts.size() - 2 : insertion_point(b, ts, 0, ts.size());
+    int ip_a = std::upper_bound(ts.begin(), ts.end(), a) - 1 - ts.begin();
+    int ip_b = std::upper_bound(ts.begin(), ts.end(), b) - 1 - ts.begin();
+    // If b == inf the comparison is always false so a special case is needed.
+    ip_b = std::isinf(b) ? ts.size() - 2 : ip_b;
     T ret = 0., r, Rleft;
     double left, right, diff;
     for (int i = ip_a; i < ip_b + 1; ++i)
     {
-        left = dmax(a, ts[i]);
-        right = dmin(b, ts[i + 1]);
+        left = std::max(a, ts[i]);
+        right = std::min(b, ts[i + 1]);
         diff = right - left;
         Rleft = R(left);
         r = exp(-(Rleft + log_denom));
@@ -368,18 +365,19 @@ std::vector<T> PiecewiseConstantRateFunction<T>::average_coal_times() const
 template <typename T>
 T PiecewiseConstantRateFunction<T>::R(const T t) const
 {
-    int ip = insertion_point(toDouble(t), ts, 0, ts.size());
-    return Rrng[ip] + ada[ip] * (t - ts[ip]);
+    std::vector<double>::const_iterator ti = std::upper_bound(ts.begin(), ts.end(), toDouble(t)) - 1;
+    int ip = ti - ts.begin();
+    return Rrng[ip] + ada[ip] * (t - *ti);
 }
 
 
 template <typename T>
 T PiecewiseConstantRateFunction<T>::Rinv(const T y) const
 {
-    int ip = insertion_point(toDouble(y), Rrng, 0, Rrng.size());
-    return (y - Rrng[ip]) / ada[ip] + ts[ip];
+    typename std::vector<T>::const_iterator R = std::upper_bound(Rrng.begin(), Rrng.end(), y) - 1;
+    int ip = R - Rrng.begin();
+    return (y - *R) / ada[ip] + ts[ip];
 }
-
 
 template class PiecewiseConstantRateFunction<double>;
 template class PiecewiseConstantRateFunction<adouble>;

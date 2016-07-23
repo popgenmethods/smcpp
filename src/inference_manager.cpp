@@ -61,7 +61,6 @@ InferenceManager::InferenceManager(
 
 void InferenceManager::recompute_initial_distribution()
 {
-    int M = eta->hidden_states.size() - 1;
     for (int m = 0; m < M - 1; ++m)
     {
         pi(m) = exp(-(eta->R(hidden_states[m]))) - exp(-(eta->R(hidden_states[m + 1])));

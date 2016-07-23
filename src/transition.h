@@ -12,7 +12,7 @@ class Transition
 {
     public:
     Transition(const PiecewiseConstantRateFunction<T> &eta, const double rho) : 
-        eta(eta), M(eta.hidden_states.size()), Phi(M - 1, M - 1), rho(rho) {}
+        eta(eta), M(eta.getHiddenStates().size()), Phi(M - 1, M - 1), rho(rho) {}
     Matrix<T>& matrix(void) { return Phi; }
 
     protected:

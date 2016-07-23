@@ -23,6 +23,12 @@ class PiecewiseConstantRateFunction
     void tjj_double_integral_above(const int, long, std::vector<Matrix<T> > &) const;
     void tjj_double_integral_below(const int, const int, Matrix<T>&) const;
 
+    // Getters
+    const std::vector<double>& getHiddenStates() const { return hidden_states; }
+    const std::vector<double>& getTs() const { return ts; }
+    const std::vector<int>& getHsIndices() const { return hs_indices; }
+    const std::vector<T>& getRrng() const { return Rrng; }
+
     friend std::ostream& operator<<(std::ostream& os, const PiecewiseConstantRateFunction& pexp)
     {
         os << pexp.ts << std::endl;
@@ -31,19 +37,17 @@ class PiecewiseConstantRateFunction
     }
     
     private:
-    std::vector<std::vector<adouble>> params;
+    const std::vector<std::vector<adouble>> params;
     const int nder;
     int K;
-    std::vector<double> s;
-    void compute_antiderivative();
-
-    public:
     std::vector<T> ada;
+    std::vector<double> s;
     std::vector<double> ts;
     std::vector<T> Rrng;
-    std::vector<int> hs_indices;
     const std::vector<double> hidden_states;
-    const double tmax;
+    std::vector<int> hs_indices;
+    // Methods
+    void compute_antiderivative();
 };
 
 #endif
