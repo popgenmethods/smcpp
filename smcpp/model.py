@@ -90,7 +90,7 @@ class SMCModel(Observable):
     def from_dict(klass, d):
         spc = getattr(spline, d['spline_class'])
         r = klass(d['s'], d['knots'], spc)
-        r.y = d['y']
+        r[:] = d['y']
         return r
 
     @property
@@ -143,7 +143,7 @@ class SMCTwoPopulationModel(Observable):
                 'split': self._split}
 
     def to_s(self):
-        return "\nPop. 1:\n{}\nPop. 2:\n{}\n\tSplit:{}".format(
+        return "\nPop. 1:\n{}\nPop. 2:\n{}\nSplit: {:%.3f}".format(
             self._models[0].to_s(), 
             self._models[1].to_s(self.split_ind),
             self.split)

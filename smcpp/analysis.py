@@ -27,8 +27,8 @@ class Analysis(Observer):
     def __init__(self, files, args):
         self._load_data(files)
         self._init_parameters(args.theta, args.rho)
-        self._init_model(args.pieces, args.N0, args.t1, args.tK, args.spline, args.split)
-        self._init_hidden_states(args.hidden_states, args.M)
+        self._init_model(args.initial_model, args.pieces, args.N0, args.t1, args.tK, args.spline, args.split)
+        self._init_hidden_states(args.M)
         self._init_bounds(args.Nmin)
         self._perform_thinning(args.thinning)
         self._normalize_data(args.length_cutoff)
@@ -111,7 +111,15 @@ class Analysis(Observer):
             logger.warn("Not thinning yet n = %d > 0. This probably "
                         "isn't what you desire, see --thinning", self._n.sum() // 2 + 1)
         
-    def _init_model(self, pieces, N0, t1, tK, spline, split=None):
+    def _init_model(self, initial_model, pieces, N0, t1, tK, spline, split=None):
+        if initial_model is not None:
+            d = json.load(open(initial_model, "rt"))
+            if self._npop == 1:
+                klass = SMCModel
+            else:
+                klass = SMCTwoPopulationModel
+            self._model = klass.from_dict(d['model'])
+            return
         ## Initialize model
         # FIXME currently disabled.
         # exponential_pieces = args.exponential_pieces or []
@@ -144,15 +152,12 @@ class Analysis(Observer):
                 SMCModel(time_points, knots, spline_class),
                 split)
 
-    def _init_hidden_states(self, hidden_states, M):
+    def _init_hidden_states(self, M):
         ## choose hidden states based on prior model
-        if hidden_states:
-            self._hidden_states = hidden_states
-        else:
-            hs = estimation_tools.balance_hidden_states(self._model.distinguished_model, M)
-            cs = np.cumsum(self._model.distinguished_model.s)
-            cs = cs[cs <= hs[1]]
-            self._hidden_states = np.sort(np.unique(np.concatenate([cs, hs])))
+        hs = estimation_tools.balance_hidden_states(self._model.distinguished_model, M)
+        cs = np.cumsum(self._model.distinguished_model.s)
+        cs = cs[cs <= hs[1]]
+        self._hidden_states = np.sort(np.unique(np.concatenate([cs, hs])))
         logger.debug("%d hidden states:\n%s" % (len(self._hidden_states), str(self._hidden_states)))
 
     def _normalize_data(self, length_cutoff):

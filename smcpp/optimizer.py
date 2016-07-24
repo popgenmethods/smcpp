@@ -45,6 +45,7 @@ class AbstractOptimizer(Observable):
         # logger.debug("\n" + np.array_str(model.y.astype(float), precision=2, max_line_width=100))
         # logger.debug("\n" + np.array_str(model.stepwise_values().astype(float), precision=2, max_line_width=100))
         # logger.debug(ret)
+        logger.debug((x, ret))
         return ret
 
     def _minimize(self, x0, coords, bounds):
@@ -52,7 +53,7 @@ class AbstractOptimizer(Observable):
                                        jac=True,
                                        args=(self._analysis, coords,),
                                        bounds=bounds,
-                                       # options={'disp': True},
+                                       options={'factr': 1e10},
                                        method="L-BFGS-B")
 
     def run(self, niter):
@@ -103,7 +104,7 @@ class ProgressPrinter(Observer):
             logger.debug("Optimizing coordinates %s", kwargs['coords'])
         if message == "M step finished":
             logger.debug("Results of optimizer:\n%s", kwargs['res'])
-            logger.debug("New model:\n%s", kwargs['model'].to_s())
+            logger.debug("Current model:\n%s", kwargs['model'].to_s())
 
 class LoglikelihoodPrinter(Observer):
 

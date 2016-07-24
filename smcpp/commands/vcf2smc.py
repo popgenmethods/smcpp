@@ -47,11 +47,11 @@ def main(args):
         logger.info("Population 1:")
         npop = 2
     logger.info("Distinguished sample: " + dist)
-    logger.info("Undistinguished samples: " + ",".join(undist))
+    logger.info("Undistinguished samples: " + ", ".join(undist))
     p2 = args.pop2
     if args.pop2:
         logger.info("Population 2:")
-        logger.info("Undistinguished samples: " + ",".join(args.pop2))
+        logger.info("Undistinguished samples: " + ", ".join(args.pop2))
 
     ## Start parsing
     vcf = VariantFile(args.vcf)
@@ -81,7 +81,8 @@ def main(args):
                    for slist in undist]
             b = [sum(_) for _ in bs]
             nb = [len(_) for _ in bs]
-            return [a] + list(sum(zip(b, nb), tuple()))
+            ret = [a] + list(sum(zip(b, nb), tuple()))
+            return ret
 
         region_iterator = vcf.fetch(contig=args.contig)
         contig_length = vcf.header.contigs[args.contig].length

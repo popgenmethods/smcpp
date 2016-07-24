@@ -44,6 +44,7 @@ cdef ParameterVector make_params(model) except *:
     cdef ParameterVector ret
     cdef vector[adouble] r
     a = model.stepwise_values()
+    assert len(a) > 0
     dlist = model.dlist
     for aa in a:
         if not isinstance(aa, ADF):

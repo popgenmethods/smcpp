@@ -62,7 +62,7 @@ class JointCSFS(object):
         assert a2 == 0, "distinguished lineages originating in different populations not currently supported"
 
     def compute(self, model1, model2, split):
-        Rts1, Rts2 = [_R(m, split) for m in [model1, model2]]
+        Rts1, Rts2 = [float(_R(m, split)) for m in [model1, model2]]
         args = (split, model1, model2, Rts1, Rts2) + \
             tuple([getattr(self, "_" + s)
                    for s in "a1 a2 n1 n2 Mn10 Mn11 Mn1 Mn2 K".split()])
@@ -87,7 +87,7 @@ def _parallel_helper(pargs):
         assert t1 < split < t2
         r1 = _jcsfs_helper_tau_below_split(pargs._replace(t2=split))
         r2 = _jcsfs_helper_tau_above_split(pargs._replace(t1=split))
-        eR1t1, eR1t2, eRts = [np.exp(-_R(pargs.model1, t)) for t in (t1, t2, split)]
+        eR1t1, eR1t2, eRts = [np.exp(-float(_R(pargs.model1, t))) for t in (t1, t2, split)]
         w = (eRts - eR1t2) / (eR1t1 - eR1t2)
         assert 0 <= w <= 1
         ret = r1 * (1. - w) + r2 * w
@@ -104,12 +104,12 @@ def _jcsfs_helper_tau_above_split(pargs):
     ret = np.zeros([a1 + 1, n1 + 1, a2 + 1, n2 + 1])
     # To compute this we calculate the CSFS at split time and then propagate forward
     # by hypergeometric sampling and Moran model (a la momi)
-    shim_model = _shift_model(model1, split)
+    shifted_model = _shift_model(model1, split)
     # CSFS with time "shifted back" by split units
-    rsfs = _smcpp.raw_sfs(shim_model, n1 + n2, t1 - split, t2 - split)
-    eMn10 = Mn10.expm(float(Rts1))
-    eMn11 = Mn11.expm(float(Rts1))
-    eMn12 = eMn10[::-1, ::-1]
+    rsfs = _smcpp.raw_sfs(shifted_model, n1 + n2, t1 - split, t2 - split).astype('float')
+    eMn1 = [Mn10.expm(float(Rts1)), Mn11.expm(float(Rts1))]
+    eMn1.append(eMn1[0][::-1, ::-1])
+    eMn1 = np.array(eMn1)
     eMn2 = Mn2.expm(float(Rts2))
     # Moran transition in each subpopulation from split to present
     for b1 in range(n1 + 1):
@@ -119,20 +119,15 @@ def _jcsfs_helper_tau_above_split(pargs):
                 for np1 in range(max(nseg - n2, 0), min(nseg, n1) + 1):
                     np2 = nseg - np1
                     h = scipy.stats.hypergeom.pmf(np1, n1 + n2, nseg, n1) 
-                    ret[0, b1, 0, b2] += (
-                            h * rsfs[0, nseg] *
-                            eMn10[np1, b1] * eMn2[np2, b2]
-                            )
-                    ret[1, b1, 0, b2] += (
-                            h * rsfs[1, nseg] *
-                            eMn11[np1, b1] * eMn2[np2, b2]
-                            )
-                    ret[2, b1, 0, b2] += (
-                            h * rsfs[2, nseg] *
-                            eMn12[np1, b1] * eMn2[np2, b2]
-                            )
+                    for i in range(3):
+                        ret[i, b1, 0, b2] += (
+                            h * rsfs[i, nseg] *
+                            eMn1[i, np1, b1] * 
+                            eMn2[np2, b2]
+                        )
+
     # to add in the time beneath split, we fudge slightly and just compute
-    # another csfs conditioned on coalescence in (split +- epsilon).
+    # another csfs_below conditioned on coalescence in (split +- epsilon).
     rsfs_below = _smcpp.raw_sfs(model1, n1, split - 1e-6, split + 1e-6, True).astype('float')
     ret[:, :, 0, 0] += rsfs_below
     # Since population 2 has no distinguished lineages, we get this by
@@ -146,9 +141,11 @@ def _jcsfs_helper_tau_above_split(pargs):
             # conditioned on distingiushed lineages coalescing in (0,
             # inf) and the marginalizing over the allelic state of those
             # two lineages.
-            rsfs_below = util.undistinguished_sfs(_truncated_csfs(model2, n2 - 2, split, 0., np.inf))[1:]
+            rsfs_below = util.undistinguished_sfs(_truncated_csfs(model2, n2 - 2, split, 0., np.inf))[1:].astype('float')
             ret[0, 0, 0, 1:-1] += rsfs_below
-    assert(np.all(ret >= 0))
+            ret[0, 0, 0, -1] += split - np.arange(1, n2).dot(rsfs_below) / n2
+    assert(np.all(ret >= -1e-10))
+    ret = np.maximum(0., ret)
     return ret
 
 def _jcsfs_helper_tau_below_split(pargs):
@@ -162,10 +159,11 @@ def _jcsfs_helper_tau_below_split(pargs):
     # population above the split.
     ret[:, :, 0, 0] = _truncated_csfs(model1, n1, split, t1, t2)
 
-    # Above the split, we compute the regular SFS on n1 + n2 + 1 lineages
-    # and then moran down.
+    # Above the split, we compute the regular SFS on n1 + n2 + 1
+    # lineages (by marginalizing the CSFS on n1 + n2 - 1) and then moran
+    # down.
     shifted_model1 = _shift_model(model1, split)
-    shifted_csfs = _smcpp.raw_sfs(shifted_model1, n1 + n2 + 1, 0., np.inf)
+    shifted_csfs = _smcpp.raw_sfs(shifted_model1, n1 + n2 - 1, 0., np.inf)
     sfs_above_split = util.undistinguished_sfs(shifted_csfs)[1:]
     # transition matrices 
     # Compute "averaged transition matrices"
@@ -177,6 +175,8 @@ def _jcsfs_helper_tau_below_split(pargs):
     S2 = S2[None, :]
     S0 = 1. - S2
     for t, Rt in eta.random_coal_times(t1, t2, K):
+        t = float(t)
+        Rt = float(Rt)
         A = Mn1.expm(Rts1 - Rt) # normal Moran dynamics down time t
         # Then either one lineage splits off into 2 distinguished
         # with prob S2
@@ -204,7 +204,8 @@ def _jcsfs_helper_tau_below_split(pargs):
                             h * sfs_above_split[nseg - 1] *
                             eMn12_avg[np1, b1] * eMn2[np2, b2]
                             )
-    assert np.all(ret >= 0)
+    assert np.all(ret >= -1e-10)
+    ret = np.maximum(0., ret)
     return ret
 
 def _cumsum0(ary):
@@ -263,8 +264,10 @@ def _shift_model(_model, shift):
     s = _model.s
     a = _model.stepwise_values()
     cs = _cumsum0(s)
+    cs[-1] = np.inf
     i = np.searchsorted(cs, shift)
     cs[i - 1] = shift
     sp = np.diff(cs[i - 1:])
+    sp[-1] = 1.0
     ap = a[i - 1:]
     return model.PiecewiseModel(sp, ap, _model.dlist)
