@@ -290,7 +290,7 @@ void PiecewiseConstantRateFunction<T>::tjj_double_integral_below(
         for (int j = 2; j < n + 3; ++j)
         {
             long rate = nC2(j) - 1;
-            ts_integrals(j - 2) = _double_integral_below_helper<T>(rate, ts[m], ts[m + 1], ada[m], Rrng[m], -log_denom);
+            ts_integrals(j - 2) = _double_integral_below_helper<T>(rate, ts[m], ts[m + 1], ada[m], Rrng[m], log_denom);
             for (int k = 0; k < m; ++k)
             {
                 T _c = log_coef - log_denom;

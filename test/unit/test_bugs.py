@@ -22,10 +22,11 @@ def test_bug2():
     raw_sfs = _smcpp.raw_sfs(model1, n - 2, 0., np.inf).astype('float')
     undist = util.undistinguished_sfs(raw_sfs)
     assert np.allclose(undist[1:], 2. / np.arange(1, n))
-    t1 = 0.
-    t2 = 1.
-    raw_sfs = _smcpp.raw_sfs(model1, 0, t1, t2)
-    q = scipy.integrate.quad(lambda t: t * np.exp(-t), t1, t2)
-    ans = q[0]
-    ans /= np.exp(-t1) - np.exp(-t2)
-    assert raw_sfs[1, 0] == 2. * ans
+    ts = [0.0, 0.5, 1.0, 2.0, np.inf]
+    for t1, t2 in zip(ts[:-1], ts[1:]):
+        q = scipy.integrate.quad(lambda t: t * np.exp(-t), t1, t2)
+        ans = q[0]
+        ans /= np.exp(-t1) - np.exp(-t2)
+        for n in [0, 2, 10, 20]:
+            raw_sfs = _smcpp.raw_sfs(model1, n, t1, t2)
+            np.testing.assert_allclose(raw_sfs.sum(axis=1)[1], 2. * ans)
