@@ -63,14 +63,11 @@ class ThreadPool : public Singleton<ThreadPool>
     public:
         ThreadPool(size_t);
         ThreadPool() : ThreadPool(std::thread::hardware_concurrency()) {}
+        // ThreadPool() : ThreadPool(1) {}
         ~ThreadPool();
         template<class F, class... Args>
             auto enqueue(F&& f, Args&&... args)
             -> std::future<typename std::result_of<F(Args...)>::type>;
-        template<class R, class Iter, class U = typename std::iterator_traits<Iter>::value_type>
-            auto parfor(std::function<R(U)>&& F, Iter&& iter) -> std::vector<R>;
-        template<class R> 
-            auto parfor(std::function<R(int)>&& F, const int M) -> std::vector<R>;
     private:
         // need to keep track of threads so we can join them
         std::vector< std::thread > workers;
@@ -109,26 +106,6 @@ class ThreadPool : public Singleton<ThreadPool>
                 }
                 }
                 );
-}
-
-template<class R, class Iter, class U = typename std::iterator_traits<Iter>::value_type>
-auto parfor(std::function<R(U)>&& F, Iter&& it) -> std::vector<R> 
-{
-    std::future<R> results;
-    std::vector<R> ret;
-    for (U &u : it)
-        results.emplace_back(enqueue(std::bind(F, u)));
-    for (auto &res : results)
-        ret.push_back(res.get());
-    return ret;
-}
-
-template<class R> 
-    auto parfor(std::function<R(int)>&& F, int M) -> std::vector<R>
-{
-    std::vector<int> rng(M);
-    std::iota(rng.begin(), rng.end(), 0);
-    return parfor(F, rng);
 }
 
 // add new work item to the pool

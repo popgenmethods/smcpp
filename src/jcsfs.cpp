@@ -84,9 +84,9 @@ Vector<double> JointCSFS<T>::make_S2()
 }
 
 template <typename T>
-void JointCSFS<T>::jcsfs_helper_tau_below_split(const int m, const T weight)
+void JointCSFS<T>::jcsfs_helper_tau_below_split(const int m, 
+        const double t1, const double t2, const T weight)
 {
-    double t1 = hidden_states[m], t2 = hidden_states[m + 1];
     assert(t1 < t2 <= split);
     assert(a1 == 2);
     const PiecewiseConstantRateFunction<T> eta(params1, {});
@@ -128,9 +128,9 @@ void JointCSFS<T>::jcsfs_helper_tau_below_split(const int m, const T weight)
 }
 
 template <typename T>
-void JointCSFS<T>::jcsfs_helper_tau_above_split(const int m, const T weight)
+void JointCSFS<T>::jcsfs_helper_tau_above_split(const int m, 
+        const double t1, const double t2, const T weight)
 {
-    double t1 = hidden_states[m], t2 = hidden_states[m + 1];
     assert(split <= t1 < t2);
     assert(a1 == 2);
 
@@ -205,21 +205,21 @@ void JointCSFS<T>::pre_compute(
         J[m].setZero();
         double t1 = hidden_states[m], t2 = hidden_states[m + 1];
         if (t1 < t2 and t2 <= split)
-            results.emplace_back(tp.enqueue([this, m] { 
-                jcsfs_helper_tau_below_split(m, 1.); 
+            results.emplace_back(tp.enqueue([this, t1, t2, m] { 
+                jcsfs_helper_tau_below_split(m, t1, t2, 1.); 
             }));
         else if (split <= t1 and t1 < t2)
-            results.emplace_back(tp.enqueue([this, m] { 
-                jcsfs_helper_tau_above_split(m, 1.); 
+            results.emplace_back(tp.enqueue([this, t1, t2, m] { 
+                jcsfs_helper_tau_above_split(m, t1, t2, 1.); 
             }));
         else
         {
             T eR1t1 = exp(-eta1->R(t1)), 
               eR1t2 = exp(-eta1->R(t2));
             T w = (exp(-Rts1) - eR1t2) / (eR1t1 - eR1t2);
-            results.emplace_back(tp.enqueue([this, m, w] { 
-                jcsfs_helper_tau_above_split(m, w);
-                jcsfs_helper_tau_below_split(m, 1. - w);
+            results.emplace_back(tp.enqueue([this, t1, t2, split, m, w] { 
+                jcsfs_helper_tau_below_split(m, t1, split, 1. - w);
+                jcsfs_helper_tau_above_split(m, split, t2, w);
             }));
         }
     }

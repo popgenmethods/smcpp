@@ -1,9 +1,6 @@
 #ifndef TRANSITION_H
 #define TRANSITION_H
 
-#include <random>
-#include <map>
-
 #include "common.h"
 #include "piecewise_constant_rate_function.h"
 

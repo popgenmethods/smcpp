@@ -6,10 +6,6 @@
 
 #include "common.h"
 
-#define MPQ_CONSTRUCT(v, a, b) \
-    mpq_class v(a, b);\
-    if (a == 0) v = 0_mpq;
-
 namespace Eigen {
     template<> 
     struct NumTraits<mpq_class> : NumTraits<long long> // permits to get the epsilon, dummy_precision, lowest, highest functions

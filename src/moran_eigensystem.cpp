@@ -1,3 +1,5 @@
+#include <map>
+
 #include "moran_eigensystem.h"
 
 Eigen::SparseMatrix<mpq_class, Eigen::RowMajor> moran_rate_matrix(int N)
@@ -58,17 +60,16 @@ VectorXq solve(const Eigen::SparseMatrix<mpq_class, Eigen::RowMajor> &M)
     return ret;
 }
 
+// This function is not thread safe. Do not call from multiple threads.
 std::map<int, MoranEigensystem> _memo;
 MoranEigensystem& compute_moran_eigensystem(int n)
 {
     if (_memo.count(n) == 0)
     {
-        Eigen::SparseMatrix<mpq_class, Eigen::RowMajor> M = modified_moran_rate_matrix(n, 0), Mt, I(n + 1, n + 1), A;
+        Eigen::SparseMatrix<mpq_class, Eigen::RowMajor> M = modified_moran_rate_matrix(n, 0), 
+            Mt, I(n + 1, n + 1), A;
         Mt = M.transpose();
-        MoranEigensystem ret;
-        ret.D = VectorXq::Zero(n + 1);
-        ret.U = MatrixXq::Zero(n + 1, n + 1);
-        ret.Uinv = MatrixXq::Zero(n + 1, n + 1);
+        MoranEigensystem ret(n);
         ret.Uinv(0, 0) = 1_mpq;
         I.setIdentity();
         for (int k = 2; k < n + 3; ++k)
@@ -86,9 +87,9 @@ MoranEigensystem& compute_moran_eigensystem(int n)
         }
         VectorXq D1 = (ret.Uinv * ret.U).diagonal().cwiseInverse();
         ret.U = ret.U * D1.asDiagonal();
-        _memo[n] = ret;
+        _memo.emplace(n, ret);
     }
-    return _memo[n];
+    return _memo.at(n);
 }
 
 

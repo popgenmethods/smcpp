@@ -3,7 +3,6 @@
 
 typedef struct { MatrixXq coeffs; } below_coeff;
 
-
 std::map<int, below_coeff> below_coeffs_memo;
 below_coeff compute_below_coeffs(int n)
 {
@@ -20,8 +19,8 @@ below_coeff compute_below_coeffs(int n)
             for (int k = nn - 1; k > 1; --k)
             {
                 long denom = (nn + 1) * (nn - 2) - (k + 1) * (k - 2);
-                MPQ_CONSTRUCT(c1, (nn + 1) * (nn - 2), denom);
-                MPQ_CONSTRUCT(c2, (k + 2) * (k - 1), denom);
+                mpq_class c1((nn + 1) * (nn - 2), denom);
+                mpq_class c2((k + 2) * (k - 1), denom);
                 mnew.col(k - 2) = mlast.col(k - 2) * c1;
                 mnew.col(k - 2) -= mnew.col(k - 1) * c2;
             }
@@ -30,7 +29,7 @@ below_coeff compute_below_coeffs(int n)
         ret.coeffs = mlast;
         below_coeffs_memo.emplace(n, ret); 
     }
-    return below_coeffs_memo[n];
+    return below_coeffs_memo.at(n);
 }
 
 std::map<std::array<int, 3>, mpq_class> _Wnbj_memo;
@@ -48,8 +47,8 @@ mpq_class calculate_Wnbj(int n, int b, int j)
             if (_Wnbj_memo.count(key) == 0)
             {
                 int jj = j - 2;
-                MPQ_CONSTRUCT(c1, -(1 + jj) * (3 + 2 * jj) * (n - jj), jj * (2 * jj - 1) * (n + jj + 1));
-                MPQ_CONSTRUCT(c2, (3 + 2 * jj) * (n - 2 * b), jj * (n + jj + 1));
+                mpq_class c1(-(1 + jj) * (3 + 2 * jj) * (n - jj), jj * (2 * jj - 1) * (n + jj + 1));
+                mpq_class c2((3 + 2 * jj) * (n - 2 * b), jj * (n + jj + 1));
                 mpq_class ret = calculate_Wnbj(n, b, jj) * c1;
                 ret += calculate_Wnbj(n, b, jj + 1) * c2;
                 _Wnbj_memo[key] = ret;
@@ -71,7 +70,7 @@ mpq_class pnkb_dist(int n, int m, int l1)
         mpz_class binom1, binom2;
         mpz_bin_uiui(binom1.get_mpz_t(), n + 2 - l1, m + 1);
         mpz_bin_uiui(binom2.get_mpz_t(), n + 3, m + 3);
-        MPQ_CONSTRUCT(ret, binom1, binom2);
+        mpq_class ret(binom1, binom2);
         ret *= l1;
         pnkb_dist_memo[key] = ret;
     }
@@ -91,7 +90,7 @@ mpq_class pnkb_undist(int n, int m, int l3)
         mpz_class binom1, binom2;
         mpz_bin_uiui(binom1.get_mpz_t(), n + 3 - l3, m + 2);
         mpz_bin_uiui(binom2.get_mpz_t(), n + 3, m + 3);
-        MPQ_CONSTRUCT(ret, binom1, binom2);
+        mpq_class ret(binom1, binom2);
         pnkb_undist_memo.emplace(key, ret);
     }
     return pnkb_undist_memo[key];
@@ -170,14 +169,14 @@ std::vector<Matrix<T> > OnePopConditionedSFS<T>::compute_above(const PiecewiseCo
     DEBUG << "compute above";
     std::vector< std::future<void> > results;
     for (int j = 2; j < n + 3; ++j)
-        results.emplace_back(
-            tp.enqueue([&eta, j, this, &C_above] ()
+        results.emplace_back(tp.enqueue([&eta, j, this, &C_above] ()
             {
                 eta.tjj_double_integral_above(n, j, C_above);
             }));
-    for(auto && result: results) 
-        result.wait();
+    for(auto &&res : results) 
+        res.wait();
     Matrix<T> tmp;
+
     results.clear();
     for (int m = 0; m < M; ++m)
         results.emplace_back(tp.enqueue([m, this, &csfs_above, &C_above] ()
@@ -207,7 +206,8 @@ std::vector<Matrix<T> > OnePopConditionedSFS<T>::compute_above(const PiecewiseCo
             csfs_above[m].block(2, 0, 1, n) = tmp2.transpose().lazyProduct(Uinv_mp2);
             check_nan(csfs_above[m]);
         }));
-    for(auto && result: results) result.get();
+    for (auto &&res : results) 
+        res.wait();
     return csfs_above;
 }
 
@@ -275,9 +275,9 @@ std::map<int, typename OnePopConditionedSFS<T>::MatrixCache> OnePopConditionedSF
 template <typename T>
 typename OnePopConditionedSFS<T>::MatrixCache& OnePopConditionedSFS<T>::cached_matrices(int n)
 {
-    const MoranEigensystem mei = compute_moran_eigensystem(n);
     if (matrix_cache.count(n) == 0)
     {
+        const MoranEigensystem mei = compute_moran_eigensystem(n);
         MatrixCache ret;
         VectorXq D_subtend_above = VectorXq::LinSpaced(n, 1, n);
         D_subtend_above /= n + 1;

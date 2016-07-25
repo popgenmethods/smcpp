@@ -7,7 +7,6 @@
 #include <random>
 #include <array>
 
-#define EIGEN_NO_AUTOMATIC_RESIZING 1
 #include <Eigen/Dense>
 #include <unsupported/Eigen/MatrixFunctions>
 #include <unsupported/Eigen/AutoDiff>

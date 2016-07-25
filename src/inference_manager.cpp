@@ -26,6 +26,7 @@ InferenceManager::InferenceManager(
     M(hidden_states.size() - 1),
     obs(map_obs(observations, obs_lengths)),
     csfs(csfs),
+    hmms(obs.size()),
     pi(M),
     targets(fill_targets()),
     tb(targets, &emission_probs),
@@ -45,19 +46,20 @@ InferenceManager::InferenceManager(
     // ranges in {0, 1, ..., n_pop_k}.
     emission = Matrix<adouble>::Zero(M, 3 * sfs_dim);
     emission.setZero();
-    hmms.resize(obs.size());
 
-    ThreadPool &tp = ThreadPool::getInstance();
     InferenceBundle *ibp = &ib;
+    std::vector<std::future<HMM*> > results;
     for (unsigned int i = 0; i < obs.size(); ++i)
     {
-        tp.enqueue([i, ibp, this] 
+        results.emplace_back(tp.enqueue([i, ibp, this] 
         {
             DEBUG << "creating HMM";
-            hmmptr h(new HMM(i, this->obs[i], ibp));
-            this->hmms[i] = std::move(h);
-        });
+            return new HMM(i, this->obs[i], ibp);
+        }));
     }
+    for (int i = 0; i < obs.size(); ++i)
+        hmms[i].reset(results[i].get());
+
     // Collect all the block keys for recomputation later
     populate_emission_probs();
 }
