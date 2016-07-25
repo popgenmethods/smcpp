@@ -3,7 +3,6 @@
 
 #include <random>
 #include "common.h"
-#include "mpq_support.h"
 
 template <typename T>
 class PiecewiseConstantRateFunction

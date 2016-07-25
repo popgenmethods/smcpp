@@ -13,7 +13,7 @@ for key, value in cfg_vars.items():
 
 cpps = [f for f in glob.glob("src/*.cpp") if 
         not os.path.basename(f).startswith("_") 
-        and not os.path.basename(f).startswith("test") ]
+        and not os.path.basename(f).startswith("test")]
 
 def lazy_extensions():
     # Lazy evaluation allows us to use setup_requires without have to import at

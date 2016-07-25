@@ -2,17 +2,13 @@
 #define INFERENCE_MANAGER_H
 
 #include "common.h"
-#include "hmm.h"
-#include "piecewise_constant_rate_function.h"
-#include "conditioned_sfs.h"
-#include "transition.h"
 #include "transition_bundle.h"
 #include "inference_bundle.h"
-#include "block_key.h"
-#include "marginalize_sfs.h"
+#include "piecewise_constant_rate_function.h"
+#include "conditioned_sfs.h"
+#include "hmm.h"
 #include "ThreadPool.h"
-
-class HMM;
+#include "block_key.h"
 
 class InferenceManager
 {
@@ -63,7 +59,7 @@ class InferenceManager
     virtual void recompute_emission_probs() = 0;
 
     // Passed-in parameters
-    std::unique_ptr<const ConditionedSFS<adouble> > csfs;
+    std::unique_ptr<ConditionedSFS<adouble> > csfs;
 
     // Other members
     const int npop, sfs_dim, M;
@@ -113,10 +109,7 @@ class OnePopInferenceManager final : public NPopInferenceManager<1>
             const int n,
             const std::vector<int> obs_lengths,
             const std::vector<int*> observations,
-            const std::vector<double> hidden_states) :
-        NPopInferenceManager(FixedVector<int, 1>::Constant(n),
-                obs_lengths, observations, hidden_states, 
-                new OnePopConditionedSFS<adouble>(n)) {}
+            const std::vector<double> hidden_states);
 };
 
 class TwoPopInferenceManager : public NPopInferenceManager<2>
@@ -126,17 +119,9 @@ class TwoPopInferenceManager : public NPopInferenceManager<2>
             const int n1, const int n2,
             const std::vector<int> obs_lengths,
             const std::vector<int*> observations,
-            const std::vector<double> hidden_states) :
-        NPopInferenceManager(
-                (FixedVector<int, 2>() << n1, n2).finished(),
-                obs_lengths, observations, hidden_states, 
-                nullptr) {}
+            const std::vector<double> hidden_states);
                 
-    void setParams(const ParameterVector &params, std::vector<double*> newSFS)
-    {
-        InferenceManager::setParams(params);
-        csfs.reset(new DummySFS<adouble>(sfs_dim, hidden_states.size() - 1, newSFS));
-    }
+    void setParams(const ParameterVector &params1, const ParameterVector &params2, const double split);
 };
 
 Matrix<adouble> sfs_cython(const int, const ParameterVector, const double, const double, bool);

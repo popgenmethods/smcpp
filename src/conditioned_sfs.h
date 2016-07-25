@@ -3,21 +3,11 @@
 
 #include <exception>
 #include <map>
-#include <random>
-#include <gmpxx.h>
 
 #include "common.h"
 #include "piecewise_constant_rate_function.h"
 #include "moran_eigensystem.h"
-#include "mpq_support.h"
 #include "ThreadPool.h"
-
-typedef struct 
-{
-    MatrixXq coeffs;
-} below_coeff;
-
-typedef struct { Matrix<double> X0, X2, M0, M1; } MatrixCache;
 
 class improper_sfs_exception : public std::exception
 {
@@ -45,6 +35,8 @@ class OnePopConditionedSFS : public ConditionedSFS<T>
     std::vector<Matrix<T> > compute_above(const PiecewiseConstantRateFunction<T> &) const;
 
     private:
+    typedef struct { Matrix<double> X0, X2, M0, M1; } MatrixCache;
+
     // Variables
     static MatrixCache& cached_matrices(int n);
     static std::map<int, MatrixCache> matrix_cache;

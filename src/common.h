@@ -6,46 +6,18 @@
 #include <vector>
 #include <random>
 #include <array>
-#include <cmath>
 
-// #define EIGEN_USE_MKL_ALL
+#define EIGEN_NO_AUTOMATIC_RESIZING 1
 #include <Eigen/Dense>
 #include <unsupported/Eigen/MatrixFunctions>
+#include <unsupported/Eigen/AutoDiff>
 
 #include "prettyprint.hpp"
 #include "hash.h"
 
-#define EIGEN_NO_AUTOMATIC_RESIZING 1
-
 template <typename T> using Matrix = Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic>;
 template <typename T> using Vector = Eigen::Matrix<T, Eigen::Dynamic, 1>;
 template <typename T, size_t P> using FixedVector = Eigen::Matrix<T, P, 1>;
-
-template <typename _Scalar, int NX=Eigen::Dynamic, int NY=Eigen::Dynamic>
-struct Functor
-{
-    typedef _Scalar Scalar;
-    enum {
-        InputsAtCompileTime = NX,
-        ValuesAtCompileTime = NY
-    };
-    typedef Eigen::Matrix<Scalar,InputsAtCompileTime,1> InputType;
-    typedef Eigen::Matrix<Scalar,ValuesAtCompileTime,1> ValueType;
-    typedef Eigen::Matrix<Scalar,ValuesAtCompileTime,InputsAtCompileTime> JacobianType;
-
-    const int m_inputs, m_values;
-
-    Functor() : m_inputs(InputsAtCompileTime), m_values(ValuesAtCompileTime) {}
-    Functor(int inputs, int values) : m_inputs(inputs), m_values(values) {}
-
-    int inputs() const { return m_inputs; }
-    int values() const { return m_values; }
-
-    // you should define that in the subclass :
-    // //  void operator() (const InputType& x, ValueType* v, JacobianType* _j=0) const;
-};
-
-#include <unsupported/Eigen/AutoDiff>
 
 typedef Eigen::AutoDiffScalar<Eigen::VectorXd> adouble;
 typedef std::vector<std::vector<adouble>> ParameterVector;

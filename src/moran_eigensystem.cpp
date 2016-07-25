@@ -1,6 +1,29 @@
 #include "moran_eigensystem.h"
 
-Eigen::SparseMatrix<mpq_class, Eigen::RowMajor> moran_rate_matrix(int N, int a)
+Eigen::SparseMatrix<mpq_class, Eigen::RowMajor> moran_rate_matrix(int N)
+{
+    Eigen::SparseMatrix<mpq_class, Eigen::RowMajor> ret(N + 1, N + 1);     
+    for (int i = 0; i < N + 1; ++i)
+    {
+        mpq_class sm = 0, b;
+        if (i > 0)
+        {
+            b = i * (N - i) / 2_mpq;
+            ret.insert(i, i - 1) = b;
+            sm += b;
+        }
+        if (i < N)
+        {
+            b = i * (N - i) / 2_mpq;
+            ret.insert(i, i + 1) = b;
+            sm += b;
+        }
+        ret.insert(i, i) = -sm;
+    }
+    return ret;
+}
+
+Eigen::SparseMatrix<mpq_class, Eigen::RowMajor> modified_moran_rate_matrix(int N, int a)
 {
     Eigen::SparseMatrix<mpq_class, Eigen::RowMajor> ret(N + 1, N + 1);     
     for (int i = 0; i < N + 1; ++i)
@@ -40,7 +63,7 @@ MoranEigensystem& compute_moran_eigensystem(int n)
 {
     if (_memo.count(n) == 0)
     {
-        Eigen::SparseMatrix<mpq_class, Eigen::RowMajor> M = moran_rate_matrix(n, 0), Mt, I(n + 1, n + 1), A;
+        Eigen::SparseMatrix<mpq_class, Eigen::RowMajor> M = modified_moran_rate_matrix(n, 0), Mt, I(n + 1, n + 1), A;
         Mt = M.transpose();
         MoranEigensystem ret;
         ret.D = VectorXq::Zero(n + 1);

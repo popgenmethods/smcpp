@@ -1,4 +1,8 @@
 #include "conditioned_sfs.h"
+#include "mpq_support.h"
+
+typedef struct { MatrixXq coeffs; } below_coeff;
+
 
 std::map<int, below_coeff> below_coeffs_memo;
 below_coeff compute_below_coeffs(int n)
@@ -266,10 +270,7 @@ template std::vector<Matrix<double> > incorporate_theta(const std::vector<Matrix
 template std::vector<Matrix<adouble> > incorporate_theta(const std::vector<Matrix<adouble> > &csfs, double theta);
 
 template <typename T>
-std::map<int, MatrixCache> OnePopConditionedSFS<T>::matrix_cache;
-
-template <typename T>
-MatrixCache& OnePopConditionedSFS<T>::cached_matrices(int n)
+typename OnePopConditionedSFS<T>::MatrixCache& OnePopConditionedSFS<T>::cached_matrices(int n)
 {
     const MoranEigensystem mei = compute_moran_eigensystem(n);
     if (matrix_cache.count(n) == 0)

@@ -1,3 +1,6 @@
+#include "common.h"
+#include "inference_manager.h"
+#include "inference_bundle.h"
 #include "hmm.h"
 
 HMM::HMM(const int hmm_num, const Matrix<int> &obs, const InferenceBundle* ib) : 

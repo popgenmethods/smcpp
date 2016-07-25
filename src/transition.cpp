@@ -1,4 +1,5 @@
 #include "transition.h"
+#include "piecewise_constant_rate_function.h"
 
 template <typename T, typename U>
 Matrix<T> matrix_exp(U c_rho, T c_eta)

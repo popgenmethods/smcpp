@@ -1,4 +1,6 @@
 #include "inference_manager.h"
+#include "marginalize_sfs.h"
+#include "jcsfs.h"
 
 PiecewiseConstantRateFunction<adouble>* defaultEta(const std::vector<double> &hidden_states)
 {
@@ -348,6 +350,31 @@ Matrix<adouble> sfs_cython(const int n, const ParameterVector p,
     else
         v = csfs.compute(eta);
     return v[0];
+}
+
+OnePopInferenceManager::OnePopInferenceManager(
+            const int n,
+            const std::vector<int> obs_lengths,
+            const std::vector<int*> observations,
+            const std::vector<double> hidden_states) :
+        NPopInferenceManager(FixedVector<int, 1>::Constant(n),
+                obs_lengths, observations, hidden_states, 
+                new OnePopConditionedSFS<adouble>(n)) {}
+
+TwoPopInferenceManager::TwoPopInferenceManager(
+            const int n1, const int n2,
+            const std::vector<int> obs_lengths,
+            const std::vector<int*> observations,
+            const std::vector<double> hidden_states) :
+        NPopInferenceManager(
+                (FixedVector<int, 2>() << n1, n2).finished(),
+                obs_lengths, observations, hidden_states, 
+                new JointCSFS<adouble>(n1, n2, 2, 0, hidden_states)) {}
+
+void TwoPopInferenceManager::setParams(const ParameterVector &params1, const ParameterVector &params2, const double split)
+{
+    InferenceManager::setParams(params1);
+    dynamic_cast<JointCSFS<adouble>*>(csfs.get())->pre_compute(params1, params2, split);
 }
 
 template class NPopInferenceManager<1>;

@@ -48,22 +48,16 @@ def _test_d(model1, model2):
     
 
 def test_marginal_pop1(model1, model2):
-    ts = [1., 2.]
-    n1 = 0
+    ts = [0., 1., 2., np.inf]
+    n1 = 5
     n2 = 10
     j = JointCSFS(n1, n2, 2, 0, ts, 100)
-    for split in [0.5]:
+    for split in [0.1, 0.5, 1., 1.5, 2.5]:
         jc = j.compute(model1, model2, split)
         for t1, t2, jjc in zip(ts[:-1], ts[1:], jc):
             A1 = smcpp._smcpp.raw_sfs(model1, n1, t1, t2).astype('float')
             A2 = jjc.sum(axis=(-1, -2)).astype('float')
-            A1[0,0] = A2[0,0]
-            A1[-1,-1] = A2[-1,-1]
-            print((t1, t2, split))
-            print(A1)
-            print(A2)
-            print(((A1 - A2) / A1).round(3))
-            # assert np.allclose(A1.flat[1:-1], A2.flat[1:-1])
+            assert np.allclose(A1.flat[1:-1], A2.flat[1:-1], 1e-3, 0)
 
 def _test_marginal_pop2(model1, model2):
     ts = [0.0, 0.5, 1.0, np.inf]

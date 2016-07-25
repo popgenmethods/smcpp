@@ -3,10 +3,8 @@
 
 #include <map>
 
-#include "common.h"
-#include "inference_manager.h"
-#include "inference_bundle.h"
-#include "transition_bundle.h"
+class InferenceManager;
+class InferenceBundle;
 
 class HMM
 {
