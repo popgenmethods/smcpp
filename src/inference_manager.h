@@ -7,7 +7,6 @@
 #include "piecewise_constant_rate_function.h"
 #include "conditioned_sfs.h"
 #include "hmm.h"
-#include "ThreadPool.h"
 #include "block_key.h"
 
 class InferenceManager
@@ -75,7 +74,6 @@ class InferenceManager
     struct { bool theta, rho, eta; } dirty;
 
     std::unique_ptr<const PiecewiseConstantRateFunction<adouble> > eta;
-    ThreadPool& tp;
 };
 
 template <size_t P>

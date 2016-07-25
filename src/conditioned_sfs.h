@@ -7,7 +7,6 @@
 #include "common.h"
 #include "piecewise_constant_rate_function.h"
 #include "moran_eigensystem.h"
-#include "ThreadPool.h"
 
 class improper_sfs_exception : public std::exception
 {
@@ -46,7 +45,6 @@ class OnePopConditionedSFS : public ConditionedSFS<T>
     const MatrixCache mcache;
     // std::vector<Matrix<T> > csfs, csfs_below, csfs_above, C_above;
     const Matrix<double> Uinv_mp0, Uinv_mp2;
-    ThreadPool &tp;
 };
 
 template <typename T>

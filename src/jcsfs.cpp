@@ -199,32 +199,24 @@ void JointCSFS<T>::pre_compute(
     eMn1[1] = Mn11.expM(Rts1);
     eMn1[2] = eMn1[0].reverse();
     eMn2 = Mn2.expM(Rts2);
-    std::vector<std::future<void> > results;
+#pragma omp parallel for
     for (int m = 0; m < M; ++m)
     {
         J[m].setZero();
         double t1 = hidden_states[m], t2 = hidden_states[m + 1];
         if (t1 < t2 and t2 <= split)
-            results.emplace_back(tp.enqueue([this, t1, t2, m] { 
-                jcsfs_helper_tau_below_split(m, t1, t2, 1.); 
-            }));
+            jcsfs_helper_tau_below_split(m, t1, t2, 1.); 
         else if (split <= t1 and t1 < t2)
-            results.emplace_back(tp.enqueue([this, t1, t2, m] { 
-                jcsfs_helper_tau_above_split(m, t1, t2, 1.); 
-            }));
+            jcsfs_helper_tau_above_split(m, t1, t2, 1.); 
         else
         {
             T eR1t1 = exp(-eta1->R(t1)), 
               eR1t2 = exp(-eta1->R(t2));
             T w = (exp(-Rts1) - eR1t2) / (eR1t1 - eR1t2);
-            results.emplace_back(tp.enqueue([this, t1, t2, split, m, w] { 
-                jcsfs_helper_tau_below_split(m, t1, split, 1. - w);
-                jcsfs_helper_tau_above_split(m, split, t2, w);
-            }));
+            jcsfs_helper_tau_below_split(m, t1, split, 1. - w);
+            jcsfs_helper_tau_above_split(m, split, t2, w);
         }
     }
-    for (auto &&res : results)
-        res.wait();
 }
 
 // Instantiate necessary templates

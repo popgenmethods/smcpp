@@ -3,7 +3,6 @@
 
 #include "common.h"
 #include "block_key.h"
-#include "ThreadPool.h"
 
 struct eigensystem
 {
@@ -33,7 +32,7 @@ class TransitionBundle
             const std::set<std::pair<int, block_key> > &targets_s,
             const std::map<block_key, Vector<adouble> >* emission_probs) : 
         targets(targets_s.begin(), targets_s.end()),
-        emission_probs(emission_probs), tp(ThreadPool::getInstance()) {}
+        emission_probs(emission_probs) {}
 
     void update(const Matrix<adouble> &new_T);
     Matrix<adouble> T;
@@ -46,7 +45,6 @@ class TransitionBundle
     private:
     const std::vector<std::pair<int, block_key> > targets;
     const std::map<block_key, Vector<adouble> >* emission_probs;
-    ThreadPool &tp;
 };
 
 #endif
