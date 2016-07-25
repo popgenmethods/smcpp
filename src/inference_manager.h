@@ -19,7 +19,7 @@ class InferenceManager
             const std::vector<int>, 
             const std::vector<int*>,
             const std::vector<double>,
-            const ConditionedSFS<adouble> *csfs);
+            ConditionedSFS<adouble> *csfs);
     virtual ~InferenceManager() = default;
 
     void setRho(const double);
@@ -58,12 +58,10 @@ class InferenceManager
     // These methods will differ according to number of populations and must be overridden.
     virtual void recompute_emission_probs() = 0;
 
-    // Passed-in parameters
-    std::unique_ptr<ConditionedSFS<adouble> > csfs;
-
     // Other members
     const int npop, sfs_dim, M;
     std::vector<Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> > obs;
+    std::unique_ptr<ConditionedSFS<adouble> > csfs;
     double theta, rho;
     std::vector<hmmptr> hmms;
     Vector<adouble> pi;
@@ -89,7 +87,7 @@ class NPopInferenceManager : public InferenceManager
             const std::vector<int> obs_lengths,
             const std::vector<int*> observations,
             const std::vector<double> hidden_states,
-            const ConditionedSFS<adouble> *csfs) :
+            ConditionedSFS<adouble> *csfs) :
         InferenceManager(P, (n.array() + 1).prod(), obs_lengths, observations, hidden_states, csfs), n(n) {}
 
     virtual ~NPopInferenceManager() = default;

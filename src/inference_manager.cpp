@@ -1,4 +1,5 @@
 #include "inference_manager.h"
+#include "transition.h"
 #include "marginalize_sfs.h"
 #include "jcsfs.h"
 
@@ -17,13 +18,13 @@ InferenceManager::InferenceManager(
         const std::vector<int> obs_lengths,
         const std::vector<int*> observations,
         const std::vector<double> hidden_states,
-        const ConditionedSFS<adouble> *csfs) :
+        ConditionedSFS<adouble> *csfs) :
     saveGamma(false), folded(false),
+    hidden_states(hidden_states),
     npop(npop),
     sfs_dim(sfs_dim),
-    hidden_states(hidden_states),
-    obs(map_obs(observations, obs_lengths)),
     M(hidden_states.size() - 1),
+    obs(map_obs(observations, obs_lengths)),
     csfs(csfs),
     pi(M),
     targets(fill_targets()),
@@ -123,7 +124,7 @@ std::vector<adouble> InferenceManager::Q(void)
     do_dirty_work();
     std::vector<Vector<adouble> > ps = parallel_select<Vector<adouble> >([] (hmmptr &hmm) { return hmm->Q(); });
     adouble q1 = 0, q2 = 0, q3 = 0;
-    for (int i = 0; i < ps.size(); ++i)
+    for (unsigned int i = 0; i < ps.size(); ++i)
     {
         q1 += ps[i][0];
         q2 += ps[i][1];

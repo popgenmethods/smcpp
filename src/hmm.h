@@ -4,7 +4,7 @@
 #include <map>
 
 class InferenceManager;
-class InferenceBundle;
+struct InferenceBundle;
 
 class HMM
 {
