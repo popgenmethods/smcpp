@@ -289,8 +289,6 @@ cdef class PyOnePopInferenceManager(_PyInferenceManager):
             self._im = new OnePopInferenceManager(n, self._Ls, self._obs_ptrs, self._hs)
 
 cdef class PyTwoPopInferenceManager(_PyInferenceManager):
-    cdef vector[double*] _emissions_vec
-    cdef object _emissions
     cdef TwoPopInferenceManager* _im2
 
     def __cinit__(self, int n1, int n2, observations, hidden_states):
@@ -301,25 +299,17 @@ cdef class PyTwoPopInferenceManager(_PyInferenceManager):
             self._im = self._im2
         self.emissions = np.full([len(hidden_states) - 1, 3, n1 + 1, n2 + 1], 1e-20)
 
-    property emissions:
-        def __set__(self, emissions):
-            self._emissions = emissions
-            self._emissions_vec.clear()
-            cdef double[:, :, :] emission_view
-            for row in self._emissions:
-                emission_view = row
-                self._emissions_vec.push_back(&emission_view[0, 0, 0])
-
     property model:
         def __get__(self):
             return self._model
 
         def __set__(self, model):
-            assert len(self._emissions) == len(self._hs) - 1
             self._model = model
-            cdef ParameterVector params = make_params(model.distinguished_model)
+            cdef ParameterVector params1 = make_params(model.model1)
+            cdef ParameterVector params2 = make_params(model.model2)
+            cdef double split = model.split
             with nogil:
-                self._im2.setParams(params, self._emissions_vec)
+                self._im2.setParams(params1, params2, split)
 
 cdef class PyRateFunction:
     cdef unique_ptr[PiecewiseConstantRateFunction[adouble]] _eta
