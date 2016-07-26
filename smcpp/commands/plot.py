@@ -3,8 +3,8 @@ import sys
 import argparse
 import numpy as np
 import itertools as it
-from .. import util, plotting
-from ..estimation_result import EstimationResult
+import json
+from .. import util, plotting, model
 
 def init_parser(parser):
     parser.add_argument("-g", nargs="+", type=float, help="Plot x-axis in years assuming generation time(s) of g")
@@ -39,9 +39,13 @@ def main(args):
         elif not os.path.exists(fn):
             sys.exit("File not found: %s" % fn)
         else:
-            er = EstimationResult.load(fn)
-            d = dict(zip("abs", np.array(er.model)))
-            d['N0'] = er.N0
+            res = json.load(open(fn, "rt"))
+            mod = res['model']
+            klass = getattr(model, mod['class'])
+            m = klass.from_dict(mod)
+            a = m.stepwise_values().astype('float')
+            s = m.s
+            d = {'a': m.stepwise_values(), 's': m.s, 'N0': res['N0']}
         if g is not None:
             d['s'] *= g
         psfs.append((label, d, off or 0))

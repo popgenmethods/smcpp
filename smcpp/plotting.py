@@ -1,7 +1,7 @@
 from __future__ import absolute_import, division, print_function
+import json
 import matplotlib, matplotlib.cm
 matplotlib.use('Agg')
-
 import numpy as np
 from numpy import array
 
@@ -34,31 +34,20 @@ def plot_psfs(psfs, xlim, ylim, xlabel, logy=False):
     for i, (label, d, off) in enumerate(psfs):
         N0 = d['N0']
         a = N0 * d['a']
-        b = N0 * d['b']
         s = 2. * N0 * d['s']
-        slope = np.log(a/b) / s
-        cum = off
-        x = []
-        y = []
-        for aa, bb, ss in zip(b[:-1], slope[:-1], s[:-1]):
-            tt = np.linspace(cum, cum + ss, 100)
-            yy = aa * np.exp(bb * (cum + ss - tt))
-            x = np.concatenate([x, tt])
-            y = np.concatenate([y, yy])
-            cum += ss
-        x = np.concatenate([x, [cum, 2 * cum]])
-        y = np.concatenate([y, [a[-1], a[-1]]])
-        # if not logy:
-        #     y *= 1e-3
-        data.append((label, x, y))
+        x = np.cumsum(s)
+        # Slightly offset plots for better clarity.
         x *= 1. + (i - len(psfs)) / 50.
-        if label is None:
-            ax.plot(x, y, linewidth=2, color="black")
-        else:
-            labels += ax.plot(x, y, label=label, color=colors.pop())
-        xmin = s[0] * 0.9
+        y = a
+        xmin = x[0] * 0.9
         ymax = max(ymax, np.max(y))
         xmax = max(xmax, np.max(x))
+        x = np.insert(x, 0, 1)
+        y = np.insert(y, 0, y[0])
+        if label is None:
+            ax.step(x, y, linewidth=2, color="black")
+        else:
+            labels += ax.step(x, y, label=label, color=colors.pop())
     if labels:
         first_legend = ax.legend(handles=labels, loc=9, ncol=4, prop={'size':8})
     ax.set_xscale('log')

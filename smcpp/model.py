@@ -26,8 +26,8 @@ class SMCModel(Observable):
     def __init__(self, s, knots, spline_class=spline.PChipSpline):
         Observable.__init__(self)
         self._spline_class = spline_class
-        self._s = s
-        self._knots = knots
+        self._s = np.array(s)
+        self._knots = np.array(knots)
         self._log_cumsum_s = np.log(np.cumsum(s))
         self._log_knots = np.log(knots)
         self.y = np.zeros_like(knots, dtype='object')
@@ -85,13 +85,15 @@ class SMCModel(Observable):
         return fmt.format(*ary)
 
     def to_dict(self):
-        return {'s': list(self._s),
+        return {'class': self.__class__.__name__,
+                's': list(self._s),
                 'knots': list(self._knots),
                 'y': list(self._y.astype('float')),
                 'spline_class': self._spline_class.__name__}
 
     @classmethod
     def from_dict(klass, d):
+        assert klass.__name__ == d['class']
         spc = getattr(spline, d['spline_class'])
         r = klass(d['s'], d['knots'], spc)
         r[:] = d['y']

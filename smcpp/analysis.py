@@ -6,9 +6,7 @@ import json
 import sys
 import os.path
 
-from . import estimation_tools, _smcpp, util, logging, optimizer, jcsfs
-from .spline import PChipSpline, CubicSpline, AkimaSpline
-from .estimation_result import EstimationResult
+from . import estimation_tools, _smcpp, util, logging, optimizer, jcsfs, spline
 from .model import SMCModel, SMCTwoPopulationModel
 from .observe import Observer
 
@@ -132,12 +130,9 @@ class Analysis(Observer):
         logger.debug("time points in coalescent scaling:\n%s", str(time_points))
         knots = np.cumsum(estimation_tools.construct_time_points(t1, tK, [1]*10))
         logger.debug("knots in coalescent scaling:\n%s", str(knots))
-        if spline == "cubic":
-            spline_class = CubicSpline
-        elif spline == "akima":
-            spline_class = AkimaSpline
-        elif spline == "pchip":
-            spline_class = PChipSpline
+        spline_class = {"cubic": spline.CubicSpline,
+                        "akima": spline.AkimaSpline, 
+                        "pchip": spline.PChipSpline}[spline]
         if self._npop == 1:
             if split is not None:
                 logger.warn("--split was specified, but only one population found in data")
