@@ -54,7 +54,6 @@ PiecewiseConstantRateFunction<T>::PiecewiseConstantRateFunction(
     }
     ts[K] = INFINITY;
 
-    int ip;
     for (double h : hidden_states)
     {
         if (std::isinf(h))
