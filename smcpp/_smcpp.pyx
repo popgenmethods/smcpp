@@ -40,12 +40,13 @@ init_logger_cb(logger_cb);
 # flat arrays
 aca = np.ascontiguousarray
 
-cdef ParameterVector make_params(model) except *:
+cdef ParameterVector make_params(model, dlist=None) except *:
+    if dlist is None:
+        dlist = model.dlist
     cdef ParameterVector ret
     cdef vector[adouble] r
     a = model.stepwise_values()
     assert len(a) > 0
-    dlist = model.dlist
     for aa in a:
         if not isinstance(aa, ADF):
             aa = adnumber(aa)
@@ -297,7 +298,6 @@ cdef class PyTwoPopInferenceManager(_PyInferenceManager):
         with nogil:
             self._im2 = new TwoPopInferenceManager(n1, n2, self._Ls, self._obs_ptrs, self._hs)
             self._im = self._im2
-        self.emissions = np.full([len(hidden_states) - 1, 3, n1 + 1, n2 + 1], 1e-20)
 
     property model:
         def __get__(self):
@@ -305,8 +305,8 @@ cdef class PyTwoPopInferenceManager(_PyInferenceManager):
 
         def __set__(self, model):
             self._model = model
-            cdef ParameterVector params1 = make_params(model.model1)
-            cdef ParameterVector params2 = make_params(model.model2)
+            cdef ParameterVector params1 = make_params(model.model1, model.dlist)
+            cdef ParameterVector params2 = make_params(model.model2, model.dlist)
             cdef double split = model.split
             with nogil:
                 self._im2.setParams(params1, params2, split)

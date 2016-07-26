@@ -176,7 +176,7 @@ class Analysis(Observer):
             self._im = _smcpp.PyOnePopInferenceManager(self._n[0], self._data, self._hidden_states)
         elif self._npop == 2:
             self._im = _smcpp.PyTwoPopInferenceManager(self._n[0], self._n[1], self._data, self._hidden_states)
-            self._jcsfs = jcsfs.JointCSFS(self._n[0], self._n[1], 2, 0, self._hidden_states)
+            # self._jcsfs = jcsfs.JointCSFS(self._n[0], self._n[1], 2, 0, self._hidden_states)
         else:
             logger.error("Only 1 or 2 populations are supported at this time")
             sys.exit(1)
@@ -246,13 +246,6 @@ class Analysis(Observer):
     def update(self, message, *args, **kwargs):
         'Keep inference manager and model in sync by listening for model changes.'
         if message == "model update":
-            if self._npop == 2:
-                # Must recompute the joint CSFS and store it manually upon
-                # each model update.
-                # Right now we only support a2=0 so slice on third axis.
-                self._im.emissions = self._jcsfs.compute(self.model.model1,
-                                                         self.model.model2, 
-                                                         self.model.split)[:, :, 0]
             self._im.model = self.model
 
     def dump(self, filename):

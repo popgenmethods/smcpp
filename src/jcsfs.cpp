@@ -138,10 +138,15 @@ void JointCSFS<T>::jcsfs_helper_tau_below_split(const int m,
                 {
                     int np2 = nseg - np1;
                     double h = scipy_stats_hypergeom_pmf(np1, n1 + n2, nseg, n1);
-                    tensorRef(m, 0, b1, b2) += weight * h * sfs_above_split(nseg - 1) * eMn10_avg(np1, b1) * eMn2(np2, b2);
-                    tensorRef(m, 2, b1, b2) += weight * h * sfs_above_split(nseg - 1) * eMn12_avg(np1, b1) * eMn2(np2, b2);
-                    check_negative(tensorRef(m, 0, b1, b2));
-                    check_negative(tensorRef(m, 2, b1, b2));
+                    T x = sfs_above_split(nseg - 1) * eMn2(np2, b2);
+                    x *= h;
+                    x *= weight;
+                    T x0 = x * eMn10_avg(np1, b1);
+                    T x2 = x * eMn12_avg(np1, b1);
+                    tensorRef(m, 0, b1, b2) += x0;
+                    tensorRef(m, 2, b1, b2) += x2;
+                    // tensorRef(m, 0, b1, b2) += weight * h * sfs_above_split(nseg - 1) * eMn10_avg(np1, b1) * eMn2(np2, b2);
+                    // tensorRef(m, 2, b1, b2) += weight * h * sfs_above_split(nseg - 1) * eMn12_avg(np1, b1) * eMn2(np2, b2);
                 }
 }
 
@@ -167,9 +172,13 @@ void JointCSFS<T>::jcsfs_helper_tau_above_split(const int m,
                     double h = scipy_stats_hypergeom_pmf(np1, n1 + n2, nseg, n1);
                     for (int i = 0; i < 3; ++i)
                     {
-                        int ind = i * (n1 + 1) * (n2 + 1) + b1 * (n2 + 1) + b2;
-                        tensorRef(m, i, b1, b2) += weight * h * rsfs(i, nseg) * eMn1[i](np1, b1) * eMn2(np2, b2);
-                        check_negative(tensorRef(m, i, b1, b2));
+                        if (0 < (i + nseg) and (i + nseg) < (2 + n1 + n2))
+                        {
+                            T x = rsfs(i, nseg) * eMn1[i](np1, b1) * eMn2(np2, b2);
+                            x *= h;
+                            x *= weight;
+                            tensorRef(m, i, b1, b2) += x;
+                        }
                     }
                 }
      
@@ -181,7 +190,6 @@ void JointCSFS<T>::jcsfs_helper_tau_above_split(const int m,
             assert(sfs_below(i, j) > -1e-8);
             if (sfs_below(i, j) > 0)
                 tensorRef(m, i, j, 0) += weight * sfs_below(i, j);
-            check_negative(tensorRef(m, i, j, 0));
         }
 
     // pop2, below split
@@ -196,7 +204,6 @@ void JointCSFS<T>::jcsfs_helper_tau_above_split(const int m,
         for (int i = 0; i < n2 - 1; ++i)
         {
             tensorRef(m, 0, 0, i + 1) += weight * rsfs_below_2(i);
-            check_negative(tensorRef(m, 0, 0, i + 1));
         }
     }
 }

@@ -5,6 +5,7 @@ import os.path, os
 import ad, ad.admath
 import subprocess
 import shutil
+from six.moves import zip_longest
 from abc import ABCMeta, abstractmethod
 
 from . import estimation_tools, logging
@@ -84,13 +85,17 @@ class AbstractOptimizer(Observable):
         Observable.update_observers(self, *args, **kwargs)
 
 ## LISTENER CLASSES
+
+
 class HiddenStateOccupancyPrinter(Observer):
 
     def update(self, message, *args, **kwargs):
         if message == "post-E step":
             hso = np.sum(kwargs['analysis']._im.xisums, axis=(0, 1))
             hso /= hso.sum()
-            logger.debug("hidden state occupancy:\n%s", np.array_str(hso, precision=2))
+            logger.debug("hidden state occupancy:\n%s",
+                         np.array_str(hso, precision=2))
+
 
 class ProgressPrinter(Observer):
 
@@ -106,6 +111,7 @@ class ProgressPrinter(Observer):
             logger.debug("Results of optimizer:\n%s", kwargs['res'])
             logger.debug("Current model:\n%s", kwargs['model'].to_s())
 
+
 class LoglikelihoodPrinter(Observer):
 
     def update(self, message, *args, **kwargs):
@@ -113,7 +119,9 @@ class LoglikelihoodPrinter(Observer):
             ll = kwargs['analysis'].loglik()
             logger.info("Loglik: %f", ll)
 
+
 class ModelPrinter(Observer):
+
     def update(self, message, *args, **kwargs):
         if message == "post-E step":
             logger.info("Model: %s", kwargs['model'].to_s())
@@ -131,6 +139,7 @@ class AnalysisSaver(Observer):
             dump(os.path.join(self._outdir, ".model.iter%d" % i))
         elif message == "optimization finished":
             dump(os.path.join(self._outdir, "model.final"))
+
 
 class ParameterOptimizer(Observer):
 
@@ -218,10 +227,10 @@ class SMCPPOptimizer(AbstractOptimizer):
         # After all coordinate-wise updates, optimize over whole function
         ret.append(list(range(model.K)))
         return ret
-    
+
     def _bounds(self, coords):
         return np.log([self._analysis._bounds] * len(coords))
-    
+
 
 class TwoPopulationOptimizer(SMCPPOptimizer):
     'Model fitting for two populations.'
@@ -237,21 +246,5 @@ class TwoPopulationOptimizer(SMCPPOptimizer):
                              self._analysis.model.split_ind]]
         return [(i, cc) for i, c in enumerate([c1, c2]) for cc in c]
 
-    def _minimize(self, x0, coords, bounds):
-        return scipy.optimize.minimize(self._f, x0,
-                                       jac=False,
-                                       args=(self._analysis, coords,),
-                                       bounds=bounds,
-                                       method="L-BFGS-B")
-
-    # Don't use derivatives in 2-pop case
-    def _f(self, x, analysis, coords):
-        return SMCPPOptimizer._f(self, x, analysis, coords)[0]
-
     def _bounds(self, coords):
         return SMCPPOptimizer._bounds(self, coords[1])
-
-    # In the two population case, this method doesn't add derivatives since
-    # we don't support them.
-    def _prepare_x(self, x):
-        return x
