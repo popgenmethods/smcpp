@@ -1,8 +1,9 @@
 #include <gsl/gsl_randist.h>
+#include <random>
 
 #include "jcsfs.h"
 
-// Utility structures and functions
+// Utility functions
 
 inline double scipy_stats_hypergeom_pmf(const int k, const int M, const int n, const int N)
 {
@@ -40,7 +41,7 @@ ParameterVector shiftParams(const ParameterVector &model1, const double shift)
     adouble tshift = shift;
     int ip = std::distance(cs.begin(), std::upper_bound(cs.begin(), cs.end(), tshift)) - 1;
     std::vector<adouble> sp(s.begin() + ip, s.end());
-    sp[ip] = cs[ip + 1] - shift;
+    sp[0] = cs[ip + 1] - shift;
     sp.back() = 1.0;
     std::vector<adouble> ap(a.begin() + ip, a.end());
     return {ap, sp};
@@ -89,6 +90,7 @@ void JointCSFS<T>::jcsfs_helper_tau_below_split(const int m,
 {
     assert(t1 < t2 <= split);
     assert(a1 == 2);
+    DEBUG << "jcsfs_below t1:" << t1 << " t2:" << t2;
     const PiecewiseConstantRateFunction<T> eta(params1, {});
 
     const ParameterVector params1_trunc = truncateParams(params1, split);
@@ -96,21 +98,35 @@ void JointCSFS<T>::jcsfs_helper_tau_below_split(const int m,
     const Matrix<T> trunc_csfs = csfs.at(n1).compute(eta1_trunc)[0];
     for (int i = 0; i < a1 + 1; ++i)
         for (int j = 0; j < n1 + 1; ++j)
-            tensorRef(m, i, j, 0) = weight * trunc_csfs(i, j);
+        {
+            assert(trunc_csfs(i, j) > -1e-8); // truncation may lead to small negative values.
+            if (trunc_csfs(i, j) > 0)
+                tensorRef(m, i, j, 0) = weight * trunc_csfs(i, j);
+        }
 
     const ParameterVector params1_shift = shiftParams(params1, split);
     const PiecewiseConstantRateFunction<T> eta1_shift(params1_shift, {0., INFINITY});
     Matrix<T> sfs_above_split = undistinguishedSFS(csfs.at(n1 + n2 - 1).compute(eta1_shift)[0]);
     Matrix<T> eMn10_avg(n1 + 2, n1 + 1), eMn12_avg(n1 + 2, n1 + 1);
+    eMn10_avg.setZero();
+    eMn12_avg.setZero();
+    std::mt19937 gen;
     for (int k = 0; k < K; ++k)
     {
         // FIXME do something with seeding.
-        T t = eta.random_time(t1, t2, 1);
+        T t = eta.random_time(1., t1, t2, gen);
         T Rt = eta.R(t);
         Matrix<T> A = Mn1.expM(Rts1 - Rt);
         Matrix<T> B = Mn10.expM(Rt);
+        Matrix<T> C = Mn12.expM(Rt);
         eMn10_avg += (A * S0.template cast<T>().asDiagonal()).leftCols(n1 + 1) * B;
-        eMn12_avg += (A * S2.template cast<T>().asDiagonal()).rightCols(n1 + 1) * B.reverse();
+        eMn12_avg += (A * S2.template cast<T>().asDiagonal()).rightCols(n1 + 1) * C;
+        Matrix<double> eMn10_d = eMn10_avg.template cast<double>();
+        Matrix<double> eMn12_d = eMn12_avg.template cast<double>();
+        if (eMn10_d.minCoeff() < -1e-8)
+            throw std::runtime_error("emn10 is wrong");
+        if (eMn12_d.minCoeff() < -1e-8)
+            throw std::runtime_error("emn12 is wrong");
     }
     eMn10_avg /= (double)K;
     eMn12_avg /= (double)K;
@@ -124,6 +140,8 @@ void JointCSFS<T>::jcsfs_helper_tau_below_split(const int m,
                     double h = scipy_stats_hypergeom_pmf(np1, n1 + n2, nseg, n1);
                     tensorRef(m, 0, b1, b2) += weight * h * sfs_above_split(nseg - 1) * eMn10_avg(np1, b1) * eMn2(np2, b2);
                     tensorRef(m, 2, b1, b2) += weight * h * sfs_above_split(nseg - 1) * eMn12_avg(np1, b1) * eMn2(np2, b2);
+                    check_negative(tensorRef(m, 0, b1, b2));
+                    check_negative(tensorRef(m, 2, b1, b2));
                 }
 }
 
@@ -133,10 +151,10 @@ void JointCSFS<T>::jcsfs_helper_tau_above_split(const int m,
 {
     assert(split <= t1 < t2);
     assert(a1 == 2);
-
+    DEBUG << "jcsfs_above t1:" << t1 << " t2:" << t2;
     // Shift eta1 back by split units in time 
     PiecewiseConstantRateFunction<T> shifted_eta1(shiftParams(params1, split), {t1 - split, t2 - split});
-    Vector<T> rsfs = undistinguishedSFS(csfs.at(n1 + n2).compute(shifted_eta1)[0]);
+    Matrix<T> rsfs = csfs.at(n1 + n2).compute(shifted_eta1)[0];
 
     for (int b1 = 0; b1 < n1 + 1; ++b1)
         for (int b2 = 0; b2 < n2 + 1; ++b2)
@@ -151,6 +169,7 @@ void JointCSFS<T>::jcsfs_helper_tau_above_split(const int m,
                     {
                         int ind = i * (n1 + 1) * (n2 + 1) + b1 * (n2 + 1) + b2;
                         tensorRef(m, i, b1, b2) += weight * h * rsfs(i, nseg) * eMn1[i](np1, b1) * eMn2(np2, b2);
+                        check_negative(tensorRef(m, i, b1, b2));
                     }
                 }
      
@@ -158,7 +177,12 @@ void JointCSFS<T>::jcsfs_helper_tau_above_split(const int m,
     Matrix<T> sfs_below = csfs.at(n1).compute(*eta1)[0];
     for (int i = 0; i < a1 + 1; ++i)
         for (int j = 0; j < n1 + 1; ++j)
-            tensorRef(m, i, j, 0) += weight * sfs_below(i, j);
+        {
+            assert(sfs_below(i, j) > -1e-8);
+            if (sfs_below(i, j) > 0)
+                tensorRef(m, i, j, 0) += weight * sfs_below(i, j);
+            check_negative(tensorRef(m, i, j, 0));
+        }
 
     // pop2, below split
     if (n2 == 1)
@@ -170,7 +194,10 @@ void JointCSFS<T>::jcsfs_helper_tau_above_split(const int m,
         Vector<T> rsfs_below_2 = undistinguishedSFS(csfs.at(n2 - 2).compute(eta2_trunc)[0]);
         assert(rsfs_below_2.size() == n2 - 1);
         for (int i = 0; i < n2 - 1; ++i)
+        {
             tensorRef(m, 0, 0, i + 1) += weight * rsfs_below_2(i);
+            check_negative(tensorRef(m, 0, 0, i + 1));
+        }
     }
 }
 
