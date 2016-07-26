@@ -30,10 +30,10 @@ def lazy_extensions():
                 sources=["smcpp/_smcpp.pyx"] + cpps,
                 language="c++",
                 include_dirs=["src", np.get_include()] + include_dirs,
-                # extra_compile_args=["-O0", "-ggdb3", "-std=c++11", "-Wfatal-errors", "-Wno-unused-variable", "-Wno-unused-function", "-D_GLIBCXX_DEBUG"],
-                extra_compile_args=["-O2", "-std=c++11", "-Wno-deprecated-declarations"],
+                # extra_compile_args=["-O0", "-ggdb3", "-std=c++11", "-Wno-unused-variable", "-Wno-unused-function", "-D_GLIBCXX_DEBUG"],
+                extra_compile_args=["-O2", "-std=c++11", "-Wno-deprecated-declarations", "-fopenmp"],
                 libraries=['gmp', 'gmpxx', 'gsl', 'gslcblas'],
-                extra_link_args=['-rdynamic'],
+                extra_link_args=['-rdynamic', '-fopenmp'],
                 )]
     if True:
         extensions.append(## This depends on boost and is only used for testing purposes
@@ -71,6 +71,8 @@ setup(name='smcpp',
 	setup_requires=['pytest-runner', 'numpy', 'pkgconfig', 'cython'],
         tests_require=['pytest'],
         install_requires=[
+            "backports.shutil_which",
+            "backports.shutil_get_terminal_size",
             "inflect",
             "wrapt>=1.10",
             "setuptools>=19.6",

@@ -223,22 +223,10 @@ def compute_esfs(dataset, n):
 def config2dict(cp):
     return {sec: dict(cp.items(sec)) for sec in cp.sections()}
 
-def compress_repeated_obs(dataset):
-    # pad with illegal value at starting position
-    nonce = np.zeros_like(dataset[0])
-    nonce[:2] = [1, -999]
-    dataset = np.insert(dataset, 0, nonce, 0)
-    nonreps = np.any(dataset[1:, 1:] != dataset[:-1, 1:], axis=1)
-    newob = dataset[1:][nonreps]
-    csw = np.cumsum(dataset[:, 0])[np.where(nonreps)]
-    newob[:-1, 0] = csw[1:] - csw[:-1]
-    return newob
-
 def exp_quantiles(M):
     hs = -np.log(1. - np.linspace(0, _smcpp.T_MAX, M, False) / _smcpp.T_MAX)
     hs[0] = 0.
     return hs
-
 
 @contextmanager
 def optional_gzip(f, mode):

@@ -1,7 +1,6 @@
 from __future__ import absolute_import, division, print_function
 import scipy.linalg, scipy.stats
 import numpy as np
-import multiprocessing as mp
 from collections import namedtuple
 
 from . import model, logging, _smcpp, util
@@ -53,7 +52,7 @@ class JointCSFS(object):
         # *Very* important to use "spawn" here and not "fork". The
         # latter has big problems with multithreading in _smcpp. I kept
         # getting deadlocks.
-        self._pool = mp.get_context("spawn").Pool()
+        # self._pool = mp.Pool()
 
         # For now we only support a2=0.
         assert a1 + a2 == 2
@@ -66,7 +65,6 @@ class JointCSFS(object):
         args = (split, model1, model2, Rts1, Rts2) + \
             tuple([getattr(self, "_" + s)
                    for s in "a1 a2 n1 n2 Mn10 Mn11 Mn1 Mn2 K".split()])
-        mapfun = self._pool.map
         mapfun = map
         self._jcsfs[:] = list(mapfun(_parallel_helper,
             [_ParallelArgs(t1, t2, *args) for t1, t2 in self._hs_pairs]))

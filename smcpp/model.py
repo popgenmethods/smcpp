@@ -10,9 +10,9 @@ from .observe import Observable
 
 logger = logging.getLogger(__name__)
 
+
 # Dummy class used for JCSFS and a few other places
 class PiecewiseModel(object):
-
     def __init__(self, s, a, dlist):
         self.s = s
         self.a = a
@@ -21,12 +21,15 @@ class PiecewiseModel(object):
     def stepwise_values(self):
         return self.a
 
+
 class SMCModel(Observable):
     def __init__(self, s, knots, spline_class=spline.PChipSpline):
         Observable.__init__(self)
         self._spline_class = spline_class
         self._s = s
         self._knots = knots
+        self._log_cumsum_s = np.log(np.cumsum(s))
+        self._log_knots = np.log(knots)
         self.y = np.zeros_like(knots, dtype='object')
         self._refit()
 
@@ -50,12 +53,12 @@ class SMCModel(Observable):
         self._y[key] = item
         self._refit()
         self.update_observers('model update')
-          
+
     def __getitem__(self, ind):
         return self._y[ind]
 
     def _refit(self):
-        self._spline = self._spline_class(np.log(self._knots), self._y)
+        self._spline = self._spline_class(self._log_knots, self._y)
 
     @property
     def y(self):
@@ -74,7 +77,7 @@ class SMCModel(Observable):
         return self._spline.roughness()
 
     def stepwise_values(self):
-        return np.array(ad.admath.exp(self._spline.eval(np.log(np.cumsum(self._s)))))
+        return np.array(ad.admath.exp(self._spline.eval(self._log_cumsum_s)))
 
     def to_s(self, until=None):
         ary = self[:until].astype('float')
@@ -82,7 +85,8 @@ class SMCModel(Observable):
         return fmt.format(*ary)
 
     def to_dict(self):
-        return {'s': list(self._s), 'knots': list(self._knots),
+        return {'s': list(self._s),
+                'knots': list(self._knots),
                 'y': list(self._y.astype('float')),
                 'spline_class': self._spline_class.__name__}
 
@@ -99,6 +103,7 @@ class SMCModel(Observable):
 
     def copy(self):
         return SMCModel.from_dict(self.to_dict())
+
 
 class SMCTwoPopulationModel(Observable):
     def __init__(self, model1, model2, split):
@@ -119,7 +124,7 @@ class SMCTwoPopulationModel(Observable):
     def split_ind(self):
         'Return k such that model2.t[k] <= split < model2.t[k + 1]'
         cs = np.cumsum(self._models[1]._knots)
-        return np.searchsorted(cs, self._split)
+        return np.searchsorted(cs, self._split) + 1
 
     @property
     def model1(self):
@@ -133,7 +138,7 @@ class SMCTwoPopulationModel(Observable):
     def distinguished_model(self):
         return self.model1
 
-    @property 
+    @property
     def dlist(self):
         return self._models[0].dlist + self._models[1].dlist
 
@@ -144,8 +149,7 @@ class SMCTwoPopulationModel(Observable):
 
     def to_s(self):
         return "\nPop. 1:\n{}\nPop. 2:\n{}\nSplit: {:.3f}".format(
-            self._models[0].to_s(), 
-            self._models[1].to_s(self.split_ind),
+            self._models[0].to_s(), self._models[1].to_s(self.split_ind),
             self.split)
 
     # FIXME this counts the part before the split twice

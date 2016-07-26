@@ -4,9 +4,14 @@ import scipy.optimize
 import os.path, os
 import ad, ad.admath
 import subprocess
-import shutil
 from six.moves import zip_longest
 from abc import ABCMeta, abstractmethod
+# some useful functions were added to shutil in Python 3.3
+try:
+    from shutil import which, get_terminal_size
+except ImportError:
+    from backports.shutil_which import which
+    from backports.shutil_get_terminal_size import get_terminal_size
 
 from . import estimation_tools, logging
 from .observe import Observer, Observable
@@ -171,40 +176,64 @@ class ParameterOptimizer(Observer):
         setattr(tgt, param, x)
         # derivatives curretly not supported for 1D optimization. not
         # clear if they really help.
-        ret = -float(analysis.Q()) 
+        ret = -float(analysis.Q())
         logger.debug("%s f(%f)=%f", param, x, ret)
         return ret
 
+
 class AsciiPlotter(Observer):
+
     def __init__(self, gnuplot_path):
         self._gnuplot_path = gnuplot_path
+
     def update(self, message, *args, **kwargs):
         if message != "post-M step":
             return
         model = kwargs['model']
-        x = np.cumsum(model.s)
-        y = model.stepwise_values()
-        gnuplot = subprocess.Popen([self._gnuplot_path], 
+        two_pop = hasattr(model, 'split')
+        if two_pop:
+            # plot split models
+            x = np.cumsum(model.model1.s)
+            y = model.model1.stepwise_values()
+            z = model.model2.stepwise_values()
+            ind = np.searchsorted(np.cumsum(x), model.split)
+            z = z[:ind + 1]
+            data = "\n".join([",".join(map(str, row)) for row in zip_longest(x, y, z, fillvalue=".")])
+        else:
+            x = np.cumsum(model.s)
+            y = model.stepwise_values()
+            data = "\n".join([",".join(map(str, row)) for row in zip(x, y)])
+        # Fire up the plot process and let'ter rip.
+        gnuplot = subprocess.Popen([self._gnuplot_path],
                                    stdin=subprocess.PIPE,
                                    stdout=subprocess.PIPE)
         def write(x):
             x += "\n"
             gnuplot.stdin.write(x.encode())
-        columns, lines = shutil.get_terminal_size((80, 20))
+        columns, lines = get_terminal_size((80, 20))
         width = columns * 3 // 5
         height = 25
         write("set term dumb {} {}".format(width, height))
+        write("set datafile separator \",\"")
         write("set xlabel \"Time\"")
         write("set ylabel \"N0\"")
-        write("unset key")
         write("set logscale xy")
-        write("plot '-' using 1:2 with lines")
-        for i,j in zip(x,y):
-           write("%f %f" % (i,j))
+        plot_cmd = "plot '-' using 1:2 with lines title 'Pop. 1'"
+        if two_pop:
+            plot_cmd += ", '' using 1:3 with lines title 'Pop. 2';"
+        write(plot_cmd)
+        write(data)
+        write("e")
+        if two_pop:
+            write(data)
+            write("e")
+        else:
+            write("unset key")
         write("exit")
         (stdout, stderr) = gnuplot.communicate()
         graph = stdout.decode()
         logger.info("Current model:\n%s", graph)
+
 
 class SMCPPOptimizer(AbstractOptimizer):
     'Model fitting for one population.'
@@ -215,7 +244,7 @@ class SMCPPOptimizer(AbstractOptimizer):
         self.register(HiddenStateOccupancyPrinter())
         self.register(ProgressPrinter())
         self.register(ModelPrinter())
-        gnuplot = shutil.which("gnuplot")
+        gnuplot = which("gnuplot")
         if gnuplot:
             self.register(AsciiPlotter(gnuplot))
 

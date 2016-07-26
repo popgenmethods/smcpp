@@ -9,7 +9,7 @@ import scipy.interpolate
 import multiprocessing as mp
 import ad.admath, ad.linalg
 
-from . import _smcpp, util
+from . import _smcpp
 
 ## 
 ## Construct time intervals stuff
@@ -36,13 +36,24 @@ def construct_time_points(t1, tK, pieces):
         count += p
     return np.concatenate([t1, time_points])
 
+def compress_repeated_obs(dataset):
+    # pad with illegal value at starting position
+    nonce = np.zeros_like(dataset[0])
+    nonce[:2] = [1, -999]
+    dataset = np.insert(dataset, 0, nonce, 0)
+    nonreps = np.any(dataset[1:, 1:] != dataset[:-1, 1:], axis=1)
+    newob = dataset[1:][nonreps]
+    csw = np.cumsum(dataset[:, 0])[np.where(nonreps)]
+    newob[:-1, 0] = csw[1:] - csw[:-1]
+    return newob
+
 def _thin_helper(args):
     thinned = np.array(_smcpp.thin_data(*args), dtype=np.int32)
-    return util.compress_repeated_obs(thinned)
+    return compress_repeated_obs(thinned)
 
 def thin_dataset(dataset, thinning):
     '''Only emit full SFS every <thinning> sites'''
-    p = mp.get_context("spawn").Pool()
+    p = mp.Pool()
     ret = list(p.map(_thin_helper, [(chrom, thinning, i) for i, chrom in enumerate(dataset)]))
     p.close()
     p.join()
