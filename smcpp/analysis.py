@@ -109,7 +109,7 @@ class Analysis(Observer):
             logger.warn("Not thinning yet n = %d > 0. This probably "
                         "isn't what you desire, see --thinning", self._n.sum() // 2 + 1)
         
-    def _init_model(self, initial_model, pieces, N0, t1, tK, spline, split=None):
+    def _init_model(self, initial_model, pieces, N0, t1, tK, spline_class, split=None):
         if initial_model is not None:
             d = json.load(open(initial_model, "rt"))
             if self._npop == 1:
@@ -132,7 +132,7 @@ class Analysis(Observer):
         logger.debug("knots in coalescent scaling:\n%s", str(knots))
         spline_class = {"cubic": spline.CubicSpline,
                         "akima": spline.AkimaSpline, 
-                        "pchip": spline.PChipSpline}[spline]
+                        "pchip": spline.PChipSpline}[spline_class]
         if self._npop == 1:
             if split is not None:
                 logger.warn("--split was specified, but only one population found in data")
