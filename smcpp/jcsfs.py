@@ -1,3 +1,8 @@
+# This computes the joint CSFS. This implemenation proved too slow so it
+# was later re-implemented in C++; see src/jcsfs.cpp. This file remains
+# for illustrative purposes since it is better documented than the C++
+# version.
+
 from __future__ import absolute_import, division, print_function
 import scipy.linalg, scipy.stats
 import numpy as np
@@ -45,6 +50,7 @@ class JointCSFS(object):
         self._hs_pairs = list(zip(hidden_states[:-1], hidden_states[1:]))
         self._Mn10 = MoranEigensystem(n1, 0)
         self._Mn11 = MoranEigensystem(n1, 1)
+        self._Mn12 = MoranEigensystem(n1, 2)
         self._Mn1 = MoranEigensystem(n1 + 1)
         self._Mn2 = MoranEigensystem(n2)
 
@@ -64,7 +70,7 @@ class JointCSFS(object):
         Rts1, Rts2 = [float(_R(m, split)) for m in [model1, model2]]
         args = (split, model1, model2, Rts1, Rts2) + \
             tuple([getattr(self, "_" + s)
-                   for s in "a1 a2 n1 n2 Mn10 Mn11 Mn1 Mn2 K".split()])
+                   for s in "a1 a2 n1 n2 Mn10 Mn11 Mn12 Mn1 Mn2 K".split()])
         mapfun = map
         self._jcsfs[:] = list(mapfun(_parallel_helper,
             [_ParallelArgs(t1, t2, *args) for t1, t2 in self._hs_pairs]))
@@ -73,7 +79,7 @@ class JointCSFS(object):
 
 _ParallelArgs = namedtuple("_ParallelArgs",
                            "t1 t2 split model1 model2 Rts1 Rts2 "
-                           "a1 a2 n1 n2 Mn10 Mn11 Mn1 Mn2 K")
+                           "a1 a2 n1 n2 Mn10 Mn11 Mn12 Mn1 Mn2 K")
 
 def _parallel_helper(pargs):
     t1, t2, split = pargs[:3]
@@ -89,6 +95,22 @@ def _parallel_helper(pargs):
         w = (eRts - eR1t2) / (eR1t1 - eR1t2)
         assert 0 <= w <= 1
         ret = r1 * (1. - w) + r2 * w
+    # Since population 2 has no distinguished lineages, we get this by
+    # marginalizing over the csfs.
+    n2 = pargs.n2
+    model2 = pargs.model2
+    if n2 > 0:
+        if n2 == 1:
+            ret[0, 0, 0, 1] += split
+        else:
+            # n2 >= 2
+            # Compute the truncated sfs by getting the truncated sfs
+            # conditioned on distingiushed lineages coalescing in (0,
+            # inf) and the marginalizing over those two lineages.
+            tsfs_below = _truncated_csfs(model2, n2 - 2, split, 0., np.inf)
+            rsfs_below = util.undistinguished_sfs(tsfs_below)[1:].astype('float')
+            ret[0, 0, 0, 1:-1] += rsfs_below
+            ret[0, 0, 0, -1] += split - np.arange(1, n2).dot(rsfs_below) / n2
     assert np.all(np.isfinite(ret))
     return ret
 
@@ -96,7 +118,7 @@ def _parallel_helper(pargs):
 def _jcsfs_helper_tau_above_split(pargs):
     '''JCSFS conditional on distinguished lineages coalescing at split <= t1 < t2'''
     t1, t2, split, model1, model2, Rts1, Rts2, a1, a2, \
-            n1, n2, Mn10, Mn11, Mn1, Mn2, K = pargs
+            n1, n2, Mn10, Mn11, Mn12, Mn1, Mn2, K = pargs
     assert split <= t1 < t2
     assert a1 == 2
     ret = np.zeros([a1 + 1, n1 + 1, a2 + 1, n2 + 1])
@@ -123,25 +145,10 @@ def _jcsfs_helper_tau_above_split(pargs):
                             eMn1[i, np1, b1] * 
                             eMn2[np2, b2]
                         )
-
     # to add in the time beneath split, we fudge slightly and just compute
     # another csfs_below conditioned on coalescence in (split +- epsilon).
     rsfs_below = _smcpp.raw_sfs(model1, n1, split - 1e-6, split + 1e-6, True).astype('float')
     ret[:, :, 0, 0] += rsfs_below
-    # Since population 2 has no distinguished lineages, we get this by
-    # marginalizing over the csfs.
-    if n2 > 0:
-        if n2 == 1:
-            ret[0, 0, 0, 1] += split
-        else:
-            # n2 >= 2
-            # Compute the truncated sfs by getting the truncated sfs
-            # conditioned on distingiushed lineages coalescing in (0,
-            # inf) and the marginalizing over the allelic state of those
-            # two lineages.
-            rsfs_below = util.undistinguished_sfs(_truncated_csfs(model2, n2 - 2, split, 0., np.inf))[1:].astype('float')
-            ret[0, 0, 0, 1:-1] += rsfs_below
-            ret[0, 0, 0, -1] += split - np.arange(1, n2).dot(rsfs_below) / n2
     assert(np.all(ret >= -1e-10))
     ret = np.maximum(0., ret)
     return ret
@@ -149,7 +156,7 @@ def _jcsfs_helper_tau_above_split(pargs):
 def _jcsfs_helper_tau_below_split(pargs):
     '''JCSFS conditional on distinguished lineages coalescing at t1 < t2 <= split'''
     t1, t2, split, model1, model2, Rts1, Rts2, a1, a2, \
-            n1, n2, Mn10, Mn11, Mn1, Mn2, K = pargs
+            n1, n2, Mn10, Mn11, Mn12, Mn1, Mn2, K = pargs
     assert t1 < t2 <= split
     assert a1 == 2
     ret = np.zeros([a1 + 1, n1 + 1, a2 + 1, n2 + 1])
@@ -182,7 +189,8 @@ def _jcsfs_helper_tau_below_split(pargs):
         eMn10_avg += (A * S0)[:, :-1].dot(B)
         # Or it doesn't
         # Process eMn10 is reverse of eMn12
-        C = B[::-1, ::-1]
+        C = Mn12.expm(Rt)
+        # B[::-1, ::-1]
         eMn12_avg += (A * S2)[:, 1:].dot(C)
     eMn10_avg /= K
     eMn12_avg /= K

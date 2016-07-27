@@ -390,3 +390,26 @@ def thin_data(data, int thinning, int offset=0):
                 i += span
                 break
     return np.array(out, dtype=np.int32)
+
+# Used for testing purposes only
+def joint_csfs(int n1, int n2, model, hidden_states, int K=10):
+    cdef vector[double] hs = hidden_states
+    cdef ParameterVector p1 = make_params(model.model1)
+    cdef ParameterVector p2 = make_params(model.model2)
+    cdef double split = model.split
+    cdef vector[Matrix[adouble]] jc
+    cdef PiecewiseConstantRateFunction[adouble] *eta
+    cdef JointCSFS[adouble] *jcsfs
+    with nogil:
+        eta = new PiecewiseConstantRateFunction[adouble](p1, hs)
+        jcsfs = new JointCSFS[adouble](n1, n2, 2, 0, hs, K)
+        jcsfs.pre_compute(p1, p2, split)
+        jc = jcsfs.compute(eta[0])
+        del eta
+        del jcsfs
+    ret = []
+    for i in range(jc.size()):
+        mat = _store_admatrix_helper(jc[i], model.dlist).reshape(
+                (3, (n1 + 1), 1, (n2 + 1)))
+        ret.append(mat)
+    return ret

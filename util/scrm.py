@@ -118,6 +118,7 @@ def parse_scrm(n, L, output, include_trees):
         return ret
     return None
 
+
 def simulate(n, N0, theta, rho, L, include_trees=False, scrm_args=[]):
     # scrm will emit positions in [0, L] (inclusive).
     seeds = np.random.randint(0, six.MAXSIZE, size=3)
@@ -137,6 +138,7 @@ def simulate(n, N0, theta, rho, L, include_trees=False, scrm_args=[]):
         assert 0 < s < n
         psfs[s - 1] = c[s]
     return ret
+
 
 def distinguished_sfs(n, M, N0, theta, demography, t0=0.0, t1=np.inf):
     seeds = np.random.randint(0, six.MAXSIZE, size=3)
@@ -174,28 +176,6 @@ def distinguished_sfs(n, M, N0, theta, demography, t0=0.0, t1=np.inf):
     print((m, M))
     return avgsfs / m
 
-def tjj_transition(n, N0, rho, L, hidden_states, demography=[], seed=None):
-    r = 4 * N0 * rho * (L - 1)
-    cmd = r'''./tjj.sh {scrm} {n:d} 1 -l 1000 -r {r:f} {L:d} -T {demography}'''.format(
-            scrm=os.environ['SCRM_PATH'], n=n, r=r, L=L, demography=" ".join(demography))
-    output = check_output(cmd, shell=True)
-    ary = []
-    for line in output.split("\n")[:-1]:
-        tjj, span = line.strip().split(" ")
-        ary.append([int(span), float(tjj), 0])
-    ary = np.array(ary)
-    ary[:, 2] = np.searchsorted(hidden_states, ary[:, 1]) - 1
-    print((ary.mean(axis=0)))
-    M = len(hidden_states) - 1
-    trans = np.zeros([M, M])
-    last = ary[0]
-    trans[last[2], last[2]] += last[0]
-    for row in ary[1:]:
-        ind = row[2]
-        trans[last[2], ind] += 1
-        trans[ind, ind] += row[0] - 1
-        last = row
-    return trans / L
 
 def sfs(n, M, N0, theta, demography):
     t = 4 * N0 * theta

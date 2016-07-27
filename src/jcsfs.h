@@ -15,17 +15,20 @@ class JointCSFS : public ConditionedSFS<T>
 {
     public:
     JointCSFS(int n1, int n2, int a1, int a2, const std::vector<double> hidden_states) : 
+        JointCSFS(n1, n2, a1, a2, hidden_states, 10) {}
+    JointCSFS(int n1, int n2, int a1, int a2, const std::vector<double> hidden_states, int K) : 
         hidden_states(hidden_states),
         M(hidden_states.size() - 1),
-        K(10), // number of random trials used to compute transition matrices.
+        K(K), // number of random trials used to compute transition matrices.
         n1(n1), n2(n2), a1(a1), a2(a2), csfs(make_csfs()),
         Mn1(moran_rate_matrix(n1 + 1)),
         Mn2(moran_rate_matrix(n2)),
         Mn10(modified_moran_rate_matrix(n1, 0)),
         Mn11(modified_moran_rate_matrix(n1, 1)),
         Mn12(modified_moran_rate_matrix(n1, 2)),
-        S2(make_S2()),
+        S2(arange(0, n1 + 2) / (n1 + 1)),
         S0(Vector<double>::Ones(n1 + 2) - S2),
+        Sn2(arange(1, n2) / n2),
         J(M, Matrix<T>::Zero(a1 + 1, (n1 + 1) * (n2 + 1)))
         {}
 
@@ -62,6 +65,8 @@ class JointCSFS : public ConditionedSFS<T>
         return J[m].coeffRef(i, ind);
     }
 
+    Vector<double> arange(int, int) const;
+
     std::map<int, OnePopConditionedSFS<T> > make_csfs();
     Vector<double> make_S2();
     void jcsfs_helper_tau_above_split(const int, const double, const double, const T);
@@ -73,7 +78,7 @@ class JointCSFS : public ConditionedSFS<T>
     const int n1, n2, a1, a2;
     const std::map<int, OnePopConditionedSFS<T> > csfs;
     const jcsfs_eigensystem Mn1, Mn2, Mn10, Mn11, Mn12;
-    const Vector<double> S2, S0;
+    const Vector<double> S2, S0, Sn2;
 
     // These change at each call of compute
     std::vector<Matrix<T> > J;

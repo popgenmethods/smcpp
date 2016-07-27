@@ -70,3 +70,10 @@ cdef extern from "piecewise_constant_rate_function.h":
         PiecewiseConstantRateFunction(const ParameterVector, const vector[double])
         T R(T x)
         T random_time(const double, const double, const long long)
+
+# This code is only used for testing purposes
+cdef extern from "jcsfs.h":
+    cdef cppclass JointCSFS[T] nogil:
+        JointCSFS(int, int, int, int, vector[double], int)
+        void pre_compute(const ParameterVector&, const ParameterVector&, const double)
+        vector[Matrix[T]] compute(const PiecewiseConstantRateFunction[T]&) const

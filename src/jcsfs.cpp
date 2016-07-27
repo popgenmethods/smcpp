@@ -23,7 +23,7 @@ Vector<T> undistinguishedSFS(const Matrix<T> &csfs)
     // Total sample size of csfs is n + 2
     Vector<T> ret(n + 2 - 1);
     ret.setZero();
-    for (int a = 0; a < 2; ++a)
+    for (int a = 0; a < 3; ++a)
         for (int b = 0; b < n + 1; ++b)
             if (1 <= a + b and a + b < n + 2)
                 ret(a + b - 1) += csfs(a, b);
@@ -57,10 +57,11 @@ ParameterVector truncateParams(const ParameterVector params, const double trunca
     cs.back() = INFINITY;
     adouble tt = truncationTime;
     int ip = std::distance(cs.begin(), std::upper_bound(cs.begin(), cs.end(), tt)) - 1;
-    std::vector<adouble> sp(s.begin(), s.begin() + ip + 2);
-    sp[ip + 1] = truncationTime - cs[ip];
-    std::vector<adouble> ap(a.begin(), a.begin() + ip + 2);
-    ap.back() = 1e-8; // crash the population to get truncated times.
+    std::vector<adouble> sp(s.begin(), s.begin() + ip + 1);
+    sp[ip] = truncationTime - cs[ip];
+    std::vector<adouble> ap(a.begin(), a.begin() + ip + 1);
+    sp.push_back(1.);
+    ap.push_back(1e-8);
     return {ap, sp};
 }
 
@@ -76,11 +77,10 @@ std::map<int, OnePopConditionedSFS<T> > JointCSFS<T>::make_csfs()
 }
 
 template <typename T>
-Vector<double> JointCSFS<T>::make_S2()
+Vector<double> JointCSFS<T>::arange(int a, int b) const
 {
-    Vector<double> v(n1 + 2);
-    for (int i = 0; i < n1 + 2; ++i)
-        v(i) = (double)i / (double)(n1 + 1);
+    Vector<double> v(b - a);
+    std::iota(v.data(), v.data() + (b - a), a);
     return v;
 }
 
@@ -103,10 +103,9 @@ void JointCSFS<T>::jcsfs_helper_tau_below_split(const int m,
             if (trunc_csfs(i, j) > 0)
                 tensorRef(m, i, j, 0) = weight * trunc_csfs(i, j);
         }
-
     const ParameterVector params1_shift = shiftParams(params1, split);
     const PiecewiseConstantRateFunction<T> eta1_shift(params1_shift, {0., INFINITY});
-    Matrix<T> sfs_above_split = undistinguishedSFS(csfs.at(n1 + n2 - 1).compute(eta1_shift)[0]);
+    Vector<T> sfs_above_split = undistinguishedSFS(csfs.at(n1 + n2 - 1).compute(eta1_shift)[0]);
     Matrix<T> eMn10_avg(n1 + 2, n1 + 1), eMn12_avg(n1 + 2, n1 + 1);
     eMn10_avg.setZero();
     eMn12_avg.setZero();
@@ -145,8 +144,6 @@ void JointCSFS<T>::jcsfs_helper_tau_below_split(const int m,
                     T x2 = x * eMn12_avg(np1, b1);
                     tensorRef(m, 0, b1, b2) += x0;
                     tensorRef(m, 2, b1, b2) += x2;
-                    // tensorRef(m, 0, b1, b2) += weight * h * sfs_above_split(nseg - 1) * eMn10_avg(np1, b1) * eMn2(np2, b2);
-                    // tensorRef(m, 2, b1, b2) += weight * h * sfs_above_split(nseg - 1) * eMn12_avg(np1, b1) * eMn2(np2, b2);
                 }
 }
 
@@ -164,7 +161,7 @@ void JointCSFS<T>::jcsfs_helper_tau_above_split(const int m,
     for (int b1 = 0; b1 < n1 + 1; ++b1)
         for (int b2 = 0; b2 < n2 + 1; ++b2)
             for (int nseg = 0; nseg < n1 + n2 + 1; ++nseg)
-                for (int np1 = std::max(nseg - n2, 0); nseg < std::min(nseg, n1) + 1; ++nseg)
+                for (int np1 = std::max(nseg - n2, 0); np1 < std::min(nseg, n1) + 1; ++np1)
                 {
                     int np2 = nseg - np1;
                     // scipy.stats.hypergeom.pmf(np1, n1 + n2, nseg, n1)  = choose(nseg, np1) * choose(n1 + n2 - nseg, n1 - np1)
@@ -172,18 +169,15 @@ void JointCSFS<T>::jcsfs_helper_tau_above_split(const int m,
                     double h = scipy_stats_hypergeom_pmf(np1, n1 + n2, nseg, n1);
                     for (int i = 0; i < 3; ++i)
                     {
-                        if (0 < (i + nseg) and (i + nseg) < (2 + n1 + n2))
-                        {
-                            T x = rsfs(i, nseg) * eMn1[i](np1, b1) * eMn2(np2, b2);
-                            x *= h;
-                            x *= weight;
-                            tensorRef(m, i, b1, b2) += x;
-                        }
+                        T x = rsfs(i, nseg) * eMn1[i](np1, b1) * eMn2(np2, b2);
+                        x *= h;
+                        x *= weight;
+                        tensorRef(m, i, b1, b2) += x;
                     }
                 }
      
     // pop 1, below split
-    Matrix<T> sfs_below = csfs.at(n1).compute(*eta1)[0];
+    Matrix<T> sfs_below = csfs.at(n1).compute_below(*eta1)[0];
     for (int i = 0; i < a1 + 1; ++i)
         for (int j = 0; j < n1 + 1; ++j)
         {
@@ -192,20 +186,6 @@ void JointCSFS<T>::jcsfs_helper_tau_above_split(const int m,
                 tensorRef(m, i, j, 0) += weight * sfs_below(i, j);
         }
 
-    // pop2, below split
-    if (n2 == 1)
-        tensorRef(m, 0, 0, 1) += weight * split;
-    if (n2 > 1)
-    {
-        ParameterVector params2_trunc = truncateParams(params2, split);
-        const PiecewiseConstantRateFunction<T> eta2_trunc(params2_trunc, {0., INFINITY});
-        Vector<T> rsfs_below_2 = undistinguishedSFS(csfs.at(n2 - 2).compute(eta2_trunc)[0]);
-        assert(rsfs_below_2.size() == n2 - 1);
-        for (int i = 0; i < n2 - 1; ++i)
-        {
-            tensorRef(m, 0, 0, i + 1) += weight * rsfs_below_2(i);
-        }
-    }
 }
 
 template <typename T>
@@ -249,6 +229,22 @@ void JointCSFS<T>::pre_compute(
             T w = (exp(-Rts1) - eR1t2) / (eR1t1 - eR1t2);
             jcsfs_helper_tau_below_split(m, t1, split, 1. - w);
             jcsfs_helper_tau_above_split(m, split, t2, w);
+        }
+        // pop2, below split
+        if (n2 == 1)
+            tensorRef(m, 0, 0, 1) += split;
+        if (n2 > 1)
+        {
+            ParameterVector params2_trunc = truncateParams(params2, split);
+            const PiecewiseConstantRateFunction<T> eta2_trunc(params2_trunc, {0., INFINITY});
+            Vector<T> rsfs_below_2 = undistinguishedSFS(csfs.at(n2 - 2).compute(eta2_trunc)[0]);
+            assert(rsfs_below_2.size() == n2 - 1);
+            for (int i = 0; i < n2 - 1; ++i)
+                tensorRef(m, 0, 0, i + 1) += rsfs_below_2(i);
+            T remain = Sn2.transpose().template cast<T>() * rsfs_below_2;
+            remain -= split;
+            tensorRef(m, 0, 0, n2) -= remain;
+            // ret[0, 0, 0, -1] += split - np.arange(1, n2).dot(rsfs_below) / n2
         }
     }
 }
