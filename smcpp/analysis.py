@@ -71,7 +71,7 @@ class Analysis(Observer):
             segfrac = 1. * Lseg / self._L
             self._theta = segfrac / (1. / np.arange(1, np.sum(self._n))).sum()
         logger.info("theta: %f", self._theta)
-        self._rho = rho or self._theta / 4.
+        self._rho = rho or self._theta
         logger.info("rho: %f", self._rho)
 
     def _init_bounds(self, Nmin):
