@@ -12,7 +12,6 @@ def model1():
     s = np.diff(np.logspace(np.log10(.001), np.log10(4), 4))
     ret = SMCModel(s, np.logspace(np.log10(.001), np.log10(4), 5))
     ret[:] = np.log(np.arange(1, 6)[::-1])
-    ret[:] = 0.
     return ret
 
 @pytest.fixture
@@ -20,7 +19,6 @@ def model2():
     s = np.diff(np.logspace(np.log10(.001), np.log10(4), 4))
     ret = SMCModel(s, np.logspace(np.log10(.001), np.log10(4), 5))
     ret[:] = np.log(np.arange(1, 6))
-    ret[:] = 0.
     return ret
 
 @pytest.fixture
@@ -102,6 +100,47 @@ def test_equal_py_c(model1, model2):
         j2 = np.array(smcpp._smcpp.joint_csfs(n1, n2, model, ts, 1000)).astype('float')
         assert np.allclose(j1, j2, 1e-1, 0)
 
+def _model_to_momi_events(s, a, pop):
+    sp = np.concatenate([[0.], s])[:-1]
+    return [("-en", tt, pop, aa) for tt, aa in zip(sp, a.astype('float'))]
+
+def test_vs_momi(model1, model2):
+    import momi, momi.demography
+    n1 = 7
+    n2 = 5
+    split = .02
+
+    # Conditioned version
+    py_jcsfs = JointCSFS(n1 - 2, n2, 2, 0, [0., np.inf], 100)
+    j = py_jcsfs.compute(model1, model2, split)[0]
+    jm = np.zeros([n1 + 1, n2 + 1])
+    for a in range(3):
+        for b in range(n1 - 1):
+            jm[a + b] += j[a, b, 0]
+    np.testing.assert_allclose(jm.sum(), j.sum())
+    print(jm)
+    print(jm.sum(axis=1))
+
+    # Momi version
+    m2s = _cumsum0(model2.s)
+    tm2 = np.searchsorted(m2s, split)
+    m2s = m2s[:tm2]
+    m2a = model2.stepwise_values()[:tm2]
+    p2_events = [("-en", tt, "pop2", aa * 2.) for tt, aa in zip(m2s, m2a)]
+    events = _model_to_momi_events(model1.s, model1.stepwise_values() * 2., "pop1")
+    events.append(("-ej", split, "pop2", "pop1"))
+    events += p2_events
+    demo = momi.demography.make_demography(events, ["pop1", "pop2"], (n1, n2))
+    configs = [((n1 - a, a), (n2 - b, b))
+               for a in range(n1 + 1) for b in range(n2 + 1)
+               if 0 < a + b < n1 + n2]
+    mconf = momi.config_array(("pop1", "pop2"), configs)
+    esfs = momi.expected_sfs(demo, mconf, mut_rate=1.0)
+    j_momi = np.zeros_like(jm)
+    for ((_, a), (_, b)), x in zip(configs, esfs):
+        j_momi[a, b] += x
+    print(j_momi)
+    print(j_momi.sum(axis=1))
 
 # def test_jcsfs(jcsfs, model1, model2):
 #     jcsfs.compute(model1, model2, 0.25)

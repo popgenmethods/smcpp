@@ -103,6 +103,12 @@ void JointCSFS<T>::jcsfs_helper_tau_below_split(const int m,
             if (trunc_csfs(i, j) > 0)
                 tensorRef(m, i, j, 0) = weight * trunc_csfs(i, j);
         }
+    const Vector<T> trunc_sfs = undistinguishedSFS(trunc_csfs);
+    T Et = Sn1.transpose().template cast<T>() * trunc_sfs;
+    tensorRef(m, 2, n1, 0) = split - Et;
+    tensorRef(m, 2, n1, 0) *= weight;
+
+    // Above split, then moran down
     const ParameterVector params1_shift = shiftParams(params1, split);
     const PiecewiseConstantRateFunction<T> eta1_shift(params1_shift, {0., INFINITY});
     Vector<T> sfs_above_split = undistinguishedSFS(csfs.at(n1 + n2 - 1).compute(eta1_shift)[0]);
@@ -133,10 +139,10 @@ void JointCSFS<T>::jcsfs_helper_tau_below_split(const int m,
     for (int b1 = 0; b1 < n1 + 1; ++b1)
         for (int b2 = 0; b2 < n2 + 1; ++b2)
             for (int nseg = 1; nseg < n1 + n2 + 1; ++nseg)
-                for (int np1 = std::max(nseg - n2, 0); np1 < std::min(nseg, n1) + 1; ++np1)
+                for (int np1 = std::max(nseg - n2, 0); np1 < std::min(nseg, n1 + 1) + 1; ++np1)
                 {
                     int np2 = nseg - np1;
-                    double h = scipy_stats_hypergeom_pmf(np1, n1 + n2, nseg, n1);
+                    double h = scipy_stats_hypergeom_pmf(np1, n1 + n2 + 1, nseg, n1 + 1);
                     T x = sfs_above_split(nseg - 1) * eMn2(np2, b2);
                     x *= h;
                     x *= weight;
@@ -246,6 +252,9 @@ void JointCSFS<T>::pre_compute(
             tensorRef(m, 0, 0, n2) -= remain;
             // ret[0, 0, 0, -1] += split - np.arange(1, n2).dot(rsfs_below) / n2
         }
+        // zero out nonsegregating sites 
+        tensorRef(m, 0, 0, 0) *= 0.;
+        tensorRef(m, a1, n1, n2) *= 0;
     }
 }
 

@@ -105,13 +105,14 @@ def _parallel_helper(pargs):
         else:
             # n2 >= 2
             # Compute the truncated sfs by getting the truncated sfs
-            # conditioned on distingiushed lineages coalescing in (0,
+            # conditioned on distinguished lineages coalescing in (0,
             # inf) and the marginalizing over those two lineages.
             tsfs_below = _truncated_csfs(model2, n2 - 2, split, 0., np.inf)
             rsfs_below = util.undistinguished_sfs(tsfs_below)[1:].astype('float')
             ret[0, 0, 0, 1:-1] += rsfs_below
             ret[0, 0, 0, -1] += split - np.arange(1, n2).dot(rsfs_below) / n2
     assert np.all(np.isfinite(ret))
+    ret[0, 0, 0, 0] = ret[-1, -1, -1, -1] = 0. # set nonsegregating sites to zero
     return ret
 
 
@@ -163,6 +164,8 @@ def _jcsfs_helper_tau_below_split(pargs):
     # Below the split, we compute the "truncated csfs" by crashing the
     # population above the split.
     ret[:, :, 0, 0] = _truncated_csfs(model1, n1, split, t1, t2)
+    ret[2, n1, 0, 0] = split - \
+            np.arange(1, n1 + 2).dot(util.undistinguished_sfs(ret[:, :, 0, 0])[1:]) / (n1 + 2)
 
     # Above the split, we compute the regular SFS on n1 + n2 + 1
     # lineages (by marginalizing the CSFS on n1 + n2 - 1) and then moran
@@ -199,9 +202,9 @@ def _jcsfs_helper_tau_below_split(pargs):
         for b2 in range(n2 + 1): # number of derived alleles in pop2
             for nseg in range(1, n1 + n2 + 1):
                 # pop1 has to get at least nseg - n2 derived alleles
-                for np1 in range(max(nseg - n2, 0), min(nseg, n1) + 1):
+                for np1 in range(max(nseg - n2, 0), min(nseg, n1 + 1) + 1):
                     np2 = nseg - np1
-                    h = scipy.stats.hypergeom.pmf(np1, n1 + n2, nseg, n1) 
+                    h = scipy.stats.hypergeom.pmf(np1, n1 + n2 + 1, nseg, n1 + 1) 
                     ret[0, b1, 0, b2] += (
                             h * sfs_above_split[nseg - 1] *
                             eMn10_avg[np1, b1] * eMn2[np2, b2]
