@@ -79,6 +79,9 @@ class SMCModel(Observable):
     def stepwise_values(self):
         return np.array(ad.admath.exp(self._spline.eval(self._log_cumsum_s)))
 
+    def reset(self):
+        self[:] = 0.
+
     def to_s(self, until=None):
         ary = self[:until].astype('float')
         fmt = " ".join(["{:>5.2f}"] * len(ary))
@@ -144,10 +147,22 @@ class SMCTwoPopulationModel(Observable):
     def dlist(self):
         return self._models[0].dlist + self._models[1].dlist
 
+    def reset(self):
+        for m in self._models:
+            m.reset()
+
     def to_dict(self):
-        return {'model1': self._models[0].to_dict(),
+        return {'class': self.__class__.__name__,
+                'model1': self._models[0].to_dict(),
                 'model2': self._models[1].to_dict(),
                 'split': self._split}
+
+    @classmethod
+    def from_dict(klass, d):
+        assert klass.__name__ == d['class']
+        model1 = SMCModel.from_dict(d['model1'])
+        model2 = SMCModel.from_dict(d['model2'])
+        return klass(model1, model2, d['split'])
 
     def to_s(self):
         return "\nPop. 1:\n{}\nPop. 2:\n{}\nSplit: {:.3f}".format(

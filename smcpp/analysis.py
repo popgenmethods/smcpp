@@ -27,6 +27,7 @@ class Analysis(Observer):
         self._init_parameters(args.theta, args.rho)
         self._init_model(args.initial_model, args.pieces, args.N0, args.t1, args.tK, args.spline, args.split)
         self._init_hidden_states(args.M)
+        self._model.reset()
         self._init_bounds(args.Nmin)
         self._perform_thinning(args.thinning)
         self._normalize_data(args.length_cutoff)

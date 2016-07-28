@@ -57,7 +57,7 @@ def init_parser(parser):
     optimizer.add_argument('--block-size', type=int, default=3,
                            help="number of blocks to optimizer at a time for coordinate ascent")
     optimizer.add_argument('--regularization-penalty',
-                           type=float, help="regularization penalty", default=.01)
+                           type=float, help="regularization penalty", default=1.)
     optimizer.add_argument('--spline',
                            choices=["cubic", "akima", "pchip"],
                            default="pchip", help="type of spline representation to use")
