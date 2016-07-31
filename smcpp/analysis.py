@@ -1,7 +1,6 @@
 import numpy as np
 import functools
 import multiprocessing
-import inflect
 import json
 import sys
 import os.path
@@ -48,7 +47,7 @@ class Analysis(Observer):
         self._npop = data[0].shape[1] // 2 - 1
         for d in data:
             assert d.shape[1] == 2 * (self._npop + 1)
-        logger.info(inflect.engine().no("population", self._npop))
+        logger.info("%d population%s", self._npop, "" if self._npop == 1 else "s")
         self._n = np.max([np.max(obs[:, 2::2], axis=0) for obs in self._data], axis=0)
         logger.info("n=%s" % self._n)
 

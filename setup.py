@@ -74,7 +74,6 @@ setup(name='smcpp',
         install_requires=[
             "backports.shutil_which",
             "backports.shutil_get_terminal_size",
-            "inflect",
             "wrapt>=1.10",
             "setuptools>=19.6",
             "jsonpickle>=0.9.2",
