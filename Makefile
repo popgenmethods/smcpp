@@ -1,4 +1,4 @@
-GIT_VERSION=$(shell git describe --abbrev=4 --always --tags)
+GIT_VERSION=$(shell git describe --abbrev=4 --always --tags | sed 's/-/+/')
 HWNAME=$(shell uname -ms | tr '[:upper:]' '[:lower:]' | tr ' ' -)
 
 all: update_version
