@@ -29,7 +29,7 @@ def main(args):
         args.labels = []
     if args.offsets is None:
         args.offsets = []
-    for fn, label, off, g in it.izip_longest(args.model, args.labels, args.offsets, args.g, fillvalue=None):
+    for fn, label, off, g in it.izip_longest(args.model, args.labels, args.offsets, args.g or [], fillvalue=None):
         if label == "None": 
             label = None
         if fn in ["human", "sawtooth"]:
