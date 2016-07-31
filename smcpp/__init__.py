@@ -1,6 +1,7 @@
 # Apply a monkeypatch to ad to prevent the O(k^2) computation of 2nd derivatives
 from __future__ import absolute_import, division, print_function
 import logging
+from . import version
 import ad
 
 
@@ -26,6 +27,7 @@ def init_logging():
 
 
 init_logging()
+logging.getLogger(__name__).info("SMC++ " + version.version)
 
 
 def _my_apply_chain_rule(ad_funcs, variables, lc_wrt_args, qc_wrt_args,

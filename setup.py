@@ -1,5 +1,6 @@
 from __future__ import print_function
 from setuptools import setup, Extension, find_packages, dist
+import os
 import os.path
 import glob
 import sys
@@ -58,8 +59,10 @@ except ImportError:
              "Please install it and and re-run.")
 dist.Distribution({'setup_requires': ['numpy', 'pkgconfig', 'cython']})
 
+
+
 setup(name='smcpp',
-        version='0.1.0',
+        version=os.environ["GIT_VERSION"],
         description='SMC++',
         author='Jonathan Terhorst, Jack Kamm, Yun S. Song',
         author_email='terhorst@stat.berkeley.edu',
