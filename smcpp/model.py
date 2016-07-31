@@ -155,7 +155,7 @@ class SMCTwoPopulationModel(Observable):
         return {'class': self.__class__.__name__,
                 'model1': self._models[0].to_dict(),
                 'model2': self._models[1].to_dict(),
-                'split': self._split}
+                'split': float(self._split)}
 
     @classmethod
     def from_dict(klass, d):

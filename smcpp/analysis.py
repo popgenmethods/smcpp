@@ -25,14 +25,14 @@ class Analysis(Observer):
     def __init__(self, files, args):
         self._load_data(files)
         self._init_parameters(args.theta, args.rho)
-        self._init_model(args.initial_model, args.pieces, args.N0, args.t1, args.tK, args.knots, args.spline, args.split)
+        self._init_model(args.initial_model, args.pieces, args.N0, args.t1, args.tK, args.knots, args.spline, args.fixed_split)
         self._init_hidden_states(args.M)
         self._model.reset()
         self._init_bounds(args.Nmin)
         self._perform_thinning(args.thinning)
         self._normalize_data(args.length_cutoff)
         self._init_inference_manager(args.folded)
-        self._init_optimizer(args.outdir, args.block_size, args.fix_rho, args.fix_split)
+        self._init_optimizer(args.outdir, args.block_size, args.fix_rho, args.fixed_split)
 
         # Misc. parameter initialiations
         self._N0 = args.N0
@@ -110,7 +110,7 @@ class Analysis(Observer):
             logger.warn("Not thinning yet n = %d > 0. This probably "
                         "isn't what you desire, see --thinning", self._n.sum() // 2 + 1)
         
-    def _init_model(self, initial_model, pieces, N0, t1, tK, num_knots, spline_class, split=None):
+    def _init_model(self, initial_model, pieces, N0, t1, tK, num_knots, spline_class, fixed_split):
         if initial_model is not None:
             d = json.load(open(initial_model, "rt"))
             if self._npop == 1:
@@ -135,13 +135,15 @@ class Analysis(Observer):
                         "akima": spline.AkimaSpline, 
                         "pchip": spline.PChipSpline}[spline_class]
         if self._npop == 1:
-            if split is not None:
+            if fixed_split is not None:
                 logger.warn("--split was specified, but only one population found in data")
             self._model = SMCModel(time_points, knots, spline_class)
             logger.debug("initial model:\n%s" % np.array_str(self._model.y, precision=3))
         else:
-            if split is None:
-                raise RuntimeError("Initial value of split must be specified for two-population model")
+            if fixed_split is not None:
+                split = fixed_split
+            else:
+                split = tK - t1 # just pick the midpoint as a starting value.
             split /= 2. * N0
             self._model = SMCTwoPopulationModel(
                 SMCModel(time_points, knots, spline_class),
@@ -185,12 +187,12 @@ class Analysis(Observer):
         # Receive updates whel model changes
         self.model.register(self)
 
-    def _init_optimizer(self, outdir, block_size, fix_rho, fix_split):
+    def _init_optimizer(self, outdir, block_size, fix_rho, fixed_split):
         if self._npop == 1:
             self._optimizer = optimizer.SMCPPOptimizer(self)
         elif self._npop == 2:
             self._optimizer = optimizer.TwoPopulationOptimizer(self)
-            if not fix_split:
+            if fixed_split is None:
                 smax = np.sum(self.model.distinguished_model.s)
                 self._optimizer.register(optimizer.ParameterOptimizer("split", (0., smax), "model"))
         self._optimizer.block_size = block_size

@@ -40,9 +40,6 @@ def init_parser(parser):
     model.add_argument('--knots', type=int, default=10, help="number of knots to use in internal representation")
     # model.add_argument('--exponential-pieces', type=int,
     #                    nargs="+", help="piece(s) which have exponential growth")
-    model.add_argument('--split', type=float, 
-                       help="initial guess (in generations) for location of split "
-                            "in two-population models.")
     model.add_argument("--initial-model", help="initial model, i.e. result of previous SMC++ run")
     hmm.add_argument('--thinning', help="emit full SFS every <k>th site",
                      default=None, type=int, metavar="k")
@@ -50,9 +47,8 @@ def init_parser(parser):
                      type=int, help="number of hidden states", default=32)
     hmm.add_argument('--em-iterations', type=int,
                      help="number of EM steps to perform", default=10)
-    optimizer.add_argument('--fix-split', default=False, action="store_true",
-                           help="initial guess (in generations) for location of split "
-                           "in two-population models.")
+    optimizer.add_argument('--fixed-split', type=float,
+                           help="instead of estimating split time, fix it to this value. (two-population models only.)")
     optimizer.add_argument("--fix-rho", default=False, action="store_true",
                            help="do not estimate recombination rate from data")
     optimizer.add_argument('--block-size', type=int, default=3,
