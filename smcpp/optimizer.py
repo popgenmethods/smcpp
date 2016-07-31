@@ -65,23 +65,23 @@ class AbstractOptimizer(Observable):
     def run(self, niter):
         self.update_observers('begin')
         model = self._analysis.model
-        self._analysis.E_step()
         for i in range(niter):
-            # Perform model optimization
-            self.update_observers('pre-M step', i=i, niter=niter)
+            # Perform E-step
+            kwargs = {'i': i, 'niter': niter}
+            self.update_observers('pre-E step', **kwargs)
+            self._analysis.E_step()
+            self.update_observers('post E-step', **kwargs)
+            # Perform M-step
+            self.update_observers('pre M-step', **kwargs)
             coord_list = self._coordinates()
             for coords in coord_list:
-                self.update_observers('M step', i=i, coords=coords)
+                self.update_observers('M step', coords=coords, **kwargs)
                 bounds = self._bounds(coords)
                 x0 = model[coords]
                 res = self._minimize(x0, coords, bounds)
-                self.update_observers('M step finished', i=i, coords=coords, res=res)
+                self.update_observers('post mini M-step', coords=coords, res=res, **kwargs)
                 model[coords] = res.x
-            self.update_observers('post-M step', i=i)
-            # Perform E-step
-            self.update_observers('pre-E step', i=i)
-            self._analysis.E_step()
-            self.update_observers('post-E step', i=i)
+            self.update_observers('post M-step', **kwargs)
         # Conclude the optimization and perform any necessary callbacks.
         self.update_observers('optimization finished')
 
@@ -95,7 +95,7 @@ class AbstractOptimizer(Observable):
 class HiddenStateOccupancyPrinter(Observer):
 
     def update(self, message, *args, **kwargs):
-        if message == "post-E step":
+        if message == "post E-step":
             hso = np.sum(kwargs['analysis']._im.xisums, axis=(0, 1))
             hso /= hso.sum()
             logger.debug("hidden state occupancy:\n%s",
@@ -107,20 +107,21 @@ class ProgressPrinter(Observer):
     def update(self, message, *args, **kwargs):
         if message == "begin":
             logger.info("Starting optimizer...")
-        if message == "pre-M step":
+        if message == "pre E-step":
             logger.info("Optimization iteration %d of %d...",
                         kwargs['i'] + 1, kwargs['niter'])
         if message == "M step":
             logger.debug("Optimizing coordinates %s", kwargs['coords'])
-        if message == "M step finished":
+        if message == "post mini M-step":
             logger.debug("Results of optimizer:\n%s", kwargs['res'])
-            logger.debug("Current model:\n%s", kwargs['model'].to_s())
+        if message == "post M-step":
+            logger.info("Current model:\n%s", kwargs['model'].to_s())
 
 
 class LoglikelihoodPrinter(Observer):
 
     def update(self, message, *args, **kwargs):
-        if message == "post-E step":
+        if message == "post E-step":
             ll = kwargs['analysis'].loglik()
             logger.info("Loglik: %f", ll)
 
@@ -128,7 +129,7 @@ class LoglikelihoodPrinter(Observer):
 class ModelPrinter(Observer):
 
     def update(self, message, *args, **kwargs):
-        if message == "post-E step":
+        if message == "post M-step":
             logger.info("Model: %s", kwargs['model'].to_s())
 
 
@@ -139,7 +140,7 @@ class AnalysisSaver(Observer):
 
     def update(self, message, *args, **kwargs):
         dump = kwargs['analysis'].dump
-        if message == "post-E step":
+        if message == "post E-step":
             i = kwargs['i']
             dump(os.path.join(self._outdir, ".model.iter%d" % i))
         elif message == "optimization finished":
@@ -154,7 +155,7 @@ class ParameterOptimizer(Observer):
         self._target = target
 
     def update(self, message, *args, **kwargs):
-        if message != "pre-M step":
+        if message != "pre M-step":
             return
         param = self._param
         logger.debug("Updating %s", param)
