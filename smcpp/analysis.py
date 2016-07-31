@@ -25,7 +25,7 @@ class Analysis(Observer):
     def __init__(self, files, args):
         self._load_data(files)
         self._init_parameters(args.theta, args.rho)
-        self._init_model(args.initial_model, args.pieces, args.N0, args.t1, args.tK, args.spline, args.split)
+        self._init_model(args.initial_model, args.pieces, args.N0, args.t1, args.tK, args.knots, args.spline, args.split)
         self._init_hidden_states(args.M)
         self._model.reset()
         self._init_bounds(args.Nmin)
@@ -110,7 +110,7 @@ class Analysis(Observer):
             logger.warn("Not thinning yet n = %d > 0. This probably "
                         "isn't what you desire, see --thinning", self._n.sum() // 2 + 1)
         
-    def _init_model(self, initial_model, pieces, N0, t1, tK, spline_class, split=None):
+    def _init_model(self, initial_model, pieces, N0, t1, tK, num_knots, spline_class, split=None):
         if initial_model is not None:
             d = json.load(open(initial_model, "rt"))
             if self._npop == 1:
@@ -129,7 +129,7 @@ class Analysis(Observer):
         tK /= fac
         time_points = estimation_tools.construct_time_points(t1, tK, pieces)
         logger.debug("time points in coalescent scaling:\n%s", str(time_points))
-        knots = np.cumsum(estimation_tools.construct_time_points(t1, tK, [1]*10))
+        knots = np.cumsum(estimation_tools.construct_time_points(t1, tK, [1] * num_knots))
         logger.debug("knots in coalescent scaling:\n%s", str(knots))
         spline_class = {"cubic": spline.CubicSpline,
                         "akima": spline.AkimaSpline, 
