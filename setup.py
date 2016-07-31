@@ -54,10 +54,8 @@ def lazy_extensions():
 try:
     import numpy
 except ImportError:
-    sys.exit("""
-Setup requires the numpy package order to proceed. Please install it
-before continuing.
-""")
+    sys.exit("Setup requires numpy order to proceed. "
+             "Please install it and and re-run.")
 dist.Distribution({'setup_requires': ['numpy', 'pkgconfig', 'cython']})
 
 setup(name='smcpp',
