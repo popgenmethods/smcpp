@@ -40,12 +40,12 @@ def compress_repeated_obs(dataset):
     # pad with illegal value at starting position
     nonce = np.zeros_like(dataset[0])
     nonce[:2] = [1, -999]
-    dataset = np.insert(dataset, 0, nonce, 0)
+    dataset = np.concatenate([[nonce], dataset, [nonce]])
     nonreps = np.any(dataset[1:, 1:] != dataset[:-1, 1:], axis=1)
     newob = dataset[1:][nonreps]
     csw = np.cumsum(dataset[:, 0])[np.where(nonreps)]
     newob[:-1, 0] = csw[1:] - csw[:-1]
-    return newob
+    return newob[:-1]
 
 def _thin_helper(args):
     thinned = np.array(_smcpp.thin_data(*args), dtype=np.int32)
