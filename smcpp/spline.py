@@ -62,10 +62,13 @@ class CubicSpline:
 
     def eval(self, points):
         points = np.atleast_1d(points)
-        ip = np.maximum(0, np.searchsorted(self._x, points) - 1)
+        ip = np.searchsorted(self._x, points) - 1
         exp = np.arange(4)[::-1, None]
         xi = (points - self._x[ip])**exp
-        return (self._coef[:, ip] * xi).sum(axis=0)
+        ret = (self._coef[:, ip] * xi).sum(axis=0)
+        # The spline is constrained to be flat outside of the knot range
+        ret[ip < 0] = self._coef[-1, 0]
+        return ret
 
     def dump(self):
         s = "Piecewise[{"
