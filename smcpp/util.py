@@ -40,7 +40,7 @@ sawtooth = build_sawtooth()
 human = {
         'a': np.array([10.0, 0.5, 1.0, 4.0]),
         'b': np.array([1.0, 0.5, 1.0, 4.0]),
-        's': np.array([10000., 70000. - 10000., 200000. - 70000., 1.0]) / 20000. / 25.0,
+        's': np.array([10000., 70000. - 10000., 200000. - 70000., 1.0]) / 20000. / 29.0,
         'N0': 10000.
         }
 
@@ -113,9 +113,9 @@ def dataset_from_panel(dataset, n, distinguished_rows, random=True):
             for i in range(K):
                 inds = [j for j in range(N) if j not in dr and panel[j, i] != -1]
                 if random:
-                    inds = np.random.permutation(inds)
+                    inds = np.random.choice(inds, n - 2, replace=False)
                 assert len(inds) >= n - 2
-                h2[2:, i] = panel[:, i][inds[:(n - 2)]]
+                h2[2:, i] = panel[inds, i]
         haps = h2
     else:
         perm = np.arange(n)

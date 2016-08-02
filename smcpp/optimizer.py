@@ -59,8 +59,8 @@ class AbstractOptimizer(Observable):
                                        jac=True,
                                        args=(self._analysis, coords,),
                                        bounds=bounds,
-                                       options={'factr': 1e10},
-                                       method="L-BFGS-B")
+                                       options={'xtol': .01},
+                                       method="TNC")
 
     def run(self, niter):
         self.update_observers('begin')
@@ -188,7 +188,7 @@ class AsciiPlotter(Observer):
         self._gnuplot_path = gnuplot_path
 
     def update(self, message, *args, **kwargs):
-        if message != "post-M step":
+        if message != "post M-step":
             return
         model = kwargs['model']
         two_pop = hasattr(model, 'split')

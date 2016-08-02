@@ -152,8 +152,7 @@ class Analysis(Observer):
     def _init_hidden_states(self, M):
         ## choose hidden states based on prior model
         hs = estimation_tools.balance_hidden_states(self._model.distinguished_model, M)
-        cs = np.cumsum(self._model.distinguished_model.s)
-        cs = cs[cs <= hs[1]]
+        cs = np.cumsum(self._model.distinguished_model.knots)
         self._hidden_states = np.sort(np.unique(np.concatenate([cs, hs])))
         logger.debug("%d hidden states:\n%s" % (len(self._hidden_states), str(self._hidden_states)))
 
