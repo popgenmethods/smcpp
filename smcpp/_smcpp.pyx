@@ -379,7 +379,7 @@ def thin_data(data, int thinning, int offset=0):
                 if thinning - i > 1:
                     out.append([thinning - i - 1, a1] + thin)
                 if a == 2 and np.all(b == nb):
-                    fold = sum([[0, nbi] for nbi in nb])
+                    fold = sum([[0, nbi] for nbi in nb], [])
                     out.append([1, 0] + fold)
                 else:
                     out.append([1] + list(vdata[j, 1:]))

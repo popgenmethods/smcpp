@@ -20,7 +20,7 @@ template <typename T>
 class ConditionedSFS
 {
     public:
-    virtual ~ConditionedSFS();
+    virtual ~ConditionedSFS() = default;
     virtual std::vector<Matrix<T> > compute(const PiecewiseConstantRateFunction<T> &) const = 0;
 };
 
