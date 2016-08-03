@@ -189,55 +189,47 @@ cdef class _PyInferenceManager:
         def __set__(self, hs):
             self._im.hidden_states = hs
 
-    # property emission_probs:
-    #     def __get__(self):
-    #         cdef map[block_key, Vector[adouble]] ep = self._im.getEmissionProbs()
-    #         cdef map[block_key, Vector[adouble]].iterator it = ep.begin()
-    #         cdef pair[block_key, Vector[adouble]] p
-    #         ret = {}
-    #         while it != ep.end():
-    #             p = deref(it)
-    #             key = [0] * 3
-    #             for i in range(3):
-    #                 key[i] = p.first[i]
-    #             M = p.second.size()
-    #             v = np.zeros(M)
-    #             if self._model.dlist:
-    #                 dv = np.zeros([M, len(self._model.dlist)])
-    #             for i in range(M):
-    #                 v[i] = p.second(i).value()
-    #                 for j in range(len(self._model.dlist)):
-    #                     dv[i, j] = p.second(i).derivatives()(j)
-    #             ret[tuple(key)] = (v, dv) if len(self._model.dlist) else v
-    #             inc(it)
-    #         return ret
+    property emission_probs:
+        def __get__(self):
+            cdef map[block_key, Vector[adouble]] ep = self._im.getEmissionProbs()
+            cdef map[block_key, Vector[adouble]].iterator it = ep.begin()
+            ret = {}
+            while it != ep.end():
+                bk = []
+                for i in range(deref(it).first.size()):
+                    bk.append(deref(it).first(i))
+                M = deref(it).second.size()
+                v = np.zeros(M, dtype=object)
+                for i in range(M):
+                    v[i] = _adouble_to_ad(deref(it).second(i), self._model.dlist)
+                ret[tuple(bk)] = v
+                inc(it)
+            return ret
 
 
-    # property gamma_sums:
-    #     def __get__(self):
-    #         ret = []
-    #         cdef vector[pBlockMap] gs = self._im.getGammaSums()
-    #         cdef vector[pBlockMap].iterator it = gs.begin()
-    #         cdef map[block_key, Vector[double]].iterator map_it
-    #         cdef pair[block_key, Vector[double]] p
-    #         cdef double[::1] vary
-    #         cdef int M = len(self.hidden_states) - 1
-    #         while it != gs.end():
-    #             map_it = deref(it).begin()
-    #             pairs = {}
-    #             while map_it != deref(it).end():
-    #                 p = deref(map_it)
-    #                 bk = [0, 0, 0]
-    #                 ary = np.zeros(M)
-    #                 for i in range(3):
-    #                     bk[i] = p.first[i]
-    #                 for i in range(M):
-    #                     ary[i] = p.second(i)
-    #                 pairs[tuple(bk)] = ary
-    #                 inc(map_it)
-    #             inc(it)
-    #             ret.append(pairs)
-    #         return ret
+    property gamma_sums:
+        def __get__(self):
+            ret = []
+            cdef vector[pBlockMap] gs = self._im.getGammaSums()
+            cdef vector[pBlockMap].iterator it = gs.begin()
+            cdef map[block_key, Vector[double]].iterator map_it
+            cdef double[::1] vary
+            cdef int M = len(self.hidden_states) - 1
+            while it != gs.end():
+                map_it = deref(it).begin()
+                pairs = {}
+                while map_it != deref(it).end():
+                    bk = []
+                    ary = np.zeros(M)
+                    for i in range(deref(map_it).first.size()):
+                        bk.append(deref(map_it).first(i))
+                    for i in range(M):
+                        ary[i] = deref(map_it).second(i)
+                    pairs[tuple(bk)] = ary
+                    inc(map_it)
+                inc(it)
+                ret.append(pairs)
+            return ret
 
     property gammas:
         def __get__(self):
@@ -264,12 +256,15 @@ cdef class _PyInferenceManager:
         with nogil:
             ad_rets = self._im.Q()
         _check_abort()
-        cdef int K = ad_rets.size()
         cdef int i
         cdef adouble q
         q = ad_rets[0]
-        for i in range(1, K):
+        q1 = _adouble_to_ad(ad_rets[0], self._model.dlist)
+        logger.debug(("q1", q1, [q1.d(x) for x in self._model.dlist]))
+        for i in range(1, 3):
+            z = _adouble_to_ad(ad_rets[i], self._model.dlist)
             q += ad_rets[i]
+            logger.debug(("q%d" % (i + 1), z, [z.d(x) for x in self._model.dlist]))
         r = adnumber(toDouble(q))
         if self._model.dlist:
             r = _adouble_to_ad(q, self._model.dlist)
