@@ -115,3 +115,17 @@ def balance_hidden_states(model, M):
     ret.append(np.inf)
     return np.array(ret)
 
+
+def empirical_sfs(data, n):
+    p = mp.Pool()
+    return np.sum(list(p.map(_esfs_helper, ((d, n) for d in data))), axis=0)
+
+
+def _esfs_helper(tup):
+    ds, n = tup
+    ret = np.zeros([3] + list(np.array(n) + 1), dtype=int)
+    for row in ds:
+        if row[1] >= 0 and np.all(row[3::2] == n):
+            coord = tuple([row[1]] + list(row[2::2]))
+            ret[coord] += row[0]
+    return ret

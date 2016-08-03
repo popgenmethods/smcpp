@@ -64,9 +64,9 @@ class Analysis(Observer):
             Lseg = 0
             for obs in self._data:
                 conds = (
-                    (obs[:, 0] == 1) &
-                    ((obs[:, 1] > 0) | (obs[:, 2::2].max(axis=1) > 0))
-                )
+                        (obs[:, 0] == 1) &
+                        ((obs[:, 1] > 0) | (obs[:, 2::2].max(axis=1) > 0))
+                        )
                 Lseg += conds.sum()
             segfrac = 1. * Lseg / self._L
             self._theta = segfrac / (1. / np.arange(1, np.sum(self._n))).sum()
@@ -83,12 +83,6 @@ class Analysis(Observer):
         logger.debug("Nmax calculated to be %g" % Nmax)
         self._bounds = (Nmin, Nmax)
 
-        # Prepare empirical SFS for later use. This is cheap to compute
-        # esfs = util.compute_esfs(dataset, n)
-        # self._sfs = np.sum(esfs, axis=0) / np.sum(esfs)
-        # logger.info("Empirical SFS:\n%s" % np.array_str(self._sfs, precision=4))
-        # logger.info("Reduced SFS:\n%s" % np.array_str(util.undistinguished_sfs(self._sfs, args.folded), precision=4))
-
         # if not args.no_pretrain:
         #     logger.info("Pretraining")
         #     # pretrain if requested
@@ -102,13 +96,20 @@ class Analysis(Observer):
     def _perform_thinning(self, thinning):
         if thinning is None:
             thinning = 400 * np.sum(self._n)
+        self._full_sfs = estimation_tools.empirical_sfs(self._data, self._n)
+        s = self._full_sfs.sum()
+        logger.debug("SFS (before thinning):\n%s\n(%d bases total)", 
+                str(self._full_sfs.astype('float') / s), s)
         if thinning > 1:
             logger.info("Thinning...")
             self._data = estimation_tools.thin_dataset(self._data, thinning)
         elif self._n.sum() > 2:
             logger.warn("Not thinning yet n = %d > 0. This probably "
                         "isn't what you desire, see --thinning", self._n.sum() // 2 + 1)
-        
+        self._thinned_sfs = estimation_tools.empirical_sfs(self._data, self._n)
+        s = self._thinned_sfs.sum()
+        logger.debug("SFS (after thinning):\n%s\n(%d bases total)", 
+                str(self._thinned_sfs.astype('float') / s), s)
     def _init_model(self, initial_model, pieces, N0, t1, tK, num_knots, spline_class, fixed_split):
         if initial_model is not None:
             d = json.load(open(initial_model, "rt"))
@@ -152,8 +153,8 @@ class Analysis(Observer):
     def _init_hidden_states(self, M):
         ## choose hidden states based on prior model
         hs = estimation_tools.balance_hidden_states(self._model.distinguished_model, M)
-        cs = np.cumsum(self._model.distinguished_model.knots)
-        self._hidden_states = np.sort(np.unique(np.concatenate([cs, hs])))
+        kt = self._model.distinguished_model.knots
+        self._hidden_states = np.sort(np.unique(np.concatenate([kt, hs])))
         logger.debug("%d hidden states:\n%s" % (len(self._hidden_states), str(self._hidden_states)))
 
     def _normalize_data(self, length_cutoff):
