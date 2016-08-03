@@ -1,6 +1,7 @@
 from __future__ import absolute_import, division, print_function
 import numpy as np
 import sys
+import re
 
 from . import _smcpp
 
@@ -16,7 +17,7 @@ def _TDMASolve(a, b, c, d):
 
 
 class CubicSpline:
-
+    'A C2 spline.'
     def __init__(self, x, y):
         self._x = np.array(x)
         self._y = np.array(y)
@@ -55,12 +56,37 @@ class CubicSpline:
         self._coef = np.array([ca, cb, cc, y])
 
     def roughness(self):
-        # Integral of squared second derivative
+        'Integral of squared second derivative.'
         a, b = self._coef[:2, :-1]
         xi = np.diff(self._x)
         return (12 * a**2 * xi**3 + 12 * a * b * xi**2 + 4 * b**2 * xi).sum()
 
+    def integrated_curvature(self):
+        '''Integral of curvature:
+
+            \int |f''| / (1 + (f')^2)^(3/2)
+        
+        This cannot be evaluated analytically, so the integral is
+        numeric.
+        '''
+        s = 0.
+        for c, x1, x2 in zip(self._coef.T[:-1], self._x[:-2], self._x[1:-1]):
+            x = np.linspace(x1, x2, 50)
+            d2 = np.polyval(np.polyder(c, 2), x)
+            d1 = np.polyval(np.polyder(c, 1), x)
+            y = _smooth_abs(d2) / (1. + d1**2)**(1.5)
+            s += np.trapz(y, x)
+        return s
+
+    def squared_d2(self):
+        '''Array of numpy.poly1d representing the squared second
+        derivative of self.
+        '''
+        d2 = [np.poly1d(y).deriv(2)**2 for y in self._coef.T]
+        return (self._x, d2)
+
     def eval(self, points):
+        'Evaluate at points.'
         points = np.atleast_1d(points)
         ip = np.searchsorted(self._x, points) - 1
         exp = np.arange(4)[::-1, None]
@@ -74,11 +100,13 @@ class CubicSpline:
         s = "Piecewise[{"
         arr = []
         for k in range(len(self._x) - 1):
-            u = "(x-(%.2f))" % self._x[k]
+            u = "(x-(%e))" % self._x[k]
             arr.append("{" + "+".join(
-                "%.6f*%s^%d" % (float(xi), u, 3 - i) 
-                for i, xi in enumerate(self._coef[:, k])) + ",x>=%.2f&&x<%.2f}" % tuple(self._x[k:k + 2]))
+                "%e*%s^%d" % (float(xi), u, 3 - i) 
+                for i, xi in enumerate(self._coef[:, k])) + ",x>=%e&&x<%e}" % tuple(self._x[k:k + 2]))
         s += ",\n".join(arr) + "}];"
+        # convert to mathematica style
+        s = re.sub(r'e([+-]\d+)', r'*^\1', s)
         print(s, file=sys.stderr)
 
 
@@ -142,6 +170,7 @@ class AkimaSpline(CubicSpline):
         self._coef = np.array([d, c, b, y])
 
 class PChipSpline(CubicSpline):
+    'A C1 monotone spline.'
     def _pchipendpoint(self, h1, h2, del1, del2):
         d = ((2 * h1 + h2) * del1 - h1 * del2) / (h1 + h2)
         if np.sign(d) != np.sign(del1):

@@ -8,6 +8,7 @@ import ad.admath
 from . import _smcpp, estimation_tools, spline, logging
 from .observe import Observable
 
+
 logger = logging.getLogger(__name__)
 
 
@@ -27,9 +28,8 @@ class SMCModel(Observable):
         Observable.__init__(self)
         self._spline_class = spline_class
         self._s = np.array(s)
+        self._cumsum_s = np.cumsum(s)
         self._knots = np.array(knots)
-        self._log_cumsum_s = np.log(np.cumsum(s))
-        self._log_knots = np.log(knots)
         self.y = np.zeros_like(knots, dtype='object')
         self._refit()
 
@@ -58,7 +58,7 @@ class SMCModel(Observable):
         return self._y[ind]
 
     def _refit(self):
-        self._spline = self._spline_class(self._log_knots, self._y)
+        self._spline = self._spline_class(self._knots, self._y)
 
     @property
     def y(self):
@@ -74,10 +74,10 @@ class SMCModel(Observable):
         return [yy for yy in self.y if isinstance(yy, ADF)]
 
     def regularizer(self):
-        return self._spline.roughness()
+        return self._spline.integrated_curvature()
 
     def stepwise_values(self):
-        return np.array(ad.admath.exp(self._spline.eval(self._log_cumsum_s)))
+        return np.array(ad.admath.exp(self._spline.eval(self._cumsum_s)))
 
     def reset(self):
         self[:] = 0.
