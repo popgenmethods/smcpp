@@ -203,31 +203,6 @@ def parse_text_datasets(datasets):
     p = None
     return obs
 
-def _empirical_sfs(args):
-    obs, n = args
-    ret = np.zeros([3, n - 1])
-    sub = obs[np.logical_and(obs[:, 1:3].min(axis=1) != -1, obs[:, -1] == n - 2)]
-    for a in [0, 1, 2]:
-        for b in range(n - 1):
-            ret[a, b] = sub[np.logical_and(sub[:, 1] == a, sub[:, 2] == b)][:, 0].sum()
-    return ret
-
-def compute_esfs(dataset, n):
-    p = multiprocessing.Pool(None)
-    esfs = list(p.map(_empirical_sfs, [(obs, n) for obs in dataset]))
-    p.close()
-    p.terminate()
-    p = None
-    return esfs
-
-def config2dict(cp):
-    return {sec: dict(cp.items(sec)) for sec in cp.sections()}
-
-def exp_quantiles(M):
-    hs = -np.log(1. - np.linspace(0, _smcpp.T_MAX, M, False) / _smcpp.T_MAX)
-    hs[0] = 0.
-    return hs
-
 @contextmanager
 def optional_gzip(f, mode):
     with gzip.open(f, mode) if f.endswith(".gz") else open(f, mode) as o:
@@ -262,3 +237,13 @@ class RepeatingWriter:
         self._write_last_ob()
         logger.info("Wrote %d observations" % self.i)
 
+class OldStyleModel:
+    def __init__(self, a, b, s):
+        self.a = a
+        self.b = b
+        self.s = np.concatenate([s[:-1], [np.inf]])
+        self.t = np.concatenate([[0.], np.cumsum(self.s)])
+
+    def __call__(self, x):
+        ip = np.searchsorted(self.t, x) - 1
+        return self.a[ip] * (self.b[ip] / self.a[ip]) ** ((x - self.t[ip]) / (self.t[ip + 1] - self.t[ip]))
