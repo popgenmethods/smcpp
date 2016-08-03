@@ -37,7 +37,7 @@ class Analysis(Observer):
         self._N0 = args.N0
         self._penalty = args.regularization_penalty
         self._niter = args.em_iterations
-    
+
     ## PRIVATE INIT FUNCTIONS
     def _load_data(self, files):
         ## Parse each data set into an array of observations
@@ -110,6 +110,7 @@ class Analysis(Observer):
         s = self._thinned_sfs.sum()
         logger.debug("SFS (after thinning):\n%s\n(%d bases total)", 
                 str(self._thinned_sfs.astype('float') / s), s)
+
     def _init_model(self, initial_model, pieces, N0, t1, tK, num_knots, spline_class, fixed_split):
         if initial_model is not None:
             d = json.load(open(initial_model, "rt"))
@@ -212,7 +213,11 @@ class Analysis(Observer):
 
     def Q(self):
         'Value of Q() function in M-step.'
-        return self._im.Q() - self._penalty * self.model.regularizer()
+        q1 = self._im.Q()
+        q2 = -self._penalty * self.model.regularizer()
+        logger.debug(("im.Q", float(q1), [q1.d(x) for x in self.model.dlist]))
+        logger.debug(("reg", float(q2), [q2.d(x) for x in self.model.dlist]))
+        return q1 + q2
 
     @logging.log_step("Running E-step...", "E-step completed.")
     def E_step(self):
