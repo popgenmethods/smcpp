@@ -23,15 +23,16 @@ def lazy_extensions():
     import numpy as np
     import pkgconfig
     include_dirs = []
-    for dep in ['gsl', 'eigen3']:
+    for dep in ['gsl']:
         include_dirs += [path.strip() for path in pkgconfig.cflags(dep).split("-I") if path.strip()]
     extensions = [
             Extension(
                 "smcpp._smcpp",
                 sources=["smcpp/_smcpp.pyx"] + cpps,
                 language="c++",
-                include_dirs=["src", np.get_include()] + include_dirs,
-                # extra_compile_args=["-O0", "-ggdb3", "-std=c++11", "-Wno-unused-variable", "-Wno-unused-function", "-D_GLIBCXX_DEBUG"],
+                include_dirs=["include", "include/eigen3", np.get_include()] + include_dirs,
+                # extra_compile_args=["-O0", "-ggdb3", "-std=c++11", "-Wno-unused-variable", 
+                # "-Wno-unused-function", "-D_GLIBCXX_DEBUG"],
                 extra_compile_args=["-O2", "-std=c++11", "-Wno-deprecated-declarations", "-fopenmp"],
                 libraries=['gmp', 'gmpxx', 'gsl', 'gslcblas'],
                 extra_link_args=['-rdynamic', '-fopenmp'],
@@ -42,7 +43,7 @@ def lazy_extensions():
                     "smcpp._newick",
                     # sources=["src/_pypsmcpp.pyx", "src/conditioned_sfs.cpp", "src/hmm.cpp"],
                     sources=["smcpp/_newick.pyx"],
-                    include_dirs=["src"],
+                    include_dirs=["include"],
                     language="c++",
                     extra_compile_args=["-O2", "-std=c++11", "-Wfatal-errors", "-Wno-unused-variable", "-Wno-unused-function"]
                     )
@@ -72,6 +73,7 @@ setup(name='smcpp',
 	setup_requires=['pytest-runner', 'numpy', 'pkgconfig', 'cython'],
         tests_require=['pytest'],
         install_requires=[
+            "appdirs",
             "backports.shutil_which",
             "backports.shutil_get_terminal_size",
             "wrapt>=1.10",

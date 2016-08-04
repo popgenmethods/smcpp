@@ -14,7 +14,7 @@ pyi: update_version
 		--debug \
 		scripts/smc++
 update_version:
-	echo 'version="$(GIT_VERSION)"' > smcpp/version.py
+	echo "__version__ = '$(GIT_VERSION)'" > smcpp/_version.py
 
 wheel:
 	GIT_VERSION="$(GIT_VERSION)" python setup.py bdist_wheel

@@ -15,18 +15,19 @@ from ad import adnumber, ADF
 
 from . import logging, version
 
+logger = logging.getLogger(__name__)
+logger.debug("SMC++ " + version.__version__)
+
 init_eigen()
 
 def _init_cache():
-    dirs = AppDirs("smcpp", "popgenmethods", version=version.version)
+    dirs = AppDirs("smcpp", "popgenmethods", version=version.MAJOR)
     try:
         os.makedirs(dirs.user_cache_dir)
     except OSError:
         pass
     init_cache(os.path.join(dirs.user_cache_dir, "matrices.dat"))
 _init_cache()
-
-logger = logging.getLogger(__name__)
 
 abort = False
 cdef void logger_cb(const char* name, const char* level, const char* message) with gil:
