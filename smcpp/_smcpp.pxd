@@ -3,6 +3,7 @@ from libcpp.pair cimport pair
 from libcpp.map cimport map
 from libcpp cimport bool
 from libcpp.memory cimport unique_ptr
+from libcpp.string cimport string
 
 cdef extern from "common.h":
     ctypedef vector[vector[adouble]] ParameterVector
@@ -80,3 +81,6 @@ cdef extern from "jcsfs.h":
         JointCSFS(int, int, int, int, vector[double], int)
         void pre_compute(const ParameterVector&, const ParameterVector&, const double)
         vector[Matrix[T]] compute(const PiecewiseConstantRateFunction[T]&) const
+
+cdef extern from "matrix_cache.h":
+    void init_cache(const string)

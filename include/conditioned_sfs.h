@@ -7,6 +7,7 @@
 #include "common.h"
 #include "piecewise_constant_rate_function.h"
 #include "moran_eigensystem.h"
+#include "matrix_cache.h"
 
 class improper_sfs_exception : public std::exception
 {
@@ -35,16 +36,9 @@ class OnePopConditionedSFS : public ConditionedSFS<T>
     std::vector<Matrix<T> > compute_above(const PiecewiseConstantRateFunction<T> &) const;
 
     private:
-    typedef struct { Matrix<double> X0, X2, M0, M1; } MatrixCache;
-
-    // Variables
-    static MatrixCache& cached_matrices(int n);
-    static std::map<int, MatrixCache> matrix_cache;
-
     const int n;
     const MoranEigensystem mei;
     const MatrixCache mcache;
-    // std::vector<Matrix<T> > csfs, csfs_below, csfs_above, C_above;
     const Matrix<double> Uinv_mp0, Uinv_mp2;
 };
 
@@ -71,8 +65,6 @@ class DummySFS : public ConditionedSFS<T>
     const int dim, M;
     const std::vector<Matrix<T> > precomputedSFS;
 };
-
-
 
 template <typename T>
 std::vector<Matrix<T> > incorporate_theta(const std::vector<Matrix<T> > &, const double);

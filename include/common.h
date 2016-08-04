@@ -11,7 +11,7 @@
 #include <unsupported/Eigen/MatrixFunctions>
 #include <unsupported/Eigen/AutoDiff>
 
-#include "prettyprint.hpp"
+#include "prettyprint.h"
 #include "hash.h"
 
 template <typename T> using Matrix = Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic>;
@@ -96,6 +96,7 @@ EIGEN_AUTODIFF_DECLARE_GLOBAL_UNARY(cosh,
 };
 
 inline void init_eigen() { Eigen::initParallel(); }
+
 inline void fill_jacobian(const adouble &ll, double* outjac)
 {
     Eigen::VectorXd d = ll.derivatives();

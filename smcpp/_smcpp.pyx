@@ -9,11 +9,23 @@ import scipy.optimize
 import collections
 import wrapt
 import six
+import os.path
+from appdirs import AppDirs
 from ad import adnumber, ADF
 
-from . import logging
+from . import logging, version
 
-init_eigen();
+init_eigen()
+
+def _init_cache():
+    dirs = AppDirs("smcpp", "popgenmethods", version=version.version)
+    try:
+        os.makedirs(dirs.user_cache_dir)
+    except OSError:
+        pass
+    init_cache(os.path.join(dirs.user_cache_dir, "matrices.dat"))
+_init_cache()
+
 logger = logging.getLogger(__name__)
 
 abort = False
