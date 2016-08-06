@@ -211,12 +211,12 @@ class Analysis(Observer):
         'Perform the analysis.'
         self._optimizer.run(self._niter)
 
-    def Q(self):
+    def Q(self, k=None):
         'Value of Q() function in M-step.'
-        q1 = self._im.Q()
+        q1 = self._im.Q(k)
         q2 = -self._penalty * self.model.regularizer()
-        logger.debug(("im.Q", float(q1), [q1.d(x) for x in self.model.dlist]))
-        logger.debug(("reg", float(q2), [q2.d(x) for x in self.model.dlist]))
+        # logger.debug(("im.Q", float(q1), [q1.d(x) for x in self.model.dlist]))
+        # logger.debug(("reg", float(q2), [q2.d(x) for x in self.model.dlist]))
         return q1 + q2
 
     @logging.log_step("Running E-step...", "E-step completed.")

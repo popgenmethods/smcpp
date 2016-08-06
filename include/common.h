@@ -10,6 +10,7 @@
 #include <Eigen/Dense>
 #include <unsupported/Eigen/MatrixFunctions>
 #include <unsupported/Eigen/AutoDiff>
+#include "mpreal.h"
 
 #include "prettyprint.h"
 #include "hash.h"
@@ -18,8 +19,31 @@ template <typename T> using Matrix = Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dyn
 template <typename T> using Vector = Eigen::Matrix<T, Eigen::Dynamic, 1>;
 template <typename T, size_t P> using FixedVector = Eigen::Matrix<T, P, 1>;
 
-typedef Eigen::AutoDiffScalar<Eigen::VectorXd> adouble;
+typedef double adouble_base_type;
+typedef Eigen::Matrix<adouble_base_type, Eigen::Dynamic, 1> adouble_t;
+typedef Eigen::AutoDiffScalar<adouble_t> adouble;
 typedef std::vector<std::vector<adouble>> ParameterVector;
+
+template <typename T>
+inline T doubly_compensated_summation(const std::vector<T> &x)
+{
+    if (x.size() == 0)
+        return 0.0;
+    T s = x[0];
+    T c = 0.0;
+    T y, u, v, t, z;
+    for (unsigned int i = 1; i < x.size(); ++i)
+    {
+        y = c + x[i];
+        u = x[i] - (y - c);
+        t = y + s;
+        v = y - (t - s);
+        z = u + v;
+        s = t + z;
+        c = z - (s - t);
+    }
+    return s;
+}
 
 inline double toDouble(const adouble &a) { return a.value(); }
 inline double toDouble(const double &d) { return d; }
@@ -62,6 +86,9 @@ using std::expm1;
 using std::log1p;
 using std::cosh;
 using std::sinh;
+using mpfr::exp;
+using mpfr::sinh;
+using mpfr::cosh;
 
 EIGEN_AUTODIFF_DECLARE_GLOBAL_UNARY(expm1,
   Scalar expm1x = expm1(x.value());
@@ -80,14 +107,14 @@ EIGEN_AUTODIFF_DECLARE_GLOBAL_UNARY(log1p,
 )
 
 EIGEN_AUTODIFF_DECLARE_GLOBAL_UNARY(sinh,
-  Scalar sinhx = std::sinh(x.value());
-  Scalar coshx = std::cosh(x.value());
+  Scalar sinhx = sinh(x.value());
+  Scalar coshx = cosh(x.value());
   return ReturnType(sinhx, x.derivatives() * coshx);
 )
 
 EIGEN_AUTODIFF_DECLARE_GLOBAL_UNARY(cosh,
-  Scalar sinhx = std::sinh(x.value());
-  Scalar coshx = std::cosh(x.value());
+  Scalar sinhx = sinh(x.value());
+  Scalar coshx = cosh(x.value());
   return ReturnType(coshx, x.derivatives() * sinhx);
 )
 
@@ -99,9 +126,9 @@ inline void init_eigen() { Eigen::initParallel(); }
 
 inline void fill_jacobian(const adouble &ll, double* outjac)
 {
-    Eigen::VectorXd d = ll.derivatives();
+    adouble_t d = ll.derivatives();
     Eigen::Map<Eigen::Matrix<double, Eigen::Dynamic, 1>, Eigen::RowMajor> _jac(outjac, d.rows());
-    _jac = d;
+    _jac = d.template cast<double>();
 }
 
 void store_matrix(const Matrix<double> &M, double* out);
@@ -183,7 +210,7 @@ void check_nan(const Eigen::AutoDiffScalar<T> &x)
 inline adouble double_vec_to_adouble(const double &x, const std::vector<double> &dx)
 {
     adouble ret;
-    Vector<double> vdx(dx.size());
+    adouble_t vdx(dx.size());
     for (unsigned int i = 0; i < dx.size(); ++i)
         vdx(i) = dx[i];
     return adouble(x, vdx);

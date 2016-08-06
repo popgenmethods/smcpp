@@ -14,13 +14,28 @@ logger = logging.getLogger(__name__)
 
 # Dummy class used for JCSFS and a few other places
 class PiecewiseModel(object):
-    def __init__(self, s, a, dlist):
+    def __init__(self, s, a):
         self.s = s
         self.a = a
-        self.dlist = dlist
 
     def stepwise_values(self):
         return self.a
+
+    def __getitem__(self, it):
+        return self.a[it]
+
+    def __setitem__(self, it, x):
+        self.a[it] = x
+
+    @property
+    def dlist(self):
+        ret = []
+        for yy in self.a:
+            try:
+                ret += [d for d in yy.d() if d.tag is not None]
+            except AttributeError:
+                pass
+        return ret
 
 
 class SMCModel(Observable):
@@ -71,7 +86,13 @@ class SMCModel(Observable):
 
     @property
     def dlist(self):
-        return [yy for yy in self.y if isinstance(yy, ADF)]
+        ret = []
+        for yy in self.y:
+            try:
+                ret += [d for d in yy.d() if d.tag is not None]
+            except AttributeError:
+                pass
+        return ret
 
     def regularizer(self):
         return self._spline.integrated_curvature()

@@ -17,6 +17,7 @@ class PiecewiseConstantRateFunction
     std::vector<T> average_coal_times() const;
     T random_time(const double, const double, const long long) const;
     T random_time(const double, const double, const double, std::mt19937 &) const;
+    int getNder() const { return nder; }
     void print_debug() const;
     
     void tjj_double_integral_above(const int, long, std::vector<Matrix<T> > &) const;

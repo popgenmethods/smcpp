@@ -264,7 +264,7 @@ cdef class _PyInferenceManager:
         def __get__(self):
             return _store_admatrix_helper(self._im.getEmission(), self._model.dlist)
 
-    def Q(self):
+    def Q(self, k=None):
         cdef vector[adouble] ad_rets
         with nogil:
             ad_rets = self._im.Q()
@@ -273,14 +273,18 @@ cdef class _PyInferenceManager:
         cdef adouble q
         q = ad_rets[0]
         q1 = _adouble_to_ad(ad_rets[0], self._model.dlist)
-        logger.debug(("q1", q1, [q1.d(x) for x in self._model.dlist]))
+        qq = [q1]
+        # logger.debug(("q1", q1, [q1.d(x) for x in self._model.dlist]))
         for i in range(1, 3):
             z = _adouble_to_ad(ad_rets[i], self._model.dlist)
+            qq.append(z)
             q += ad_rets[i]
-            logger.debug(("q%d" % (i + 1), z, [z.d(x) for x in self._model.dlist]))
+            # logger.debug(("q%d" % (i + 1), z, [z.d(x) for x in self._model.dlist]))
         r = adnumber(toDouble(q))
         if self._model.dlist:
             r = _adouble_to_ad(q, self._model.dlist)
+        if k is not None:
+            return qq[k]
         return r
 
     def loglik(self):

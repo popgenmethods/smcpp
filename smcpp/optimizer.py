@@ -39,13 +39,13 @@ class AbstractOptimizer(Observable):
 
     # In the one population case, this method adds derivative information to x
     def _prepare_x(self, x):
-        return ad.adnumber(x)
+        return [ad.adnumber(xx, tag=i) for i, xx in enumerate(x)]
 
-    def _f(self, x, analysis, coords):
+    def _f(self, x, analysis, coords, k=None):
         x = self._prepare_x(x)
         analysis.model.reset_derivatives()
         analysis.model[coords] = x
-        q = -analysis.Q()
+        q = -analysis.Q(k)
         ret = [q.x, np.array(list(map(q.d, x)))]
         # model = analysis.model
         # logger.debug("\n" + np.array_str(model.y.astype(float), precision=2, max_line_width=100))
@@ -236,6 +236,30 @@ class AsciiPlotter(Observer):
         logger.info("Current model:\n%s", graph)
 
 
+class TransitionDebug(Observer):
+
+    def __init__(self, path):
+        self._path = path
+        try:
+            os.makedirs(path)
+        except OSError:
+            pass
+
+    def update(self, message, *args, **kwargs):
+        if message != "post mini M-step":
+            return
+        im = kwargs['analysis']._im
+        T = im.transition
+        xis = np.sum(im.xisums, axis=0)
+        np.savetxt(os.path.join(self._path, "xis.txt"), xis.astype("float"), fmt="%g")
+        log_T = np.array(ad.admath.log(T))
+        np.savetxt(os.path.join(self._path, "log_T.txt"), log_T.astype("float"), fmt="%g")
+        q3 = log_T * xis
+        np.savetxt(os.path.join(self._path, "q3.txt"), q3.astype("float"), fmt="%g")
+        for i, d in enumerate(im.model.dlist):
+            f = np.vectorize(lambda x, d=d: x.d(d))
+            np.savetxt(os.path.join(self._path, "q3.%d.txt" % i), f(q3).astype("float"), fmt="%g")
+
 class SMCPPOptimizer(AbstractOptimizer):
     'Model fitting for one population.'
 
@@ -245,6 +269,7 @@ class SMCPPOptimizer(AbstractOptimizer):
         self.register(HiddenStateOccupancyPrinter())
         self.register(ProgressPrinter())
         self.register(ModelPrinter())
+        # self.register(TransitionDebug("/export/home/terhorst/Dropbox.new/Dropbox/tdtmp"))
         gnuplot = which("gnuplot")
         if gnuplot:
             self.register(AsciiPlotter(gnuplot))

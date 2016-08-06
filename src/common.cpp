@@ -36,7 +36,8 @@ void (*Logger::logger_cb)(const char*, const char*, const char*) = 0;
 void call_logger(const char* name, const char* level, const char* message)
 {
     std::lock_guard<std::mutex> guard(logger_cb_mtx);
-    Logger::logger_cb(name, level, message);
+    if (Logger::logger_cb)
+        Logger::logger_cb(name, level, message);
 }
 
 void signal_bt(int sig)

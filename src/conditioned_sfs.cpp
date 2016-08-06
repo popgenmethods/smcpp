@@ -39,27 +39,6 @@ std::vector<Matrix<T> > OnePopConditionedSFS<T>::compute_below(const PiecewiseCo
 }
 
 template <typename T>
-inline T doubly_compensated_summation(const std::vector<T> &x)
-{
-    if (x.size() == 0)
-        return 0.0;
-    T s = x[0];
-    T c = 0.0;
-    T y, u, v, t, z;
-    for (unsigned int i = 1; i < x.size(); ++i)
-    {
-        y = c + x[i];
-        u = x[i] - (y - c);
-        t = y + s;
-        v = y - (t - s);
-        z = u + v;
-        s = t + z;
-        c = z - (s - t);
-    }
-    return s;
-}
-
-template <typename T>
 std::vector<Matrix<T> > OnePopConditionedSFS<T>::compute_above(const PiecewiseConstantRateFunction<T> &eta) const
 {
     const int M = eta.getHiddenStates().size() - 1;

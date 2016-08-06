@@ -25,6 +25,11 @@ class HJTransition : public Transition<T>
 {
     public:
     HJTransition(const PiecewiseConstantRateFunction<T> &eta, const double rho);
+
+    private:
+    void compute_expms();
+    std::vector<Matrix<T> > expms;
+    std::vector<Matrix<T> > expm_prods;
 };
 
 template <typename T>
