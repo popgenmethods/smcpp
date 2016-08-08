@@ -1,9 +1,9 @@
-# Apply a monkeypatch to ad to prevent the O(k^2) computation of 2nd derivatives
 from __future__ import absolute_import, division, print_function
 import logging
-from .version import __version__
 import ad
+import numbers
 
+from .version import __version__
 
 class _SMCPPFilter:
     def filter(self, record):
@@ -28,6 +28,7 @@ def init_logging():
 
 init_logging()
 
+# Apply a monkeypatch to ad to prevent the O(k^2) computation of 2nd derivatives
 def _my_apply_chain_rule(ad_funcs, variables, lc_wrt_args, qc_wrt_args,
                          cp_wrt_args):
     "Monkey-patched version of ad._apply_chain_rule which only computes first derivatives"
@@ -38,6 +39,5 @@ def _my_apply_chain_rule(ad_funcs, variables, lc_wrt_args, qc_wrt_args,
             # first order terms
             lc_wrt_vars[var1] += dh * fdv1
     return (lc_wrt_vars, {}, {})
-
 
 ad._apply_chain_rule = _my_apply_chain_rule

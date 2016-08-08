@@ -302,9 +302,9 @@ HJTransition<T>::HJTransition(const PiecewiseConstantRateFunction<T> &eta, const
         c_rho += delta * this->rho;
         A = A * matrix_exp(c_rho, c_eta);
         Matrix<T> B = expm_prods[hs_indices[j - 1]] * A;
-        this->Phi(j - 1, j - 1) = B(0, 0);
-        this->Phi(j - 1, j - 1) += expm_prods[hs_indices[j - 1]](0, 0) * A(0, 2);
-        this->Phi(j - 1, j - 1) += expm_prods[hs_indices[j - 1]](0, 1) * A(1, 2);
+        // this->Phi(j - 1, j - 1) = B(0, 0);
+        // this->Phi(j - 1, j - 1) += expm_prods[hs_indices[j - 1]](0, 0) * A(0, 2);
+        // this->Phi(j - 1, j - 1) += expm_prods[hs_indices[j - 1]](0, 1) * A(1, 2);
         // superdiagonal
         for (int k = j + 1; k < this->M; ++k)
         {
@@ -316,8 +316,12 @@ HJTransition<T>::HJTransition(const PiecewiseConstantRateFunction<T> &eta, const
                 p_coal *= -expm1(-(Rk - Rk1));
             this->Phi(j - 1, k - 1) = expm_prods[hs_indices[j]](0, 1) * p_coal;
         }
+        this->Phi(j - 1, j - 1) = 0.;
+        T s = this->Phi.row(j - 1).sum();
+        this->Phi(j - 1, j - 1) = 1. - s;
+
     }
-    T thresh(1e-80);
+    T thresh(1e-20);
     this->Phi = this->Phi.unaryExpr([thresh] (const T &x) { if (x < thresh) return thresh; return x; });
     check_nan(this->Phi);
 }
