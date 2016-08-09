@@ -27,6 +27,10 @@ class Analysis(Observer):
         self._init_model(args.initial_model, args.pieces, args.N0, args.t1, args.tK, args.knots, args.spline, args.fixed_split)
         self._init_hidden_states(args.M)
         self._model.reset()
+        # Add a small amount of noise to model. If all pieces are equal,
+        # the derivatives can be off due to some branching conditions in
+        # the spline code.
+        self._model[:] += np.random.normal(0., .01, size=len(self._model[:]))
         self._init_bounds(args.Nmin)
         self._perform_thinning(args.thinning)
         self._normalize_data(args.length_cutoff)

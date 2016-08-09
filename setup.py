@@ -73,6 +73,8 @@ setup(name='smcpp',
 	setup_requires=['pytest-runner', 'numpy', 'pkgconfig', 'cython'],
         tests_require=['pytest'],
         install_requires=[
+            "gmpy2", # This is not used in the Python code, but 
+                     # enforces the libmpfr and libgmp dependencies.
             "appdirs",
             "backports.shutil_which",
             "backports.shutil_get_terminal_size",
