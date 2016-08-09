@@ -312,7 +312,7 @@ void NPopInferenceManager<P>::recompute_emission_probs()
                     for (int i = 0; i < 3; ++i)
                         tmp += marginalize_sfs<P>()(emission.middleCols(i * sfs_dim, sfs_dim), n, b, nb);
                 else
-                    tmp = marginalize_sfs<P>()(emission.middleCols(a * sfs_dim, sfs_dim), n, b, nb);
+                    tmp += marginalize_sfs<P>()(emission.middleCols(a * sfs_dim, sfs_dim), n, b, nb);
             }
         }
         if (tmp.maxCoeff() > 1.0 or tmp.minCoeff() <= 0.0)
