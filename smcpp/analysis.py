@@ -4,6 +4,8 @@ import multiprocessing
 import json
 import sys
 import os.path
+import scipy.optimize
+import ad
 
 from . import estimation_tools, _smcpp, util, logging, optimizer, jcsfs, spline
 from .model import SMCModel, SMCTwoPopulationModel
@@ -22,25 +24,28 @@ def _tied_property(attr):
 class Analysis(Observer):
     '''A dataset, model and inference manager to be used for estimation.'''
     def __init__(self, files, args):
-        self._load_data(files)
-        self._init_parameters(args.theta, args.rho)
-        self._init_model(args.initial_model, args.pieces, args.N0, args.t1, args.tK, args.knots, args.spline, args.fixed_split)
-        self._init_hidden_states(args.M)
-        self._model.reset()
-        # Add a small amount of noise to model. If all pieces are equal,
-        # the derivatives can be off due to some branching conditions in
-        # the spline code.
-        self._model[:] += np.random.normal(0., .01, size=len(self._model[:]))
-        self._init_bounds(args.Nmin)
-        self._perform_thinning(args.thinning)
-        self._normalize_data(args.length_cutoff)
-        self._init_inference_manager(args.folded)
-        self._init_optimizer(args.outdir, args.block_size, args.fix_rho, args.fixed_split)
-
         # Misc. parameter initialiations
         self._N0 = args.N0
         self._penalty = args.regularization_penalty
         self._niter = args.em_iterations
+
+        self._load_data(files)
+        self._compute_sfs()
+        self._init_parameters(args.theta, args.rho)
+        self._init_bounds(args.Nmin)
+        self._init_model(args.initial_model, args.pieces, args.N0, args.t1, args.tK, args.knots, args.spline, args.fixed_split)
+        self._model.reset()
+        # Add a small amount of noise to model. If all pieces are equal,
+        # the derivatives can be off due to some branching in the spline
+        # code.
+        self._model[:] += np.random.normal(0., .01, size=len(self._model[:]))
+        if not args.no_prefit:
+            self._prefit()
+        self._init_hidden_states(args.M)
+        self._perform_thinning(args.thinning)
+        self._normalize_data(args.length_cutoff)
+        self._init_inference_manager(args.folded)
+        self._init_optimizer(args.outdir, args.block_size, args.fix_rho, args.fixed_split)
 
     ## PRIVATE INIT FUNCTIONS
     def _load_data(self, files):
@@ -94,16 +99,49 @@ class Analysis(Observer):
         #             penalty=args.pretrain_penalty, f=args.regularizer)
         #     # self._pretrain_penalizer = self._penalizer
         #     self._pretrain(theta, args.folded, args.pretrain_penalty)
+
+    # Compute observed / empirical SFS
+    def _compute_sfs(self):
+        self._full_sfs = estimation_tools.empirical_sfs(self._data, self._n)
+        s = self._full_sfs.sum()
+        logger.debug("Full SFS:\n%s\n(%d bases total)", 
+                str(self._full_sfs.astype('float') / s), s)
     
-        ## After (potentially) doing pretraining, normalize and thin the data set
-        ## Optionally thin each dataset
+    def _prefit(self):
+        # Quickly fit model to the observed SFS, so as to accurately
+        # compute uniform hidden states and get a good starting point
+        # for the optimization.
+        sample_sfs = util.undistinguished_sfs(self._full_sfs)
+
+        model = self._model
+        def _f(x):
+            model[:] = [ad.adnumber(xx, tag=i) for i, xx in enumerate(x)]
+            csfs = _smcpp.raw_sfs(model, self._n, 0., np.inf)
+            csfs[0, 0] = 0
+            csfs *= self._theta
+            csfs[0, 0] = 1. - csfs.sum()
+            sfs = util.undistinguished_sfs(csfs)
+            kl = -(sample_sfs * ad.admath.log(sfs)).sum()
+            reg = self._penalty * model.regularizer()
+            kl += reg
+            ret = (kl.x, np.array(list(map(kl.d, model[:]))))
+            logger.debug("\n%s" % np.array_str(model[:].astype('float'), precision=3))
+            logger.debug((reg, ret))
+            return ret
+
+        x0 = self._model[:].astype("float")
+        bounds = np.log([self._bounds] * len(x0))
+        # res = scipy.optimize.minimize(_f, x0, jac=True,
+        #         bounds=bounds,
+        #         method="TNC")
+        res = estimation_tools.adagrad(_f, x0, bounds)
+        logger.debug(res)
+        model[:] = res.x
+
+    # Optionally thin each dataset
     def _perform_thinning(self, thinning):
         if thinning is None:
             thinning = 400 * np.sum(self._n)
-        self._full_sfs = estimation_tools.empirical_sfs(self._data, self._n)
-        s = self._full_sfs.sum()
-        logger.debug("SFS (before thinning):\n%s\n(%d bases total)", 
-                str(self._full_sfs.astype('float') / s), s)
         if thinning > 1:
             logger.info("Thinning...")
             self._data = estimation_tools.thin_dataset(self._data, thinning)
@@ -158,8 +196,11 @@ class Analysis(Observer):
     def _init_hidden_states(self, M):
         ## choose hidden states based on prior model
         hs = estimation_tools.balance_hidden_states(self._model.distinguished_model, M)
-        kt = self._model.distinguished_model.knots
+        # kt = self._model.distinguished_model.knots
+        kt = np.cumsum(self._model._s)
+        kt = kt[kt < hs[1]]
         self._hidden_states = np.sort(np.unique(np.concatenate([kt, hs])))
+        # self._hidden_states = hs
         logger.debug("%d hidden states:\n%s" % (len(self._hidden_states), str(self._hidden_states)))
 
     def _normalize_data(self, length_cutoff):
@@ -219,8 +260,8 @@ class Analysis(Observer):
         'Value of Q() function in M-step.'
         q1 = self._im.Q(k)
         q2 = -self._penalty * self.model.regularizer()
-        # logger.debug(("im.Q", float(q1), [q1.d(x) for x in self.model.dlist]))
-        # logger.debug(("reg", float(q2), [q2.d(x) for x in self.model.dlist]))
+        logger.debug(("im.Q", float(q1), [q1.d(x) for x in self.model.dlist]))
+        logger.debug(("reg", float(q2), [q2.d(x) for x in self.model.dlist]))
         return q1 + q2
 
     @logging.log_step("Running E-step...", "E-step completed.")
