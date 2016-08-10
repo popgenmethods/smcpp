@@ -1,11 +1,8 @@
 from __future__ import absolute_import, division, print_function
 import numpy as np
-import json
-import logging
-from ad import adnumber, ADF
 import ad.admath
 
-from . import _smcpp, estimation_tools, spline, logging
+from . import spline, logging
 from .observe import Observable
 
 

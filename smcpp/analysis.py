@@ -1,6 +1,5 @@
 import numpy as np
 import functools
-import multiprocessing
 import json
 import sys
 import os.path
@@ -33,7 +32,8 @@ class Analysis(Observer):
         self._compute_sfs()
         self._init_parameters(args.theta, args.rho)
         self._init_bounds(args.Nmin)
-        self._init_model(args.initial_model, args.pieces, args.N0, args.t1, args.tK, args.knots, args.spline, args.fixed_split)
+        self._init_model(args.initial_model, args.pieces, args.N0, args.t1,
+                args.tK, args.knots, args.spline, args.fixed_split)
         self._model.reset()
         # Add a small amount of noise to model. If all pieces are equal,
         # the derivatives can be off due to some branching in the spline
@@ -131,10 +131,9 @@ class Analysis(Observer):
 
         x0 = self._model[:].astype("float")
         bounds = np.log([self._bounds] * len(x0))
-        # res = scipy.optimize.minimize(_f, x0, jac=True,
-        #         bounds=bounds,
-        #         method="TNC")
-        res = estimation_tools.adagrad(_f, x0, bounds)
+        res = scipy.optimize.minimize(_f, x0, jac=True,
+                bounds=bounds,
+                method="L-BFGS-B")
         logger.debug(res)
         model[:] = res.x
 
