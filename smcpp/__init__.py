@@ -2,8 +2,11 @@ from __future__ import absolute_import, division, print_function
 import logging
 import ad
 import numbers
+import numpy as np
 
 from .version import __version__
+
+np.seterr(divide='raise')
 
 class _SMCPPFilter:
     def filter(self, record):
