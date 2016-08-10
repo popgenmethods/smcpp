@@ -174,6 +174,7 @@ class Analysis(Observer):
         knots = np.cumsum(estimation_tools.construct_time_points(t1, tK, [1] * num_knots))
         logger.debug("knots in coalescent scaling:\n%s", str(knots))
         spline_class = {"cubic": spline.CubicSpline,
+                        "bspline" : spline.BSpline,
                         "akima": spline.AkimaSpline, 
                         "pchip": spline.PChipSpline}[spline_class]
         if self._npop == 1:

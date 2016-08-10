@@ -1,8 +1,9 @@
 from __future__ import absolute_import, division, print_function
 import numpy as np
 import re
+import sys
 
-from .common import smooth_abs
+from .common import smooth_abs, polyval
 
 
 def _TDMASolve(a, b, c, d):
@@ -22,12 +23,12 @@ class CubicSpline:
         self._x = np.array(x)
         self._y = np.array(y)
         self._fit()
+        # Flat outside of boundaries
         if self._x[0] > 0:
             self._x = np.concatenate([[0], self._x])
             self._coef = np.insert(self._coef, 0, [0, 0, 0, y[0]], axis=1)
-        # if self._x[-1] < _smcpp.T_MAX:
-        #     self._x = np.concatenate([self._x, [_smcpp.T_MAX]])
-        #     self._coef = np.insert(self._coef, -1, [0, 0, 0, y[-1]], axis=1)
+        self._x = np.append(self._x, np.inf)
+        self._coef = np.insert(self._coef, -1, [0, 0, 0, y[-1]], axis=1)
 
 
     def _fit(self):
@@ -70,11 +71,10 @@ class CubicSpline:
         numeric.
         '''
         s = 0.
-
         for c, x1, x2 in zip(self._coef.T[:-1], self._x[:-2], self._x[1:-1]):
             x = np.linspace(x1, x2, 50)
-            d2 = np.polyval(np.polyder(c, 2), x)
-            d1 = np.polyval(np.polyder(c, 1), x)
+            d2 = polyval(np.polyder(c, 2), x)
+            d1 = polyval(np.polyder(c, 1), x)
             y = smooth_abs(d2) * (1. + d1**2)**(-1.5)
             s += np.trapz(y, x)
         return s

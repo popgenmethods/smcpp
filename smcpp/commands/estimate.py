@@ -57,7 +57,7 @@ def init_parser(parser):
     optimizer.add_argument('--regularization-penalty',
                            type=float, help="regularization penalty", default=1.)
     optimizer.add_argument('--spline',
-                           choices=["cubic", "akima", "pchip"],
+                           choices=["bspline", "cubic", "akima", "pchip"],
                            default="pchip", help="type of spline representation to use")
     optimizer.add_argument('--Nmin', type=float,
                            help="Lower bound on effective population size (in units of N0)",

@@ -1,8 +1,10 @@
 import numpy as np
-import numbers
 import scipy.interpolate
 import math
-import sys
+import numbers
+
+from .cubic import CubicSpline
+from .common import polyval
 
 
 def _align(p1, p2):
@@ -13,21 +15,26 @@ def _align(p1, p2):
     It's assumed that the first and last breakpoints of p1 and p2 are 
     equal.
     '''
+    if np.all(p1.x == p2.x):
+        (p1, p2)
     nx = np.array(sorted(frozenset(list(p1.x) + list(p2.x))))
     ret = []
     for poly in (p1, p2):
-        c = np.zeros([max(p1.c.shape[0], p2.c.shape[0]), len(nx) - 1])
+        c = np.zeros([max(p1.c.shape[0], p2.c.shape[0]), len(nx) - 1], dtype=object)
         pieces = np.searchsorted(poly.x, nx[:-1], side="right") - 1
         for i in range(c.shape[0]):
             for j, ind in enumerate(pieces):
                 x = nx[j] - poly.x[ind]
-                pv = np.polyval(np.polyder(poly.c[:, ind], i), x)
+                pv = polyval(np.polyder(poly.c[:, ind], i), x)
                 c[c.shape[0] - i - 1, j] = pv / math.factorial(i)
         ret.append(PPoly(c, nx))
     return tuple(ret)
 
 
-class PPoly(scipy.interpolate.PPoly):
+class PPoly:
+    def __init__(self, c, x):
+        self.c = np.array(c, dtype=object)
+        self.x = np.array(x)
 
     def __sub__(self, other):
         p1, p2 = _align(self, other)
@@ -40,7 +47,11 @@ class PPoly(scipy.interpolate.PPoly):
     def __mul__(self, other):
         if not isinstance(other, PPoly):
             # This should hopefully be a constant or something.
-            return PPoly(self.c * other, self.x)
+            if isinstance(other, numbers.Number):
+                c = self.c * other
+            else:
+                c = self.c.astype('object') * other
+            return PPoly(c, self.x)
         p1, p2 = _align(self, other)
         cs = [np.polymul(c1, c2) for c1, c2 in zip(p1.c.T, p2.c.T)]
         c = np.zeros([max([len(c) for c in cs]), p1.c.shape[1]])
@@ -65,23 +76,29 @@ class PPoly(scipy.interpolate.PPoly):
 def _bspline_basis(t, n):
     '''Bspline basis for knot sequence :t: up to order :n:.'''
     key = (tuple(t), n)
+    zero = PPoly([[0.]], [t[0], t[-1]])
     if key not in _bspline_basis.memo:
         memo = {}
         def B(i, k):
             if k == 0:
                 return PPoly([[0., 1., 0.]], [t[0], t[i], t[i + 1], t[-1]])
             if (i, k) not in memo:
-                p1 = B(i, k - 1)
-                f1 = PPoly(
-                        [[0., 1. / (t[i + k] - t[i]), 0.], [0, 0, 0]],
-                        [t[0], t[i], t[i + k], t[-1]]
-                        )
-                p2 = B(i + 1, k - 1)
-                f2 = PPoly(
-                        [[0., 1. / (t[i + 1] - t[i + k + 1]), 0.], [0., 1., 0.]],
-                        [t[0], t[i + 1], t[i + k + 1], t[-1]]
-                        )
-                memo[(i, k)] = p1 * f1 + p2 * f2
+                f = zero
+                if t[i + k] != t[i]:
+                    p1 = B(i, k - 1)
+                    f1 = PPoly(
+                            [[0., 1. / (t[i + k] - t[i]), 0.], [0, 0, 0]],
+                            [t[0], t[i], t[i + k], t[-1]]
+                            )
+                    f += p1 * f1
+                if t[i + 1] != t[i + k + 1]:
+                    p2 = B(i + 1, k - 1)
+                    f2 = PPoly(
+                            [[0., 1. / (t[i + 1] - t[i + k + 1]), 0.], [0., 1., 0.]],
+                            [t[0], t[i + 1], t[i + k + 1], t[-1]]
+                            )
+                    f += p2 * f2
+                memo[(i, k)] = f
             return memo[(i, k)]
         _bspline_basis.memo[key] = [B(i, n) for i in range(len(t) - n - 1)]
     return _bspline_basis.memo[key]
@@ -90,7 +107,8 @@ _bspline_basis.memo = {}
 
 class BSpline(CubicSpline):
     def _fit(self):
-        b = _bspline_basis(self._x, 3)
-        zero = PPoly([[0.]], [x[0], x[-1]])
-        poly = sum([bb * yy for yy, bb in zip(y, b)], zero)
+        x = np.concatenate([[self._x[0]] * 3, self._x, [self._x[-1]] * 3])
+        b = _bspline_basis(x, 3)
+        zero = PPoly([[0.]], [self._x[0], self._x[-1]])
+        poly = sum([bb * yy for yy, bb in zip(self._y, b)], zero)
         self._coef = poly.c
