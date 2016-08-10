@@ -44,8 +44,11 @@ cdef void logger_cb(const char* name, const char* level, const char* message) wi
         abort = True
 
 def _check_abort():
-    if abort:
-        raise KeyboardInterrupt()
+    try:
+        if abort:
+            raise KeyboardInterrupt()
+    finally:
+        abort = False
 
 init_logger_cb(logger_cb);
 
