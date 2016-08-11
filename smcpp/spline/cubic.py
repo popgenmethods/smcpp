@@ -2,8 +2,17 @@ from __future__ import absolute_import, division, print_function
 import numpy as np
 import re
 import sys
+import wrapt
 
 from .common import smooth_abs, polyval
+
+def after(meth):
+    @wrapt.decorator
+    def wrapper(wrapped, instance, args, kwargs):
+        ret = wrapped(*args, **kwargs)
+        getattr(instance, meth)()
+        return ret
+    return wrapper
 
 
 def _TDMASolve(a, b, c, d):
@@ -19,17 +28,12 @@ def _TDMASolve(a, b, c, d):
 
 class CubicSpline:
     'A C2 spline.'
-    def __init__(self, x, y):
+    def __init__(self, x, y=None):
         self._x = np.array(x)
-        self._y = np.array(y)
+        if y is None:
+            y = np.zeros_like(x, dtype='object')
+        self._y = y
         self._fit()
-        # Flat outside of boundaries
-        if self._x[0] > 0:
-            self._x = np.concatenate([[0], self._x])
-            self._coef = np.insert(self._coef, 0, [0, 0, 0, y[0]], axis=1)
-        self._x = np.append(self._x, np.inf)
-        self._coef = np.insert(self._coef, -1, [0, 0, 0, y[-1]], axis=1)
-
 
     def _fit(self):
         x = self._x
@@ -56,10 +60,27 @@ class CubicSpline:
         cc = np.append(cc, 3. * ca[-2] * h[1]**2 + 2 * cb[-2] * h[-1] + cc[-1])
         self._coef = np.array([ca, cb, cc, y])
 
+    @after('_fit')
+    def __setitem__(self, item, x):
+        self._y[item] = x
+
+    def __getitem__(self, item):
+        return self._y[item]
+
+    def tv(self):
+        'Integral of absolute value of first derivative.'
+        s = 0.
+        for c, x1, x2 in zip(self._coef.T[:-1], self._x[:-2], self._x[1:-1]):
+            x = np.linspace(x1, x2, 50)
+            d1 = polyval(np.polyder(c, 1), x)
+            y = smooth_abs(d1)
+            s += np.trapz(y, x)
+        return s
+
     def roughness(self):
         'Integral of squared second derivative.'
         a, b = self._coef[:2, :-1]
-        xi = np.diff(self._x)
+        xi = np.diff(self._x[:-1])
         return (12 * a**2 * xi**3 + 12 * a * b * xi**2 + 4 * b**2 * xi).sum()
 
     def integrated_curvature(self):
@@ -89,12 +110,16 @@ class CubicSpline:
     def __call__(self, points):
         'Evaluate at points.'
         points = np.atleast_1d(points)
-        ip = np.searchsorted(self._x, points) - 1
-        exp = np.arange(4)[::-1, None]
-        xi = (points - self._x[ip])**exp
-        ret = (self._coef[:, ip] * xi).sum(axis=0)
+        ip = np.searchsorted(self._x, points, side="right") - 1
+        ret = np.zeros(len(points), dtype=object)
         # The spline is constrained to be flat outside of the knot range
         ret[ip < 0] = self._coef[-1, 0]
+        ret[ip >= len(self._x) - 1] = self._coef[-1, -1]
+        good = (0 <= ip) & (ip < len(self._x) - 1)
+        ipg = ip[good]
+        p = np.arange(4)[::-1, None]
+        xi = (points[good] - self._x[ipg]) ** p
+        ret[good] = (self._coef[:, ipg] * xi).sum(axis=0)
         return ret
 
     def dump(self, file=sys.stderr):

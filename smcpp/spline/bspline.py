@@ -106,9 +106,19 @@ _bspline_basis.memo = {}
 
 
 class BSpline(CubicSpline):
+
+    def __init__(self, x):
+        # BSplines have a slightly different relationship between the knots
+        # and control points.
+        y = np.zeros(len(x) + 2, dtype=object)
+        CubicSpline.__init__(self, x, y)
+
     def _fit(self):
         x = np.concatenate([[self._x[0]] * 3, self._x, [self._x[-1]] * 3])
         b = _bspline_basis(x, 3)
         zero = PPoly([[0.]], [self._x[0], self._x[-1]])
         poly = sum([bb * yy for yy, bb in zip(self._y, b)], zero)
         self._coef = poly.c
+
+    def roughness(self):
+        return (np.diff(self._y, 2) ** 2).sum();

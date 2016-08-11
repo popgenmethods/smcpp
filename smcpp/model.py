@@ -42,8 +42,9 @@ class SMCModel(Observable):
         self._s = np.array(s)
         self._cumsum_s = np.cumsum(s)
         self._knots = np.array(knots)
-        self.y = np.zeros_like(knots, dtype='object')
-        self._refit()
+        # self._trans = np.vectorize(lambda x: x)
+        self._trans = np.log
+        self._spline = self._spline_class(self._trans(self._knots))
 
     @property
     def s(self):
@@ -54,37 +55,28 @@ class SMCModel(Observable):
         return len(self.knots)
 
     def reset_derivatives(self):
-        self._y = self._y.astype('float').astype('object')
-        self._refit()
+        self[:] = self[:].astype('float').astype('object')
+
+    def refit(self):
+        y = self[:]
+        self._spline = self._spline_class(self._trans(self._knots))
+        self[:] = y
 
     @property
     def knots(self):
         return self._knots
 
     def __setitem__(self, key, item):
-        self._y[key] = item
-        self._refit()
+        self._spline[key] = item
         self.update_observers('model update')
 
     def __getitem__(self, ind):
-        return self._y[ind]
-
-    def _refit(self):
-        self._spline = self._spline_class(self._knots, self._y)
-
-    @property
-    def y(self):
-        return self._y
-
-    @y.setter
-    def y(self, y):
-        self._y = y
-        self._refit()
+        return self._spline[ind]
 
     @property
     def dlist(self):
         ret = []
-        for yy in self.y:
+        for yy in self[:]:
             try:
                 ret += [d for d in yy.d() if d.tag is not None]
             except AttributeError:
@@ -92,31 +84,46 @@ class SMCModel(Observable):
         return ret
 
     def regularizer(self):
-        return self._spline.integrated_curvature()
+        # ret = self._spline.integrated_curvature()
+        ret = self._spline.tv()
+        if not isinstance(ret, ad.ADF):
+            ret = ad.adnumber(ret)
+        return ret
+
+    def __call__(self, x):
+        'Evaluate :self: at points x.'
+        return np.array(
+            ad.admath.exp(self._spline(self._trans(x)))
+        )
 
     def stepwise_values(self):
-        return np.array(ad.admath.exp(self._spline.eval(self._cumsum_s)))
+        return self(np.cumsum(self._s))
 
     def reset(self):
         self[:] = 0.
 
     def to_s(self, until=None):
-        ary = self[:until].astype('float')
-        fmt = " ".join(["{:>5.2f}"] * len(ary))
-        return fmt.format(*ary)
+        ret = []
+        for ary in [self[:until], self.stepwise_values()]:
+            ary = ary.astype('float')
+            fmt = " ".join(["{:>5.2f}"] * len(ary))
+            ret.append(fmt.format(*ary))
+        return "\n" + "\n".join(ret)
 
     def to_dict(self):
-        return {'class': self.__class__.__name__,
+        return {
+                'class': self.__class__.__name__,
                 's': list(self._s),
                 'knots': list(self._knots),
-                'y': list(self._y.astype('float')),
-                'spline_class': self._spline_class.__name__}
+                'spline_class': self._spline_class.__name__,
+                'y': self[:].astype('float').tolist()
+                }
 
     @classmethod
-    def from_dict(klass, d):
-        assert klass.__name__ == d['class']
+    def from_dict(cls, d):
+        assert cls.__name__ == d['class']
         spc = getattr(spline, d['spline_class'])
-        r = klass(d['s'], d['knots'], spc)
+        r = cls(d['s'], d['knots'], spc)
         r[:] = d['y']
         return r
 
@@ -176,11 +183,11 @@ class SMCTwoPopulationModel(Observable):
                 'split': float(self._split)}
 
     @classmethod
-    def from_dict(klass, d):
-        assert klass.__name__ == d['class']
+    def from_dict(cls, d):
+        assert cls.__name__ == d['class']
         model1 = SMCModel.from_dict(d['model1'])
         model2 = SMCModel.from_dict(d['model2'])
-        return klass(model1, model2, d['split'])
+        return cls(model1, model2, d['split'])
 
     def to_s(self):
         return "\nPop. 1:\n{}\nPop. 2:\n{}\nSplit: {:.3f}".format(

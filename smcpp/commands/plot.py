@@ -45,10 +45,11 @@ def main(args):
             m = klass.from_dict(mod)
             a = m.stepwise_values().astype('float')
             s = m.s
-            d = {'a': m.stepwise_values(), 's': m.s, 'N0': res['N0']}
-        if g is not None:
-            d['s'] *= g
+            d = {'a': m.stepwise_values(), 's': m.s, 'N0': res['N0'], 'model': m}
+        d['g'] = g
         psfs.append((label, d, off or 0))
+        if 'model' in d:
+            psfs.append((label, {k:v for k, v in d.items() if k != 'model'}, off or 0))
     if args.median:
         dmed = {'s': psfs[-1][1]['s'], 'N0': psfs[-1][1]['N0']}
         for x in "ab":
