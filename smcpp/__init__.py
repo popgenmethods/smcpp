@@ -6,7 +6,7 @@ import numpy as np
 
 from .version import __version__
 
-np.seterr(divide='raise')
+np.seterr(divide='raise', invalid='raise', over='raise')
 
 class _SMCPPFilter:
     def filter(self, record):
