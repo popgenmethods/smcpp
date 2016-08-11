@@ -201,7 +201,7 @@ class Analysis(Observer):
         kt = np.cumsum(self._model._s)
         kt = kt[kt < hs[1]]
         self._hidden_states = np.sort(np.unique(np.concatenate([kt, hs])))
-        # self._hidden_states = hs
+        self._hidden_states = hs
         logger.debug("%d hidden states:\n%s" % (len(self._hidden_states), str(self._hidden_states)))
 
     def _normalize_data(self, length_cutoff):
