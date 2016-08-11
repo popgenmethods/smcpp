@@ -182,7 +182,7 @@ class Analysis(Observer):
             if fixed_split is not None:
                 logger.warn("--split was specified, but only one population found in data")
             self._model = SMCModel(time_points, knots, spline_class)
-            logger.debug("initial model:\n%s" % np.array_str(self._model.y, precision=3))
+            logger.debug("initial model:\n%s" % np.array_str(self._model[:].astype('float'), precision=3))
         else:
             if fixed_split is not None:
                 split = fixed_split
