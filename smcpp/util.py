@@ -11,6 +11,9 @@ from . import logging, _smcpp, model
 
 logger = logging.getLogger(__name__)
 
+def cumsum0(ary):
+    return np.concatenate([[0], np.cumsum(ary)])
+
 # Section 7. of MSMC supplemental
 def build_sawtooth():
     sawtooth = {'a': [5.], 'b': [], 's': []}
