@@ -134,6 +134,7 @@ class Analysis(Observer):
         res = scipy.optimize.minimize(_f, x0, jac=True,
                 bounds=bounds,
                 method="L-BFGS-B")
+        # res = estimation_tools.adagrad(_f, x0, bounds)
         logger.debug(res)
         model[:] = res.x
 
