@@ -72,8 +72,8 @@ PiecewiseConstantRateFunction<T>::PiecewiseConstantRateFunction(
         {
             ts.insert(ti + 1, h);
             ada.insert(ada.begin() + ip + 1, ada[ip]);
-            check_nan(ada[ip + 1]);
-            check_nan(ts[ip + 1]);
+            CHECK_NAN(ada[ip + 1]);
+            CHECK_NAN(ts[ip + 1]);
             hs_indices.push_back(ip + 1);
         }
     }
@@ -86,6 +86,8 @@ template <typename T>
 inline T _double_integral_below_helper(const int rate, const double &tsm, const double &tsm1, const T &ada, 
         const T &Rrng, const T &log_denom)
 {
+    if (ada == 0)
+        return 0.;
     const int l1r = 1 + rate;
     const double l1rinv = 1. / (double)l1r;
     double diff = tsm1 - tsm;
@@ -106,11 +108,15 @@ template <typename T>
 inline T _double_integral_above_helper(const int rate, const int lam, const double tsm, 
         const double tsm1, const T ada, const T Rrng, const T log_coef)
 {
+    if (ada == 0)
+        return 0.;
     double diff = tsm1 - tsm;
     T adadiff = ada * diff;
     long l1 = lam + 1;
     if (rate == 0)
+    {
         return exp(-l1 * Rrng + log_coef) * (expm1(-l1 * adadiff) + l1 * adadiff) / l1 / l1 / ada;
+    }
     if (l1 == rate)
     {
         if (tsm1 == INFINITY)
@@ -123,21 +129,26 @@ inline T _double_integral_above_helper(const int rate, const int lam, const doub
     if (rate < l1)
         return -exp(-l1 * Rrng + log_coef) * (expm1(-l1 * adadiff) / l1 + (exp(-rate * adadiff) * -expm1(-(l1 - rate) * adadiff) / (l1 - rate))) / rate / ada;
     else
-        return -exp(-l1 * Rrng + log_coef) * (expm1(-l1 * adadiff) / l1 + (exp(-l1 * adadiff) * expm1(-(rate - l1) * adadiff) / (l1 - rate))) / rate / ada;
+        return -exp(-l1 * Rrng + log_coef) * 
+            (
+             expm1(-l1 * adadiff) / l1 + 
+             (exp(-l1 * adadiff) * expm1(-(rate - l1) * adadiff) / (l1 - rate))
+            ) / rate / ada;
 }
 
 template <typename T>
 void PiecewiseConstantRateFunction<T>::print_debug() const
 {
-    std::vector<std::pair<std::string, std::vector<T>>> arys = 
-    {{"ada", ada}, {"Rrng", Rrng}};
-    std::cout << std::endl;
+    std::vector<std::pair<std::string, std::vector<T> > > arys = {{"ada", ada}, {"Rrng", Rrng}};
     for (auto p : arys)
     {
-        std::cout << p.first << std::endl;
+        CRITICAL << p.first << "\n";
         for (adouble x : p.second)
-            std::cout << x.value() << "::" << x.derivatives().transpose() << std::endl;
-        std::cout << std::endl;
+        {
+            CRITICAL << x.value()
+                     << "::" << x.derivatives().transpose() 
+                     << "\n";
+        }
     }
 }
 
@@ -169,8 +180,7 @@ T PiecewiseConstantRateFunction<T>::R_integral(const double a, const double b, c
         if (!std::isinf(toDouble(diff)))
             r *= -expm1(-diff * ada[i]);
         r /= ada[i];
-        check_negative(r);
-        check_nan(r);
+        CHECK_NAN_OR_NEGATIVE(r);
         ret += r;
     }
     return ret;
@@ -189,7 +199,7 @@ inline T _single_integral(const int rate, const double &tsm, const double &tsm1,
     if (tsm1 < INFINITY)
         ret *= -expm1(-c * ada * (tsm1 - tsm));
     ret /= ada * c;
-    check_negative(ret);
+    CHECK_NAN_OR_NEGATIVE(ret);
     return ret;
 }
 
@@ -211,16 +221,22 @@ void PiecewiseConstantRateFunction<T>::tjj_double_integral_above(const int n, lo
             {
                 long rate = nC2(j);
                 tmp = _double_integral_above_helper<T>(rate, lam, ts[m], ts[m + 1], ada[m], Rrng[m], -log_denom);
-                check_nan(tmp);
-                check_negative(tmp);
                 try 
                 {
-                    check_nan(C[h](jj - 2, j - 2));
-                    check_negative(C[h](jj - 2, j - 2));
-                } catch (std::runtime_error)
+                    CHECK_NAN_OR_NEGATIVE(tmp);
+                    CHECK_NAN_OR_NEGATIVE(C[h](jj - 2, j - 2));
+                } 
+                catch (std::runtime_error)
                 {
-                    CRITICAL << m << " " << rate << " " << lam << " " << ts[m] << " " << ts[m + 1] << 
-                        " " << ada[m] << " " << Rrng[m] << " " << log_denom;
+                    CRITICAL << "nan detected:\n j=" << j << "m=" << m << " rate=" << rate 
+                             << " lam=" << lam << " ts[m]=" << ts[m] << " ts[m + 1]=" 
+                             << ts[m + 1] << " ada[m]=" << ada[m] << " Rrng[m]=" << Rrng[m] 
+                             << " log_denom=" << log_denom;
+                    CRITICAL << "tmp=" << tmp;
+                    CRITICAL << "C[h](jj - 2, j - 2)= " << C[h](jj - 2, j - 2);
+                    CRITICAL << "h=" << h;
+                    CRITICAL << "I am eta: ";
+                    print_debug();
                     throw;
                 }
                 C[h](jj - 2, j - 2) += tmp;
@@ -261,11 +277,9 @@ void PiecewiseConstantRateFunction<T>::tjj_double_integral_above(const int n, lo
                 {
                     T si = _single_integral(rate, ts[k], ts[k + 1], ada[k], Rrng[k], log_coef) * fac;
                     C[h](jj - 2, j - 2) += si;
-                    check_nan(C[h](jj - 2, j - 2));
-                    check_negative(C[h](jj - 2, j - 2));
+                    CHECK_NAN_OR_NEGATIVE(C[h](jj - 2, j - 2));
                 }
-                check_nan(C[h](jj - 2, j - 2));
-                check_negative(C[h](jj - 2, j - 2));
+                CHECK_NAN_OR_NEGATIVE(C[h](jj - 2, j - 2));
             }
         }
     }
@@ -295,7 +309,7 @@ void PiecewiseConstantRateFunction<T>::tjj_double_integral_below(
                 T _c = log_coef - log_denom;
                 ts_integrals(j - 2) += fac * _single_integral(rate, ts[k], ts[k + 1], ada[k], Rrng[k], _c);
             }
-            check_negative(ts_integrals(j - 2));
+            CHECK_NAN_OR_NEGATIVE(ts_integrals(j - 2));
         }
         tgt.row(h) += ts_integrals.transpose();
     }

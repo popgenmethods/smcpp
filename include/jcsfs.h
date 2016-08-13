@@ -26,11 +26,14 @@ class JointCSFS : public ConditionedSFS<T>
         Mn10(modified_moran_rate_matrix(n1, 0)),
         Mn11(modified_moran_rate_matrix(n1, 1)),
         Mn12(modified_moran_rate_matrix(n1, 2)),
+        Mn20(modified_moran_rate_matrix(n2, 0)),
+        Mn21(modified_moran_rate_matrix(n2, 1)),
+        Mn22(modified_moran_rate_matrix(n2, 2)),
         S2(arange(0, n1 + 2) / (n1 + 1)),
         S0(Vector<double>::Ones(n1 + 2) - S2),
         Sn1(arange(1, n1 + 2) / (n1 + 2)),
         Sn2(arange(1, n2) / n2),
-        J(M, Matrix<T>::Zero(a1 + 1, (n1 + 1) * (n2 + 1)))
+        J(M, Matrix<T>::Zero(a1 + 1, (n1 + 1) * (a2 + 1) * (n2 + 1)))
         {}
 
     // This method exists for compatibility with the parent class interface. 
@@ -60,13 +63,16 @@ class JointCSFS : public ConditionedSFS<T>
     };
  
     // Private functions
-    inline T& tensorRef(const int m, const int i, const int j, const int k) 
+    inline T& tensorRef(const int m, const int i, const int j, const int k, const int l) 
     { 
-        int ind = j * (n2 + 1) + k;
+        int ind = j * (n2 + 1) * (a2 + 1) + k * (a2 + 1) + l;
         return J[m].coeffRef(i, ind);
     }
 
     Vector<double> arange(int, int) const;
+
+    void pre_compute_apart();
+    void pre_compute_together();
 
     std::map<int, OnePopConditionedSFS<T> > make_csfs();
     Vector<double> make_S2();
@@ -78,7 +84,7 @@ class JointCSFS : public ConditionedSFS<T>
     const int M, K;
     const int n1, n2, a1, a2;
     const std::map<int, OnePopConditionedSFS<T> > csfs;
-    const jcsfs_eigensystem Mn1, Mn2, Mn10, Mn11, Mn12;
+    const jcsfs_eigensystem Mn1, Mn2, Mn10, Mn11, Mn12, Mn20, Mn21, Mn22;
     const Vector<double> S2, S0, Sn1, Sn2;
 
     // These change at each call of compute

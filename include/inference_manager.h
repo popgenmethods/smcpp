@@ -113,11 +113,15 @@ class TwoPopInferenceManager : public NPopInferenceManager<2>
     public:
     TwoPopInferenceManager(
             const int n1, const int n2,
+            const int a1, const int a2,
             const std::vector<int> obs_lengths,
             const std::vector<int*> observations,
             const std::vector<double> hidden_states);
                 
     void setParams(const ParameterVector &params1, const ParameterVector &params2, const double split);
+
+    private:
+    int a1, a2;
 };
 
 Matrix<adouble> sfs_cython(const int, const ParameterVector, const double, const double, bool);

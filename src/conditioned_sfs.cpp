@@ -32,7 +32,7 @@ std::vector<Matrix<T> > OnePopConditionedSFS<T>::compute_below(const PiecewiseCo
         csfs_below[m].setZero();
         csfs_below[m].block(0, 1, 1, n) = M0_below.row(m);
         csfs_below[m].block(1, 0, 1, n + 1) = M1_below.row(m);
-        check_nan(csfs_below[m]);
+        CHECK_NAN(csfs_below[m]);
     }
     DEBUG << "compute below finished";
     return csfs_below;
@@ -76,7 +76,7 @@ std::vector<Matrix<T> > OnePopConditionedSFS<T>::compute_above(const PiecewiseCo
             tmp2(j) = doubly_compensated_summation(v);
         }
         csfs_above[m].block(2, 0, 1, n) = tmp2.transpose().lazyProduct(Uinv_mp2);
-        check_nan(csfs_above[m]);
+        CHECK_NAN(csfs_above[m]);
     }
     return csfs_above;
 }
@@ -106,9 +106,9 @@ std::vector<Matrix<T> > incorporate_theta(const std::vector<Matrix<T> > &csfs, d
             throw improper_sfs_exception();
         try
         {
-            check_nan(tauh);
+            CHECK_NAN(tauh);
             ret[i] = csfs[i] * -expm1(-theta * tauh) / tauh;
-            check_nan(ret[i]);
+            CHECK_NAN(ret[i]);
         } catch (std::runtime_error)
         {
             std::cout << i << std::endl << csfs[i].template cast<double>() << std::endl;
@@ -118,10 +118,10 @@ std::vector<Matrix<T> > incorporate_theta(const std::vector<Matrix<T> > &csfs, d
         }
         T tiny = tauh - tauh + 1e-20;
         ret[i] = ret[i].unaryExpr([=](const T x) { if (x < 1e-20) return tiny; if (x < -1e-8) throw std::domain_error("very negative sfs"); return x; });
-        check_nan(ret[i]);
+        CHECK_NAN(ret[i]);
         tauh = ret[i].sum();
         ret[i](0, 0) = 1. - tauh;
-        try { check_nan(ret[i]); }
+        try { CHECK_NAN(ret[i]); }
         catch (std::runtime_error)
         {
             std::cout << i << "\n" << ret[i].template cast<double>() << std::endl;

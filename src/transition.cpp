@@ -293,15 +293,15 @@ HJTransition<T>::HJTransition(const PiecewiseConstantRateFunction<T> &eta, const
         //         expm_prods.at(hs_indices.at(k - 1))(0, 2);
         // diagonal element
         // this is an approximation
-        Matrix<T> A = Matrix<T>::Identity(3, 3);
-        for (int ell = hs_indices.at(j - 1); ell < avc_ip.at(j - 1); ++ell)
-            A = A * expms.at(ell);
-        T delta = avg_coal_times[j - 1] - ts[avc_ip[j - 1]];
-        T c_eta = eta.R(avg_coal_times[j - 1]) - Rrng[avc_ip[j - 1]];
-        T c_rho = 0. * c_eta;
-        c_rho += delta * this->rho;
-        A = A * matrix_exp(c_rho, c_eta);
-        Matrix<T> B = expm_prods[hs_indices[j - 1]] * A;
+        // Matrix<T> A = Matrix<T>::Identity(3, 3);
+        // for (int ell = hs_indices.at(j - 1); ell < avc_ip.at(j - 1); ++ell)
+        //     A = A * expms.at(ell);
+        // T delta = avg_coal_times[j - 1] - ts[avc_ip[j - 1]];
+        // T c_eta = eta.R(avg_coal_times[j - 1]) - Rrng[avc_ip[j - 1]];
+        // T c_rho = 0. * c_eta;
+        // c_rho += delta * this->rho;
+        // A = A * matrix_exp(c_rho, c_eta);
+        // Matrix<T> B = expm_prods[hs_indices[j - 1]] * A;
         // this->Phi(j - 1, j - 1) = B(0, 0);
         // this->Phi(j - 1, j - 1) += expm_prods[hs_indices[j - 1]](0, 0) * A(0, 2);
         // this->Phi(j - 1, j - 1) += expm_prods[hs_indices[j - 1]](0, 1) * A(1, 2);
@@ -323,7 +323,7 @@ HJTransition<T>::HJTransition(const PiecewiseConstantRateFunction<T> &eta, const
     }
     T thresh(1e-20);
     this->Phi = this->Phi.unaryExpr([thresh] (const T &x) { if (x < thresh) return thresh; return x; });
-    check_nan(this->Phi);
+    CHECK_NAN(this->Phi);
 }
 
 template <typename T>

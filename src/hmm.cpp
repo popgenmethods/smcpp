@@ -147,17 +147,24 @@ Vector<adouble> HMM::Q(void)
     {
         Vector<adouble> ep = ib->emission_probs->at(p.first);
         Vector<adouble> c = ep.array().log().matrix().cwiseProduct(p.second);
+        if (ep.minCoeff() <= 0.0)
+        {
+            WARNING << "zeros detected in emission probability, key=" << p.first;
+            gs.clear();
+            gs[0] = adouble(-INFINITY);
+            break;
+        }
         gs.insert(std::end(gs), c.data(), c.data() + M);
     }
     ret(1) = doubly_compensated_summation(gs);
 
     Matrix<adouble> T = ib->tb->T;
     Matrix<adouble> log_T = T.array().log().matrix();
-    check_nan(log_T);
+    CHECK_NAN(log_T);
     Matrix<adouble> prod = log_T.cwiseProduct(xisum.template cast<adouble_base_type>());
     std::vector<adouble> es(prod.data(), prod.data() + M * M);
     ret(2) = doubly_compensated_summation(es);
 
-    check_nan(ret);
+    CHECK_NAN(ret);
     return ret;
 }

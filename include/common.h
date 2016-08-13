@@ -6,6 +6,7 @@
 #include <vector>
 #include <random>
 #include <array>
+#include <ostream>
 
 #include <Eigen/Dense>
 #include <unsupported/Eigen/MatrixFunctions>
@@ -14,6 +15,7 @@
 
 #include "prettyprint.h"
 #include "hash.h"
+#include "stacktrace.h"
 
 template <typename T> using Matrix = Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic>;
 template <typename T> using Vector = Eigen::Matrix<T, Eigen::Dynamic, 1>;
@@ -135,20 +137,9 @@ void store_matrix(const Matrix<double> &M, double* out);
 void store_matrix(const Matrix<adouble> &M, double* out);
 void store_matrix(const Matrix<adouble> &M, double *out, double *jac);
 
-void crash_backtrace(const char*, const int);
-
-#define check_negative(X) { try { _check_negative(X); } catch (std::runtime_error e) { std::cout << __FILE__ << ":" << __LINE__ << std::endl; throw; } }
-
-template <typename T>
-void _check_negative(const T x)
-{
-    if (x < -1e-16)
-        throw std::runtime_error("negative x");
-}
-
 void init_logger_cb(void(*)(const char*, const char*, const char*));
 void call_logger(const char*, const char*, const char*);
-struct Logger
+struct Logger : public std::ostream
 {
     static void(*logger_cb)(const char*, const char*, const char*);
     Logger(const char* name, int line, const char* level) : name(name), line(line), level(level) {}
@@ -175,36 +166,46 @@ struct Logger
 #define INFO Logger(__FILE__, __LINE__, "INFO")
 #define WARNING Logger(__FILE__, __LINE__, "WARNING")
 #define CRITICAL Logger(__FILE__, __LINE__, "CRITICAL")
+#define CHECK_NAN(x) check_nan(x, __FILE__, __LINE__)
+#define CHECK_NAN_OR_NEGATIVE(x) check_nan(x, __FILE__, __LINE__); check_negative(x, __FILE__, __LINE__);
 
-inline void check_nan(const double x) { if (std::isnan(x) or std::isinf(x)) throw std::runtime_error("nan/inf detected"); }
-
-template <typename T>
-void check_nan(const Eigen::AutoDiffScalar<T> &x);
+void check_nan(const double x, const char* file, const int line);
+void check_nan(const adouble &x, const char* file, const int line);
 
 template <typename Derived>
-void check_nan(const Eigen::DenseBase<Derived> &M)
+void check_nan(const Eigen::DenseBase<Derived> &M, const char* file, const int line)
 {
     for (int i = 0; i < M.rows(); ++i)
         for (int j = 0; j < M.cols(); ++j)
         {
             try 
             {
-                check_nan(M.coeff(i, j));
+                check_nan(M.coeff(i, j), file, line);
             }
             catch (std::runtime_error)
             {
-                CRITICAL << M.rows() << " " << M.cols() << " " << i << " " << j << " " << M.coeff(i, j);
-                crash_backtrace("", -1);
+                CRITICAL << "rows:" << M.rows() << " cols:" << M.cols() 
+                         << " M(" << i << "," << j << ")=" << M.coeff(i, j);
                 throw;
             }
         }
 }
 
 template <typename T>
-void check_nan(const Eigen::AutoDiffScalar<T> &x)
+void check_negative(const T x, const char* file, const int line)
 {
-    check_nan(x.value());
-    check_nan(x.derivatives());
+    if (x > -1e-16)
+        return;
+    std::string s = "negative value detected at ";
+    s += file;
+    s += ":";
+    s += line;
+#pragma omp critical(stacktrace)
+    {
+        CRITICAL << s;
+        print_stacktrace();
+    }
+    throw std::runtime_error(s);
 }
 
 inline adouble double_vec_to_adouble(const double &x, const std::vector<double> &dx)
@@ -215,5 +216,8 @@ inline adouble double_vec_to_adouble(const double &x, const std::vector<double> 
         vdx(i) = dx[i];
     return adouble(x, vdx);
 }
+
+ParameterVector truncateParams(const ParameterVector params, const double truncationTime);
+ParameterVector shiftParams(const ParameterVector &model1, const double shift);
 
 #endif

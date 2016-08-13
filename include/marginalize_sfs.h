@@ -36,7 +36,8 @@ struct marginalize_sfs<1>
             unsigned int n2 = n(0) - n1;
             // p(k) =  C(n_1, k) C(n_2, t - k) / C(n_1 + n_2, t)
             // gsl_ran_hypergeometric_pdf(unsigned int k, unsigned int n1, unsigned int n2, unsigned int t)
-            ret += gsl_ran_hypergeometric_pdf(b(0), n1, n2, nb(0)) * sfs.col(n1);
+            Vector<T> c = sfs.col(n1);
+            ret += gsl_ran_hypergeometric_pdf(b(0), n1, n2, nb(0)) * c;
         }
         return ret;
     }

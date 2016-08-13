@@ -15,7 +15,7 @@ struct block_key
 
     friend std::ostream & operator<<(std::ostream& stream, const block_key &bk)
     {
-        stream << bk.vals;
+        stream << bk.vals.transpose();
         return stream;
     }
 
