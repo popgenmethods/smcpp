@@ -5,6 +5,7 @@ from logging import getLogger
 import numpy as np
 import sys
 from pysam import VariantFile, TabixFile
+import inflect
 logger = getLogger(__name__)
 
 from ..logging import setup_logging
@@ -14,8 +15,13 @@ from ..util import optional_gzip, RepeatingWriter
 def init_parser(parser):
     parser.add_argument("--ignore-missing", default=False, action="store_true",
             help="ignore samples which are missing in the data")
-    parser.add_argument("-i", "--distinguished_index", type=int, default=0, 
-            help="index of distinguished lineage in sample ids (default: 0)")
+    parser.add_argument("-i", "--distinguished_index", type=int, nargs="*",
+            metavar="index",
+            help="index of distinguished lineage in sample ids. "
+                 "if two values are supplied, values will be pulled "
+                 "from the 'left' haplotype of id #1 and 'right' "
+                 "haplotype of id #2. this only makes sense for phased data. "
+                 "(default: 0)")
     parser.add_argument("--missing-cutoff", "-c", metavar="c", type=int, default=None,
             help="treat runs of homozygosity longer than <c> base pairs as missing")
     parser.add_argument("--mask", "-m", help="BED-formatted mask of missing regions", widget="FileChooser")
@@ -40,13 +46,18 @@ def main(args):
                 args.sample_ids = [line.strip() for line in f]
         except IOError:
             pass
-    dist = args.sample_ids[args.distinguished_index]
-    undist = [sid for j, sid in enumerate(args.sample_ids) if j != args.distinguished_index]
+    if not args.distinguished_index:
+        args.distinguished_index = [0]
+    if len(args.distinguished_index) == 1:
+        args.distinguished_index *= 2
+    dist = [args.sample_ids[di] for di in args.distinguished_index]
+    undist = [sid for j, sid in enumerate(args.sample_ids) if j not in args.distinguished_index]
     npop = 1
     if args.pop2:
         logger.info("Population 1:")
         npop = 2
-    logger.info("Distinguished sample: " + dist)
+    logger.info("Distinguished lineages: " + 
+                ", ".join(["%s:%d" % c[::-1] for c in enumerate(dist, 1)]))
     logger.info("Undistinguished samples: " + ", ".join(undist))
     p2 = args.pop2
     if args.pop2:
@@ -57,8 +68,8 @@ def main(args):
     vcf = VariantFile(args.vcf)
     with optional_gzip(args.out, "wt") as out:
         samples = list(vcf.header.samples)
-        if dist not in samples:
-            raise RuntimeError("Distinguished lineage not found in data?")
+        if not set(dist) <= set(samples):
+            raise RuntimeError("Distinguished lineages not found in data?")
         missing = [u for slist in [undist, p2] for u in slist if u not in samples]
         if missing:
             msg = "The following samples were not found in the data: %s. " % ", ".join(missing)
@@ -73,15 +84,15 @@ def main(args):
         # function to convert a VCF record to our format <span, dist gt, undist gt, # undist>
         def rec2gt(rec):
             ref = rec.alleles[0]
-            if None in rec.samples[dist].alleles:
-                a = -1
-            else:
-                a = sum(allele != ref for allele in rec.samples[dist].alleles)
-            bs = [[allele != ref for u in slist for allele in rec.samples[u].alleles if allele is not None]
+            da = [rec.samples[di].alleles[i] for i, di in enumerate(dist)]
+            a = [int(x != ref) if x is not None else -1 for x in da]
+            bs = [[allele != ref for u in slist 
+                   for allele in rec.samples[u].alleles 
+                   if allele is not None]
                    for slist in undist]
             b = [sum(_) for _ in bs]
             nb = [len(_) for _ in bs]
-            ret = [a] + list(sum(zip(b, nb), tuple()))
+            ret = a + list(sum(zip(b, nb), tuple()))
             return ret
 
         region_iterator = vcf.fetch(contig=args.contig)
@@ -128,16 +139,16 @@ def main(args):
             for ty, rec in records:
                 if ty == "mask":
                     span = rec[1] - last_pos
-                    rw.write([span, 0] + nb_nonseg)
-                    rw.write([rec[2] - rec[1] + 1, -1] + nb_miss)
+                    rw.write([span, 0, 0] + nb_nonseg)
+                    rw.write([rec[2] - rec[1] + 1, -1, -1] + nb_miss)
                     last_pos = rec[2]
                     continue
                 abnb = rec2gt(rec)
                 span = rec.pos - last_pos - 1
                 if 1 <= span <= args.missing_cutoff:
-                    rw.write([span, 0] + nb_nonseg)
+                    rw.write([span, 0, 0] + nb_nonseg)
                 elif span > args.missing_cutoff:
-                    rw.write([span, -1] + nb_miss)
+                    rw.write([span, -1, -1] + nb_miss)
                 rw.write([1] + abnb)
                 last_pos = rec.pos
-            rw.write([contig_length - last_pos, 0] + nb_nonseg)
+            rw.write([contig_length - last_pos, 0, 0] + nb_nonseg)
