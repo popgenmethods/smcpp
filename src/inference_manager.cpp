@@ -67,7 +67,9 @@ void InferenceManager::recompute_initial_distribution()
         assert(pi(m) <= 1.0);
     }
     pi(M - 1) = exp(-(eta->R(hidden_states[M - 1])));
-    // pi = pi.unaryExpr([] (const adouble &x) { if (x < 1e-20) return adouble(1e-20); return x; });
+    adouble small = pi(0) * 0.;
+    small += 1e-20;
+    pi = pi.unaryExpr([small] (const adouble &x) { if (x < 1e-20) return small; return x; });
     CHECK_NAN(pi);
 }
 
