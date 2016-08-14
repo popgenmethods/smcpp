@@ -44,6 +44,7 @@ cdef void logger_cb(const char* name, const char* level, const char* message) wi
         abort = True
 
 def _check_abort():
+    global abort
     try:
         if abort:
             raise KeyboardInterrupt()
