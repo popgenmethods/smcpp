@@ -65,7 +65,7 @@ class JointCSFS : public ConditionedSFS<T>
     // Private functions
     inline T& tensorRef(const int m, const int i, const int j, const int k, const int l) 
     { 
-        int ind = j * (n2 + 1) * (a2 + 1) + k * (a2 + 1) + l;
+        int ind = j * (n2 + 1) * (a2 + 1) + k * (n2 + 1) + l;
         return J[m].coeffRef(i, ind);
     }
 

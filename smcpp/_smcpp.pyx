@@ -308,11 +308,12 @@ cdef class PyOnePopInferenceManager(_PyInferenceManager):
 cdef class PyTwoPopInferenceManager(_PyInferenceManager):
     cdef TwoPopInferenceManager* _im2
 
-    def __cinit__(self, int n1, int n2, observations, hidden_states):
+    def __cinit__(self, int n1, int n2, int a1, int a2, observations, hidden_states):
         # This is needed because cinit cannot be inherited
         self.__my_cinit__(observations, hidden_states)
+        assert (a1 == 2 and a2 == 0) or (a1 == a2 == 1)
         with nogil:
-            self._im2 = new TwoPopInferenceManager(n1, n2, self._Ls, self._obs_ptrs, self._hs)
+            self._im2 = new TwoPopInferenceManager(n1, n2, a1, a2, self._Ls, self._obs_ptrs, self._hs)
             self._im = self._im2
 
     property model:
@@ -408,7 +409,8 @@ def thin_data(data, int thinning, int offset=0):
     return np.array(out, dtype=np.int32)
 
 # Used for testing purposes only
-def joint_csfs(int n1, int n2, model, hidden_states, int K=10):
+def joint_csfs(int n1, int n2, int a1, int a2, model, hidden_states, int K=10):
+    assert (a1 == 2 and a2 == 0) or (a1 == a2 == 1)
     cdef vector[double] hs = hidden_states
     cdef ParameterVector p1 = make_params(model.model1)
     cdef ParameterVector p2 = make_params(model.model2)
@@ -418,14 +420,14 @@ def joint_csfs(int n1, int n2, model, hidden_states, int K=10):
     cdef JointCSFS[adouble] *jcsfs
     with nogil:
         eta = new PiecewiseConstantRateFunction[adouble](p1, hs)
-        jcsfs = new JointCSFS[adouble](n1, n2, 2, 0, hs, K)
+        jcsfs = new JointCSFS[adouble](n1, n2, a1, a2, hs, K)
         jcsfs.pre_compute(p1, p2, split)
-        jc = jcsfs.compute(eta[0])
+        jc = jcsfs.compute(deref(eta))
         del eta
         del jcsfs
     ret = []
     for i in range(jc.size()):
-        mat = _store_admatrix_helper(jc[i], model.dlist).reshape(
-                (3, (n1 + 1), 1, (n2 + 1)))
+        mat = _store_admatrix_helper(jc[i], model.dlist)
+        mat.shape = (a1 + 1, n1 + 1, a2 + 1, n2 + 1)
         ret.append(mat)
     return ret

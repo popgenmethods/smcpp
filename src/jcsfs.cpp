@@ -37,7 +37,8 @@ std::map<int, OnePopConditionedSFS<T> > JointCSFS<T>::make_csfs()
 {
     std::map<int, OnePopConditionedSFS<T> > ret;
     for (const int &n : {n1, n1 - 1, n2 - 1, n1 + n2, n1 + n2 - 1, n2 - 2})
-        ret.emplace(n, n);
+        if (n >= 0)
+            ret.emplace(n, n);
     return ret;
 }
 
@@ -182,6 +183,13 @@ void JointCSFS<T>::pre_compute(
         pre_compute_together();
     else
         throw std::runtime_error("unsupported jcsfs configuration");
+    for (int m = 0; m < M; ++m)
+    {
+        // zero out nonsegregating sites
+        tensorRef(m, 0, 0, 0, 0) *= 0.;
+        tensorRef(m, a1, n1, a2, n2) *= 0;
+    }
+
 }
 
 template <typename T>
@@ -207,8 +215,8 @@ void JointCSFS<T>::pre_compute_apart()
     T Rts1 = PiecewiseConstantRateFunction<T>(params1, {}).R(split);
     T Rts2 = PiecewiseConstantRateFunction<T>(params2, {}).R(split);
     Matrix<T> T10 = Mn10.expM(Rts1);
-    Matrix<T> T20 = Mn20.expM(Rts2);
     Matrix<T> T11 = Mn11.expM(Rts1);
+    Matrix<T> T20 = Mn20.expM(Rts2);
     Matrix<T> T21 = Mn21.expM(Rts2);
     int i = 0;
     for (int m = 0; m < M; ++m)
@@ -221,20 +229,20 @@ void JointCSFS<T>::pre_compute_apart()
         if (t2 <= split)
             continue;
         Matrix<T> csfs_shift = csfs_at_split[i++];
-        for (int b1 = 0; b1 < n1 + 1; ++b1)
-            for (int b2 = 0; b2 < n2 + 1; ++b2)
-                for (int nseg = 0; nseg < n1 + n2 + 1; ++nseg)
-                    for (int np1 = std::max(nseg - n2, 0); np1 < std::min(nseg, n1) + 1; ++np1)
+        for (int b1 = 0; b1 <= n1; ++b1)
+            for (int b2 = 0; b2 <= n2; ++b2)
+                for (int nseg = 0; nseg <= n1 + n2; ++nseg)
+                    for (int np1 = std::max(nseg - n2, 0); np1 <= std::min(nseg, n1); ++np1)
                     {
                         int np2 = nseg - np1;
                         double h = scipy_stats_hypergeom_pmf(np1, n1 + n2, nseg, n1);
                         tensorRef(m, 1, b1, 1, b2) += h * csfs_shift(2, nseg) * T11(np1, b1) * T21(np2, b2);
-                        tensorRef(m, 0, b1, 1, b2) += 0.5 * h * csfs_shift(1, nseg) * T10(np1, b1) * T21(np2, b2);
                         tensorRef(m, 1, b1, 0, b2) += 0.5 * h * csfs_shift(1, nseg) * T11(np1, b1) * T20(np2, b2);
+                        tensorRef(m, 0, b1, 1, b2) += 0.5 * h * csfs_shift(1, nseg) * T10(np1, b1) * T21(np2, b2);
                         tensorRef(m, 0, b1, 0, b2) += h * csfs_shift(0, nseg) * T10(np1, b1) * T20(np2, b2);
                     }
     }
-    // Cover edge case.
+    // Cover edge case
     if (split == 0.)
         return; 
 
@@ -248,7 +256,7 @@ void JointCSFS<T>::pre_compute_apart()
         int ni = std::get<1>(t);
         PiecewiseConstantRateFunction<T> eta_trunc(std::get<0>(t), {0., INFINITY});
         Vector<T> rsfs_below = undistinguishedSFS(csfs.at(ni - 1).compute(eta_trunc)[0]);
-        for (int k = 1; k < ni + 1; ++k)
+        for (int k = 1; k <= ni; ++k)
         {
             double fac = (double)k / double(ni + 1);
             T x1 = (1. - fac) * rsfs_below(k - 1);
@@ -330,9 +338,6 @@ void JointCSFS<T>::pre_compute_together()
             remain -= split;
             tensorRef(m, 0, 0, 0, n2) -= remain;
         }
-        // zero out nonsegregating sites 
-        tensorRef(m, 0, 0, 0, 0) *= 0.;
-        tensorRef(m, a1, n1, 0, n2) *= 0;
     }
 }
 

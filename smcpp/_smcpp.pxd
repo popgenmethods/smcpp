@@ -63,8 +63,8 @@ cdef extern from "inference_manager.h":
         OnePopInferenceManager(const int, const vector[int],
                 const vector[int*], const vector[double]) except +
     cdef cppclass TwoPopInferenceManager(InferenceManager) nogil:
-        TwoPopInferenceManager(const int, const int, const vector[int],
-                const vector[int*], const vector[double]) except +
+        TwoPopInferenceManager(const int, const int, const int, const int,
+                const vector[int], const vector[int*], const vector[double]) except +
         void setParams(const ParameterVector, const ParameterVector, const double)
     Matrix[adouble] sfs_cython(const int, const ParameterVector, const double, const double, bool) nogil
 
