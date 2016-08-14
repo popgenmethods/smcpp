@@ -105,17 +105,17 @@ def break_long_spans(dataset, rho, length_cutoff):
     obs_list = []
     obs_attributes = {}
     for fn, obs in enumerate(dataset):
-        miss = obs[0].copy()
-        miss[:] = 0
-        miss[:2] = [1, -1]
+        miss = np.zeros_like(obs[0])
+        miss[:3] = [1, -1, -1]
         long_spans = np.where(
             (obs[:, 0] >= span_cutoff) &
             (obs[:, 1] == -1) &
-            np.all(obs[:, 3::2] == 0, axis=1))[0]
+            (obs[:, 2] == -1) &
+            np.all(obs[:, 4::2] == 0, axis=1))[0]
         cob = 0
         logger.debug("Long missing spans: \n%s" % str(obs[long_spans]))
         positions = np.insert(np.cumsum(obs[:, 0]), 0, 0)
-        for x in long_spans:
+        for x in long_spans.tolist() + [None]:
             s = obs[cob:x, 0].sum()
             if s > length_cutoff:
                 obs_list.append(np.insert(obs[cob:x], 0, miss, 0))
@@ -129,20 +129,6 @@ def break_long_spans(dataset, rho, length_cutoff):
                             "as less than length cutoff %d" %
                             (s, length_cutoff))
             cob = x + 1
-        s = obs[cob:, 0].sum()
-        miss = np.zeros_like(obs[0])
-        miss[:2] = [1, -1]
-        if s > length_cutoff:
-            obs_list.append(np.insert(obs[cob:], 0, miss, 0))
-            sums = obs_list[-1].sum(axis=0)
-            s2 = obs_list[-1][:, 1][obs_list[-1][:, 1] >= 0].sum()
-            obs_attributes.setdefault(fn, []).append((positions[cob],
-                                                      positions[-1], sums[0],
-                                                      1. * s2 / sums[0],
-                                                      1. * sums[2] / sums[0]))
-        else:
-            logger.info("omitting sequence length < %d "
-                        "as less than length cutoff %d" % (s, length_cutoff))
     return obs_list, obs_attributes
 
 

@@ -378,32 +378,34 @@ def thin_data(data, int thinning, int offset=0):
     cdef int[:, :] vdata = data
     cdef int j
     cdef int k = data.shape[0]
-    cdef int span, a, a1
+    cdef int span, a, a1, a2
     cdef int npop = data.shape[1] // 2 - 1
     b = np.zeros(npop, dtype=int)
     nb = np.zeros(npop, dtype=int)
     thin = [0, 0] * npop
     for j in range(k):
         span = vdata[j, 0]
-        a = vdata[j, 1]
-        b[:] = vdata[j, 2::2]
-        nb[:] = vdata[j, 3::2]
-        a1 = a
-        if a1 == 2:
+        a1 = vdata[j, 1]
+        a2 = vdata[j, 2]
+        b[:] = vdata[j, 3::2]
+        nb[:] = vdata[j, 4::2]
+        a = a1 + a2
+        if a == 2:
             a1 = 0
+            a2 = 0
         while span > 0:
             if i < thinning and i + span >= thinning:
                 if thinning - i > 1:
-                    out.append([thinning - i - 1, a1] + thin)
+                    out.append([thinning - i - 1, a1, a2] + thin)
                 if a == 2 and np.all(b == nb):
                     fold = sum([[0, nbi] for nbi in nb], [])
-                    out.append([1, 0] + fold)
+                    out.append([1, 0, 0] + fold)
                 else:
                     out.append([1] + list(vdata[j, 1:]))
                 span -= thinning - i
                 i = 0
             else:
-                out.append([span, a1] + thin)
+                out.append([span, a1, a2] + thin)
                 i += span
                 break
     return np.array(out, dtype=np.int32)
