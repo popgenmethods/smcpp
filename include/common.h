@@ -199,7 +199,7 @@ void check_negative(const T x, const char* file, const int line)
     std::string s = "negative value detected at ";
     s += file;
     s += ":";
-    s += line;
+    s += std::to_string(line);
 #pragma omp critical(stacktrace)
     {
         CRITICAL << s;

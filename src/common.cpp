@@ -98,7 +98,7 @@ void check_nan(const double x, const char* file, const int line)
     s += " detected at ";
     s += file;
     s += ":";
-    s += line;
+    s += std::to_string(line);
 #pragma omp critical(stacktrace)
     {
         CRITICAL << s;
