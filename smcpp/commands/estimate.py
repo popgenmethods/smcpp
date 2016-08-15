@@ -4,7 +4,6 @@ import argparse
 import numpy as np
 import scipy.optimize
 import pprint
-import multiprocessing
 import sys
 import itertools
 import sys
@@ -47,6 +46,8 @@ def init_parser(parser):
                      type=int, help="number of hidden states", default=32)
     hmm.add_argument('--em-iterations', type=int,
                      help="number of EM steps to perform", default=10)
+    optimizer.add_argument('--no-prefit', action="store_true",
+                           help="skip model prefitting. (not recommended.)")
     optimizer.add_argument('--fixed-split', type=float,
                            help="instead of estimating split time, fix it to this value. (two-population models only.)")
     optimizer.add_argument("--fix-rho", default=False, action="store_true",
@@ -56,7 +57,7 @@ def init_parser(parser):
     optimizer.add_argument('--regularization-penalty',
                            type=float, help="regularization penalty", default=1.)
     optimizer.add_argument('--spline',
-                           choices=["cubic", "akima", "pchip"],
+                           choices=["bspline", "cubic", "akima", "pchip"],
                            default="pchip", help="type of spline representation to use")
     optimizer.add_argument('--Nmin', type=float,
                            help="Lower bound on effective population size (in units of N0)",

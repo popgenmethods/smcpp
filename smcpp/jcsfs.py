@@ -217,9 +217,6 @@ def _jcsfs_helper_tau_below_split(pargs):
     ret = np.maximum(0., ret)
     return ret
 
-def _cumsum0(ary):
-    return np.concatenate([[0], np.cumsum(ary)])
-
 def _moran_rate_matrix(N):
     ret = np.zeros([N + 1, N + 1])
     i, j = np.indices(ret.shape)
@@ -272,7 +269,7 @@ def _shift_model(_model, shift):
     'Shift the model back :shift: units in time.'
     s = _model.s
     a = _model.stepwise_values()
-    cs = _cumsum0(s)
+    cs = util.cumsum0(s)
     cs[-1] = np.inf
     i = np.searchsorted(cs, shift)
     cs[i - 1] = shift

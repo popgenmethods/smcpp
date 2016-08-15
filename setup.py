@@ -23,7 +23,7 @@ def lazy_extensions():
     import numpy as np
     import pkgconfig
     include_dirs = []
-    for dep in ['gsl', 'eigen3']:
+    for dep in ['gsl']:
         include_dirs += [path.strip() for path in pkgconfig.cflags(dep).split("-I") if path.strip()]
     extensions = [
             Extension(
@@ -42,7 +42,7 @@ def lazy_extensions():
                     "smcpp._newick",
                     # sources=["src/_pypsmcpp.pyx", "src/conditioned_sfs.cpp", "src/hmm.cpp"],
                     sources=["smcpp/_newick.pyx"],
-                    include_dirs=["src"],
+                    include_dirs=["include"],
                     language="c++",
                     extra_compile_args=["-O2", "-std=c++11", "-Wfatal-errors", "-Wno-unused-variable", "-Wno-unused-function"]
                     )
@@ -72,6 +72,9 @@ setup(name='smcpp',
 	setup_requires=['pytest-runner', 'numpy', 'pkgconfig', 'cython'],
         tests_require=['pytest'],
         install_requires=[
+            "gmpy2", # This is not used in the Python code, but 
+                     # enforces the libmpfr and libgmp dependencies.
+            "appdirs",
             "backports.shutil_which",
             "backports.shutil_get_terminal_size",
             "wrapt>=1.10",

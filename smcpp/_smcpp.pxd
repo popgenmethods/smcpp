@@ -3,6 +3,7 @@ from libcpp.pair cimport pair
 from libcpp.map cimport map
 from libcpp cimport bool
 from libcpp.memory cimport unique_ptr
+from libcpp.string cimport string
 
 cdef extern from "common.h":
     ctypedef vector[vector[adouble]] ParameterVector
@@ -27,13 +28,16 @@ cdef extern from "common.h":
     void store_matrix(const Matrix[adouble]&, double*)
     void store_matrix(const Matrix[adouble]&, double*, double*)
 
+cdef extern from "block_key.h":
+    cdef cppclass block_key:
+        int size() const
+        int operator()(int) const
+
 ctypedef Matrix[double]* pMatrixD
 ctypedef Matrix[adouble]* pMatrixAd
-# ctypedef map[block_key[P], Vector[double]]* pBlockMap
+ctypedef map[block_key, Vector[double]]* pBlockMap
 
 cdef extern from "inference_manager.h":
-    # cdef cppclass block_key[P]:
-    #     int& operator()(int)
     cdef cppclass InferenceManager nogil:
         InferenceManager(const int, const vector[int],
                 const vector[int*], const vector[double],
@@ -50,17 +54,17 @@ cdef extern from "inference_manager.h":
         vector[double] hidden_states
         vector[pMatrixD] getGammas()
         vector[pMatrixD] getXisums()
-        # vector[pBlockMap] getGammaSums()
+        vector[pBlockMap] getGammaSums()
         Matrix[adouble]& getPi()
         Matrix[adouble]& getTransition()
         Matrix[adouble]& getEmission()
-        # map[block_key[P], Vector[adouble] ]& getEmissionProbs()
+        map[block_key, Vector[adouble]]& getEmissionProbs()
     cdef cppclass OnePopInferenceManager(InferenceManager) nogil:
         OnePopInferenceManager(const int, const vector[int],
                 const vector[int*], const vector[double]) except +
     cdef cppclass TwoPopInferenceManager(InferenceManager) nogil:
-        TwoPopInferenceManager(const int, const int, const vector[int],
-                const vector[int*], const vector[double]) except +
+        TwoPopInferenceManager(const int, const int, const int, const int,
+                const vector[int], const vector[int*], const vector[double]) except +
         void setParams(const ParameterVector, const ParameterVector, const double)
     Matrix[adouble] sfs_cython(const int, const ParameterVector, const double, const double, bool) nogil
 
@@ -77,3 +81,6 @@ cdef extern from "jcsfs.h":
         JointCSFS(int, int, int, int, vector[double], int)
         void pre_compute(const ParameterVector&, const ParameterVector&, const double)
         vector[Matrix[T]] compute(const PiecewiseConstantRateFunction[T]&) const
+
+cdef extern from "matrix_cache.h":
+    void init_cache(const string)

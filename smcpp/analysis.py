@@ -1,9 +1,10 @@
 import numpy as np
 import functools
-import multiprocessing
 import json
 import sys
 import os.path
+import scipy.optimize
+import ad
 
 from . import estimation_tools, _smcpp, util, logging, optimizer, jcsfs, spline
 from .model import SMCModel, SMCTwoPopulationModel
@@ -22,34 +23,44 @@ def _tied_property(attr):
 class Analysis(Observer):
     '''A dataset, model and inference manager to be used for estimation.'''
     def __init__(self, files, args):
+        # Misc. parameter initialiations
+        self._N0 = args.N0
+        self._penalty = args.regularization_penalty
+        self._niter = args.em_iterations
+
         self._load_data(files)
+        self._compute_sfs()
         self._init_parameters(args.theta, args.rho)
-        self._init_model(args.initial_model, args.pieces, args.N0, args.t1, args.tK, args.knots, args.spline, args.fixed_split)
-        self._init_hidden_states(args.M)
-        self._model.reset()
         self._init_bounds(args.Nmin)
+        self._init_model(args.initial_model, args.pieces, args.N0, args.t1,
+                args.tK, args.knots, args.spline, args.fixed_split)
+        self._model.reset()
+        # Add a small amount of noise to model. If all pieces are equal,
+        # the derivatives can be off due to some branching in the spline
+        # code.
+        self._model.randomize()
+        if not args.no_prefit:
+            self._prefit()
+        self._init_hidden_states(args.M)
         self._perform_thinning(args.thinning)
         self._normalize_data(args.length_cutoff)
         self._init_inference_manager(args.folded)
         self._init_optimizer(args.outdir, args.block_size, args.fix_rho, args.fixed_split)
 
-        # Misc. parameter initialiations
-        self._N0 = args.N0
-        self._penalty = args.regularization_penalty
-        self._niter = args.em_iterations
-    
     ## PRIVATE INIT FUNCTIONS
     def _load_data(self, files):
         ## Parse each data set into an array of observations
         logger.info("Loading data...")
         self._files = files
         self._data = data = util.parse_text_datasets(files)
-        self._npop = data[0].shape[1] // 2 - 1
+        self._npop = (data[0].shape[1] - 1) / 3
         for d in data:
-            assert d.shape[1] == 2 * (self._npop + 1)
+            assert d.shape[1] == 1 + 3 * self._npop
         logger.info("%d population%s", self._npop, "" if self._npop == 1 else "s")
-        self._n = np.max([np.max(obs[:, 2::2], axis=0) for obs in self._data], axis=0)
+        self._a = np.max([np.max(obs[:, 1::3], axis=0) for obs in self._data], axis=0)
+        self._n = np.max([np.max(obs[:, 3::3], axis=0) for obs in self._data], axis=0)
         logger.info("n=%s" % self._n)
+        logger.info("a=%s" % self._a)
 
     def _init_parameters(self, theta=None, rho=None):
         ## Set theta and rho to their default parameters
@@ -64,9 +75,9 @@ class Analysis(Observer):
             Lseg = 0
             for obs in self._data:
                 conds = (
-                    (obs[:, 0] == 1) &
-                    ((obs[:, 1] > 0) | (obs[:, 2::2].max(axis=1) > 0))
-                )
+                        (obs[:, 0] == 1) &
+                        ((obs[:, 1] > 0) | (obs[:, 2::2].max(axis=1) > 0))
+                        )
                 Lseg += conds.sum()
             segfrac = 1. * Lseg / self._L
             self._theta = segfrac / (1. / np.arange(1, np.sum(self._n))).sum()
@@ -83,12 +94,6 @@ class Analysis(Observer):
         logger.debug("Nmax calculated to be %g" % Nmax)
         self._bounds = (Nmin, Nmax)
 
-        # Prepare empirical SFS for later use. This is cheap to compute
-        # esfs = util.compute_esfs(dataset, n)
-        # self._sfs = np.sum(esfs, axis=0) / np.sum(esfs)
-        # logger.info("Empirical SFS:\n%s" % np.array_str(self._sfs, precision=4))
-        # logger.info("Reduced SFS:\n%s" % np.array_str(util.undistinguished_sfs(self._sfs, args.folded), precision=4))
-
         # if not args.no_pretrain:
         #     logger.info("Pretraining")
         #     # pretrain if requested
@@ -96,9 +101,46 @@ class Analysis(Observer):
         #             penalty=args.pretrain_penalty, f=args.regularizer)
         #     # self._pretrain_penalizer = self._penalizer
         #     self._pretrain(theta, args.folded, args.pretrain_penalty)
+
+    # Compute observed / empirical SFS
+    def _compute_sfs(self):
+        self._full_sfs = estimation_tools.empirical_sfs(self._data, self._n, self._a)
+        s = self._full_sfs.sum()
+        logger.debug("Full SFS:\n%s\n(%d bases total)", 
+                str(self._full_sfs.astype('float') / s), s)
     
-        ## After (potentially) doing pretraining, normalize and thin the data set
-        ## Optionally thin each dataset
+    def _prefit(self):
+        # Quickly fit model to the observed SFS, so as to accurately
+        # compute uniform hidden states and get a good starting point
+        # for the optimization.
+        sample_sfs = util.undistinguished_sfs(self._full_sfs)
+
+        model = self._model
+        def _f(x):
+            model[:] = [ad.adnumber(xx, tag=i) for i, xx in enumerate(x)]
+            csfs = _smcpp.raw_sfs(model, self._n, 0., np.inf)
+            csfs[0, 0] = 0
+            csfs *= self._theta
+            csfs[0, 0] = 1. - csfs.sum()
+            sfs = util.undistinguished_sfs(csfs)
+            kl = -(sample_sfs * ad.admath.log(sfs)).sum()
+            reg = self._penalty * model.regularizer()
+            kl += reg
+            ret = (kl.x, np.array(list(map(kl.d, model[:]))))
+            logger.debug("\n%s" % np.array_str(model[:].astype('float'), precision=3))
+            logger.debug((reg, ret))
+            return ret
+
+        x0 = self._model[:].astype("float")
+        bounds = np.log([self._bounds] * len(x0))
+        res = scipy.optimize.minimize(_f, x0, jac=True,
+                bounds=bounds,
+                method="L-BFGS-B")
+        # res = estimation_tools.adagrad(_f, x0, bounds)
+        logger.debug(res)
+        model[:] = res.x
+
+    # Optionally thin each dataset
     def _perform_thinning(self, thinning):
         if thinning is None:
             thinning = 400 * np.sum(self._n)
@@ -108,7 +150,11 @@ class Analysis(Observer):
         elif self._n.sum() > 2:
             logger.warn("Not thinning yet n = %d > 0. This probably "
                         "isn't what you desire, see --thinning", self._n.sum() // 2 + 1)
-        
+        self._thinned_sfs = estimation_tools.empirical_sfs(self._data, self._n, self._a)
+        s = self._thinned_sfs.sum()
+        logger.debug("SFS (after thinning):\n%s\n(%d bases total)", 
+                str(self._thinned_sfs.astype('float') / s), s)
+
     def _init_model(self, initial_model, pieces, N0, t1, tK, num_knots, spline_class, fixed_split):
         if initial_model is not None:
             d = json.load(open(initial_model, "rt"))
@@ -131,13 +177,14 @@ class Analysis(Observer):
         knots = np.cumsum(estimation_tools.construct_time_points(t1, tK, [1] * num_knots))
         logger.debug("knots in coalescent scaling:\n%s", str(knots))
         spline_class = {"cubic": spline.CubicSpline,
+                        "bspline" : spline.BSpline,
                         "akima": spline.AkimaSpline, 
                         "pchip": spline.PChipSpline}[spline_class]
         if self._npop == 1:
             if fixed_split is not None:
                 logger.warn("--split was specified, but only one population found in data")
             self._model = SMCModel(time_points, knots, spline_class)
-            logger.debug("initial model:\n%s" % np.array_str(self._model.y, precision=3))
+            logger.debug("initial model:\n%s" % np.array_str(self._model[:].astype('float'), precision=3))
         else:
             if fixed_split is not None:
                 split = fixed_split
@@ -151,20 +198,22 @@ class Analysis(Observer):
 
     def _init_hidden_states(self, M):
         ## choose hidden states based on prior model
-        hs = estimation_tools.balance_hidden_states(self._model.distinguished_model, M)
-        cs = np.cumsum(self._model.distinguished_model.s)
-        cs = cs[cs <= hs[1]]
+        dm = self._model.distinguished_model
+        hs = estimation_tools.balance_hidden_states(dm, M)
+        cs = np.cumsum(dm.s)
+        cs = cs[cs < hs[1]]
         self._hidden_states = np.sort(np.unique(np.concatenate([cs, hs])))
+        # self._hidden_states = np.concatenate([[0.], cs, [np.inf]])
         logger.debug("%d hidden states:\n%s" % (len(self._hidden_states), str(self._hidden_states)))
 
     def _normalize_data(self, length_cutoff):
         ## break up long spans
         self._data, attrs = estimation_tools.break_long_spans(self._data, self._rho, length_cutoff)
-        logger.debug("Average heterozygosity (derived / total bases) by data set:")
-        for fn, key in zip(self._files, attrs):
-            logger.debug(fn + ":")
-            for attr in attrs[key]:
-                logger.debug("%15d%15d%15d%12g%12g" % attr)
+        # logger.debug("Average heterozygosity (derived / total bases) by data set:")
+        # for fn, key in zip(self._files, attrs):
+        #     logger.debug(fn + ":")
+        #     for attr in attrs[key]:
+        #         logger.debug("%15d%15d%15d%12g%12g" % attr)
 
     def _init_inference_manager(self, folded):
         ## Create inference object which will be used for all further calculations.
@@ -172,8 +221,8 @@ class Analysis(Observer):
         if self._npop == 1:
             self._im = _smcpp.PyOnePopInferenceManager(self._n[0], self._data, self._hidden_states)
         elif self._npop == 2:
-            self._im = _smcpp.PyTwoPopInferenceManager(self._n[0], self._n[1], self._data, self._hidden_states)
-            # self._jcsfs = jcsfs.JointCSFS(self._n[0], self._n[1], 2, 0, self._hidden_states)
+            self._im = _smcpp.PyTwoPopInferenceManager(self._n[0], self._n[1],
+                    self._a[0], self._a[1], self._data, self._hidden_states)
         else:
             logger.error("Only 1 or 2 populations are supported at this time")
             sys.exit(1)
@@ -189,6 +238,9 @@ class Analysis(Observer):
     def _init_optimizer(self, outdir, block_size, fix_rho, fixed_split):
         if self._npop == 1:
             self._optimizer = optimizer.SMCPPOptimizer(self)
+            # Also optimize knots in 1 pop case. Not yet implemented
+            # for two pop case.
+            self._optimizer.register(optimizer.KnotOptimizer())
         elif self._npop == 2:
             self._optimizer = optimizer.TwoPopulationOptimizer(self)
             if fixed_split is None:
@@ -210,9 +262,13 @@ class Analysis(Observer):
         'Perform the analysis.'
         self._optimizer.run(self._niter)
 
-    def Q(self):
+    def Q(self, k=None):
         'Value of Q() function in M-step.'
-        return self._im.Q() - self._penalty * self.model.regularizer()
+        q1 = self._im.Q(k)
+        q2 = -self._penalty * self.model.regularizer()
+        logger.debug(("im.Q", float(q1), [q1.d(x) for x in self.model.dlist]))
+        logger.debug(("reg", float(q2), [q2.d(x) for x in self.model.dlist]))
+        return q1 + q2
 
     @logging.log_step("Running E-step...", "E-step completed.")
     def E_step(self):

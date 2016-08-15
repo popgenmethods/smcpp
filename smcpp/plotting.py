@@ -33,21 +33,59 @@ def plot_psfs(psfs, xlim, ylim, xlabel, logy=False):
     colors = list(matplotlib.cm.Dark2(np.linspace(0, 1, npsf)))
     for i, (label, d, off) in enumerate(psfs):
         N0 = d['N0']
-        a = N0 * d['a']
-        s = 2. * N0 * d['s']
-        x = np.cumsum(s)
-        # Slightly offset plots for better clarity.
-        x *= 1. + (i - len(psfs)) / 50.
-        y = a
-        xmin = x[0] * 0.9
+        a = d['a']
+        s = d['s']
+        if 'b' in d:
+            b = d['b']
+            slope = np.log(a/b) / s
+            cum = off
+            x = []
+            y = []
+            for aa, bb, ss in zip(b[:-1], slope[:-1], s[:-1]):
+                tt = np.linspace(cum, cum + ss, 100)
+                yy = aa * np.exp(bb * (cum + ss - tt))
+                x = np.concatenate([x, tt])
+                y = np.concatenate([y, yy])
+                cum += ss
+            x = np.concatenate([x, [cum, 2 * cum]])
+            y = np.concatenate([y, [a[-1], a[-1]]])
+            # if not logy:
+            #     y *= 1e-3
+            data.append((label, x, y))
+            plotfun = ax.plot
+        elif 'model' in d:
+            m = d['model']
+            x = np.logspace(np.log10(m.s[0]), np.log10(m.s.sum()), 200)
+            y = m(x).astype('float')
+            # if not logy:
+            #     y *= 1e-3
+            data.append((label, x, y))
+            plotfun = ax.plot
+            # x2, y2 = (m._knots, np.exp(m[:].astype('float')))
+            # x2 *= 2. * d['N0']
+            # y2 *= d['N0']
+            # if d['g'] is not None:
+            #     x2 *= d['g']
+            # ax.scatter(x2,y2)
+        else:
+            x = np.cumsum(s)
+            x = np.insert(x, 0, 0)[:-1]
+            y = a
+            def f(*args, **kwargs):
+                return ax.step(*args, where='post', **kwargs)
+            plotfun = f
+        x *= 2 * N0
+        y *= N0
+        # x *= 1. + (i - len(psfs)) / 50.
+        if d['g'] is not None:
+            x *= d['g']
+        if label is None:
+            plotfun(x, y, linewidth=2, color="black")
+        else:
+            labels += plotfun(x, y, label=label, color=colors.pop())
+        xmin = x[1] * 0.9
         ymax = max(ymax, np.max(y))
         xmax = max(xmax, np.max(x))
-        x = np.insert(x, 0, 1)
-        y = np.insert(y, 0, y[0])
-        if label is None:
-            ax.step(x, y, linewidth=2, color="black")
-        else:
-            labels += ax.step(x, y, label=label, color=colors.pop())
     if labels:
         first_legend = ax.legend(handles=labels, loc=9, ncol=4, prop={'size':8})
     ax.set_xscale('log')

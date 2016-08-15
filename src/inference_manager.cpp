@@ -43,8 +43,6 @@ InferenceManager::InferenceManager(
     // tensor in "flattened" matrix form. Note that this is actually
     // 1 larger along each axis than the true number, because the SFS
     // ranges in {0, 1, ..., n_pop_k}.
-    emission = Matrix<adouble>::Zero(M, 3 * sfs_dim);
-    emission.setZero();
 
     InferenceBundle *ibp = &ib;
 #pragma omp parallel for
@@ -63,13 +61,13 @@ void InferenceManager::recompute_initial_distribution()
     for (int m = 0; m < M - 1; ++m)
     {
         pi(m) = exp(-(eta->R(hidden_states[m]))) - exp(-(eta->R(hidden_states[m + 1])));
-        assert(pi(m) > 0.0);
-        assert(pi(m) < 1.0);
+        assert(pi(m) >= 0.0);
+        assert(pi(m) <= 1.0);
     }
     pi(M - 1) = exp(-(eta->R(hidden_states[M - 1])));
-    pi = pi.unaryExpr([] (const adouble &x) { if (x < 1e-20) return adouble(1e-20); return x; });
-    pi /= pi.sum();
-    check_nan(pi);
+    adouble small = eta->zero() + 1e-20;
+    pi = pi.unaryExpr([small] (const adouble &x) { if (x < 1e-20) return small; return x; });
+    CHECK_NAN(pi);
 }
 
 void InferenceManager::setRho(const double rho)
@@ -186,7 +184,7 @@ std::vector<Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> 
     std::vector<Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> > ret;
     for (unsigned int i = 0; i < observations.size(); ++i)
         ret.push_back(Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>::Map(
-                    observations[i], obs_lengths[i], 2 + 2 * npop));
+                    observations[i], obs_lengths[i], 1 + 3 * npop));
     return ret;
 }
 
@@ -248,32 +246,55 @@ void InferenceManager::setParams(const ParameterVector &params)
 template <size_t P>
 void NPopInferenceManager<P>::recompute_emission_probs()
 {
-    Eigen::Matrix<adouble, 3, Eigen::Dynamic, Eigen::RowMajor> em_tmp(3, sfs_dim);
+    // Initialize emission matrix
+    emission = Matrix<adouble>::Zero(M, (na(0) + 1) * sfs_dim);
+    emission.setZero();
+
+    marginalize_sfs_a<P> ma;
+    Eigen::Matrix<adouble, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> em_tmp(na(0) + 1, sfs_dim);
     std::vector<Matrix<adouble> > new_sfss = incorporate_theta(sfss, theta);
     for (int m = 0; m < M; ++m)
     {
-        check_nan(new_sfss[m]);
+        CHECK_NAN(new_sfss[m]);
         em_tmp = new_sfss[m];
-        emission.row(m) = Matrix<adouble>::Map(em_tmp.data(), 1, 3 * sfs_dim);
+        emission.row(m) = Matrix<adouble>::Map(em_tmp.data(), 1, (na(0) + 1) * sfs_dim);
     }
     
     DEBUG << "recompute B";
     Matrix<adouble> e2 = Matrix<adouble>::Zero(M, 2);
     std::vector<adouble> avg_ct = eta->average_coal_times();
+    adouble small = eta->zero() + 1e-20;
     for (int m = 0; m < M; ++m)
     {
-        e2(m, 1) = avg_ct[m];
-        check_nan(e2(m, 1));
+        if (std::isnan(avg_ct[m].value()))
+        {
+            e2(m, 0) = small;
+            e2(m, 1) = small;
+        }
+        else
+        {
+            e2(m, 1) = 2. * theta * avg_ct[m];
+            e2(m, 0) = 1. - e2(m, 1);
+        }
+        // CHECK_NAN(e2(m, 1));
     }
-    e2.col(1) *= 2. * theta;
-    e2.col(0).setOnes();
-    e2.col(0) -= e2.col(1);
 #pragma omp parallel for
     for (auto it = bpm_keys.begin(); it < bpm_keys.end(); ++it)
     {
         block_key key = *it;
         std::set<block_key> keys;
         keys.insert(key);
+        if (P == 1)
+        {
+            int nseg = key(0) + key(1);
+            Vector<int> nk(3);
+            for (int a = 0; a <= std::min(2, nseg); ++a)
+            {
+                nk << a, nseg - a, key(2);
+                keys.insert(nk);
+            }
+        }
+
         if (this->folded)
         {
             Vector<int> new_key(it->size());
@@ -290,30 +311,25 @@ void NPopInferenceManager<P>::recompute_emission_probs()
         tmp.setZero();
         for (block_key k : keys)
         {
-            int a = k(0);
             bool reduced = true;
-            FixedVector<int, P> b, nb;
+            FixedVector<int, P> a, b, nb;
             for (unsigned int p = 0; p < P; ++p)
             {
-                b(p) = k(1 + 2 * p);
-                nb(p) = k(2 + 2 * p);
+                a(p) = k(3 * p);
+                b(p) = k(1 + 3 * p);
+                nb(p) = k(2 + 3 * p);
                 reduced &= nb(p) == 0;
             }
             if (reduced)
             {
-                if (a == -1)
+                if (a.minCoeff() == -1)
                     tmp.setOnes();
                 else
-                    tmp = e2.col(a % 2);
+                    tmp = e2.col(a.sum() % 2);
+                break;
             }
             else
-            {
-                if (a == -1)
-                    for (int i = 0; i < 3; ++i)
-                        tmp += marginalize_sfs<P>()(emission.middleCols(i * sfs_dim, sfs_dim), n, b, nb);
-                else
-                    tmp = marginalize_sfs<P>()(emission.middleCols(a * sfs_dim, sfs_dim), n, b, nb);
-            }
+                tmp += ma(emission, n, a, na, b, nb);
         }
         if (tmp.maxCoeff() > 1.0 or tmp.minCoeff() <= 0.0)
         {
@@ -322,7 +338,7 @@ void NPopInferenceManager<P>::recompute_emission_probs()
             std::cout << tmp.maxCoeff() << std::endl;
             throw std::runtime_error("probability vector not in [0, 1]");
         }
-        check_nan(tmp);
+        CHECK_NAN(tmp);
         this->emission_probs.at(*it) = tmp;
     }
     DEBUG << "recompute done";
@@ -347,23 +363,45 @@ OnePopInferenceManager::OnePopInferenceManager(
             const std::vector<int> obs_lengths,
             const std::vector<int*> observations,
             const std::vector<double> hidden_states) :
-        NPopInferenceManager(FixedVector<int, 1>::Constant(n),
+        NPopInferenceManager(
+                FixedVector<int, 1>::Constant(n),
+                FixedVector<int, 1>::Constant(2),
                 obs_lengths, observations, hidden_states, 
                 new OnePopConditionedSFS<adouble>(n)) {}
 
 TwoPopInferenceManager::TwoPopInferenceManager(
             const int n1, const int n2,
+            const int a1, const int a2,
             const std::vector<int> obs_lengths,
             const std::vector<int*> observations,
             const std::vector<double> hidden_states) :
         NPopInferenceManager(
                 (FixedVector<int, 2>() << n1, n2).finished(),
+                (FixedVector<int, 2>() << a1, a2).finished(),
                 obs_lengths, observations, hidden_states, 
-                new JointCSFS<adouble>(n1, n2, 2, 0, hidden_states)) {}
+                new JointCSFS<adouble>(n1, n2, a1, a2, hidden_states)),
+        a1(a1), a2(a2)
+{
+    if (not ((a1 == 2 and a2 == 0) or 
+             (a1 == 1 and a2 == 1)))
+        throw std::runtime_error("configuration not supported");
+}
 
 void TwoPopInferenceManager::setParams(const ParameterVector &params1, const ParameterVector &params2, const double split)
 {
-    InferenceManager::setParams(params1);
+    if (a1 == 1 and a2 == 1)
+    {
+        ParameterVector paramsSplit = shiftParams(params1, split);
+        // before split, prevent all coalescence
+        adouble inf = paramsSplit[0][0];
+        inf *= 0.;
+        inf.value() = INFINITY;
+        paramsSplit[0].emplace(paramsSplit[0].begin(), inf);
+        paramsSplit[1].emplace(paramsSplit[1].begin(), split);
+        InferenceManager::setParams(paramsSplit);
+    }
+    else
+        InferenceManager::setParams(params1);
     dynamic_cast<JointCSFS<adouble>*>(csfs.get())->pre_compute(params1, params2, split);
 }
 

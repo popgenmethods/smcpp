@@ -31,17 +31,17 @@ void store_matrix(const Matrix<adouble> &M, double *out, double *outjac)
         }
 }
 
-std::mutex logger_cb_mtx;
 void (*Logger::logger_cb)(const char*, const char*, const char*) = 0;
 void call_logger(const char* name, const char* level, const char* message)
 {
-    std::lock_guard<std::mutex> guard(logger_cb_mtx);
-    Logger::logger_cb(name, level, message);
+    if (Logger::logger_cb)
+        Logger::logger_cb(name, level, message);
 }
 
 void signal_bt(int sig)
 {
-    crash_backtrace("", -1);
+#pragma omp critical(stacktrace)
+    print_stacktrace();
 }
 
 void init_logger_cb(void(*fp)(const char*, const char*, const char*))
@@ -51,20 +51,64 @@ void init_logger_cb(void(*fp)(const char*, const char*, const char*))
     signal(SIGABRT, signal_bt);
 }
 
-std::mutex crash_backtrace_mtx;
-void crash_backtrace(const char* file, const int lineno)
+ParameterVector shiftParams(const ParameterVector &model1, const double shift)
 {
-    void *array[10];
-    size_t size;
+    const std::vector<adouble> &a = model1[0];
+    const std::vector<adouble> &s = model1[1];
+    std::vector<adouble> cs(s.size() + 1);
+    cs[0] = 0.;
+    std::partial_sum(s.begin(), s.end(), cs.begin() + 1);
+    cs.back() = INFINITY;
+    adouble tshift = shift;
+    int ip = std::distance(cs.begin(), std::upper_bound(cs.begin(), cs.end(), tshift)) - 1;
+    std::vector<adouble> sp(s.begin() + ip, s.end());
+    sp[0] = cs[ip + 1] - shift;
+    sp.back() = 1.0;
+    std::vector<adouble> ap(a.begin() + ip, a.end());
+    return {ap, sp};
+}
 
-    // get void*'s for all entries on the stack
-    size = backtrace(array, 10);
+ParameterVector truncateParams(const ParameterVector params, const double truncationTime)
+{
+    const std::vector<adouble> &a = params[0];
+    const std::vector<adouble> &s = params[1];
+    std::vector<adouble> cs(s.size() + 1);
+    cs[0] = 0.;
+    std::partial_sum(s.begin(), s.end(), cs.begin() + 1);
+    cs.back() = INFINITY;
+    adouble tt = truncationTime;
+    int ip = std::distance(cs.begin(), std::upper_bound(cs.begin(), cs.end(), tt)) - 1;
+    std::vector<adouble> sp(s.begin(), s.begin() + ip + 1);
+    sp[ip] = truncationTime - cs[ip];
+    std::vector<adouble> ap(a.begin(), a.begin() + ip + 1);
+    sp.push_back(1.);
+    ap.push_back(1e-8);
+    return {ap, sp};
+}
 
-    // print out all the frames to stderr
+void check_nan(const double x, const char* file, const int line) 
+{ 
+    std::string s;
+    if (std::isnan(x))
+        s = "nan";
+    else if (std::isinf(x))
+        s = "inf";
+    else
+        return;
+    s += " detected at ";
+    s += file;
+    s += ":";
+    s += std::to_string(line);
+#pragma omp critical(stacktrace)
     {
-        std::lock_guard<std::mutex> guard(crash_backtrace_mtx);
-        std::cerr << file << ":" << lineno << std::endl;
-        backtrace_symbols_fd(array, size, STDERR_FILENO);
-        std::cerr << std::endl << std::flush;
+        CRITICAL << s;
+        print_stacktrace();
     }
+    throw std::runtime_error(s);
+}
+
+void check_nan(const adouble &x, const char* file, const int line)
+{
+    check_nan(x.value(), file, line);
+    check_nan(x.derivatives(), file, line);
 }

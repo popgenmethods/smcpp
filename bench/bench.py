@@ -12,13 +12,15 @@ import sys
 import time
 import argparse
 import psmcpp._pypsmcpp
-from psmcpp.lib.util import config2dict
 import ConfigParser as configparser
 import cPickle as pickle
 
 # setup stuff
 t_start = time.time()
 np.set_printoptions(linewidth=120, precision=6, suppress=False)
+
+def config2dict(cp):
+    return {sec: dict(cp.items(sec)) for sec in cp.sections()}
 
 def exp_quantiles(M, h_M):
     hs = -np.log(1. - np.linspace(0, h_M, M, False) / h_M)

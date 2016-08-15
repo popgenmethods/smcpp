@@ -1,10 +1,10 @@
 import pytest
 import numpy as np
 
-import _pypsmcpp
 import lib.scrm as scrm
-from lib.util import human
-from fixtures import *
+
+import smcpp._smcpp, smcpp.model
+from fixtures import im
 
 np.set_printoptions(suppress=True)
 

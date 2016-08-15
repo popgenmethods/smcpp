@@ -140,19 +140,31 @@ Vector<adouble> HMM::Q(void)
     Vector<adouble> ret(3);
     ret.setZero();
     Vector<adouble> pi = *(ib->pi);
-    ret(0) = (pi.array().log() * gamma0.array()).sum();
+    ret(0) = (pi.array().log() * gamma0.array().template cast<adouble_base_type>()).sum();
 
+    std::vector<adouble> gs;
     for (auto &p : gamma_sums)
     {
         Vector<adouble> ep = ib->emission_probs->at(p.first);
-        ret(1) += (ep.array().log() * p.second.array()).sum();
+        Vector<adouble> c = ep.array().log().matrix().cwiseProduct(p.second);
+        if (ep.minCoeff() <= 0.0)
+        {
+            WARNING << "zeros detected in emission probability, key=" << p.first;
+            gs.clear();
+            gs[0] = adouble(-INFINITY);
+            break;
+        }
+        gs.insert(std::end(gs), c.data(), c.data() + M);
     }
+    ret(1) = doubly_compensated_summation(gs);
 
     Matrix<adouble> T = ib->tb->T;
     Matrix<adouble> log_T = T.array().log().matrix();
-    check_nan(log_T);
-    ret(2) = log_T.cwiseProduct(xisum).sum();
+    CHECK_NAN(log_T);
+    Matrix<adouble> prod = log_T.cwiseProduct(xisum.template cast<adouble_base_type>());
+    std::vector<adouble> es(prod.data(), prod.data() + M * M);
+    ret(2) = doubly_compensated_summation(es);
 
-    check_nan(ret);
+    CHECK_NAN(ret);
     return ret;
 }

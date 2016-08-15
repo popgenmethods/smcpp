@@ -6,12 +6,10 @@ import smcpp._smcpp, smcpp.model
 from fixtures import im
 
 def test_d(im):
-    eps = 1e-4
+    eps = 1e-8
     model = im.model
     K = model.K
-    model[:] = ad.adnumber(np.arange(1, K + 1, dtype=float) / K)
-    y = model[:].copy()
-    print(y)
+    model[:] = [ad.adnumber(1. * k / K, tag=k) for k in range(1, K + 1)]
     print(model.stepwise_values())
     im.model = model
     im.E_step()
@@ -19,19 +17,22 @@ def test_d(im):
     trans1 = im.transition
     print(trans1)
     M = trans1.shape[0]
-    I = np.eye(K)
+    m2 = smcpp.model.SMCModel.from_dict(model.to_dict())
+    im.model = m2
     for k in range(K):
-        aa = [float(_) for _ in y]
-        aa += eps * I[k]
-        model[:] = aa
-        im.model = model
+        m2[k] += 1e-8
+        im.model = m2
         im.Q()
+        m2[k] -= 1e-8
         trans2 = im.transition
         for i in range(M):
             for j in range(M):
-                dx = trans1[i, j].d(y[k])
+                try:
+                    dx = trans1[i, j].d(model[k])
+                except AttributeError:
+                    dx = 0.
                 dx2 = (trans2[i,j] - float(trans1[i,j])) / eps
-                print(k, i, j, dx, dx2, (dx - dx2) / dx)
+                print(k, i, j, dx, dx2)
     assert False
 
 # def test_equal_jac_nojac(constant_demo_1, hs):

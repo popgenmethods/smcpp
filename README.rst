@@ -5,26 +5,26 @@ whole genome sequence data.
 Quick Start Guide
 =================
 
-  1. Install the software. See `Installation`_, below.
+  1. Install the software. See Installation_, below.
 
-  2. Convert your VCF(s) to the SMC++ input format with `vcf2smc`_::
+  2. Convert your VCF(s) to the SMC++ input format with vcf2smc_::
 
          $ smc++ vcf2smc my.data.vcf.gz chr1 data/example.chr1.smc.gz
 
-     This command will parse data for the contig `chr1` across all
+     This command will parse data for the contig ``chr1`` across all
      samples in the VCF. You should run this once for each independent
      contig in your dataset, producing one SMC++ output file per contig.
 
-  3. Fit the model using `estimate`_::
+  3. Fit the model using estimate_::
 
-       $ smc++ estimate -o analysis/ data/example.chr*.smc.gz
+       $ smc++ estimate --theta .00025 -o analysis/ data/example.chr*.smc.gz
        
      Depending on sample size and your machine, the fitting procedure
      should take between a few minutes and a few hours. The fitted model
-     will be stored in JSON format in `analysis/model.final.json`. For
+     will be stored in JSON format in ``analysis/model.final.json``. For
      details on the format, see below.
 
-  4. Visualize the results using `plot`_::
+  4. Visualize the results using plot_::
 
        $ smc++ plot --labels species1 -- analysis/model.final.json results/fit.pdf
 
@@ -32,80 +32,83 @@ Quick Start Guide
 Installation
 ============
 
-SMC++ assumes that the following libraries and executables are available
-on your system:
+SMC++ is installed using ``pip``, the Python package manager::
 
-    - Python 2.7 or greater. SMC++ is compatible with Python 3, but only
-      in console mode.
-    - The `The GNU Multiple Precision Arithmetic Library <https://gmplib.org/>`_.
-    - The `GNU Scientific Library <https://www.gnu.org/software/gsl/>`_.
+     $ pip install git+https://github.com/terhorst/pmscpp.git@current
+
+Depending on your platform, ``pip`` will either download a pre-compiled
+binary, or compile SMC++ from scratch.
+
+Requirements
+============
+
+SMC++ requires the following libraries and executables in order to run:
+
+- Python 2.7 or greater. SMC++ is compatible with Python 3, but only
+  in console mode.
+- gmp_, for some rational field computations.
+- mpfr_, for some extended precision calculations.
+- gsl_, the GNU Scientific Library.
+
+Experimental pre-built binaries are available for Unix and Mac OS X
+systems. They will download automatically using ``pip`` (see above)
+if available for your system. Note that you will still need to have
+``libgmp``, ``libgsl`` and ``libmpfr`` accessible on your system in order 
+to run SMC++.
+
+.. _Homebrew: http://brew.sh
+.. _gmp: http://gmplib.org
+.. _mpfr: http://mpfr.org
+.. _gsl: https//www.gnu.org/software/gsl/
+
 
 Installing the Dependencies
 ===========================
 
-To install these requirements on Ubuntu Linux, use::
+On Ubuntu (or Debian) Linux, the library requirements may be installed
+using the commmand::
 
-    $ sudo apt-get install python libgsl0-dev libgmp-dev
+    $ sudo apt-get install -y libgmp-dev libmpfr-dev libgsl0-dev
 
-The easiest way to install these requirements on a Mac is using 
-`Homebrew <http://brew.sh/>`_::
+On OS X, the easiest way to install them is using Homebrew_::
 
-    $ brew install gmp gsl 
+    $ brew install mpfr gmp gsl gcc
 
-Binary Installation
-===================
+Compilation
+===========
 
-Compilation Instructions
-========================
-If binaries are not available for your platform, you can compile SMC++
-from scratch by following these steps:
-
-  1. Install additional required software:
-
-    - A compiler which supports C++11 (e.g. GCC 4.8 or later) *and*
-      OpenMP. Note that versions of Clang shipping with Mac OS X do not
-      currently support OpenMP. For this reason it is recommended that you
-      use gcc instead.
-    - `Eigen <http://eigen.tuxfamily.org/>`_, a C++ linear algebra library.
-
-
-  2. Install SMC++ via ``pip`` (this will change once we upload to PyPI)::
-
-       $ pip install git+https://github.com/terhorst/pmscpp.git
-
-     Depending on your platform, ``pip`` will either download a pre-compiled
-     binary, or compile SMC++ from scratch.
+If binaries are not available for your platform, ``pip`` will attempt
+to compile SMC++. In addition to the above Requirements_, SMC++
+nedds a compiler which supports C++11 (e.g. GCC 4.8 or later) *and*
+OpenMP. Note that versions of Clang shipping with Mac OS X do not
+currently support OpenMP. For this reason it is recommended that you
+use gcc instead.
 
 Virtual Environment
 ===================
 
-SMC++ requires in a fair number of Python dependencies.
-If you prefer to keep this separate from your main Python
-installation, or do not have root access on your system, you
-may wish to install SMC++ inside of a `virtual environment
-<http://docs.python-guide.org/en/latest/dev/virtualenvs/>`_. To do so,
-first create and activiate the virtual environment::
+SMC++ pulls in a fair number of Python dependencies. If you prefer to
+keep this separate from your main Python installation, or do not have
+root access on your system, you may wish to install SMC++ inside of a
+`virtual environment`_. To do so, first create and activate the virtual
+environment::
 
     $ virtualenv -p python2.7 <desired location>
     $ source <desired location>/bin/active
 
 Then, install SMC++ using ``pip`` as described above.
 
-
-
-There is also a graphical user interface to each of these commands, which
-is accessed by running::
-
-       $ smc++-gui
-
-
+.. _virtual environment: http://docs.python-guide.org/en/latest/dev/virtualenvs/
 
 ==========================
 Description of subcommands
 ==========================
 
 SMC++ comprises several subcommands which are accessed using the syntax 
-``$ smc++ <subcommand>``.
+
+.. code-block:: bash
+
+    $ smc++ <subcommand>
 
 vcf2smc
 =======
@@ -116,12 +119,12 @@ Required arguments
 ------------------
 
     1. An `indexed VCF file <http://www.htslib.org/doc/tabix.html>`_.
-    2. An output file. Appending the `.gz` extension will cause the output
-       to be compressed; the `estimate` command can read from both compressed
+    2. An output file. Appending the ``.gz`` extension will cause the output
+       to be compressed; the estimate_ command can read from both compressed
        and uncompressed data sources.
-    3. A contig name. Each call to `vcf2smc` processes a single contig. 
+    3. A contig name. Each call to vcf2smc_ processes a single contig. 
        VCFs containing multiple contigs should be processed via multiple
-       calls to `vcf2smc`.
+       separate runs.
 
 Optional arguments
 ------------------

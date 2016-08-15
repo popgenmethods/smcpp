@@ -9,30 +9,48 @@ import scipy.optimize
 import collections
 import wrapt
 import six
+import os.path
+from appdirs import AppDirs
 from ad import adnumber, ADF
 
-from . import logging
+from . import logging, version
 
-init_eigen();
 logger = logging.getLogger(__name__)
+logger.debug("SMC++ " + version.__version__)
+
+init_eigen()
+
+def _init_cache():
+    dirs = AppDirs("smcpp", "popgenmethods", version=version.MAJOR)
+    try:
+        os.makedirs(dirs.user_cache_dir)
+    except OSError:
+        pass
+    init_cache(os.path.join(dirs.user_cache_dir, "matrices.dat"))
+_init_cache()
 
 abort = False
+_lvl = {s: getattr(logging, s) for s in "info debug critical warning error".upper().split()}
+_lvl['DEBUG'] = logging.DEBUG - 1
+_lvl['DEBUG1'] = logging.DEBUG
 cdef void logger_cb(const char* name, const char* level, const char* message) with gil:
     global abort
     name_s = "smcpp._smcpp:" + name.decode("UTF-8")
     level_s = level.decode("UTF-8")
     message_s = message.decode("UTF-8")
     try:
-        lvl = {"INFO": logging.INFO, "DEBUG": logging.DEBUG - 1, "DEBUG1": logging.DEBUG,
-               "CRITICAL": logging.CRITICAL, "WARNING": logging.WARNING}
-        logging.getLogger(name_s).log(lvl[level_s.upper()], message_s)
+        logging.getLogger(name_s).log(_lvl[level_s.upper()], message_s)
     except KeyboardInterrupt:
         logging.getLogger(name_s).critical("Aborting")
         abort = True
 
 def _check_abort():
-    if abort:
-        raise KeyboardInterrupt()
+    global abort
+    try:
+        if abort:
+            raise KeyboardInterrupt()
+    finally:
+        abort = False
 
 init_logger_cb(logger_cb);
 
@@ -189,55 +207,47 @@ cdef class _PyInferenceManager:
         def __set__(self, hs):
             self._im.hidden_states = hs
 
-    # property emission_probs:
-    #     def __get__(self):
-    #         cdef map[block_key, Vector[adouble]] ep = self._im.getEmissionProbs()
-    #         cdef map[block_key, Vector[adouble]].iterator it = ep.begin()
-    #         cdef pair[block_key, Vector[adouble]] p
-    #         ret = {}
-    #         while it != ep.end():
-    #             p = deref(it)
-    #             key = [0] * 3
-    #             for i in range(3):
-    #                 key[i] = p.first[i]
-    #             M = p.second.size()
-    #             v = np.zeros(M)
-    #             if self._model.dlist:
-    #                 dv = np.zeros([M, len(self._model.dlist)])
-    #             for i in range(M):
-    #                 v[i] = p.second(i).value()
-    #                 for j in range(len(self._model.dlist)):
-    #                     dv[i, j] = p.second(i).derivatives()(j)
-    #             ret[tuple(key)] = (v, dv) if len(self._model.dlist) else v
-    #             inc(it)
-    #         return ret
+    property emission_probs:
+        def __get__(self):
+            cdef map[block_key, Vector[adouble]] ep = self._im.getEmissionProbs()
+            cdef map[block_key, Vector[adouble]].iterator it = ep.begin()
+            ret = {}
+            while it != ep.end():
+                bk = []
+                for i in range(deref(it).first.size()):
+                    bk.append(deref(it).first(i))
+                M = deref(it).second.size()
+                v = np.zeros(M, dtype=object)
+                for i in range(M):
+                    v[i] = _adouble_to_ad(deref(it).second(i), self._model.dlist)
+                ret[tuple(bk)] = v
+                inc(it)
+            return ret
 
 
-    # property gamma_sums:
-    #     def __get__(self):
-    #         ret = []
-    #         cdef vector[pBlockMap] gs = self._im.getGammaSums()
-    #         cdef vector[pBlockMap].iterator it = gs.begin()
-    #         cdef map[block_key, Vector[double]].iterator map_it
-    #         cdef pair[block_key, Vector[double]] p
-    #         cdef double[::1] vary
-    #         cdef int M = len(self.hidden_states) - 1
-    #         while it != gs.end():
-    #             map_it = deref(it).begin()
-    #             pairs = {}
-    #             while map_it != deref(it).end():
-    #                 p = deref(map_it)
-    #                 bk = [0, 0, 0]
-    #                 ary = np.zeros(M)
-    #                 for i in range(3):
-    #                     bk[i] = p.first[i]
-    #                 for i in range(M):
-    #                     ary[i] = p.second(i)
-    #                 pairs[tuple(bk)] = ary
-    #                 inc(map_it)
-    #             inc(it)
-    #             ret.append(pairs)
-    #         return ret
+    property gamma_sums:
+        def __get__(self):
+            ret = []
+            cdef vector[pBlockMap] gs = self._im.getGammaSums()
+            cdef vector[pBlockMap].iterator it = gs.begin()
+            cdef map[block_key, Vector[double]].iterator map_it
+            cdef double[::1] vary
+            cdef int M = len(self.hidden_states) - 1
+            while it != gs.end():
+                map_it = deref(it).begin()
+                pairs = {}
+                while map_it != deref(it).end():
+                    bk = []
+                    ary = np.zeros(M)
+                    for i in range(deref(map_it).first.size()):
+                        bk.append(deref(map_it).first(i))
+                    for i in range(M):
+                        ary[i] = deref(map_it).second(i)
+                    pairs[tuple(bk)] = ary
+                    inc(map_it)
+                inc(it)
+                ret.append(pairs)
+            return ret
 
     property gammas:
         def __get__(self):
@@ -259,17 +269,24 @@ cdef class _PyInferenceManager:
         def __get__(self):
             return _store_admatrix_helper(self._im.getEmission(), self._model.dlist)
 
-    def Q(self):
+    def Q(self, k=None):
         cdef vector[adouble] ad_rets
         with nogil:
             ad_rets = self._im.Q()
         _check_abort()
-        cdef int K = ad_rets.size()
         cdef int i
         cdef adouble q
         q = ad_rets[0]
-        for i in range(1, K):
+        q1 = _adouble_to_ad(ad_rets[0], self._model.dlist)
+        qq = [q1]
+        logger.debug(("q1", q1, [q1.d(x) for x in self._model.dlist]))
+        for i in range(1, 3):
+            z = _adouble_to_ad(ad_rets[i], self._model.dlist)
+            qq.append(z)
             q += ad_rets[i]
+            logger.debug(("q%d" % (i + 1), z, [z.d(x) for x in self._model.dlist]))
+        if k is not None:
+            return qq[k]
         r = adnumber(toDouble(q))
         if self._model.dlist:
             r = _adouble_to_ad(q, self._model.dlist)
@@ -283,6 +300,7 @@ cdef class _PyInferenceManager:
         return sum(llret)
 
 cdef class PyOnePopInferenceManager(_PyInferenceManager):
+
     def __cinit__(self, int n, observations, hidden_states):
         # This is needed because cinit cannot be inherited
         self.__my_cinit__(observations, hidden_states)
@@ -290,13 +308,15 @@ cdef class PyOnePopInferenceManager(_PyInferenceManager):
             self._im = new OnePopInferenceManager(n, self._Ls, self._obs_ptrs, self._hs)
 
 cdef class PyTwoPopInferenceManager(_PyInferenceManager):
+
     cdef TwoPopInferenceManager* _im2
 
-    def __cinit__(self, int n1, int n2, observations, hidden_states):
+    def __cinit__(self, int n1, int n2, int a1, int a2, observations, hidden_states):
         # This is needed because cinit cannot be inherited
         self.__my_cinit__(observations, hidden_states)
+        assert (a1 == 2 and a2 == 0) or (a1 == a2 == 1)
         with nogil:
-            self._im2 = new TwoPopInferenceManager(n1, n2, self._Ls, self._obs_ptrs, self._hs)
+            self._im2 = new TwoPopInferenceManager(n1, n2, a1, a2, self._Ls, self._obs_ptrs, self._hs)
             self._im = self._im2
 
     property model:
@@ -361,38 +381,44 @@ def thin_data(data, int thinning, int offset=0):
     cdef int[:, :] vdata = data
     cdef int j
     cdef int k = data.shape[0]
-    cdef int span, a, a1
-    cdef int npop = data.shape[1] // 2 - 1
+    cdef int span
+    cdef int npop = (data.shape[1] - 1) / 3
+    cdef int sa
+    a = np.zeros(npop, dtype=int)
     b = np.zeros(npop, dtype=int)
     nb = np.zeros(npop, dtype=int)
-    thin = [0, 0] * npop
+    thin = np.zeros(npop * 3, dtype=int)
+    nonseg = np.zeros(npop * 3, dtype=int)
     for j in range(k):
         span = vdata[j, 0]
-        a = vdata[j, 1]
-        b[:] = vdata[j, 2::2]
-        nb[:] = vdata[j, 3::2]
-        a1 = a
-        if a1 == 2:
-            a1 = 0
+        a[:] = vdata[j, 1::3]
+        b[:] = vdata[j, 2::3]
+        nb[:] = vdata[j, 3::3]
+        sa = a.sum()
+        if sa == 2:
+            thin[::3] = 0
+        else:
+            thin[::3] = a
         while span > 0:
             if i < thinning and i + span >= thinning:
                 if thinning - i > 1:
-                    out.append([thinning - i - 1, a1] + thin)
-                if a == 2 and np.all(b == nb):
-                    fold = sum([[0, nbi] for nbi in nb])
-                    out.append([1, 0] + fold)
+                    out.append([thinning - i - 1] + list(thin))
+                if sa == 2 and np.all(b == nb):
+                    nonseg[2::3] = nb
+                    out.append([1] + list(nonseg))
                 else:
                     out.append([1] + list(vdata[j, 1:]))
                 span -= thinning - i
                 i = 0
             else:
-                out.append([span, a1] + thin)
+                out.append([span] + list(thin))
                 i += span
                 break
     return np.array(out, dtype=np.int32)
 
 # Used for testing purposes only
-def joint_csfs(int n1, int n2, model, hidden_states, int K=10):
+def joint_csfs(int n1, int n2, int a1, int a2, model, hidden_states, int K=10):
+    assert (a1 == 2 and a2 == 0) or (a1 == a2 == 1)
     cdef vector[double] hs = hidden_states
     cdef ParameterVector p1 = make_params(model.model1)
     cdef ParameterVector p2 = make_params(model.model2)
@@ -402,14 +428,14 @@ def joint_csfs(int n1, int n2, model, hidden_states, int K=10):
     cdef JointCSFS[adouble] *jcsfs
     with nogil:
         eta = new PiecewiseConstantRateFunction[adouble](p1, hs)
-        jcsfs = new JointCSFS[adouble](n1, n2, 2, 0, hs, K)
+        jcsfs = new JointCSFS[adouble](n1, n2, a1, a2, hs, K)
         jcsfs.pre_compute(p1, p2, split)
-        jc = jcsfs.compute(eta[0])
+        jc = jcsfs.compute(deref(eta))
         del eta
         del jcsfs
     ret = []
     for i in range(jc.size()):
-        mat = _store_admatrix_helper(jc[i], model.dlist).reshape(
-                (3, (n1 + 1), 1, (n2 + 1)))
+        mat = _store_admatrix_helper(jc[i], model.dlist)
+        mat.shape = (a1 + 1, n1 + 1, a2 + 1, n2 + 1)
         ret.append(mat)
     return ret

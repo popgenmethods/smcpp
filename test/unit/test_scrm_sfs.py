@@ -28,11 +28,11 @@ def test_human():
     # Diploid effective population size
     N0 = 10000.
     a = human['a']
-    a[0] = 4.
+    a[0] = 10.
     b = a
     s = human['s']
     n = 5
-    L = 100000
+    L = 1000000
     t0, t1 = 1.0, 3.0
     model = PiecewiseModel(s, a)
     sfs = _smcpp.raw_sfs(model, n, t0, t1)
@@ -42,11 +42,11 @@ def test_human():
     demography = scrm.demography_from_params(np.array([a, b, s * 0.5]))
     # print(demography)
     args = (n, L, N0, theta, demography, t0, t1)
-    scrm_sfs = np.mean(list(mp.Pool().map(_scrm_sfs, [
-                       args + (np.random.randint(0, 10000),) for _ in range(32)])), axis=0)
-    # scrm_sfs = scrm.distinguished_sfs(*args)
+    # scrm_sfs = np.mean(list(mp.Pool().map(_scrm_sfs, [
+    #                    args + (np.random.randint(0, 10000),) for _ in range(32)])), axis=0)
+    scrm_sfs = scrm.distinguished_sfs(*args)
     for s in [sfs, scrm_sfs]:
-        print(np.array2string(s, formatter={'float_kind': lambda x: "%.3e" % x}))
+        print(np.array2string(s.astype('float'), formatter={'float_kind': lambda x: "%.3e" % x}))
 
 def _test_two_period():
     a = np.array([1., 20., 0.01])

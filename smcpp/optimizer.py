@@ -1,11 +1,17 @@
 from __future__ import absolute_import, division, print_function
 import numpy as np
 import scipy.optimize
-import os.path, os
-import ad, ad.admath
+import os.path
+import os
+import ad
+import ad.admath
+import wrapt
 import subprocess
+import random
 from six.moves import zip_longest
-from abc import ABCMeta, abstractmethod
+from abc import abstractmethod
+import pprint
+
 # some useful functions were added to shutil in Python 3.3
 try:
     from shutil import which, get_terminal_size
@@ -13,7 +19,7 @@ except ImportError:
     from backports.shutil_which import which
     from backports.shutil_get_terminal_size import get_terminal_size
 
-from . import estimation_tools, logging
+from . import logging, util
 from .observe import Observer, Observable
 
 logger = logging.getLogger(__name__)
@@ -39,28 +45,35 @@ class AbstractOptimizer(Observable):
 
     # In the one population case, this method adds derivative information to x
     def _prepare_x(self, x):
-        return ad.adnumber(x)
+        return [ad.adnumber(xx, tag=i) for i, xx in enumerate(x)]
 
-    def _f(self, x, analysis, coords):
+    def _f(self, x, analysis, coords, k=None):
+        logger.debug(x.astype('float'))
         x = self._prepare_x(x)
         analysis.model.reset_derivatives()
         analysis.model[coords] = x
-        q = -analysis.Q()
+        q = -analysis.Q(k)
         ret = [q.x, np.array(list(map(q.d, x)))]
-        # model = analysis.model
-        # logger.debug("\n" + np.array_str(model.y.astype(float), precision=2, max_line_width=100))
-        # logger.debug("\n" + np.array_str(model.stepwise_values().astype(float), precision=2, max_line_width=100))
-        # logger.debug(ret)
-        logger.debug((x, ret))
         return ret
 
     def _minimize(self, x0, coords, bounds):
+        # print("\n\ngradient check")
+        # for k in range(3):
+        #     y, dy = self._f(x0, self._analysis, coords, k)
+        #     for i in range(len(x0)):
+        #         x0[i] += 1e-8
+        #         y1, _ = self._f(x0, self._analysis, coords, k)
+        #         print("***grad", k, i, y1, (y1 - y) * 1e8, dy[i])
+        #         x0[i] -= 1e-8
         return scipy.optimize.minimize(self._f, x0,
                                        jac=True,
-                                       args=(self._analysis, coords,),
+                                       args=(self._analysis, coords),
                                        bounds=bounds,
-                                       options={'factr': 1e10},
+                                       # options={'xtol': .001},
                                        method="L-BFGS-B")
+        # return estimation_tools.adagrad(self._f, x0, bounds,
+        #     stepsize=1.0,
+        #     args=(self._analysis, coords))
 
     def run(self, niter):
         self.update_observers('begin')
@@ -79,27 +92,59 @@ class AbstractOptimizer(Observable):
                 bounds = self._bounds(coords)
                 x0 = model[coords]
                 res = self._minimize(x0, coords, bounds)
-                self.update_observers('post mini M-step', coords=coords, res=res, **kwargs)
+
+                # from collections import defaultdict
+                # ep = self._analysis._im.emission_probs
+                # gs = self._analysis._im.gamma_sums
+                # M = len(next(iter(gs[0].values())))
+                # ggs = defaultdict(lambda: np.zeros(M))
+                # for g in gs:
+                #     for k in g:
+                #         ggs[k] += g[k]
+                # pprint.pprint({(0, 0,0): ggs[(0, 0, 0)], (1,0,0): ggs[(1,0,0)]})
+                # vv = {k: (ggs[k] * ad.admath.log(ep[k])) for k in ggs}
+                # vi = sorted(vv.items(), key=lambda tup: abs(tup[1].sum()))
+                # kept = vi[-5:]
+                # pprint.pprint([(k, v.astype('float')) for k, v in kept])
+                # try:
+                # except:
+                #     pass
+                # vv = {k: (vv[k].x, [vv[k].d(l) for l in model.dlist]) for k in vv}
+                # pprint.pprint(vv)
+
+                self.update_observers('post mini M-step',
+                                      coords=coords,
+                                      res=res, **kwargs)
                 model[coords] = res.x
             self.update_observers('post M-step', **kwargs)
         # Conclude the optimization and perform any necessary callbacks.
         self.update_observers('optimization finished')
 
     def update_observers(self, *args, **kwargs):
-        kwargs.update({'analysis': self._analysis, 'model': self._analysis.model})
+        kwargs.update({'analysis': self._analysis,
+                       'model': self._analysis.model})
         Observable.update_observers(self, *args, **kwargs)
 
-## LISTENER CLASSES
+# LISTENER CLASSES
+
+# Decorator to target specific messages.
+def targets(target_message):
+    @wrapt.decorator
+    def wrapper(wrapped, instance, args, kwargs):
+        message = args[0]
+        if message == target_message:
+            wrapped(instance, *args, **kwargs)
+    return wrapper
 
 
 class HiddenStateOccupancyPrinter(Observer):
 
+    @targets("post E-step")
     def update(self, message, *args, **kwargs):
-        if message == "post E-step":
-            hso = np.sum(kwargs['analysis']._im.xisums, axis=(0, 1))
-            hso /= hso.sum()
-            logger.debug("hidden state occupancy:\n%s",
-                         np.array_str(hso, precision=2))
+        hso = np.sum(kwargs['analysis']._im.xisums, axis=(0, 1))
+        hso /= hso.sum()
+        logger.debug("hidden state occupancy:\n%s",
+                     np.array_str(hso, precision=2))
 
 
 class ProgressPrinter(Observer):
@@ -120,17 +165,24 @@ class ProgressPrinter(Observer):
 
 class LoglikelihoodPrinter(Observer):
 
+    def __init__(self):
+        self._old_loglik = None
+
+    @targets("post E-step")
     def update(self, message, *args, **kwargs):
-        if message == "post E-step":
-            ll = kwargs['analysis'].loglik()
+        ll = kwargs['analysis'].loglik()
+        if self._old_loglik is None:
             logger.info("Loglik: %f", ll)
+        else:
+            logger.info("New loglik: %f\t(old loglik: %f)", ll, self._old_loglik)
+        self._old_loglik = ll
 
 
 class ModelPrinter(Observer):
 
+    @targets("post M-step")
     def update(self, message, *args, **kwargs):
-        if message == "post M-step":
-            logger.info("Model: %s", kwargs['model'].to_s())
+        logger.info("Model: %s", kwargs['model'].to_s())
 
 
 class AnalysisSaver(Observer):
@@ -146,6 +198,41 @@ class AnalysisSaver(Observer):
         elif message == "optimization finished":
             dump(os.path.join(self._outdir, "model.final"))
 
+class KnotOptimizer(Observer):
+    
+    @targets("pre M-step")
+    def update(self, message, *args, **kwargs):
+        # pick a random knot and optimize
+        model = kwargs['model']
+        knots = model._knots
+        inds = np.arange(1, len(knots) - 1)  # hold first and last knots fixed
+        for i in np.random.choice(inds, size=int(len(inds) * .2), replace=False):
+            if i == 0:
+                bounds = (1e-6, 0.9 * knots[1])
+            elif i == len(knots) - 1:
+                bounds = (1.1 * knots[-2], 2 * knots[-1])
+            else:
+                bounds = (knots[i - 1] * 1.1, knots[i + 1] * 0.9)
+            analysis = kwargs['analysis']
+            logger.info("Old knot %d=%f Q=%f", i, knots[i], self._f(knots[i], analysis, i))
+            logger.debug("Bounds: (%f, %f)", *bounds)
+            res = scipy.optimize.minimize_scalar(self._f,
+                                                 args=(analysis, i),
+                                                 method='bounded',
+                                                 bounds=bounds)
+            logger.info("New knot %d=%f Q=%f", i, res.x, res.fun)
+            knots[i] = res.x
+            model.refit()
+
+    def _f(self, x, analysis, i):
+        analysis.model._knots[i] = x
+        analysis.model[:] = analysis.model[:].astype('float')
+        analysis.model.refit()
+        # derivatives curretly not supported for 1D optimization. not
+        # clear if they really help.
+        ret = -float(analysis.Q())
+        logger.debug("knot %d Q(%f)=%f", i, x, ret)
+        return ret
 
 class ParameterOptimizer(Observer):
 
@@ -154,9 +241,8 @@ class ParameterOptimizer(Observer):
         self._bounds = bounds
         self._target = target
 
+    @targets("pre M-step")
     def update(self, message, *args, **kwargs):
-        if message != "pre M-step":
-            return
         param = self._param
         logger.debug("Updating %s", param)
         tgt = kwargs[self._target]
@@ -182,14 +268,24 @@ class ParameterOptimizer(Observer):
         return ret
 
 
+class SplineDumper(Observer):
+
+    def __init__(self, outdir):
+        self._outdir = outdir
+
+    @targets("post M-step")
+    def update(self, message, *args, **kwargs):
+        with open(os.path.join(self._outdir, ".spline.txt"), "wt") as f:
+            kwargs['model']._spline.dump(f)
+
+
 class AsciiPlotter(Observer):
 
     def __init__(self, gnuplot_path):
         self._gnuplot_path = gnuplot_path
 
+    @targets("post M-step")
     def update(self, message, *args, **kwargs):
-        if message != "post-M step":
-            return
         model = kwargs['model']
         two_pop = hasattr(model, 'split')
         if two_pop:
@@ -236,18 +332,52 @@ class AsciiPlotter(Observer):
         logger.info("Current model:\n%s", graph)
 
 
+class TransitionDebug(Observer):
+
+    def __init__(self, path):
+        self._path = path
+        try:
+            os.makedirs(path)
+        except OSError:
+            pass
+
+    @targets("post mini M-step")
+    def update(self, message, *args, **kwargs):
+        im = kwargs['analysis']._im
+        T = im.transition
+        xis = np.sum(im.xisums, axis=0)
+        np.savetxt(os.path.join(self._path, "xis.txt"),
+                   xis.astype("float"), fmt="%g")
+        log_T = np.array(ad.admath.log(T))
+        np.savetxt(os.path.join(self._path, "log_T.txt"),
+                   log_T.astype("float"), fmt="%g")
+        q3 = log_T * xis
+        np.savetxt(os.path.join(self._path, "q3.txt"),
+                   q3.astype("float"), fmt="%g")
+        for i, d in enumerate(im.model.dlist):
+            f = np.vectorize(lambda x, d=d: x.d(d))
+            np.savetxt(os.path.join(self._path, "q3.%d.txt" % i),
+                       f(q3).astype("float"), fmt="%g")
+
+
 class SMCPPOptimizer(AbstractOptimizer):
     'Model fitting for one population.'
 
     def __init__(self, analysis):
         AbstractOptimizer.__init__(self, analysis)
-        self.register(LoglikelihoodPrinter())
-        self.register(HiddenStateOccupancyPrinter())
-        self.register(ProgressPrinter())
-        self.register(ModelPrinter())
+        observers = [
+            LoglikelihoodPrinter(),
+            HiddenStateOccupancyPrinter(),
+            ProgressPrinter(),
+            ModelPrinter(),
+            # TransitionDebug("/export/home/terhorst/Dropbox.new/Dropbox/tdtmp"),
+            # SplineDumper("/export/home/terhorst/Dropbox.new/Dropbox/tdtmp")
+        ]
         gnuplot = which("gnuplot")
         if gnuplot:
-            self.register(AsciiPlotter(gnuplot))
+            observers.append(AsciiPlotter(gnuplot))
+        for obs in observers:
+            self.register(obs)
 
     def _coordinates(self):
         model = self._analysis.model
@@ -255,8 +385,9 @@ class SMCPPOptimizer(AbstractOptimizer):
         for b in range(model.K - self.block_size + 1):
             ret.append(list(range(b, min(model.K, b + self.block_size))))
         # After all coordinate-wise updates, optimize over whole function
+        # ret = ret[::-1]
         ret.append(list(range(model.K)))
-        return ret
+        return [random.choice(ret)]
 
     def _bounds(self, coords):
         return np.log([self._analysis._bounds] * len(coords))

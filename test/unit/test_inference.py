@@ -59,11 +59,16 @@ def test_inference():
     im.rho = 0.0031206103977654887
     im.E_step()
     q0 = im.Q()
+    r0 = model.regularizer()
     for k in range(K):
         dq = q0.d(model[k])
+        dr = r0.d(model[k])
         model[k] += 1e-8
         im.model = model
         q1 = im.Q()
+        r1 = model.regularizer()
         a = float(q1 - q0) * 1e8
+        b = float(r1 - r0) * 1e8
         print(k, a, dq)
+        print(k, b, dr)
         model[k] -= 1e-8
