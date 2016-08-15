@@ -59,10 +59,10 @@ except ImportError:
              "Please install it and and re-run.")
 dist.Distribution({'setup_requires': ['numpy', 'pkgconfig', 'cython']})
 
-version = exec(open("smcpp/_version.py", "rt").read())
+execfile("smcpp/_version.py")
 
 setup(name='smcpp',
-        version=version,
+        version=__version__,
         description='SMC++',
         author='Jonathan Terhorst, Jack Kamm, Yun S. Song',
         author_email='terhorst@stat.berkeley.edu',
