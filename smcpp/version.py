@@ -1,6 +1,10 @@
 from setuptools_scm import get_version
 
-__version__ = get_version()
+try:
+    __version__ = get_version()
+except:
+    __version__ = "0.0.0"
+
 if "+" in __version__:
     MMP, LOCAL = __version__.split("+")
 else:
