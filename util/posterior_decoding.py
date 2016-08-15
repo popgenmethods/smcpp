@@ -12,12 +12,18 @@ from collections import Counter
 import sys
 import argparse
 import os, os.path
+import logging
+
+from stepfun import StepFunction
 
 import matplotlib
 matplotlib.use('Agg')
 matplotlib.rcParams.update({'font.size': 20})
+from matplotlib.image import NonUniformImage
+
 import scrm 
 import smcpp._smcpp, smcpp.util, smcpp.plotting, smcpp._newick, smcpp.estimation_tools
+from smcpp.model import PiecewiseModel
 
 np.set_printoptions(linewidth=120, precision=6, suppress=True)
 
@@ -71,6 +77,7 @@ print(" ".join(map(str, demography)))
 if args.seed is not None:
     np.random.seed(args.seed)
 data0 = scrm.simulate(args.panel_size, args.N0, args.theta, args.rho, args.L, True, demography)
+print("done simulating")
 
 # Create missingness in data
 if args.missing is not None:
@@ -82,6 +89,7 @@ if args.missing is not None:
 
 # Draw from panel
 data = smcpp.util.dataset_from_panel(data0, n_max, (0, 1), True)
+print("done panel")
 
 # Dump trees
 open(os.path.join(args.outdir, "trees.txt"), "wt").write("\n".join("[%d]%s" % c for c in data[3]))
@@ -119,7 +127,9 @@ bks = {}
 maps = {}
 gammadict = {}
 datadict = {}
+hs = {}
 for n in args.n:
+    print("n=%d begin", n)
     # subset data. some sites might be non-segregating in the subsample.
     seg = [i for i, pos in enumerate(data[1]) if 
             any(h[i] != 0 for h in data[2][:n])
@@ -130,13 +140,16 @@ for n in args.n:
     # oo[n] = np.array([c1[1:] for c1 in obs for _ in range(c1[0])])
     oo[n] = [smcpp.estimation_tools.thin_dataset([obs], 1)]
     oo[n], _ = smcpp.estimation_tools.break_long_spans(oo[n][0], np.inf, 0)
-    hidden_states = smcpp._smcpp.balance_hidden_states((a,b,s), args.M + 1)
-    im = smcpp._smcpp.PyInferenceManager(n - 2, oo[n], hidden_states)
+    model = PiecewiseModel(s, a, [])
+    hidden_states = hs[n] = smcpp.estimation_tools.balance_hidden_states(model, args.M + 1)
+    im = smcpp._smcpp.PyOnePopInferenceManager(n - 2, oo[n], hidden_states)
     im.theta = 2.0 * args.N0 * args.theta
     im.rho = 2.0 * args.estimated_rho * args.N0
     im.save_gamma = True
-    im.model = smcpp._smcpp.make_model([a, b, s])
+    im.model = model
+    print("E step")
     im.E_step()
+    print("E step done")
     ims[n] = im
     # dump gamma file for each n
     gammadict[str(n)] = im.gammas[0]
@@ -147,14 +160,14 @@ for n in args.n:
         an = row[0]
         gamma[:, sp:(sp+an)] = col[:, None] / an
         sp += an
-    # gamma = gamma[:, 311000:313000]
     full_gammas[n] = gamma
     gm[n] = scipy.ndimage.zoom(gamma, (1.0, 1. * width / args.L))
     maps[n] = np.argmax(gamma, axis=0)
+    print("n=%d done" % n)
 
-np.savetxt(os.path.join(args.outdir, "hidden_states.txt"), hidden_states)
-np.savez_compressed(os.path.join(args.outdir, "posteriors.npz"), **gammadict)
-np.savez_compressed(os.path.join(args.outdir, "data.npz"), **datadict)
+# np.savetxt(os.path.join(args.outdir, "hidden_states.txt"), hidden_states)
+# np.savez_compressed(os.path.join(args.outdir, "posteriors.npz"), **gammadict)
+# np.savez_compressed(os.path.join(args.outdir, "data.npz"), **datadict)
 
 import matplotlib.pyplot as plt
 
@@ -167,25 +180,59 @@ zct = scipy.ndimage.zoom(list(smcpp.util.unpack(ct)), 1. * width / args.L)
 true_pos = scipy.ndimage.zoom(coal_times, 1. * width / args.L)
 # axes[-1].step(range(width), true_pos)
 #end i loop
-plt.set_cmap("cubehelix")
+plt.set_cmap("viridis")
+
+tct = np.array(list(smcpp.util.unpack(ct)))
+hsmid = np.diff(hidden_states)
+hsmid[-1] = 2 * hsmid[-2]
+
+tct_hs_out = (tct[None, :] - hsmid[:, None])**2
 
 ai = 0
 label_text   = [r"%i kb" % int(args.L / 40. * 100. * loc/width) for loc in plt.xticks()[0]]
 mx = max([np.max(gm[g]) for g in gm])
 hs_mid = 0.5 * (hidden_states[1:] + hidden_states[:-1])
+sqer = {}
+sqer2 = None
+mapstep = {}
 for n in sorted(gm):
     ax = axes[ai]
     ai += 1
-    im = ax.imshow(gm[n][::-1], extent=[0, width, -0.5, args.M - 0.5],aspect='auto', vmin=0.0, vmax=mx)
-    map_pos = scipy.ndimage.zoom(maps[n], 1. * width / args.L)
-    ax.step(range(width), map_pos, color="red")
-    ax.step(range(width), true_pos, color=(0., 1., 0.))
-    diff = np.abs(np.subtract.outer(hs_mid, zct))
+    # im = ax.imshow(gm[n][::-1], extent=[0, width, -0.5, args.M - 0.5],aspect='auto', vmin=0.0, vmax=mx)
+    img = NonUniformImage(ax, interpolation="bilinear")
+    x = np.concatenate([[1.], np.cumsum(oo[n][0][:, 0])]) - 1
+    xmax = x[-1]
+    y = hs[n]
+    y = (y[1:] + y[:-1]) / 2
+    y[-1] = ymax = 2 * hs[n][-2] # last val will be inf
+    g = gammadict[str(n)][::-1]
+    img.set_data(np.arange(0, xmax, xmax // width), y, gm[n])
+    ax.images.append(img)
+    # map_pos = scipy.ndimage.zoom(maps[n], 1. * width / args.L)
+    am = np.argmax(g[::-1], axis=0)
+    am2 = np.concatenate([[-1], am, [-1]])
+    w = np.where((np.diff(am2) != 0))[0][1:] - 1
+    map_pos = y[am[w]]
+    y = np.concatenate([[0.], map_pos, map_pos[-1:]])
+    x = np.concatenate([[0.], x[w], [xmax]])
+    mapstep[n] = (x, y)
+    ax.step(x, y, color="red", where="post")
+    s1 = StepFunction(x, y[:-1])
+    ctx, cty = zip(*ct)
+    ctx = np.concatenate([[0.], np.cumsum(ctx)])
+    cty = np.concatenate([cty, cty[-1:]])
+    ax.step(ctx, cty, where="post", color=(0., 1., 0.))
+    s2 = StepFunction(ctx, cty[:-1])
+    sqer[n] = (s1 - s2)**2
+    # ax.step(sqer[n]._x[:-1], sqer[n]._y, where="post", color="orange")
     # escore = (diff * gm[n]).sum() / diff.shape[1]
     ax.set_ylabel("n=%d" % n)
-    ax.set_ylim([-0.5, args.M - 0.5])
-    ax.set_xticklabels(label_text)
-    corr = np.corrcoef(coal_times, maps[n])[0, 1]
-    txt = ax.text(width + 35, 5, "%.4f" % corr, rotation=-90, va='bottom', ha='right')
+    ax.set_ylim([0, ymax])
+    # ax.set_xticklabels(label_text)
+    # corr = np.corrcoef(coal_times, maps[n])[0, 1]
+    err = (full_gammas[n] * tct_hs_out).sum()
+    if n == 2:
+        sqer2 = err
+    txt = ax.text(xmax * 1.02, 1, "%.4f" % (err / sqer2), rotation=-90, va='bottom', ha='right')
 smcpp.plotting.save_pdf(fig, os.path.join(args.outdir, "plot.pdf"))
 plt.close(fig)
