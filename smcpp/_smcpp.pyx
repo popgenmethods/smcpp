@@ -384,34 +384,35 @@ def thin_data(data, int thinning, int offset=0):
     cdef int span
     cdef int npop = (data.shape[1] - 1) / 3
     cdef int sa
-    a = np.zeros(npop, dtype=int)
-    b = np.zeros(npop, dtype=int)
-    nb = np.zeros(npop, dtype=int)
-    thin = np.zeros(npop * 3, dtype=int)
-    nonseg = np.zeros(npop * 3, dtype=int)
+    a = np.zeros(npop, dtype=np.int32)
+    b = np.zeros(npop, dtype=np.int32)
+    nb = np.zeros(npop, dtype=np.int32)
+    thin = np.zeros(npop * 3, dtype=np.int32)
+    nonseg = np.zeros(npop * 3, dtype=np.int32)
+    cdef int[:] a_view = a, b_view = b, nb_view = nb, thin_view = thin, nonseg_view = nonseg
     for j in range(k):
         span = vdata[j, 0]
-        a[:] = vdata[j, 1::3]
-        b[:] = vdata[j, 2::3]
-        nb[:] = vdata[j, 3::3]
+        a_view[:] = vdata[j, 1::3]
+        b_view[:] = vdata[j, 2::3]
+        nb_view[:] = vdata[j, 3::3]
         sa = a.sum()
         if sa == 2:
-            thin[::3] = 0
+            thin_view[::3] = 0
         else:
-            thin[::3] = a
+            thin_view[::3] = a_view
         while span > 0:
             if i < thinning and i + span >= thinning:
                 if thinning - i > 1:
-                    out.append([thinning - i - 1] + list(thin))
+                    out.append([thinning - i - 1] + list(thin_view))
                 if sa == 2 and np.all(b == nb):
-                    nonseg[2::3] = nb
-                    out.append([1] + list(nonseg))
+                    nonseg_view[2::3] = nb_view
+                    out.append([1] + list(nonseg_view))
                 else:
                     out.append([1] + list(vdata[j, 1:]))
                 span -= thinning - i
                 i = 0
             else:
-                out.append([span] + list(thin))
+                out.append([span] + list(thin_view))
                 i += span
                 break
     return np.array(out, dtype=np.int32)
