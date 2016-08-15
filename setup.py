@@ -59,7 +59,7 @@ except ImportError:
              "Please install it and and re-run.")
 dist.Distribution({'setup_requires': ['numpy', 'pkgconfig', 'cython']})
 
-execfile("smcpp/_version.py")
+exec(compile(open("smcpp/_version.py").read(), "smcpp/_version.py", 'exec'))
 
 setup(name='smcpp',
         version=__version__,
