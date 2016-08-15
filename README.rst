@@ -44,15 +44,15 @@ Requirements
 ============
 SMC++ requires the following external dependencies to build:
 
-  - Python 2.7 or greater. SMC++ is compatible with Python 3, but only
-    in console mode.
-  - A compiler which supports C++11 (e.g. GCC 4.8 or later) *and*
-    OpenMP. Note that versions of Clang shipping with Mac OS X do not
-    currently support OpenMP. For this reason it is recommended that you
-    use gcc instead.
-  - gmp <https://gmplib.org/> for some rational field computations.
-  - mpfr <http://www.mpfr.org/> for some extended precision calculations.
-  - gsl, the GNU Scientific Library.
+- Python 2.7 or greater. SMC++ is compatible with Python 3, but only
+  in console mode.
+- A compiler which supports C++11 (e.g. GCC 4.8 or later) *and*
+  OpenMP. Note that versions of Clang shipping with Mac OS X do not
+  currently support OpenMP. For this reason it is recommended that you
+  use gcc instead.
+- gmp <https://gmplib.org/> for some rational field computations.
+- mpfr <http://www.mpfr.org/> for some extended precision calculations.
+- gsl, the GNU Scientific Library.
 
 On Ubuntu (or Debian) Linux, the library requirements may be installed
 using the commmand::
