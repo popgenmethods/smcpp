@@ -6,35 +6,35 @@ Quick Start Guide
 =================
 Follow these steps to get up and running as quickly as possible:
 
-  0. Make sure you have the requirements installed. (See section
-     "Requirements" below.)
-  1. Install SMC++ via `pip` (this will change once we upload to PyPI)::
+0. Make sure you have the requirements installed. (See section
+   "Requirements" below.)
+1. Install SMC++ via `pip` (this will change once we upload to PyPI)::
 
-       $ pip install git+https://github.com/terhorst/pmscpp.git
+     $ pip install git+https://github.com/terhorst/pmscpp.git
 
-     Depending on your platform, `pip` will either download a pre-compiled
-     binary, or compile SMC++ from scratch.
-  2. Convert your VCF file to the `smc++` format::
+   Depending on your platform, `pip` will either download a pre-compiled
+   binary, or compile SMC++ from scratch.
+2. Convert your VCF file to the `smc++` format::
 
-       $ smc++ vcf2smc example.vcf chr1 data/example.chr1.smc.gz
+     $ smc++ vcf2smc example.vcf chr1 data/example.chr1.smc.gz
 
-     Repeat as many times an needed for different chromosomes.
-  3. Fit the model::
+   Repeat as many times an needed for different chromosomes.
+3. Fit the model::
 
-       $ smc++ estimate results/ 1.2e-8 3e-9 data/example.chr*.smc.gz
+     $ smc++ estimate results/ 1.2e-8 3e-9 data/example.chr*.smc.gz
 
-     Depending on sample size and your machine, the fitting procedure
-     should take between a few minutes and a few hours. The fitted model
-     will be stored in JSON format in `results/model.final.json`. For details
-     on the format, see below.
-  4. Visualize the results::
+   Depending on sample size and your machine, the fitting procedure
+   should take between a few minutes and a few hours. The fitted model
+   will be stored in JSON format in `results/model.final.json`. For details
+   on the format, see below.
+4. Visualize the results::
 
-       $ smc++ plot_model results/model.final.json results/fit.pdf
+     $ smc++ plot_model results/model.final.json results/fit.pdf
 
 There is also a graphical user interface to each of these commands, which
 is accessed by running::
 
-       $ smc++-gui
+     $ smc++-gui
 
 (Currently, this only works for Python 2.x.)
 
@@ -50,14 +50,24 @@ SMC++ requires the following external dependencies to build:
     OpenMP. Note that versions of Clang shipping with Mac OS X do not
     currently support OpenMP. For this reason it is recommended that you
     use gcc instead.
-  - Eigen <http://eigen.tuxfamily.org/>, a C++ linear algebra library.
   - gmp <https://gmplib.org/> for some rational field computations.
+  - mpfr <http://www.mpfr.org/> for some extended precision calculations.
   - gsl, the GNU Scientific Library.
+
+On Ubuntu (or Debian) Linux, the library requirements may be installed
+using the commmand::
+
+    $ sudo apt-get install -y libgmp-dev libmpfr-dev libgsl0-dev
+
+On OS X, the easiest way to install them is using Homebrew <http://brew.sh/>::
+
+    $ brew install mpfr gmp gsl gcc
 
 Experimental pre-built binaries are available for Unix and Mac OS X
 systems. They will download automatically using `pip` (see above)
 if available for your system. Note that you will still need to have
-`libgmp` and `libgsl` accessible on your system in order to run SMC++.
+`libgmp`, `libgsl` and `libmpfr` accessible on your system in order 
+to run SMC++.
 
 =================
 Input Data Format
