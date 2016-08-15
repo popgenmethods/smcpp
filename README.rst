@@ -50,16 +50,16 @@ SMC++ requires the following external dependencies to build:
   OpenMP. Note that versions of Clang shipping with Mac OS X do not
   currently support OpenMP. For this reason it is recommended that you
   use gcc instead.
-- gmp <https://gmplib.org/> for some rational field computations.
-- mpfr <http://www.mpfr.org/> for some extended precision calculations.
-- gsl, the GNU Scientific Library.
+- gmp_, for some rational field computations.
+- mpfr_, for some extended precision calculations.
+- gsl_, the GNU Scientific Library.
 
 On Ubuntu (or Debian) Linux, the library requirements may be installed
 using the commmand::
 
     $ sudo apt-get install -y libgmp-dev libmpfr-dev libgsl0-dev
 
-On OS X, the easiest way to install them is using Homebrew <http://brew.sh/>::
+On OS X, the easiest way to install them is using Homebrew_::
 
     $ brew install mpfr gmp gsl gcc
 
@@ -68,6 +68,11 @@ systems. They will download automatically using `pip` (see above)
 if available for your system. Note that you will still need to have
 `libgmp`, `libgsl` and `libmpfr` accessible on your system in order 
 to run SMC++.
+
+.. _Homebrew: http://brew.sh
+.. _gmp: http://gmplib.org
+.. _mpfr: http://mpfr.org
+.. _gsl: https//www.gnu.org/software/gsl/
 
 =================
 Input Data Format
