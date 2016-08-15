@@ -1,4 +1,4 @@
-SMC++ is a program for estimating the size history of a population from
+SMC++ is a program for estimating the size history of populations from
 whole genome sequence data.
 
 =================
@@ -72,7 +72,7 @@ using the commmand::
 
 On OS X, the easiest way to install them is using Homebrew_::
 
-    $ brew install mpfr gmp gsl gcc
+    $ brew install mpfr gmp gsl
 
 Compilation
 ===========
@@ -80,9 +80,18 @@ Compilation
 If binaries are not available for your platform, ``pip`` will attempt
 to compile SMC++. In addition to the above Requirements_, SMC++
 nedds a compiler which supports C++11 (e.g. GCC 4.8 or later) *and*
-OpenMP. Note that versions of Clang shipping with Mac OS X do not
-currently support OpenMP. For this reason it is recommended that you
-use gcc instead.
+OpenMP_.
+
+Note for OS X users
+-------------------
+Versions of Clang shipping with Mac OS X do not currently support
+OpenMP. For this reason it is recommended that you use gcc instead.
+In order to tell ``pip`` to use gcc, set the ``CC`` and ``CXX``
+environment variables, e.g.::
+
+    $ CC=gcc-5 CXX=g++-5 pip install git+https://github.com/terhorst/pmscpp.git@current
+
+.. _OpenMP: http://openmp.org
 
 Virtual Environment
 ===================
