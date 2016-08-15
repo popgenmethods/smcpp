@@ -34,7 +34,7 @@ def lazy_extensions():
                 # extra_compile_args=["-O0", "-ggdb3", "-std=c++11", "-Wno-unused-variable", "-Wno-unused-function", "-D_GLIBCXX_DEBUG"],
                 extra_compile_args=["-O2", "-std=c++11", "-Wno-deprecated-declarations", "-fopenmp"],
                 libraries=['gmp', 'gmpxx', 'gsl', 'gslcblas'],
-                extra_link_args=['-rdynamic', '-fopenmp'],
+                extra_link_args=['-fopenmp'],
                 )]
     if True:
         extensions.append(## This depends on boost and is only used for testing purposes

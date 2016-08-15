@@ -33,7 +33,7 @@ HJTransition<T>::HJTransition(const PiecewiseConstantRateFunction<T> &eta, const
     const std::vector<double> ts = eta.getTs();
     const std::vector<int> hs_indices = eta.getHsIndices();
     const std::vector<T> Rrng = eta.getRrng();
-    for (int i = 1; i < ts.size(); ++i)
+    for (unsigned int i = 1; i < ts.size(); ++i)
     {
         if (std::isinf(ts[i]))
         {

@@ -28,7 +28,10 @@ struct marginalize_sfs<1>
         int M = sfs.rows();
         Vector<T> ret = Vector<T>::Zero(M);
         assert(sfs.cols() == n(0) + 1);
-        for (unsigned int n1 = b(0); n1 < n(0) + b(0) - nb(0) + 1; ++n1)
+        for (unsigned int n1 = b(0);
+                // eliminate annoying compiler warnings
+                n1 < (unsigned int)n(0) + (unsigned int)b(0) - (unsigned int)nb(0) + 1;
+                ++n1)
         {
             // n1: number of derived in sample of size n
             // n2: number of ancestral "    "   "   "

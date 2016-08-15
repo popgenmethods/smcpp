@@ -293,7 +293,7 @@ void NPopInferenceManager<P>::recompute_emission_probs()
             int a = k(0);
             bool reduced = true;
             FixedVector<int, P> b, nb;
-            for (int p = 0; p < P; ++p)
+            for (unsigned int p = 0; p < P; ++p)
             {
                 b(p) = k(1 + 2 * p);
                 nb(p) = k(2 + 2 * p);
