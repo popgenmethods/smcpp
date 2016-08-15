@@ -59,17 +59,17 @@ except ImportError:
              "Please install it and and re-run.")
 dist.Distribution({'setup_requires': ['numpy', 'pkgconfig', 'cython']})
 
-
+version = exec(open("smcpp/_version.py", "rt").read())
 
 setup(name='smcpp',
-        version=os.environ["GIT_VERSION"],
+        version=version,
         description='SMC++',
         author='Jonathan Terhorst, Jack Kamm, Yun S. Song',
         author_email='terhorst@stat.berkeley.edu',
         url='https://github.com/terhorst/smc++',
         ext_modules=lazy_extensions(), # cythonize(extensions),
         packages=find_packages(),
-	setup_requires=['pytest-runner', 'numpy', 'pkgconfig', 'cython'],
+        setup_requires=['pytest-runner', 'numpy', 'pkgconfig', 'cython'],
         tests_require=['pytest'],
         install_requires=[
             "gmpy2", # This is not used in the Python code, but 
