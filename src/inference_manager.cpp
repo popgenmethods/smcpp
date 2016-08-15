@@ -39,11 +39,6 @@ InferenceManager::InferenceManager(
     pi = Vector<adouble>::Zero(M);
     transition = Matrix<adouble>::Zero(M, M);
     transition.setZero();
-    // Due to lack of good support for tensors, we store the emission
-    // tensor in "flattened" matrix form. Note that this is actually
-    // 1 larger along each axis than the true number, because the SFS
-    // ranges in {0, 1, ..., n_pop_k}.
-
     InferenceBundle *ibp = &ib;
 #pragma omp parallel for
     for (unsigned int i = 0; i < obs.size(); ++i)
@@ -247,6 +242,10 @@ template <size_t P>
 void NPopInferenceManager<P>::recompute_emission_probs()
 {
     // Initialize emission matrix
+    // Due to lack of good support for tensors, we store the emission
+    // tensor in "flattened" matrix form. Note that this is actually
+    // 1 larger along each axis than the true number, because the SFS
+    // ranges in {0, 1, ..., n_pop_k}.
     emission = Matrix<adouble>::Zero(M, (na(0) + 1) * sfs_dim);
     emission.setZero();
 
@@ -268,6 +267,11 @@ void NPopInferenceManager<P>::recompute_emission_probs()
     {
         if (std::isnan(avg_ct[m].value()))
         {
+            // if the two lineages are separated by a split, their
+            // average coalescence time within each interval before
+            // (more recently than) the split is undefined. in this
+            // case, assign very low probabilities to all such
+            // observations.
             e2(m, 0) = small;
             e2(m, 1) = small;
         }
@@ -278,68 +282,58 @@ void NPopInferenceManager<P>::recompute_emission_probs()
         }
         // CHECK_NAN(e2(m, 1));
     }
+    const adouble zero = eta->zero();
+    const adouble one = zero + 1.;
 #pragma omp parallel for
     for (auto it = bpm_keys.begin(); it < bpm_keys.end(); ++it)
     {
-        block_key key = *it;
-        std::set<block_key> keys;
-        keys.insert(key);
-        if (P == 1)
-        {
-            int nseg = key(0) + key(1);
-            Vector<int> nk(3);
-            for (int a = 0; a <= std::min(2, nseg); ++a)
-            {
-                nk << a, nseg - a, key(2);
-                keys.insert(nk);
-            }
-        }
-
+        // std::set<block_key> keys;
+        // keys.insert(key);
+        /*
         if (this->folded)
         {
             Vector<int> new_key(it->size());
-            new_key(0) = (key(0) == -1) ? -1 : 2 - key(0);
             for (size_t p = 0; p < P; ++p)
             {
-                int b = key(1 + 2 * p), nb = key(2 + 2 * p);
+                int a = key(3 * p);
+                int b = key(3 * p + 1);
+                int nb = key(3 * p + 2);
                 new_key(1 + 2 * p) = nb - b;
                 new_key(2 + 2 * p) = nb;
             }
             keys.emplace(new_key);
         }
+        */
+        block_key k = *it;
         Vector<adouble> tmp(M);
-        tmp.setZero();
-        for (block_key k : keys)
+        tmp.fill(zero);
+        bool reduced = true;
+        FixedVector<int, P> a, b, nb;
+        for (unsigned int p = 0; p < P; ++p)
         {
-            bool reduced = true;
-            FixedVector<int, P> a, b, nb;
-            for (unsigned int p = 0; p < P; ++p)
-            {
-                a(p) = k(3 * p);
-                b(p) = k(1 + 3 * p);
-                nb(p) = k(2 + 3 * p);
-                reduced &= nb(p) == 0;
-            }
-            if (reduced)
-            {
-                if (a.minCoeff() == -1)
-                    tmp.setOnes();
-                else
-                    tmp = e2.col(a.sum() % 2);
-                break;
-            }
-            else
-                tmp += ma(emission, n, a, na, b, nb);
+            a(p) = k(3 * p);
+            b(p) = k(1 + 3 * p);
+            nb(p) = k(2 + 3 * p);
+            reduced &= nb(p) == 0;
         }
+        if (reduced and (a.isConstant(-1) or (a.minCoeff() >= 0)))
+        {
+            if (a.isConstant(-1))
+                tmp.fill(one);
+            else // if (a.minCoeff() >= 0)
+                tmp = e2.col(a.sum() % 2);
+        }
+        else
+            tmp = ma(emission, n, a, na, b, nb);
         if (tmp.maxCoeff() > 1.0 or tmp.minCoeff() <= 0.0)
         {
-            std::cout << *it << std::endl;
+            std::cout << k << std::endl;
             std::cout << tmp.template cast<double>().transpose() << std::endl;
             std::cout << tmp.maxCoeff() << std::endl;
             throw std::runtime_error("probability vector not in [0, 1]");
         }
         CHECK_NAN(tmp);
-        this->emission_probs.at(*it) = tmp;
+        this->emission_probs.at(k) = tmp;
     }
     DEBUG << "recompute done";
 }
