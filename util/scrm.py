@@ -124,7 +124,7 @@ def simulate(n, N0, theta, rho, L, include_trees=False, scrm_args=[]):
     seeds = np.random.randint(0, six.MAXSIZE, size=3)
     r = 4 * N0 * rho * (L - 1)
     t = 4 * N0 * theta * L
-    args = [n, 1, '-p', int(math.log10(L)) + 2, '-t', t, '-r', r, L, '-oSFS', '-seeds'] + list(seeds) + scrm_args
+    args = [n, 1, '-p', int(math.log10(L)) + 2, '-t', t, '-r', r, L, '-seeds'] + list(seeds) + scrm_args
     if include_trees:
         args.append("-T")
     print(args)
