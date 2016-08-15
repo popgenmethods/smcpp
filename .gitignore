@@ -22,4 +22,3 @@ dist/
 .eggs
 smcpp.egg-info
 .cache
-smcpp/_version.py

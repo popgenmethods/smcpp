@@ -4,55 +4,66 @@ whole genome sequence data.
 =================
 Quick Start Guide
 =================
-Follow these steps to get up and running as quickly as possible:
 
-0. Make sure you have the requirements installed. (See section
-   "Requirements" below.)
-1. Install SMC++ via `pip` (this will change once we upload to PyPI)::
+  1. Install the software. See Installation_, below.
 
-     $ pip install git+https://github.com/terhorst/pmscpp.git
+  2. Convert your VCF(s) to the SMC++ input format with vcf2smc_::
 
-   Depending on your platform, `pip` will either download a pre-compiled
-   binary, or compile SMC++ from scratch.
-2. Convert your VCF file to the `smc++` format::
+         $ smc++ vcf2smc my.data.vcf.gz chr1 data/example.chr1.smc.gz
 
-     $ smc++ vcf2smc example.vcf chr1 data/example.chr1.smc.gz
+     This command will parse data for the contig ``chr1`` across all
+     samples in the VCF. You should run this once for each independent
+     contig in your dataset, producing one SMC++ output file per contig.
 
-   Repeat as many times an needed for different chromosomes.
-3. Fit the model::
+  3. Fit the model using estimate_::
 
-     $ smc++ estimate results/ 1.2e-8 3e-9 data/example.chr*.smc.gz
+       $ smc++ estimate --theta .00025 -o analysis/ data/example.chr*.smc.gz
+       
+     Depending on sample size and your machine, the fitting procedure
+     should take between a few minutes and a few hours. The fitted model
+     will be stored in JSON format in ``analysis/model.final.json``. For
+     details on the format, see below.
 
-   Depending on sample size and your machine, the fitting procedure
-   should take between a few minutes and a few hours. The fitted model
-   will be stored in JSON format in `results/model.final.json`. For details
-   on the format, see below.
-4. Visualize the results::
+  4. Visualize the results using plot_::
 
-     $ smc++ plot_model results/model.final.json results/fit.pdf
-
-There is also a graphical user interface to each of these commands, which
-is accessed by running::
-
-     $ smc++-gui
-
-(Currently, this only works for Python 2.x.)
-
+       $ smc++ plot --labels species1 -- analysis/model.final.json results/fit.pdf
 
 ============
+Installation
+============
+
+SMC++ is installed using ``pip``, the Python package manager::
+
+     $ pip install git+https://github.com/terhorst/pmscpp.git@current
+
+Depending on your platform, ``pip`` will either download a pre-compiled
+binary, or compile SMC++ from scratch.
+
 Requirements
 ============
-SMC++ requires the following external dependencies to build:
+
+SMC++ requires the following libraries and executables in order to run:
 
 - Python 2.7 or greater. SMC++ is compatible with Python 3, but only
   in console mode.
-- A compiler which supports C++11 (e.g. GCC 4.8 or later) *and*
-  OpenMP. Note that versions of Clang shipping with Mac OS X do not
-  currently support OpenMP. For this reason it is recommended that you
-  use gcc instead.
 - gmp_, for some rational field computations.
 - mpfr_, for some extended precision calculations.
 - gsl_, the GNU Scientific Library.
+
+Experimental pre-built binaries are available for Unix and Mac OS X
+systems. They will download automatically using ``pip`` (see above)
+if available for your system. Note that you will still need to have
+``libgmp``, ``libgsl`` and ``libmpfr`` accessible on your system in order 
+to run SMC++.
+
+.. _Homebrew: http://brew.sh
+.. _gmp: http://gmplib.org
+.. _mpfr: http://mpfr.org
+.. _gsl: https//www.gnu.org/software/gsl/
+
+
+Installing the Dependencies
+===========================
 
 On Ubuntu (or Debian) Linux, the library requirements may be installed
 using the commmand::
@@ -63,50 +74,145 @@ On OS X, the easiest way to install them is using Homebrew_::
 
     $ brew install mpfr gmp gsl gcc
 
-Experimental pre-built binaries are available for Unix and Mac OS X
-systems. They will download automatically using `pip` (see above)
-if available for your system. Note that you will still need to have
-`libgmp`, `libgsl` and `libmpfr` accessible on your system in order 
-to run SMC++.
+Compilation
+===========
 
-.. _Homebrew: http://brew.sh
-.. _gmp: http://gmplib.org
-.. _mpfr: http://mpfr.org
-.. _gsl: https//www.gnu.org/software/gsl/
+If binaries are not available for your platform, ``pip`` will attempt
+to compile SMC++. In addition to the above Requirements_, SMC++
+nedds a compiler which supports C++11 (e.g. GCC 4.8 or later) *and*
+OpenMP. Note that versions of Clang shipping with Mac OS X do not
+currently support OpenMP. For this reason it is recommended that you
+use gcc instead.
 
-=================
+Virtual Environment
+===================
+
+SMC++ pulls in a fair number of Python dependencies. If you prefer to
+keep this separate from your main Python installation, or do not have
+root access on your system, you may wish to install SMC++ inside of a
+`virtual environment`_. To do so, first create and activate the virtual
+environment::
+
+    $ virtualenv -p python2.7 <desired location>
+    $ source <desired location>/bin/active
+
+Then, install SMC++ using ``pip`` as described above.
+
+.. _virtual environment: http://docs.python-guide.org/en/latest/dev/virtualenvs/
+
+==========================
+Description of subcommands
+==========================
+
+SMC++ comprises several subcommands which are accessed using the syntax 
+
+.. code-block:: bash
+
+    $ smc++ <subcommand>
+
+vcf2smc
+=======
+This subcommand converts (biallelic, diploid) VCF data to the format used by
+SMC++. 
+
+Required arguments
+------------------
+
+    1. An `indexed VCF file <http://www.htslib.org/doc/tabix.html>`_.
+    2. An output file. Appending the ``.gz`` extension will cause the output
+       to be compressed; the estimate_ command can read from both compressed
+       and uncompressed data sources.
+    3. A contig name. Each call to vcf2smc_ processes a single contig. 
+       VCFs containing multiple contigs should be processed via multiple
+       separate runs.
+
+Optional arguments
+------------------
+Following the three required arguments, the user may append sample
+names corresponding to columns in the VCF file. *If no sample names are
+supplied, all samples in the VCF are converted*. The user should ensure
+that this is the desired behavior since e.g. the VCF may contain samples
+from multiple distinct populations.
+
+SMC++ relies crucially on the notion of a *distinguished individual*
+(see paper for details on this terminology). The identity of the
+distinguished individual is set using the ``-i`` option, which specifies
+the (zero-based) position in the sample list of the distinguished
+individual. The default is ``-i 0``.
+
+By varying ``-i`` over the same VCF, the user can create distinct data
+sets for estimation. This is useful for forming composite likelihoods.
+For example, the following command will create three data sets from
+contig ``chr1`` of ``myvcf.gz``, by varying the identity of the distinguished
+individual and treating the remaining two samples as "undistinguished":
+
+.. code-block:: bash
+
+    for i in {0..2}; 
+        do smc++ vcf2smc -i $i myvcf.gz out.$i.txt chr1 NA12877 NA12878 NA12890; 
+    done
+
+Manual conversion
+-----------------
+``vcf2smc`` targets a common use-case but may not be sufficient for all
+users. Those wishing to implement their own custom conversion to the SMC
+data format should see the `input data format`_ description below.
+
+estimate
+========
+
+     Here, the ``--theta`` option specifies a known mutation rate of
+     :math:`\mu=1.25 \times 10^{-8}`/bp/gen in units of the reference
+     effective population size :math:`2 N_0`. (The reference population
+     size may be adjusted using the ``--N0`` switch.) If :math:`\theta` is not
+     known for your species, it will be estimated from data using Watterson's
+     estimator.
+
+plot
+====
+
+
+============
+File Formats
+============
+
 Input Data Format
 =================
-In case the provided tool `smc++ vcf2smc` is insufficient for your
-purposes, here is a description of the input format used by SMC++.
 The data files should be ASCII text and can optionally be gzipped. The
-format of each line of the data file is as follows:::
+format of each line of the data file is as follows::
 
-    <span>  <distinguished> <undistinguished>   <# undistinguished>
+    <span> <d> <u1> <n1> [<u2> <n2>]
 
-The first column gives the number of contiguous bases at which this
-observation occurred. Hence, it will geneally be 1 for SNPs and >1 for
-a stretch of nonsegregating sites. The second column gives the genotype
-(0, 1, or 2) of the in the distinguished individual. If the genotype of
-the distinguished individual is not known, this should be set to -1.
-The final columns give the total number of derived alleles found in the
-remainder of the (undistinguished) sample, as well as the *haploid*
-sample size (number of non-missing observations) in that sample.
+Explanation of each column:
+
+  - ``span`` gives the number of contiguous bases at which this
+    observation occurred. Hence, it will generally be ``1`` for SNPs and
+    greater than one for a stretch of nonsegregating sites.
+  - ``d`` Gives the genotype (``0``, ``1``, or ``2``) of the
+    distinguished individual. If the genotype of the distinguished
+    individual is not known, this should be set to ``-1``.
+  - The next column ``u1`` is the total number of derived alleles found
+    in the remainder of the (undistinguished) sample at the site(s).
+  - The final column ``n1`` is the *haploid* sample size (number of
+    non-missing observations) in the undistinguished portion of the
+    sample.
+  - If two populations are to be analyzed, ``u2`` and ``n2`` are also 
+    specified for the second population.
 
 For example, consider the following set of genotypes at a set of 10
-contiguous bases on three diploid individuals::
+contiguous bases on three diploid individuals in one population::
 
     dist.   ..1..N...2
             .....N...1
             2N....+...
 
-The distinguished individual is row one. A `.` indicates that the
+The distinguished individual is row one. A ``.`` indicates that the
 individual is homozygous for the ancestral allele, while an integer
-indicates that that individual possesses `(1,2)` copies of the derived
-allele. An `N` indicates a missing genotype at that position. Finally,
-the `+` in column seven indicates that individual three possessed the
+indicates that that individual possesses ``(1,2)`` copies of the derived
+allele. An ``N`` indicates a missing genotype at that position. Finally,
+the ``+`` in column seven indicates that individual three possessed the
 dominant allele on one chromosome, and had a missing observation on the
-other chromosome (this would be indicated as `0/.` in a VCF).
+other chromosome (this would be coded as ``0/.`` in a VCF).
 
 The SMC++ format for this input file is::
 
@@ -119,10 +225,15 @@ The SMC++ format for this input file is::
     2   0   0   0
     1   2   1   4
 
-=============
-Output Format
-=============
-Upon completion, SMC++ will output a tab-delimeted table containing
+
+Output Data Format
+==================
+Upon completion, SMC++ will write a `JSON-formatted
+<https://en.wikipedia.org/wiki/JSON>`_ model file into the into the
+analysis directory. The file is human-readable and contains various
+parameters related to the fitting procedure.
+
+Upon completion, SMC++ will output a tab-delimited table containing
 the estimation results. The three columns `a`, `b`, and `s` define a
 piecewise population model such that the estimated effective population
 size `s` generations in the past, `eta(s)`, is:::

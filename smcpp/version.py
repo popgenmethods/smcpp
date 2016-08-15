@@ -1,5 +1,6 @@
-from __future__ import absolute_import
-from ._version import __version__
+from setuptools_scm import get_version
+
+__version__ = get_version()
 if "+" in __version__:
     MMP, LOCAL = __version__.split("+")
 else:

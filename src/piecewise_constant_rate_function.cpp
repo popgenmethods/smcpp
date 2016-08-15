@@ -362,7 +362,7 @@ template <typename T>
 std::vector<T> PiecewiseConstantRateFunction<T>::average_coal_times() const
 {
     std::vector<T> ret;
-    for (int i = 1; i < hidden_states.size(); ++i)
+    for (unsigned int i = 1; i < hidden_states.size(); ++i)
     {
         // discretize by expected coalescent time within each hidden state
         // e_coal = \int_t0^t1 t eta(t) exp(-R(t)) 
