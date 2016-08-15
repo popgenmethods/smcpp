@@ -70,8 +70,8 @@ class SMCModel(Observable):
         self._spline[key] = item
         self.update_observers('model update')
 
-    def __getitem__(self, ind):
-        return self._spline[ind]
+    def __getitem__(self, key):
+        return self._spline[key]
 
     @property
     def dlist(self):
