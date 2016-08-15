@@ -82,11 +82,14 @@ class NPopInferenceManager : public InferenceManager
     public:
     NPopInferenceManager(
             const FixedVector<int, P> n,
+            const FixedVector<int, P> na,
             const std::vector<int> obs_lengths,
             const std::vector<int*> observations,
             const std::vector<double> hidden_states,
             ConditionedSFS<adouble> *csfs) :
-        InferenceManager(P, (n.array() + 1).prod(), obs_lengths, observations, hidden_states, csfs), n(n) {}
+        InferenceManager(P,
+                (na.tail(na.size() - 1).array() + 1).prod() * (n.array() + 1).prod(),
+                obs_lengths, observations, hidden_states, csfs), n(n), na(na) {}
 
     virtual ~NPopInferenceManager() = default;
 
@@ -96,6 +99,7 @@ class NPopInferenceManager : public InferenceManager
 
     // Passed-in parameters
     const FixedVector<int, P> n;
+    const FixedVector<int, P> na;
 };
 
 class OnePopInferenceManager final : public NPopInferenceManager<1>
@@ -121,7 +125,7 @@ class TwoPopInferenceManager : public NPopInferenceManager<2>
     void setParams(const ParameterVector &params1, const ParameterVector &params2, const double split);
 
     private:
-    int a1, a2;
+    const int a1, a2;
 };
 
 Matrix<adouble> sfs_cython(const int, const ParameterVector, const double, const double, bool);

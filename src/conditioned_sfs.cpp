@@ -16,7 +16,7 @@ std::vector<Matrix<T> > OnePopConditionedSFS<T>::compute_below(const PiecewiseCo
     const int M = eta.getHiddenStates().size() - 1;
     std::vector<Matrix<T> > csfs_below(M, Matrix<T>::Zero(3, n + 1));
     Matrix<T> tjj_below(M, n + 1);
-    tjj_below.setZero();
+    tjj_below.fill(eta.zero());
     DEBUG << "tjj_double_integral below starts";
 #pragma omp parallel for
     for (int m = 0; m < M; ++m)
@@ -29,7 +29,7 @@ std::vector<Matrix<T> > OnePopConditionedSFS<T>::compute_below(const PiecewiseCo
     DEBUG << "filling csfs_below";
     for (int m = 0; m < M; ++m) 
     {
-        csfs_below[m].setZero();
+        csfs_below[m].fill(eta.zero());
         csfs_below[m].block(0, 1, 1, n) = M0_below.row(m);
         csfs_below[m].block(1, 0, 1, n + 1) = M1_below.row(m);
         CHECK_NAN(csfs_below[m]);
@@ -53,10 +53,10 @@ std::vector<Matrix<T> > OnePopConditionedSFS<T>::compute_above(const PiecewiseCo
 #pragma omp parallel for
     for (int m = 0; m < M; ++m)
     {
-        csfs_above[m].setZero();
+        csfs_above[m].fill(eta.zero());
         Matrix<T> C0 = C_above[m].transpose(), C2 = C_above[m].colwise().reverse().transpose();
         Vector<T> tmp0(this->mcache.X0.cols()), tmp2(this->mcache.X2.cols());
-        tmp0.setZero();
+        tmp0.fill(eta.zero());
         for (int j = 0; j < this->mcache.X0.cols(); ++j)
         {
             std::vector<T> v;
@@ -66,7 +66,7 @@ std::vector<Matrix<T> > OnePopConditionedSFS<T>::compute_above(const PiecewiseCo
             tmp0(j) = doubly_compensated_summation(v);
         }
         csfs_above[m].block(0, 1, 1, n) = tmp0.transpose().lazyProduct(Uinv_mp0);
-        tmp2.setZero();
+        tmp2.fill(eta.zero());
         for (int j = 0; j < this->mcache.X2.cols(); ++j)
         {
             std::vector<T> v;

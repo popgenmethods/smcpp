@@ -79,8 +79,8 @@ void JointCSFS<T>::jcsfs_helper_tau_below_split(const int m,
     const PiecewiseConstantRateFunction<T> eta1_shift(params1_shift, {0., INFINITY});
     Vector<T> sfs_above_split = undistinguishedSFS(csfs.at(n1 + n2 - 1).compute(eta1_shift)[0]);
     Matrix<T> eMn10_avg(n1 + 2, n1 + 1), eMn12_avg(n1 + 2, n1 + 1);
-    eMn10_avg.setZero();
-    eMn12_avg.setZero();
+    eMn10_avg.fill(eta1_shift.zero());
+    eMn12_avg.fill(eta1_shift.zero());
     std::mt19937 gen;
     for (int k = 0; k < K; ++k)
     {
@@ -185,11 +185,19 @@ void JointCSFS<T>::pre_compute(
         throw std::runtime_error("unsupported jcsfs configuration");
     for (int m = 0; m < M; ++m)
     {
+        // Threshold jcsfs to have minimum value.
+        J[m] = J[m].unaryExpr([] (T x)
+                {
+                    if (x > 1e-20)
+                        return x;
+                    x *= 0.;
+                    x += 1e-20;
+                    return x;
+                });
         // zero out nonsegregating sites
         tensorRef(m, 0, 0, 0, 0) *= 0.;
         tensorRef(m, a1, n1, a2, n2) *= 0;
     }
-
 }
 
 template <typename T>
@@ -221,21 +229,22 @@ void JointCSFS<T>::pre_compute_apart()
     int i = 0;
     for (int m = 0; m < M; ++m)
     {
-        J[m].setZero();
+        J[m].fill(shifted_eta1.zero());
         // Under this model there a1 and a2 cannot coalesce beneath
         // split. So we don't bother calculating the emission
         // distribution conditional on this null event.
-        double t2 = hidden_states[m + 1];
+        const double t2 = hidden_states[m + 1];
         if (t2 <= split)
             continue;
-        Matrix<T> csfs_shift = csfs_at_split[i++];
+        const Matrix<T> csfs_shift = csfs_at_split[i++];
+#pragma omp parallel for collapse(2)
         for (int b1 = 0; b1 <= n1; ++b1)
             for (int b2 = 0; b2 <= n2; ++b2)
                 for (int nseg = 0; nseg <= n1 + n2; ++nseg)
                     for (int np1 = std::max(nseg - n2, 0); np1 <= std::min(nseg, n1); ++np1)
                     {
-                        int np2 = nseg - np1;
-                        double h = scipy_stats_hypergeom_pmf(np1, n1 + n2, nseg, n1);
+                        const int np2 = nseg - np1;
+                        const double h = scipy_stats_hypergeom_pmf(np1, n1 + n2, nseg, n1);
                         tensorRef(m, 1, b1, 1, b2) += h * csfs_shift(2, nseg) * T11(np1, b1) * T21(np2, b2);
                         tensorRef(m, 1, b1, 0, b2) += 0.5 * h * csfs_shift(1, nseg) * T11(np1, b1) * T20(np2, b2);
                         tensorRef(m, 0, b1, 1, b2) += 0.5 * h * csfs_shift(1, nseg) * T10(np1, b1) * T21(np2, b2);
@@ -259,8 +268,9 @@ void JointCSFS<T>::pre_compute_apart()
         for (int k = 1; k <= ni; ++k)
         {
             double fac = (double)k / double(ni + 1);
-            T x1 = (1. - fac) * rsfs_below(k - 1);
-            T x2 = fac * rsfs_below(k - 1);
+            const T x1 = (1. - fac) * rsfs_below(k - 1);
+            const T x2 = fac * rsfs_below(k - 1);
+#pragma omp parallel for
             for (int m = 0; m < M; ++m)
             // a1 and a2 cannot coalesce beneath the split so this part is
             // the same for all hidden states.
@@ -309,7 +319,7 @@ void JointCSFS<T>::pre_compute_together()
 #pragma omp parallel for
     for (int m = 0; m < M; ++m)
     {
-        J[m].setZero();
+        J[m].fill(eta1->zero());
         double t1 = hidden_states[m], t2 = hidden_states[m + 1];
         if (t1 < t2 and t2 <= split)
             jcsfs_helper_tau_below_split(m, t1, t2, 1.); 

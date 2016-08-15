@@ -166,6 +166,7 @@ struct Logger : public std::ostream
 #define INFO Logger(__FILE__, __LINE__, "INFO")
 #define WARNING Logger(__FILE__, __LINE__, "WARNING")
 #define CRITICAL Logger(__FILE__, __LINE__, "CRITICAL")
+#define ERROR Logger(__FILE__, __LINE__, "ERROR")
 #define CHECK_NAN(x) check_nan(x, __FILE__, __LINE__)
 #define CHECK_NAN_OR_NEGATIVE(x) check_nan(x, __FILE__, __LINE__); check_negative(x, __FILE__, __LINE__);
 

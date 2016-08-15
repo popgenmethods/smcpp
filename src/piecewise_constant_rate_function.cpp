@@ -1,3 +1,4 @@
+#include <limits>
 #include "piecewise_constant_rate_function.h"
 
 constexpr long nC2(int n) { return n * (n - 1) / 2; }
@@ -161,7 +162,8 @@ void PiecewiseConstantRateFunction<T>::compute_antiderivative()
 }
 
 template <typename T>
-T PiecewiseConstantRateFunction<T>::R_integral(const double a, const double b, const T log_denom) const
+T PiecewiseConstantRateFunction<T>::R_integral(const double a,
+        const double b, const T log_denom) const
 {
     // int_a^b exp(-R(t)) dt
     int ip_a = std::upper_bound(ts.begin(), ts.end(), a) - 1 - ts.begin();
@@ -177,9 +179,14 @@ T PiecewiseConstantRateFunction<T>::R_integral(const double a, const double b, c
         diff = right - left;
         Rleft = R(left);
         r = exp(-(Rleft + log_denom));
-        if (!std::isinf(toDouble(diff)))
-            r *= -expm1(-diff * ada[i]);
-        r /= ada[i];
+        if (ada[i] > 0.)
+        {
+            if (!std::isinf(toDouble(diff)))
+                r *= -expm1(-diff * ada[i]);
+            r /= ada[i];
+        }
+        else
+            r *= diff;
         CHECK_NAN_OR_NEGATIVE(r);
         ret += r;
     }
@@ -211,7 +218,7 @@ void PiecewiseConstantRateFunction<T>::tjj_double_integral_above(const int n, lo
     // Now calculate with hidden state integration limits
     for (unsigned int h = 0; h < hs_indices.size() - 1; ++h)
     {
-        C[h].row(jj - 2).setZero();
+        C[h].row(jj - 2).fill(zero());
         T log_denom = -Rrng[hs_indices[h]];
         if (Rrng[hs_indices[h + 1]] != INFINITY)
             log_denom += log(-expm1(-(Rrng[hs_indices[h + 1]] - Rrng[hs_indices[h]])));
@@ -360,6 +367,15 @@ std::vector<T> PiecewiseConstantRateFunction<T>::average_coal_times() const
         // discretize by expected coalescent time within each hidden state
         // e_coal = \int_t0^t1 t eta(t) exp(-R(t)) 
         //        = t0 e^(-R(t0)) - t1 e^(-R(t1)) + \int
+        if (Rrng[hs_indices[i - 1]] == Rrng[hs_indices[i]])
+        {
+            // Handle the case of infinite population size => no chance
+            // of coalescence. This can happen in a two population model
+            // where the distinguished lineages come from separate
+            // populations.
+            ret.push_back(std::numeric_limits<double>::quiet_NaN());
+            continue;
+        }
         T log_denom = -Rrng[hs_indices[i - 1]];
         bool inf = std::isinf(toDouble(ts[hs_indices[i]]));
         if (!inf)
@@ -368,6 +384,7 @@ std::vector<T> PiecewiseConstantRateFunction<T>::average_coal_times() const
             R_integral(ts[hs_indices[i - 1]], ts[hs_indices[i]], log_denom);
         if (!inf)
             x -= hidden_states[i] * exp(-((Rrng[hs_indices[i]]) + log_denom));
+        CHECK_NAN(x);
         ret.push_back(x);
         if (ret.back() > hidden_states[i] or ret.back() < hidden_states[i - 1])
             throw std::runtime_error("erroneous average coalescence time");
@@ -390,6 +407,18 @@ T PiecewiseConstantRateFunction<T>::Rinv(const T y) const
     typename std::vector<T>::const_iterator R = std::upper_bound(Rrng.begin(), Rrng.end(), y) - 1;
     int ip = R - Rrng.begin();
     return (y - *R) / ada[ip] + ts[ip];
+}
+
+template <>
+double PiecewiseConstantRateFunction<double>::zero() const
+{
+    return 0.;
+}
+
+template <>
+adouble PiecewiseConstantRateFunction<adouble>::zero() const
+{
+    return adouble(0., Vector<double>::Zero(nder));
 }
 
 template class PiecewiseConstantRateFunction<double>;

@@ -106,14 +106,14 @@ def break_long_spans(dataset, rho, length_cutoff):
     obs_attributes = {}
     for fn, obs in enumerate(dataset):
         miss = np.zeros_like(obs[0])
-        miss[:3] = [1, -1, -1]
+        miss[0] = 1
+        miss[1::3] = -1
         long_spans = np.where(
             (obs[:, 0] >= span_cutoff) &
-            (obs[:, 1] == -1) &
-            (obs[:, 2] == -1) &
-            np.all(obs[:, 4::2] == 0, axis=1))[0]
+            np.all(obs[:, 1::3] == -1, axis=1) &
+            np.all(obs[:, 3::3] == 0, axis=1))[0]
         cob = 0
-        logger.debug("Long missing spans: \n%s" % str(obs[long_spans]))
+        logger.info("Long missing spans: \n%s" % str(obs[long_spans]))
         positions = np.insert(np.cumsum(obs[:, 0]), 0, 0)
         for x in long_spans.tolist() + [None]:
             s = obs[cob:x, 0].sum()

@@ -36,8 +36,9 @@ cdef void logger_cb(const char* name, const char* level, const char* message) wi
     level_s = level.decode("UTF-8")
     message_s = message.decode("UTF-8")
     try:
-        lvl = {"INFO": logging.INFO, "DEBUG": logging.DEBUG - 1, "DEBUG1": logging.DEBUG,
-               "CRITICAL": logging.CRITICAL, "WARNING": logging.WARNING}
+        lvl = {s: getattr(logging, s) for s in "info debug critical warning error".upper().split()}
+        lvl['DEBUG'] = logging.DEBUG - 1
+        lvl['DEBUG1'] = logging.DEBUG
         logging.getLogger(name_s).log(lvl[level_s.upper()], message_s)
     except KeyboardInterrupt:
         logging.getLogger(name_s).critical("Aborting")
@@ -299,6 +300,7 @@ cdef class _PyInferenceManager:
         return sum(llret)
 
 cdef class PyOnePopInferenceManager(_PyInferenceManager):
+
     def __cinit__(self, int n, observations, hidden_states):
         # This is needed because cinit cannot be inherited
         self.__my_cinit__(observations, hidden_states)
@@ -306,6 +308,7 @@ cdef class PyOnePopInferenceManager(_PyInferenceManager):
             self._im = new OnePopInferenceManager(n, self._Ls, self._obs_ptrs, self._hs)
 
 cdef class PyTwoPopInferenceManager(_PyInferenceManager):
+
     cdef TwoPopInferenceManager* _im2
 
     def __cinit__(self, int n1, int n2, int a1, int a2, observations, hidden_states):
@@ -378,34 +381,37 @@ def thin_data(data, int thinning, int offset=0):
     cdef int[:, :] vdata = data
     cdef int j
     cdef int k = data.shape[0]
-    cdef int span, a, a1, a2
-    cdef int npop = data.shape[1] // 2 - 1
+    cdef int span
+    cdef int npop = (data.shape[1] - 1) / 2
+    cdef int sa
+    a = np.zeros(npop, dtype=int)
     b = np.zeros(npop, dtype=int)
     nb = np.zeros(npop, dtype=int)
-    thin = [0, 0] * npop
+    cdef int[:] thin = np.zeros(npop * 3)
+    cdef int[:] nonseg = np.zeros(npop * 3)
     for j in range(k):
         span = vdata[j, 0]
-        a1 = vdata[j, 1]
-        a2 = vdata[j, 2]
-        b[:] = vdata[j, 3::2]
-        nb[:] = vdata[j, 4::2]
-        a = a1 + a2
-        if a == 2:
-            a1 = 0
-            a2 = 0
+        a[:] = vdata[j, 1::3]
+        b[:] = vdata[j, 2::3]
+        nb[:] = vdata[j, 3::3]
+        sa = a.sum()
+        if sa == 2:
+            thin[::3] = 0
+        else:
+            thin[::3] = a
         while span > 0:
             if i < thinning and i + span >= thinning:
                 if thinning - i > 1:
-                    out.append([thinning - i - 1, a1, a2] + thin)
-                if a == 2 and np.all(b == nb):
-                    fold = sum([[0, nbi] for nbi in nb], [])
-                    out.append([1, 0, 0] + fold)
+                    out.append([thinning - i - 1] + list(thin))
+                if sa == 2 and np.all(b == nb):
+                    nonseg[2::3] = nb
+                    out.append([1] + list(nonseg))
                 else:
                     out.append([1] + list(vdata[j, 1:]))
                 span -= thinning - i
                 i = 0
             else:
-                out.append([span, a1, a2] + thin)
+                out.append([span] + list(thin))
                 i += span
                 break
     return np.array(out, dtype=np.int32)

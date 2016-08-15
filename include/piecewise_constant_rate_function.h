@@ -11,6 +11,7 @@ class PiecewiseConstantRateFunction
     PiecewiseConstantRateFunction(const std::vector<std::vector<adouble>>, const std::vector<double>);
     PiecewiseConstantRateFunction(const PiecewiseConstantRateFunction &other) : 
         PiecewiseConstantRateFunction(other.params, other.hidden_states) {}
+    T zero() const;
     T R(const T) const;
     T Rinv(const T) const;
     T R_integral(const double, const double, const T) const;

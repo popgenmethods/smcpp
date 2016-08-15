@@ -258,9 +258,9 @@ template <typename T>
 HJTransition<T>::HJTransition(const PiecewiseConstantRateFunction<T> &eta, const double rho) : 
     Transition<T>(eta, rho) 
 {
-    const std::vector<double> ts = this->eta.getTs();
-    const std::vector<int> hs_indices = this->eta.getHsIndices();
-    const std::vector<T> Rrng = this->eta.getRrng();
+    const std::vector<double> ts = eta.getTs();
+    const std::vector<int> hs_indices = eta.getHsIndices();
+    const std::vector<T> Rrng = eta.getRrng();
 
     // Compute expm matrices in higher precision.
     compute_expms();
@@ -277,7 +277,7 @@ HJTransition<T>::HJTransition(const PiecewiseConstantRateFunction<T> &eta, const
     for (int k = 1; k < this->M - 1; ++k)
         expm_diff(k - 1) = expm_prods.at(hs_indices.at(k))(0, 2) - 
                 expm_prods.at(hs_indices.at(k - 1))(0, 2);
-    this->Phi.setZero();
+    this->Phi.fill(eta.zero());
 #pragma omp parallel for
     for (int j = 1; j < this->M; ++j)
     {
@@ -321,8 +321,8 @@ HJTransition<T>::HJTransition(const PiecewiseConstantRateFunction<T> &eta, const
         this->Phi(j - 1, j - 1) = 1. - s;
 
     }
-    T thresh(1e-20);
-    this->Phi = this->Phi.unaryExpr([thresh] (const T &x) { if (x < thresh) return thresh; return x; });
+    T small = eta.zero() + 1e-20;
+    this->Phi = this->Phi.unaryExpr([small] (const T &x) { if (x < 1e-20) return small; return x; });
     CHECK_NAN(this->Phi);
 }
 
