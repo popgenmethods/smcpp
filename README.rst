@@ -5,28 +5,28 @@ whole genome sequence data.
 Quick Start Guide
 =================
 
-  1. Install the software. See Installation_, below.
+1. Install the software. See Installation_, below.
 
-  2. Convert your VCF(s) to the SMC++ input format with vcf2smc_::
+2. Convert your VCF(s) to the SMC++ input format with vcf2smc_::
 
-         $ smc++ vcf2smc my.data.vcf.gz chr1 data/example.chr1.smc.gz
+     $ smc++ vcf2smc my.data.vcf.gz chr1 data/example.chr1.smc.gz
 
-     This command will parse data for the contig ``chr1`` across all
-     samples in the VCF. You should run this once for each independent
-     contig in your dataset, producing one SMC++ output file per contig.
+   This command will parse data for the contig ``chr1`` across all
+   samples in the VCF. You should run this once for each independent
+   contig in your dataset, producing one SMC++ output file per contig.
 
-  3. Fit the model using estimate_::
+3. Fit the model using estimate_::
 
-       $ smc++ estimate --theta .00025 -o analysis/ data/example.chr*.smc.gz
-       
-     Depending on sample size and your machine, the fitting procedure
-     should take between a few minutes and a few hours. The fitted model
-     will be stored in JSON format in ``analysis/model.final.json``. For
-     details on the format, see below.
+     $ smc++ estimate --theta .00025 -o analysis/ data/example.chr*.smc.gz
+     
+   Depending on sample size and your machine, the fitting procedure
+   should take between a few minutes and a few hours. The fitted model
+   will be stored in JSON format in ``analysis/model.final.json``. For
+   details on the format, see below.
 
-  4. Visualize the results using plot_::
+4. Visualize the results using plot_::
 
-       $ smc++ plot --labels species1 -- analysis/model.final.json results/fit.pdf
+     $ smc++ plot --labels species1 -- analysis/model.final.json results/fit.pdf
 
 ============
 Installation
