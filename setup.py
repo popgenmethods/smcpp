@@ -77,6 +77,7 @@ setup(name='smcpp',
         install_requires=[
             "gmpy2", # This is not used in the Python code, but 
                      # enforces the libmpfr and libgmp dependencies.
+            "setuptools_scm",
             "appdirs",
             "backports.shutil_which",
             "backports.shutil_get_terminal_size",

@@ -10,5 +10,5 @@ if "+" in __version__:
 else:
     MMP = __version__
     LOCAL = ""
-MAJOR, MINOR, PATCHLEVEL = [int(x) for x in MMP.split(".")]
+MAJOR, MINOR, PATCHLEVEL = [int(x) for x in MMP.split(".")[:3]]
 __all__ = ["__version__", "MAJOR", "MINOR", "PATCHLEVEL", "LOCAL"]
