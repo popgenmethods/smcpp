@@ -80,7 +80,7 @@ class CubicSpline:
     def roughness(self):
         'Integral of squared second derivative.'
         a, b = self._coef[:2, :-1]
-        xi = np.diff(self._x[:-1])
+        xi = np.diff(self._x)
         return (12 * a**2 * xi**3 + 12 * a * b * xi**2 + 4 * b**2 * xi).sum()
 
     def integrated_curvature(self):
@@ -92,7 +92,7 @@ class CubicSpline:
         numeric.
         '''
         s = 0.
-        for c, x1, x2 in zip(self._coef.T[:-1], self._x[:-2], self._x[1:-1]):
+        for c, x1, x2 in zip(self._coef.T, self._x[:-1], self._x[1:]):
             x = np.linspace(x1, x2, 50)
             d2 = polyval(np.polyder(c, 2), x)
             d1 = polyval(np.polyder(c, 1), x)

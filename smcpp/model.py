@@ -42,7 +42,6 @@ class SMCModel(Observable):
         self._s = np.array(s)
         self._cumsum_s = np.cumsum(s)
         self._knots = np.array(knots)
-        # self._trans = np.vectorize(lambda x: x)
         self._trans = np.log
         self._spline = self._spline_class(self._trans(self._knots))
 
@@ -61,6 +60,9 @@ class SMCModel(Observable):
         y = self[:]
         self._spline = self._spline_class(self._trans(self._knots))
         self[:] = y
+
+    def randomize(self):
+        self[:] += np.random.normal(0., .01, size=len(self[:]))
 
     @property
     def knots(self):
@@ -85,16 +87,18 @@ class SMCModel(Observable):
 
     def regularizer(self):
         # ret = self._spline.integrated_curvature()
-        ret = self._spline.tv()
+        ret = self._spline.roughness()
+        ret = (np.diff(self[:], 2) ** 2).sum()
         if not isinstance(ret, ad.ADF):
             ret = ad.adnumber(ret)
         return ret
 
     def __call__(self, x):
         'Evaluate :self: at points x.'
-        return np.array(
+        ret = np.array(
             ad.admath.exp(self._spline(self._trans(x)))
         )
+        return ret
 
     def stepwise_values(self):
         return self(np.cumsum(self._s))
@@ -136,10 +140,11 @@ class SMCModel(Observable):
 
 
 class SMCTwoPopulationModel(Observable):
-    def __init__(self, model1, model2, split):
+    def __init__(self, model1, model2, split, apart=False):
         Observable.__init__(self)
         self._models = [model1, model2]
         self._split = split
+        self._apart = apart
 
     @property
     def split(self):
@@ -157,6 +162,10 @@ class SMCTwoPopulationModel(Observable):
         return np.searchsorted(cs, self._split) + 1
 
     @property
+    def s(self):
+        return self.model1.s
+
+    @property
     def model1(self):
         return self._models[0]
 
@@ -167,10 +176,26 @@ class SMCTwoPopulationModel(Observable):
     @property
     def distinguished_model(self):
         return self.model1
+        if not self._apart:
+            return self.model1
+        s = self.model1.s
+        a = self.model1.stepwise_values()
+        cs = cumsum0(self.model1.s)
+        cs[-1] = np.inf
+        ip = np.searchsorted(cs, self._split)
+        s = s[ip - 1:]
+        a = a[ip - 1:]
+        s[0] = split
+        a[0] = np.inf
+        ret = PiecewiseModel(s, a)
 
     @property
     def dlist(self):
         return self._models[0].dlist + self._models[1].dlist
+
+    def randomize(self):
+        for m in self._models:
+            m.randomize()
 
     def reset(self):
         for m in self._models:

@@ -128,7 +128,10 @@ def break_long_spans(dataset, rho, length_cutoff):
                 logger.info("omitting sequence length < %d "
                             "as less than length cutoff %d" %
                             (s, length_cutoff))
-            cob = x + 1
+            try:
+                cob = x + 1
+            except TypeError:  # fails when x = None at last iter
+                pass
     return obs_list, obs_attributes
 
 
@@ -148,16 +151,17 @@ def balance_hidden_states(model, M):
     return np.array(ret)
 
 
-def empirical_sfs(data, n):
+def empirical_sfs(data, n, a):
     with mp_pool() as p:
-        return np.sum(list(p.map(_esfs_helper, ((d, n) for d in data))), axis=0)
+        return np.sum(list(p.map(_esfs_helper, ((d, n, a) for d in data))), axis=0)
 
 
 def _esfs_helper(tup):
-    ds, n = tup
-    ret = np.zeros([3] + list(np.array(n) + 1), dtype=int)
+    ds, n, a = tup
+    shp = [x + 1 for na in zip(a, n) for x in na]
+    ret = np.zeros(shp, dtype=int)
     for row in ds:
-        if row[1] >= 0 and np.all(row[3::2] == n):
-            coord = tuple([row[1]] + list(row[2::2]))
+        if np.all(row[1::3] >= 0) and np.all(row[3::3] == n):
+            coord = tuple([x for ab in zip(row[1::3], row[2::3]) for x in ab])
             ret[coord] += row[0]
     return ret

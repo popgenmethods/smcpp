@@ -70,7 +70,7 @@ class AbstractOptimizer(Observable):
                                        args=(self._analysis, coords),
                                        bounds=bounds,
                                        # options={'xtol': .001},
-                                       method="TNC")
+                                       method="L-BFGS-B")
         # return estimation_tools.adagrad(self._f, x0, bounds,
         #     stepsize=1.0,
         #     args=(self._analysis, coords))
@@ -107,9 +107,6 @@ class AbstractOptimizer(Observable):
                 # kept = vi[-5:]
                 # pprint.pprint([(k, v.astype('float')) for k, v in kept])
                 # try:
-                #     pprint.pprint([(k, np.array([x.d(model.dlist[0])
-                #                                  for x in v]))
-                #                    for k, v in kept])
                 # except:
                 #     pass
                 # vv = {k: (vv[k].x, [vv[k].d(l) for l in model.dlist]) for k in vv}
@@ -202,31 +199,30 @@ class AnalysisSaver(Observer):
             dump(os.path.join(self._outdir, "model.final"))
 
 class KnotOptimizer(Observer):
-
+    
     @targets("pre M-step")
     def update(self, message, *args, **kwargs):
         # pick a random knot and optimize
         model = kwargs['model']
         knots = model._knots
-        # Hold first and last knots fixed?
-        i = np.random.choice(len(knots) - 1) + 1
-        if i == 0:
-            bounds = (0., 0.9 * knots[2])
-        elif i == len(knots) - 1:
-            bounds = (1.1 * knots[-2], 2 * knots[-1])
-        else:
-            bounds = (knots[i - 1] * 1.1, knots[i + 1] * 0.9)
-        logger.debug("Updating knot %d=%s", i, knots[i])
-        logger.debug("Bounds: (%f, %f)", *bounds)
-        analysis = kwargs['analysis']
-        logger.debug("Start: Q=%f", self._f(knots[i], analysis, i))
-        res = scipy.optimize.minimize_scalar(self._f,
-                                             args=(analysis, i),
-                                             method='bounded',
-                                             bounds=bounds)
-        logger.debug("End: knot=%f Q=%f", res.x, res.fun)
-        knots[i] = res.x
-        model.refit()
+        inds = np.arange(1, len(knots) - 1)  # hold first and last knots fixed
+        for i in np.random.choice(inds, size=int(len(inds) * .2), replace=False):
+            if i == 0:
+                bounds = (1e-6, 0.9 * knots[1])
+            elif i == len(knots) - 1:
+                bounds = (1.1 * knots[-2], 2 * knots[-1])
+            else:
+                bounds = (knots[i - 1] * 1.1, knots[i + 1] * 0.9)
+            analysis = kwargs['analysis']
+            logger.info("Old knot %d=%f Q=%f", i, knots[i], self._f(knots[i], analysis, i))
+            logger.debug("Bounds: (%f, %f)", *bounds)
+            res = scipy.optimize.minimize_scalar(self._f,
+                                                 args=(analysis, i),
+                                                 method='bounded',
+                                                 bounds=bounds)
+            logger.info("New knot %d=%f Q=%f", i, res.x, res.fun)
+            knots[i] = res.x
+            model.refit()
 
     def _f(self, x, analysis, i):
         analysis.model._knots[i] = x
@@ -374,9 +370,8 @@ class SMCPPOptimizer(AbstractOptimizer):
             HiddenStateOccupancyPrinter(),
             ProgressPrinter(),
             ModelPrinter(),
-            KnotOptimizer(),
-            TransitionDebug("/export/home/terhorst/Dropbox.new/Dropbox/tdtmp"),
-            SplineDumper("/export/home/terhorst/Dropbox.new/Dropbox/tdtmp")
+            # TransitionDebug("/export/home/terhorst/Dropbox.new/Dropbox/tdtmp"),
+            # SplineDumper("/export/home/terhorst/Dropbox.new/Dropbox/tdtmp")
         ]
         gnuplot = which("gnuplot")
         if gnuplot:

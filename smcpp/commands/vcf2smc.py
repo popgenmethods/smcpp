@@ -101,7 +101,7 @@ def main(args):
             da = [[rec.samples[di].alleles[i] for i, di in enumerate(d)]
                   for d in dist]
             a = [sum(x != ref for x in d) if None not in d else -1
-                 for d in dist]
+                 for d in da]
             bs = [[allele != ref for u in und
                    for allele in rec.samples[u].alleles 
                    if allele is not None]

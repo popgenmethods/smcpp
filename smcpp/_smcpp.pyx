@@ -382,13 +382,13 @@ def thin_data(data, int thinning, int offset=0):
     cdef int j
     cdef int k = data.shape[0]
     cdef int span
-    cdef int npop = (data.shape[1] - 1) / 2
+    cdef int npop = (data.shape[1] - 1) / 3
     cdef int sa
     a = np.zeros(npop, dtype=int)
     b = np.zeros(npop, dtype=int)
     nb = np.zeros(npop, dtype=int)
-    cdef int[:] thin = np.zeros(npop * 3)
-    cdef int[:] nonseg = np.zeros(npop * 3)
+    thin = np.zeros(npop * 3, dtype=int)
+    nonseg = np.zeros(npop * 3, dtype=int)
     for j in range(k):
         span = vdata[j, 0]
         a[:] = vdata[j, 1::3]
