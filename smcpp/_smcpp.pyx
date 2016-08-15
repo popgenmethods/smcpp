@@ -30,16 +30,16 @@ def _init_cache():
 _init_cache()
 
 abort = False
+_lvl = {s: getattr(logging, s) for s in "info debug critical warning error".upper().split()}
+_lvl['DEBUG'] = logging.DEBUG - 1
+_lvl['DEBUG1'] = logging.DEBUG
 cdef void logger_cb(const char* name, const char* level, const char* message) with gil:
     global abort
     name_s = "smcpp._smcpp:" + name.decode("UTF-8")
     level_s = level.decode("UTF-8")
     message_s = message.decode("UTF-8")
     try:
-        lvl = {s: getattr(logging, s) for s in "info debug critical warning error".upper().split()}
-        lvl['DEBUG'] = logging.DEBUG - 1
-        lvl['DEBUG1'] = logging.DEBUG
-        logging.getLogger(name_s).log(lvl[level_s.upper()], message_s)
+        logging.getLogger(name_s).log(_lvl[level_s.upper()], message_s)
     except KeyboardInterrupt:
         logging.getLogger(name_s).critical("Aborting")
         abort = True

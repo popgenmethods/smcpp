@@ -59,7 +59,7 @@ void store_cache()
         oarchive(cache);
     }
     else
-        CRITICAL << "could not open cache file for storage";
+        ERROR << "could not open cache file for storage";
 }
 
 typedef struct { MatrixXq coeffs; } below_coeff;

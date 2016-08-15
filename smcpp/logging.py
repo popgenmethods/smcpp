@@ -4,7 +4,7 @@ import logging
 import multiprocessing
 import wrapt
 
-from logging import INFO, WARNING, DEBUG, NOTSET, CRITICAL
+from logging import INFO, ERROR, WARNING, DEBUG, NOTSET, CRITICAL
 
 def getLogger(name):
     if multiprocessing.current_process().name == "MainProcess":
