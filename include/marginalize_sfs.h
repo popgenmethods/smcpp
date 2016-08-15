@@ -3,7 +3,6 @@
 
 #include "gsl/gsl_randist.h"
 
-
 template <size_t P>
 struct marginalize_sfs_b;
 
@@ -93,12 +92,12 @@ struct marginalize_sfs_b<1>
         assert(sfs.cols() == n0 + 1);
         assert(b.size() == 1);
         assert(nb.size() == 1);
-        for (unsigned int n1 = b(0); n1 < n0 + b(0) - nb(0) + 1; ++n1)
+        for (int n1 = b(0); n1 < n0 + b(0) - nb(0) + 1; ++n1)
         {
             // n1: number of derived in sample of size n
             // n2: number of ancestral "    "   "   "
             // must have: b(0) <= n1, nb(0) - b(0) <= n2 = n - n1 => n1 <= n + b - nb
-            unsigned int n2 = n0 - n1;
+            int n2 = n0 - n1;
             // p(k) =  C(n_1, k) C(n_2, t - k) / C(n_1 + n_2, t)
             // gsl_ran_hypergeometric_pdf(unsigned int k, unsigned int n1, unsigned int n2, unsigned int t)
             Vector<T> c = sfs.col(n1);
