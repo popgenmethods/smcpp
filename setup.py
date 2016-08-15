@@ -55,21 +55,24 @@ def lazy_extensions():
 try:
     import numpy
 except ImportError:
-    sys.exit("Setup requires numpy order to proceed. "
-             "Please install it and and re-run.")
+    sys.exit("""
+**********************************************************************
+
+ Setup requires numpy order to proceed. Please install it and re-run.
+
+**********************************************************************
+""")
 dist.Distribution({'setup_requires': ['numpy', 'pkgconfig', 'cython']})
 
-exec(compile(open("smcpp/_version.py").read(), "smcpp/_version.py", 'exec'))
-
 setup(name='smcpp',
-        version=__version__,
         description='SMC++',
         author='Jonathan Terhorst, Jack Kamm, Yun S. Song',
         author_email='terhorst@stat.berkeley.edu',
         url='https://github.com/terhorst/smc++',
         ext_modules=lazy_extensions(), # cythonize(extensions),
         packages=find_packages(),
-        setup_requires=['pytest-runner', 'numpy', 'pkgconfig', 'cython'],
+        setup_requires=['pytest-runner', 'numpy', 'pkgconfig', 'cython', 'setuptools_scm'],
+        use_scm_version=True,
         tests_require=['pytest'],
         install_requires=[
             "gmpy2", # This is not used in the Python code, but 
@@ -79,7 +82,6 @@ setup(name='smcpp',
             "backports.shutil_get_terminal_size",
             "wrapt>=1.10",
             "setuptools>=19.6",
-            "jsonpickle>=0.9.2",
             "ad>=1.2.2",
             "cython>=0.23",
             "scipy>=0.16",
