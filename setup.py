@@ -22,19 +22,19 @@ def lazy_extensions():
     from Cython.Build import cythonize
     import numpy as np
     import pkgconfig
-    include_dirs = []
-    for dep in ['gsl']:
+    include_dirs = ['/usr/local/include']
+    for dep in ['gsl', 'mpfr']:
         include_dirs += [path.strip() for path in pkgconfig.cflags(dep).split("-I") if path.strip()]
     extensions = [
             Extension(
                 "smcpp._smcpp",
                 sources=["smcpp/_smcpp.pyx"] + cpps,
                 language="c++",
-                include_dirs=["src", np.get_include()] + include_dirs,
+                include_dirs=[np.get_include(), "include", "include/eigen3"] + include_dirs,
                 # extra_compile_args=["-O0", "-ggdb3", "-std=c++11", "-Wno-unused-variable", "-Wno-unused-function", "-D_GLIBCXX_DEBUG"],
                 extra_compile_args=["-O2", "-std=c++11", "-Wno-deprecated-declarations", "-fopenmp"],
-                libraries=['gmp', 'gmpxx', 'gsl', 'gslcblas'],
-                extra_link_args=['-fopenmp'],
+                libraries=['mpfr', 'gmp', 'gmpxx', 'gsl', 'gslcblas'],
+                extra_link_args=['-fopenmp', "-L/usr/local/lib"],
                 )]
     if True:
         extensions.append(## This depends on boost and is only used for testing purposes
