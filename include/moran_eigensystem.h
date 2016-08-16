@@ -18,7 +18,7 @@ struct MoranEigensystem
 };
 
 Eigen::SparseMatrix<mpq_class, Eigen::RowMajor> moran_rate_matrix(int);
-Eigen::SparseMatrix<mpq_class, Eigen::RowMajor> modified_moran_rate_matrix(int, int);
+Eigen::SparseMatrix<mpq_class, Eigen::RowMajor> modified_moran_rate_matrix(int, int, int);
 MoranEigensystem& compute_moran_eigensystem(int);
 
 #endif

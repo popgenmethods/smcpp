@@ -54,7 +54,8 @@ std::vector<Matrix<T> > OnePopConditionedSFS<T>::compute_above(const PiecewiseCo
     for (int m = 0; m < M; ++m)
     {
         csfs_above[m].fill(eta.zero());
-        Matrix<T> C0 = C_above[m].transpose(), C2 = C_above[m].colwise().reverse().transpose();
+        const Matrix<T> C0 = C_above[m].transpose();
+        const Matrix<T> C2 = C_above[m].colwise().reverse().transpose();
         Vector<T> tmp0(this->mcache.X0.cols()), tmp2(this->mcache.X2.cols());
         tmp0.fill(eta.zero());
         for (int j = 0; j < this->mcache.X0.cols(); ++j)

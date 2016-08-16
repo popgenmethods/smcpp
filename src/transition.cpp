@@ -264,6 +264,9 @@ HJTransition<T>::HJTransition(const PiecewiseConstantRateFunction<T> &eta, const
 
     // Compute expm matrices in higher precision.
     compute_expms();
+    // Prevent issues with mulithreaded access to members causing
+    // changes in derivativen coherence.
+    std::vector<Matrix<T> > const& expm_prods_const = expm_prods;
 
     std::vector<T> avg_coal_times = eta.average_coal_times();
     std::vector<int> avc_ip;
@@ -314,7 +317,7 @@ HJTransition<T>::HJTransition(const PiecewiseConstantRateFunction<T> &eta, const
             T p_coal = exp(-(Rk1 - Rj));
             if (k < this->M - 1)
                 p_coal *= -expm1(-(Rk - Rk1));
-            this->Phi(j - 1, k - 1) = expm_prods[hs_indices[j]](0, 1) * p_coal;
+            this->Phi(j - 1, k - 1) = expm_prods_const[hs_indices[j]](0, 1) * p_coal;
         }
         this->Phi(j - 1, j - 1) = 0.;
         T s = this->Phi.row(j - 1).sum();

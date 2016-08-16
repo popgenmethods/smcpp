@@ -25,15 +25,15 @@ Eigen::SparseMatrix<mpq_class, Eigen::RowMajor> moran_rate_matrix(int N)
     return ret;
 }
 
-Eigen::SparseMatrix<mpq_class, Eigen::RowMajor> modified_moran_rate_matrix(int N, int a)
+Eigen::SparseMatrix<mpq_class, Eigen::RowMajor> modified_moran_rate_matrix(int N, int a, int na)
 {
-    Eigen::SparseMatrix<mpq_class, Eigen::RowMajor> ret(N + 1, N + 1);     
+    Eigen::SparseMatrix<mpq_class, Eigen::RowMajor> ret(N + 1, N + 1);
     for (int i = 0; i < N + 1; ++i)
     {
         mpq_class sm = 0, b;
         if (i > 0)
         {
-            b = (2_mpq - a) * i + i * (N - i) / 2_mpq;
+            b = (na - a) * i + i * (N - i) / 2_mpq;
             ret.insert(i, i - 1) = b;
             sm += b;
         }
@@ -66,7 +66,7 @@ MoranEigensystem& compute_moran_eigensystem(int n)
 {
     if (_memo.count(n) == 0)
     {
-        Eigen::SparseMatrix<mpq_class, Eigen::RowMajor> M = modified_moran_rate_matrix(n, 0), 
+        Eigen::SparseMatrix<mpq_class, Eigen::RowMajor> M = modified_moran_rate_matrix(n, 0, 2),
             Mt, I(n + 1, n + 1), A;
         Mt = M.transpose();
         MoranEigensystem ret(n);
@@ -91,14 +91,3 @@ MoranEigensystem& compute_moran_eigensystem(int n)
     }
     return _memo.at(n);
 }
-
-
-/*
-int main(int argc, char** argv)
-{
-    int n = atoi(argv[1]);
-    MoranEigensystem ret = compute_moran_eigensystem(n);
-    std::cout << (ret.U.reverse() * ret.D.reverse().asDiagonal() * ret.Uinv.reverse()).template cast<double>() << std::endl;
-}
-*/
-

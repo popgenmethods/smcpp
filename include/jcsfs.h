@@ -21,14 +21,8 @@ class JointCSFS : public ConditionedSFS<T>
         M(hidden_states.size() - 1),
         K(K), // number of random trials used to compute transition matrices.
         n1(n1), n2(n2), a1(a1), a2(a2), csfs(make_csfs()),
-        Mn1(moran_rate_matrix(n1 + 1)),
-        Mn2(moran_rate_matrix(n2)),
-        Mn10(modified_moran_rate_matrix(n1, 0)),
-        Mn11(modified_moran_rate_matrix(n1, 1)),
-        Mn12(modified_moran_rate_matrix(n1, 2)),
-        Mn20(modified_moran_rate_matrix(n2, 0)),
-        Mn21(modified_moran_rate_matrix(n2, 1)),
-        Mn22(modified_moran_rate_matrix(n2, 2)),
+        togetherM(n1, n2),
+        apartM(n1, n2),
         S2(arange(0, n1 + 2) / (n1 + 1)),
         S0(Vector<double>::Ones(n1 + 2) - S2),
         Sn1(arange(1, n1 + 2) / (n1 + 2)),
@@ -62,6 +56,29 @@ class JointCSFS : public ConditionedSFS<T>
         }
     };
  
+    struct togetherRateMatrices
+    {
+        togetherRateMatrices(const int n1, const int n2) :
+            Mn1p1(moran_rate_matrix(n1 + 1)),
+            Mn2(moran_rate_matrix(n2)),
+            Mn10(modified_moran_rate_matrix(n1, 0, 2)),
+            Mn11(modified_moran_rate_matrix(n1, 1, 2)),
+            Mn12(modified_moran_rate_matrix(n1, 2, 2))
+        {}
+        jcsfs_eigensystem Mn1p1, Mn2, Mn10, Mn11, Mn12;
+    };
+
+    struct apartRateMatrices
+    {
+        apartRateMatrices(const int n1, const int n2) :
+            Mn10(modified_moran_rate_matrix(n1, 0, 1)),
+            Mn11(modified_moran_rate_matrix(n1, 1, 1)),
+            Mn20(modified_moran_rate_matrix(n2, 0, 1)),
+            Mn21(modified_moran_rate_matrix(n2, 1, 1))
+        {}
+        jcsfs_eigensystem Mn10, Mn11, Mn20, Mn21;
+    };
+
     // Private functions
     inline T& tensorRef(const int m, const int i, const int j, const int k, const int l) 
     { 
@@ -84,7 +101,8 @@ class JointCSFS : public ConditionedSFS<T>
     const int M, K;
     const int n1, n2, a1, a2;
     const std::map<int, OnePopConditionedSFS<T> > csfs;
-    const jcsfs_eigensystem Mn1, Mn2, Mn10, Mn11, Mn12, Mn20, Mn21, Mn22;
+    const togetherRateMatrices togetherM;
+    const apartRateMatrices apartM;
     const Vector<double> S2, S0, Sn1, Sn2;
 
     // These change at each call of compute

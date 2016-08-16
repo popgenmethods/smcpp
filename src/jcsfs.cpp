@@ -87,9 +87,9 @@ void JointCSFS<T>::jcsfs_helper_tau_below_split(const int m,
         // FIXME do something with seeding.
         T t = eta.random_time(1., t1, t2, gen);
         T Rt = eta.R(t);
-        Matrix<T> A = Mn1.expM(Rts1 - Rt);
-        Matrix<T> B = Mn10.expM(Rt);
-        Matrix<T> C = Mn12.expM(Rt);
+        Matrix<T> A = togetherM.Mn1p1.expM(Rts1 - Rt);
+        Matrix<T> B = togetherM.Mn10.expM(Rt);
+        Matrix<T> C = togetherM.Mn12.expM(Rt);
         eMn10_avg += (A * S0.template cast<T>().asDiagonal()).leftCols(n1 + 1) * B;
         eMn12_avg += (A * S2.template cast<T>().asDiagonal()).rightCols(n1 + 1) * C;
         Matrix<double> eMn10_d = eMn10_avg.template cast<double>();
@@ -218,14 +218,14 @@ void JointCSFS<T>::pre_compute_apart()
             times.push_back(t1 - split);
     }
     times.push_back(INFINITY);
-    PiecewiseConstantRateFunction<T> shifted_eta1(shiftParams(params1, split), times);
-    std::vector<Matrix<T> > csfs_at_split = csfs.at(n1 + n2).compute(shifted_eta1);
-    T Rts1 = PiecewiseConstantRateFunction<T>(params1, {}).R(split);
-    T Rts2 = PiecewiseConstantRateFunction<T>(params2, {}).R(split);
-    Matrix<T> T10 = Mn10.expM(Rts1);
-    Matrix<T> T11 = Mn11.expM(Rts1);
-    Matrix<T> T20 = Mn20.expM(Rts2);
-    Matrix<T> T21 = Mn21.expM(Rts2);
+    const PiecewiseConstantRateFunction<T> shifted_eta1(shiftParams(params1, split), times);
+    const std::vector<Matrix<T> > csfs_at_split = csfs.at(n1 + n2).compute(shifted_eta1);
+    const T Rts1 = PiecewiseConstantRateFunction<T>(params1, {}).R(split);
+    const T Rts2 = PiecewiseConstantRateFunction<T>(params2, {}).R(split);
+    const Matrix<T> T10 = apartM.Mn10.expM(Rts1);
+    const Matrix<T> T11 = apartM.Mn11.expM(Rts1);
+    const Matrix<T> T20 = apartM.Mn20.expM(Rts2);
+    const Matrix<T> T21 = apartM.Mn21.expM(Rts2);
     int i = 0;
     for (int m = 0; m < M; ++m)
     {
@@ -256,18 +256,19 @@ void JointCSFS<T>::pre_compute_apart()
         return; 
 
     // Truncated SFS until split.
-    auto t1 = std::make_tuple(truncateParams(params1, split), n1);
-    auto t2 = std::make_tuple(truncateParams(params2, split), n2);
+    auto t1 = std::make_tuple(params1, n1);
+    auto t2 = std::make_tuple(params2, n2);
     std::vector<decltype(t1)> tups{t1, t2};
     bool first = true;
     for (auto t : tups)
     {
-        int ni = std::get<1>(t);
-        PiecewiseConstantRateFunction<T> eta_trunc(std::get<0>(t), {0., INFINITY});
+        ParameterVector trunc_params = truncateParams(std::get<0>(t), split);
+        const int ni = std::get<1>(t);
+        PiecewiseConstantRateFunction<T> eta_trunc(trunc_params, {0., INFINITY});
         Vector<T> rsfs_below = undistinguishedSFS(csfs.at(ni - 1).compute(eta_trunc)[0]);
         for (int k = 1; k <= ni; ++k)
         {
-            double fac = (double)k / double(ni + 1);
+            double fac = (double)k / (double)(ni + 1);
             const T x1 = (1. - fac) * rsfs_below(k - 1);
             const T x2 = fac * rsfs_below(k - 1);
 #pragma omp parallel for
@@ -288,7 +289,7 @@ void JointCSFS<T>::pre_compute_apart()
             }
         }
         T remain = arange(1, ni + 1).transpose().template cast<T>() * rsfs_below;
-        remain /= ni + 1;
+        remain /= (double)(ni + 1);
         remain -= split;
         assert(remain <= 0);
         for (int m = 0; m < M; ++m)
@@ -312,10 +313,10 @@ void JointCSFS<T>::pre_compute_together()
     eta2.reset(new PiecewiseConstantRateFunction<T>(params2, {}));
     Rts1 = eta1->R(split);
     Rts2 = eta2->R(split);
-    eMn1[0] = Mn10.expM(Rts1);
-    eMn1[1] = Mn11.expM(Rts1);
+    eMn1[0] = togetherM.Mn10.expM(Rts1);
+    eMn1[1] = togetherM.Mn11.expM(Rts1);
     eMn1[2] = eMn1[0].reverse();
-    eMn2 = Mn2.expM(Rts2);
+    eMn2 = togetherM.Mn2.expM(Rts2);
 #pragma omp parallel for
     for (int m = 0; m < M; ++m)
     {
@@ -328,7 +329,11 @@ void JointCSFS<T>::pre_compute_together()
         else
         {
             T eR1t1 = exp(-eta1->R(t1));
-            T eR1t2 = exp(-eta1->R(t2));
+            T eR1t2;
+            if (std::isinf(t2))
+                eR1t2 = eta1->zero();
+            else
+                eR1t2 = exp(-eta1->R(t2));
             T w = (exp(-Rts1) - eR1t2) / (eR1t1 - eR1t2);
             jcsfs_helper_tau_below_split(m, t1, split, 1. - w);
             jcsfs_helper_tau_above_split(m, split, t2, w);
