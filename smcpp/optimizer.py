@@ -5,6 +5,7 @@ import os.path
 import os
 import ad
 import ad.admath
+import tempfile
 import wrapt
 import subprocess
 import random
@@ -295,18 +296,26 @@ class AsciiPlotter(Observer):
             z = model.model2.stepwise_values()
             ind = np.searchsorted(np.cumsum(x), model.split)
             z = z[:ind + 1]
-            data = "\n".join([",".join(map(str, row)) for row in zip_longest(x, y, z, fillvalue=".")])
+            data = "\n".join([",".join(map(str, row)) for row in zip(x, y)])
+            data += "\n" * 3
+            data += "\n".join([",".join(map(str, row)) for row in zip(x, z)])
         else:
             x = np.cumsum(model.s)
             y = model.stepwise_values()
+            u = model.transformed_knots
+            v = np.exp(model[:].astype('float'))
             data = "\n".join([",".join(map(str, row)) for row in zip(x, y)])
+            data += "\n" * 3
+            data += "\n".join([",".join(map(str, row)) for row in zip(u, v)])
         # Fire up the plot process and let'ter rip.
         gnuplot = subprocess.Popen([self._gnuplot_path],
                                    stdin=subprocess.PIPE,
                                    stdout=subprocess.PIPE)
+        import sys
         def write(x):
             x += "\n"
             gnuplot.stdin.write(x.encode())
+            sys.stdout.write(x.encode())
         columns, lines = get_terminal_size((80, 20))
         width = columns * 3 // 5
         height = 25
@@ -315,20 +324,18 @@ class AsciiPlotter(Observer):
         write("set xlabel \"Time\"")
         write("set ylabel \"N0\"")
         write("set logscale xy")
-        plot_cmd = "plot '-' using 1:2 with lines title 'Pop. 1'"
-        if two_pop:
-            plot_cmd += ", '' using 1:3 with lines title 'Pop. 2';"
-        write(plot_cmd)
-        write(data)
-        write("e")
-        if two_pop:
-            write(data)
-            write("e")
-        else:
+        with tempfile.NamedTemporaryFile("wt") as f:
+            plot_cmd = "plot '%s' i 0 with lines title 'Pop. 1'" % f.name
+            if two_pop:
+                plot_cmd += ", '' i 1 with lines title 'Pop. 2';"
+            else:
+                plot_cmd += ", '' i 1 with points title 'Knots';"
+            write(plot_cmd)
+            open(f.name, "wt").write(data)
             write("unset key")
-        write("exit")
-        (stdout, stderr) = gnuplot.communicate()
-        graph = stdout.decode()
+            write("exit")
+            (stdout, stderr) = gnuplot.communicate()
+            graph = stdout.decode()
         logger.info("Current model:\n%s", graph)
 
 
