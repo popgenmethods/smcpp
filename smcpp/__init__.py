@@ -3,6 +3,8 @@ import logging
 import ad
 import numbers
 import numpy as np
+import warnings
+warnings.filterwarnings("error", category=np.VisibleDeprecationWarning)
 
 from .version import __version__
 
