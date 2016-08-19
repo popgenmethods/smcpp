@@ -5,38 +5,51 @@ from logging import getLogger
 import numpy as np
 import sys
 from pysam import VariantFile, TabixFile
+import json
 logger = getLogger(__name__)
 
 from ..logging import setup_logging
 from ..util import optional_gzip, RepeatingWriter
+from ..version import __version__
+
+
+def comma_separated_list(x):
+    return x.split(",")
+
+
+def comma_separated_fixed_list(lower, upper):
+    def f(x):
+        ret = comma_separated_list(x)
+        if not lower <= len(ret) <= upper:
+            raise argparse.ArgumentTypeError(
+                    "%r is not a comma-separated list of between %d and %d elements" %
+                    (x, lower, upper))
+        return ret
+    return f
 
 
 def init_parser(parser):
+    parser.add_argument("--apart", "-a", action="store_true",
+            help="If specified, distinguished lineages will be pulled from "
+                 "from first sample in population 1 and second sample in population 2. "
+                 "This option only makes sense for phased data with two populations. "
+                 "(Default: both lineages from first sample in population 1.) ")
     parser.add_argument("--ignore-missing", default=False, action="store_true",
             help="ignore samples which are missing in the data")
-    parser.add_argument("-d", "--distinguished",
-            nargs="*",
-            metavar="sample_id",
-            help="ids of the distinguished lineage(s). "
-                 "if two values are supplied, values will be pulled "
-                 "from the 'left' haplotype of id #1 and 'right' "
-                 "haplotype of id #2. (this only makes sense for "
-                 "phased data. default: first sample.) ")
     parser.add_argument("--missing-cutoff", "-c", metavar="c", type=int, default=None,
             help="treat runs of homozygosity longer than <c> base pairs as missing")
     parser.add_argument("--mask", "-m",
             help="BED-formatted mask of missing regions",
             widget="FileChooser")
-    parser.add_argument("--pop2", "-p", nargs="+",
-            metavar="sample_id", default=[],
-            help="Column(s) representing second population")
     parser.add_argument("vcf", metavar="vcf[.gz]",
             help="input VCF file", widget="FileChooser")
     parser.add_argument("out", metavar="out[.gz]",
             help="output SMC++ file", widget="FileChooser")
     parser.add_argument("contig", help="contig to parse")
-    parser.add_argument("sample_ids", nargs="+", metavar="sample_id",
-            help="Column(s) to pull from the VCF, or file containing the same.")
+    parser.add_argument("pop1", type=comma_separated_list,
+            help="Comma-separated list of sample ids from population 1.")
+    parser.add_argument("pop2", type=comma_separated_list, nargs="?", default=[],
+            help="Comma-separated list of sample ids from population 2.")
 
 def validate(args):
     if args.missing_cutoff and args.mask:
@@ -45,20 +58,14 @@ def validate(args):
 def main(args):
     setup_logging(0)
     validate(args)
-    if len(args.sample_ids) == 1:
-        try:
-            with open(args.sample_ids[0], "rt") as f:
-                args.sample_ids = [line.strip() for line in f]
-        except IOError:
-            pass
-    if not args.distinguished:
-        args.distinguished = args.sample_ids[:1]
-    if len(args.distinguished) == 1:
-        args.distinguished *= 2
-    dist = [[x for x in args.distinguished if x in pop]
-            for pop in (args.sample_ids, args.pop2)]
-    undist = [[p for p in pop if p not in args.distinguished]
-              for pop in (args.sample_ids, args.pop2)]
+    if args.apart:
+        if not args.pop2:
+            raise RuntimeError("--apart requires two populations")
+        dist = [[args.pop1[0]], [args.pop2[0]]]
+        undist = [args.pop1[1:], args.pop2[1:]]
+    else:
+        dist = [[args.pop1[0]] * 2, []]
+        undist = [args.pop1[1:], args.pop2]
     npop = 1
     logger.info("Population 1:")
     logger.info("Distinguished lineages: " + 
@@ -66,7 +73,7 @@ def main(args):
     logger.info("Undistinguished samples: " + ", ".join(undist[0]))
     if args.pop2:
         npop = 2
-        common = set(dist[0]) & set(dist[1])
+        common = set(args.pop1) & set(args.pop2)
         if common:
             logger.error("Populations 1 and 2 should be disjoint, "
                          "but both contain " + ", ".join(common))
@@ -80,6 +87,8 @@ def main(args):
     vcf = VariantFile(args.vcf)
     with optional_gzip(args.out, "wt") as out:
         samples = list(vcf.header.samples)
+        dist = dist[:npop]
+        undist = undist[:npop]
         if not all([set(d) <= set(samples) for d in dist]):
             raise RuntimeError("Distinguished lineages not found in data?")
         missing = [samp for u in undist for samp in u if samp not in samples]
@@ -90,10 +99,11 @@ def main(args):
             else:
                 msg += "If you want to continue without these samples, use --ignore-missing."
                 raise RuntimeError(msg)
-        dist = dist[:npop]
-        undist = undist[:npop]
         undist = [[sample for sample in u if sample not in missing] for u in undist]
         nb = [2 * len(u) for u in undist]
+        out.write("# SMC++ ")
+        json.dump({"__version__": __version__, "undist": undist, "dist": dist}, out)
+        out.write("\n")
 
         # function to convert a VCF record to our format <span, dist gt, undist gt, # undist>
         def rec2gt(rec):

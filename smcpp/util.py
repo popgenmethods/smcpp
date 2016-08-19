@@ -190,7 +190,7 @@ def _pt_helper(fn):
     try:
         # This parser is way faster than loadtxt
         import pandas as pd
-        A = pd.read_csv(fn, sep=' ', header=None).values
+        A = pd.read_csv(fn, sep=' ', comment="#", header=None).values
     except ImportError:
         A = np.loadtxt(fn, dtype=np.int32)
     A[np.logical_and(A[:,1] == 2, A[:,2] == A[:,3]), 1:3] = 0
