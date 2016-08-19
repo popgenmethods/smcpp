@@ -73,6 +73,7 @@ void HMM::Estep(bool fbOnly)
             Matrix<double> M = (B * T.transpose()).pow(span);
             alpha_hat.col(ell) = M * alpha_hat.col(ell - 1);
         }
+        CHECK_NAN(alpha_hat.col(ell));
         c(ell) = alpha_hat.col(ell).sum();
         alpha_hat.col(ell) /= c(ell);
         ll += log(c(ell));
@@ -123,6 +124,9 @@ void HMM::Estep(bool fbOnly)
             beta = T * (B * beta);
         }
         beta /= c(ell);
+        CHECK_NAN(xisum);
+        CHECK_NAN(v);
+        CHECK_NAN(beta);
         gamma_sums.at(key) += v;
         if (*(ib->saveGamma))
             gamma.col(ell) = v;
