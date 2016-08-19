@@ -84,8 +84,8 @@ PiecewiseConstantRateFunction<T>::PiecewiseConstantRateFunction(
 }
 
 template <typename T>
-inline T _double_integral_below_helper(const int rate, const double &tsm, const double &tsm1, const T &ada, 
-        const T &Rrng, const T &log_denom)
+inline T _double_integral_below_helper(const int rate, const double tsm, const double tsm1, const T ada,
+        const T Rrng, const T log_denom)
 {
     if (ada == 0)
         return 0.;
@@ -106,7 +106,7 @@ inline T _double_integral_below_helper(const int rate, const double &tsm, const 
 }
 
 template <typename T>
-inline T _double_integral_above_helper(const int rate, const int lam, const double tsm, 
+inline T _double_integral_above_helper(const int rate, const int lam, const double tsm,
         const double tsm1, const T ada, const T Rrng, const T log_coef)
 {
     if (ada == 0)
@@ -195,8 +195,8 @@ T PiecewiseConstantRateFunction<T>::R_integral(const double a,
 
 
 template <typename T>
-inline T _single_integral(const int rate, const double &tsm, const double &tsm1, 
-        const T &ada, const T &Rrng, const T &log_coef)
+inline T _single_integral(const int rate, const double tsm, const double tsm1,
+        const T ada, const T Rrng, const T log_coef)
 {
     // = int_ts[m]^ts[m+1] exp(-rate * R(t)) dt
     const int c = rate;
@@ -211,7 +211,8 @@ inline T _single_integral(const int rate, const double &tsm, const double &tsm1,
 }
 
 template <typename T>
-void PiecewiseConstantRateFunction<T>::tjj_double_integral_above(const int n, long jj, std::vector<Matrix<T> > &C) const
+void PiecewiseConstantRateFunction<T>::tjj_double_integral_above(
+        const int n, long jj, std::vector<Matrix<T> > &C) const
 {
     T tmp;
     long lam = nC2(jj) - 1;
@@ -219,9 +220,11 @@ void PiecewiseConstantRateFunction<T>::tjj_double_integral_above(const int n, lo
     for (unsigned int h = 0; h < hs_indices.size() - 1; ++h)
     {
         C[h].row(jj - 2).fill(zero());
-        T log_denom = -Rrng[hs_indices[h]];
-        if (Rrng[hs_indices[h + 1]] != INFINITY)
-            log_denom += log(-expm1(-(Rrng[hs_indices[h + 1]] - Rrng[hs_indices[h]])));
+        T Rh = Rrng[hs_indices[h]];
+        T Rh1 = Rrng[hs_indices[h + 1]];
+        T log_denom = -Rh;
+        if (Rh1 != INFINITY)
+            log_denom += log(-expm1(-(Rh1 - Rh)));
         for (int m = hs_indices[h]; m < hs_indices[h + 1]; ++m)
         {
             for (int j = 2; j < n + 2; ++j)
@@ -249,34 +252,36 @@ void PiecewiseConstantRateFunction<T>::tjj_double_integral_above(const int n, lo
                 C[h](jj - 2, j - 2) += tmp;
                 T log_coef = -log_denom, fac;
                 long rp = lam + 1 - rate;
+                T Rm1 = Rrng[m + 1];
+                T Rm = Rrng[m];
                 if (rp == 0)
-                    fac = Rrng[m + 1] - Rrng[m];
+                    fac = Rm1 - Rm;
                 else
                 {
                     if (rp < 0)
                     {
-                        if (-rp * (Rrng[m + 1] - Rrng[m]) > 20)
+                        if (-rp * (Rm1 - Rm) > 20)
                         {
-                            log_coef += -rp * Rrng[m + 1];
+                            log_coef += -rp * Rm1;
                             fac = -1. / rp;
                         }
                         else
                         {
-                            log_coef += -rp * Rrng[m];
-                            fac = -expm1(-rp * (Rrng[m + 1] - Rrng[m])) / rp;
+                            log_coef += -rp * Rm;
+                            fac = -expm1(-rp * (Rm1 - Rm)) / rp;
                         }
                     }
                     else
                     {
-                        if (-rp * (Rrng[m] - Rrng[m + 1]) > 20)
+                        if (-rp * (Rm - Rm1) > 20)
                         {
-                            log_coef += -rp * Rrng[m];
+                            log_coef += -rp * Rm;
                             fac = 1. / rp;
                         }
                         else
                         {
-                            log_coef += -rp * Rrng[m + 1];
-                            fac = expm1(-rp * (Rrng[m] - Rrng[m + 1])) / rp;
+                            log_coef += -rp * Rm1;
+                            fac = expm1(-rp * (Rm - Rm1)) / rp;
                         }
                     }
                 }
@@ -297,16 +302,20 @@ void PiecewiseConstantRateFunction<T>::tjj_double_integral_below(
         const int n, const int h, Matrix<T> &tgt) const
 {
     DEBUG << "in tjj_double_integral_below";
-    T log_denom = -Rrng[hs_indices[h]];
-    if (Rrng[hs_indices[h + 1]] != INFINITY)
-        log_denom += log(-expm1(-(Rrng[hs_indices[h + 1]] - Rrng[hs_indices[h]])));
+    T Rh = Rrng[hs_indices[h]];
+    T Rh1 = Rrng[hs_indices[h + 1]];
+    T log_denom = -Rh;
+    if (Rh1 != INFINITY)
+        log_denom += log(-expm1(-(Rh1 - Rh)));
     for (int m = hs_indices[h]; m < hs_indices[h + 1]; ++m)
     {
+        T Rm = Rrng[m];
+        T Rm1 = Rrng[m + 1];
         Vector<T> ts_integrals(n + 1);
-        T log_coef = -Rrng[m];
+        T log_coef = -Rm;
         T fac = 1.;
         if (m < K - 1)
-            fac = -expm1(-(Rrng[m + 1] - Rrng[m]));
+            fac = -expm1(-(Rm1 - Rm));
         for (int j = 2; j < n + 3; ++j)
         {
             long rate = nC2(j) - 1;
