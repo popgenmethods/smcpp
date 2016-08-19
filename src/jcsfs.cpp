@@ -265,7 +265,9 @@ void JointCSFS<T>::pre_compute_apart()
         ParameterVector trunc_params = truncateParams(std::get<0>(t), split);
         const int ni = std::get<1>(t);
         PiecewiseConstantRateFunction<T> eta_trunc(trunc_params, {0., INFINITY});
-        Vector<T> rsfs_below = undistinguishedSFS(csfs.at(ni - 1).compute(eta_trunc)[0]);
+        Vector<T> rsfs_below;
+        if (ni > 0)
+            rsfs_below = undistinguishedSFS(csfs.at(ni - 1).compute(eta_trunc)[0]);
         for (int k = 1; k <= ni; ++k)
         {
             double fac = (double)k / (double)(ni + 1);
@@ -288,7 +290,9 @@ void JointCSFS<T>::pre_compute_apart()
                 }
             }
         }
-        T remain = arange(1, ni + 1).transpose().template cast<T>() * rsfs_below;
+        T remain = eta_trunc.zero();
+        if (ni > 0)
+            remain = arange(1, ni + 1).transpose().template cast<T>() * rsfs_below;
         remain /= (double)(ni + 1);
         remain -= split;
         assert(remain <= 0);
@@ -349,6 +353,7 @@ void JointCSFS<T>::pre_compute_together()
             assert(rsfs_below_2.size() == n2 - 1);
             for (int i = 0; i < n2 - 1; ++i)
                 tensorRef(m, 0, 0, 0, i + 1) += rsfs_below_2(i);
+            const Vector<double> Sn2 = arange(1, n2) / n2;
             T remain = Sn2.transpose().template cast<T>() * rsfs_below_2;
             remain -= split;
             tensorRef(m, 0, 0, 0, n2) -= remain;

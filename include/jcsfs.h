@@ -26,7 +26,6 @@ class JointCSFS : public ConditionedSFS<T>
         S2(arange(0, n1 + 2) / (n1 + 1)),
         S0(Vector<double>::Ones(n1 + 2) - S2),
         Sn1(arange(1, n1 + 2) / (n1 + 2)),
-        Sn2(arange(1, n2) / n2),
         J(M, Matrix<T>::Zero(a1 + 1, (n1 + 1) * (a2 + 1) * (n2 + 1)))
         {}
 
@@ -103,7 +102,7 @@ class JointCSFS : public ConditionedSFS<T>
     const std::map<int, OnePopConditionedSFS<T> > csfs;
     const togetherRateMatrices togetherM;
     const apartRateMatrices apartM;
-    const Vector<double> S2, S0, Sn1, Sn2;
+    const Vector<double> S2, S0, Sn1;
 
     // These change at each call of compute
     std::vector<Matrix<T> > J;
