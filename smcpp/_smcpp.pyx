@@ -415,7 +415,9 @@ def thin_data(data, int thinning, int offset=0):
                 out.append([span] + list(thin_view))
                 i += span
                 break
-    return np.array(out, dtype=np.int32)
+    ret = np.array(out, dtype=np.int32)
+    assert ret[:, 0].sum() == data[:, 0].sum()
+    return ret
 
 # Used for testing purposes only
 def joint_csfs(int n1, int n2, int a1, int a2, model, hidden_states, int K=10):
