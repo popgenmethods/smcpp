@@ -89,17 +89,27 @@ class NPopInferenceManager : public InferenceManager
             ConditionedSFS<adouble> *csfs) :
         InferenceManager(P,
                 (na.tail(na.size() - 1).array() + 1).prod() * (n.array() + 1).prod(),
-                obs_lengths, observations, hidden_states, csfs), n(n), na(na) {}
+                obs_lengths, observations, hidden_states, csfs), n(n), na(na),
+                tensordims(make_tensordims()), bins(construct_bins())
+    {}
 
     virtual ~NPopInferenceManager() = default;
 
     protected:
     // Virtual overrides
     void recompute_emission_probs();
+    FixedVector<int, 2 * P> make_tensordims();
+    block_key bk_to_map_key(const block_key &bk);
+
+    Vector<adouble> tensorRef(const block_key &bk);
 
     // Passed-in parameters
     const FixedVector<int, P> n;
     const FixedVector<int, P> na;
+    const FixedVector<int, 2 * P> tensordims;
+
+    std::map<block_key, std::map<block_key, double> > construct_bins();
+    std::map<block_key, std::map<block_key, double> > bins;
 };
 
 class OnePopInferenceManager final : public NPopInferenceManager<1>

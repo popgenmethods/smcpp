@@ -1,6 +1,10 @@
+#include <map>
+
 #include "inference_manager.h"
 #include "transition.h"
-#include "marginalize_sfs.h"
+#include "bin_key.h"
+#include "marginalize_key.h"
+#include "tensorslice.h"
 #include "jcsfs.h"
 
 PiecewiseConstantRateFunction<adouble>* defaultEta(const std::vector<double> &hidden_states)
@@ -219,6 +223,7 @@ void InferenceManager::do_dirty_work()
     dirty = {false, false, false};
 }
 
+
 std::set<std::pair<int, block_key> > InferenceManager::fill_targets()
 {
     std::set<std::pair<int, block_key> > ret;
@@ -226,8 +231,10 @@ std::set<std::pair<int, block_key> > InferenceManager::fill_targets()
     {
         const int q = ob.cols() - 1;
         for (int i = 0; i < ob.rows(); ++i)
+        {
             if (ob(i, 0) > 1)
                 ret.insert({ob(i, 0), block_key(ob.row(i).tail(q).transpose())});
+        }
     }
     return ret;
 }
@@ -236,6 +243,53 @@ void InferenceManager::setParams(const ParameterVector &params)
 {
     eta.reset(new PiecewiseConstantRateFunction<adouble>(params, hidden_states));
     dirty.eta = true;
+}
+
+template <size_t P>
+FixedVector<int, 2 * P> NPopInferenceManager<P>::make_tensordims()
+{
+    FixedVector<int, 2 * P> ret;
+    for (int p = 0; p < P; ++p)
+    {
+        ret(2 * p) = na(p) + 1;
+        ret(2 * p + 1) = n(p) + 1;
+    }
+    return ret;
+}
+
+template <size_t P>
+block_key NPopInferenceManager<P>::bk_to_map_key(const block_key &bk)
+{
+    Vector<int> ret(2 * P);
+    for (int p = 0; p < P; ++p)
+    {
+        ret(2 * p) = bk(3 * p);
+        ret(2 * p + 1) = bk(3 * p + 1);
+    }
+    return block_key(ret);
+}
+
+template <size_t P>
+std::map<block_key, std::map<block_key, double> > NPopInferenceManager<P>::construct_bins()
+{
+    std::map<block_key, std::map<block_key, double> > ret;
+    for (auto ob : obs)
+    {
+        const int q = ob.cols() - 1;
+        for (int i = 0; i < ob.rows(); ++i)
+        {
+            block_key bk(ob.row(i).tail(q).transpose());
+            if (ret.count(bk) == 0)
+            {
+                std::map<block_key, double> m;
+                for (const block_key &kbin : bin_key<P>::run(bk, na))
+                    for (const auto &p : marginalize_key<P>::run(kbin.vals, n, na))
+                        m[bk_to_map_key(p.first)] += p.second;
+                ret[bk] = m;
+            }
+        }
+    }
+    return ret;
 }
 
 template <size_t P>
@@ -249,7 +303,6 @@ void NPopInferenceManager<P>::recompute_emission_probs()
     emission = Matrix<adouble>::Zero(M, (na(0) + 1) * sfs_dim);
     emission.setZero();
 
-    marginalize_sfs_a<P> ma;
     Eigen::Matrix<adouble, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> em_tmp(na(0) + 1, sfs_dim);
     std::vector<Matrix<adouble> > new_sfss = incorporate_theta(sfss, theta);
     for (int m = 0; m < M; ++m)
@@ -304,7 +357,8 @@ void NPopInferenceManager<P>::recompute_emission_probs()
             keys.emplace(new_key);
         }
         */
-        block_key k = *it;
+        const block_key k = *it;
+        std::array<std::set<FixedVector<int, 3> >, P> s;
         Vector<adouble> tmp(M);
         tmp.fill(zero);
         bool reduced = true;
@@ -324,7 +378,8 @@ void NPopInferenceManager<P>::recompute_emission_probs()
                 tmp = e2.col(a.sum() % 2);
         }
         else
-            tmp = ma(emission, n, a, na, b, nb);
+            for (const auto &p : bins.at(k))
+                tmp += p.second * tensorRef(p.first);
         if (tmp.maxCoeff() > 1.0 or tmp.minCoeff() <= 0.0)
         {
             std::cout << k << std::endl;
@@ -337,6 +392,13 @@ void NPopInferenceManager<P>::recompute_emission_probs()
     }
     DEBUG << "recompute done";
 }
+
+template <size_t P>
+Vector<adouble> NPopInferenceManager<P>::tensorRef(const block_key &key)
+{
+    return tensorSlice<2 * P>::run(emission, key.vals, tensordims);
+}
+
 
 Matrix<adouble> sfs_cython(const int n, const ParameterVector p, 
         const double t1, const double t2, bool below_only)
