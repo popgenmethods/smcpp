@@ -168,7 +168,6 @@ class Analysis(Observer):
         # FIXME currently disabled.
         # exponential_pieces = args.exponential_pieces or []
         pieces = estimation_tools.extract_pieces(pieces)
-        t1 = np.array(t1)
         fac = 2. * N0
         t1 /= fac
         tK /= fac
@@ -189,7 +188,7 @@ class Analysis(Observer):
             if fixed_split is not None:
                 split = fixed_split
             else:
-                split = tK - t1 # just pick the midpoint as a starting value.
+                split = tK - t1  # just pick the midpoint as a starting value.
             split /= 2. * N0
             self._model = SMCTwoPopulationModel(
                 SMCModel(time_points, knots, spline_class),

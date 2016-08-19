@@ -32,8 +32,8 @@ def init_parser(parser):
     optimizer = parser
     model.add_argument('--pieces', type=str,
                        help="span of model pieces", default="32*1")
-    model.add_argument('--t1', type=float, nargs="+",
-                       help="span of first piece(s), in generations", default=[400.])
+    model.add_argument('--t1', type=float,
+                       help="starting point of first piece, in generations", default=100)
     model.add_argument('--tK', type=float, help="end-point of last piece, in generations", 
                        default=40000.)
     model.add_argument('--knots', type=int, default=10, help="number of knots to use in internal representation")
