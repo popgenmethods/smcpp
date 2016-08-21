@@ -39,13 +39,11 @@ class Analysis(Observer):
         # the derivatives can be off due to some branching in the spline
         # code.
         self._model.randomize()
-        if not args.no_prefit:
-            self._prefit()
+        self._init_optimizer(args, files, args.outdir, args.block_size, args.fix_rho, args.fixed_split, args.algorithm)
         self._init_hidden_states(args.M)
         self._perform_thinning(args.thinning)
         self._normalize_data(args.length_cutoff)
         self._init_inference_manager(args.folded)
-        self._init_optimizer(args.outdir, args.block_size, args.fix_rho, args.fixed_split)
 
     ## PRIVATE INIT FUNCTIONS
     def _load_data(self, files):

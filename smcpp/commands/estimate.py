@@ -46,8 +46,8 @@ def init_parser(parser):
                      type=int, help="number of hidden states", default=32)
     hmm.add_argument('--em-iterations', type=int,
                      help="number of EM steps to perform", default=10)
-    optimizer.add_argument('--no-prefit', action="store_true",
-                           help="skip model prefitting. (not recommended.)")
+    optimizer.add_argument('--algorithm', choices=["L-BFGS-B", "TNC"],
+            default="L-BFGS-B", help=argparse.SUPPRESS)
     optimizer.add_argument('--fixed-split', type=float,
                            help="instead of estimating split time, fix it to this value. (two-population models only.)")
     optimizer.add_argument("--fix-rho", default=False, action="store_true",
