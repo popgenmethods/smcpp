@@ -29,6 +29,7 @@ np.set_printoptions(linewidth=120, precision=6, suppress=True)
 
 # Begin program
 parser = argparse.ArgumentParser()
+parser.add_argument("--plot", default=False, action="store_true")
 parser.add_argument("--N0", type=int, default=10000)
 parser.add_argument("--theta", type=float, default=1.25e-8)
 parser.add_argument("--rho", type=float, default=1.25e-8)
@@ -79,10 +80,41 @@ if args.seed is not None:
 data0 = scrm.simulate(args.panel_size, args.N0, args.theta, args.rho, args.L, True, demography)
 print("done simulating")
 
+# Inflate singletons 
+# alpha fraction of called bases are false positive
+if args.error is not None:
+    # Each assayed position has an epsilon chance of being wrong.
+    nerr = np.random.poisson(args.error * args.L * n_max)
+    pos = zip(np.random.randint(0, n_max, nerr), np.random.randint(0, args.L, nerr))
+    npos = np.random.random_integers(0, args.L - 1, size=nerr)
+    ind = np.random.random_integers(0, n_max - 1, size=nerr)
+    nhap = np.zeros([n_max, args.L], dtype=np.int8)
+    nhap[:, data0[1]] = data0[2]
+    # for i, j in enumerate(data0[1]):
+        #nhap[:, j] = data0[2][:, i]
+    nhap[ind, npos] = 1 - nhap[ind, npos]
+    # for i, j in zip(ind, npos):
+    #     nhap[i, j] = 1 - nhap[i, j]
+    npos = nhap.sum(axis=0) > 0
+    data0 = (data0[0], np.where(npos)[0], nhap[:, npos]) + data0[3:]
+
 # Create missingness in data
+if args.missing is not None:
+    # Each assayed position has an epsilon chance of being missing.
+    nerr = np.random.poisson(args.missing * args.L * n_max)
+    pos = zip(np.random.randint(0, n_max, nerr), np.random.randint(0, args.L, nerr))
+    npos = np.random.random_integers(0, args.L - 1, size=nerr)
+    ind = np.random.random_integers(0, n_max - 1, size=nerr)
+    nhap = np.zeros([n_max, args.L], dtype=np.int8)
+    nhap[:, data0[1]] = data0[2]
+    nhap[ind, npos] = -1
+    npos = (nhap.min(axis=0) == -1) | ((nhap.min(axis=0) == 0) & (nhap.sum(axis=0) > 0))
+    data0 = (data0[0], np.where(npos)[0], nhap[:, npos]) + data0[3:]
+
 if args.missing is not None:
     # randomly set some genotypes to missing
     dim = data0[2].shape
+    dim = (2, dim[1])
     nmiss = np.random.poisson(np.prod(dim) * args.missing)
     i1, i2 = [np.random.randint(0, upper, size=nmiss) for upper in dim]
     data0[2][i1, i2] = -1
@@ -103,22 +135,6 @@ if args.ascertain:
     maf = np.where(np.mean(data[2], axis=0) > args.ascertain)[0]
     data = (data[0], data[1][maf], data[2][:, maf])
 
-# Inflate singletons 
-# alpha fraction of called bases are false positive
-if args.error is not None:
-    # Each assayed position has an epsilon chance of being wrong.
-    nerr = np.random.poisson(args.error * args.L * n_max)
-    pos = zip(np.random.randint(0, n_max, nerr), np.random.randint(0, args.L, nerr))
-    npos = np.random.random_integers(0, args.L - 1, size=nerr)
-    ind = np.random.random_integers(0, n_max - 1, size=nerr)
-    nhap = np.zeros([n_max, args.L], dtype=np.uint8)
-    for i, j in enumerate(data[1]):
-        nhap[:, j] = data[2][:, i]
-    for i, j in zip(ind, npos):
-        nhap[i, j] = 1 - nhap[i, j]
-    npos = nhap.sum(axis=0) > 0
-    data = (data[0], np.where(npos)[0], nhap[:, npos]) + data[3:]
-
 gm = {}
 full_gammas = {}
 ims = {}
@@ -129,7 +145,7 @@ gammadict = {}
 datadict = {}
 hs = {}
 for n in args.n:
-    print("n=%d begin", n)
+    print("n=%d begin" % n)
     # subset data. some sites might be non-segregating in the subsample.
     seg = [i for i, pos in enumerate(data[1]) if 
             any(h[i] != 0 for h in data[2][:n])
@@ -140,7 +156,7 @@ for n in args.n:
     # oo[n] = np.array([c1[1:] for c1 in obs for _ in range(c1[0])])
     oo[n] = [smcpp.estimation_tools.thin_dataset([obs], 1)]
     oo[n], _ = smcpp.estimation_tools.break_long_spans(oo[n][0], np.inf, 0)
-    model = PiecewiseModel(s, a, [])
+    model = PiecewiseModel(s, a)
     hidden_states = hs[n] = smcpp.estimation_tools.balance_hidden_states(model, args.M + 1)
     im = smcpp._smcpp.PyOnePopInferenceManager(n - 2, oo[n], hidden_states)
     im.theta = 2.0 * args.N0 * args.theta
@@ -180,20 +196,25 @@ zct = scipy.ndimage.zoom(list(smcpp.util.unpack(ct)), 1. * width / args.L)
 true_pos = scipy.ndimage.zoom(coal_times, 1. * width / args.L)
 # axes[-1].step(range(width), true_pos)
 #end i loop
-plt.set_cmap("viridis")
+plt.set_cmap("jet")
 
 tct = np.array(list(smcpp.util.unpack(ct)))
-hsmid = np.diff(hidden_states)
+hsmid = (hidden_states[1:] + hidden_states[:-1]) / 2.
 hsmid[-1] = 2 * hsmid[-2]
 
 tct_hs_out = (tct[None, :] - hsmid[:, None])**2
+
+err = {n: (full_gammas[n] * tct_hs_out).sum() for n in full_gammas}
+for n in sorted(err):
+    print("%d,%f" % (n, err[n]))
+if not args.plot:
+    sys.exit(0)
 
 ai = 0
 label_text   = [r"%i kb" % int(args.L / 40. * 100. * loc/width) for loc in plt.xticks()[0]]
 mx = max([np.max(gm[g]) for g in gm])
 hs_mid = 0.5 * (hidden_states[1:] + hidden_states[:-1])
 sqer = {}
-sqer2 = None
 mapstep = {}
 for n in sorted(gm):
     ax = axes[ai]
@@ -216,12 +237,12 @@ for n in sorted(gm):
     y = np.concatenate([[0.], map_pos, map_pos[-1:]])
     x = np.concatenate([[0.], x[w], [xmax]])
     mapstep[n] = (x, y)
-    ax.step(x, y, color="red", where="post")
+    ax.step(x, y, color="red", where="pre")
     s1 = StepFunction(x, y[:-1])
     ctx, cty = zip(*ct)
     ctx = np.concatenate([[0.], np.cumsum(ctx)])
     cty = np.concatenate([cty, cty[-1:]])
-    ax.step(ctx, cty, where="post", color=(0., 1., 0.))
+    ax.step(ctx, cty, where="pre", color=(0., 1., 0.))
     s2 = StepFunction(ctx, cty[:-1])
     sqer[n] = (s1 - s2)**2
     # ax.step(sqer[n]._x[:-1], sqer[n]._y, where="post", color="orange")
@@ -230,9 +251,8 @@ for n in sorted(gm):
     ax.set_ylim([0, ymax])
     # ax.set_xticklabels(label_text)
     # corr = np.corrcoef(coal_times, maps[n])[0, 1]
-    err = (full_gammas[n] * tct_hs_out).sum()
-    if n == 2:
-        sqer2 = err
-    txt = ax.text(xmax * 1.02, 1, "%.4f" % (err / sqer2), rotation=-90, va='bottom', ha='right')
-smcpp.plotting.save_pdf(fig, os.path.join(args.outdir, "plot.pdf"))
-plt.close(fig)
+    txt = ax.text(xmax * 1.02, 1, "%.4f" % (err[n] / err[2]), rotation=-90, va='bottom', ha='right')
+
+if args.plot:
+    smcpp.plotting.save_pdf(fig, os.path.join(args.outdir, "plot.pdf"))
+    plt.close(fig)
