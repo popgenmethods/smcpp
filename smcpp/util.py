@@ -187,25 +187,6 @@ def break_long_missing_spans(data, span_cutoff=50000):
         r2.append(np.array(rr, dtype=np.int32))
     return r2
 
-def _pt_helper(fn):
-    try:
-        # This parser is way faster than loadtxt
-        import pandas as pd
-        A = pd.read_csv(fn, sep=' ', comment="#", header=None).values
-    except ImportError:
-        A = np.loadtxt(fn, dtype=np.int32)
-    A[np.logical_and(A[:,1] == 2, A[:,2] == A[:,3]), 1:3] = 0
-    if len(A) == 0:
-        raise RuntimeError("empty dataset: %s" % fn)
-    return np.ascontiguousarray(A, dtype=np.int32)
-
-def parse_text_datasets(datasets):
-    p = multiprocessing.Pool(None)
-    obs = list(p.map(_pt_helper, datasets))
-    p.close()
-    p.terminate()
-    p = None
-    return obs
 
 @contextmanager
 def optional_gzip(f, mode):

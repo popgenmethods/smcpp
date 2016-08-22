@@ -1,6 +1,17 @@
 from __future__ import absolute_import
 from abc import ABCMeta, abstractmethod
+import wrapt
  
+
+# Decorator to target specific messages.
+def targets(target_message):
+    @wrapt.decorator
+    def wrapper(wrapped, instance, args, kwargs):
+        message = args[0]
+        if message == target_message:
+            wrapped(instance, *args, **kwargs)
+    return wrapper
+
 
 class Observer(object):
     __metaclass__ = ABCMeta

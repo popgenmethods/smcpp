@@ -8,7 +8,9 @@ import multiprocessing as mp
 from collections import namedtuple
 import contextlib
 
-from . import _smcpp
+from . import _smcpp, util
+from .contig import Contig
+
 
 logger = getLogger(__name__)
 
@@ -143,3 +145,35 @@ def _esfs_helper(tup):
         coord = tuple([x for ab in zip(row[1::3], row[2::3]) for x in ab])
         ret[coord] += row[0]
     return ret
+
+
+def _pt_helper(fn):
+    try:
+        # This parser is way faster than loadtxt
+        import pandas as pd
+        A = pd.read_csv(fn, sep=' ', comment="#", header=None).values
+    except ImportError:
+        A = np.loadtxt(fn, dtype=np.int32)
+    if len(A) == 0:
+        raise RuntimeError("empty dataset: %s" % fn)
+    with util.optional_gzip(fn, "rt") as f:
+        first_line = next(f).strip()
+        if first_line.startswith("# SMC++"):
+            attrs = json.loads(first_line[7:])
+            a = [len(a) for a in attrs['dist']]
+            n = [len[u] for u in attrs['undist']]
+        else:
+            logger.warn("File %s doesn't appear to be in "
+                        "SMC++ format. Please consider using vcf2smc...",
+                        fn)
+            a = np.max(A[:, 1::3], axis=0)
+            n = np.max(A[:, 3::3], axis=0)
+    return Contig(
+            data=np.ascontiguousarray(A, dtype=np.int32),
+            n=n, a=a)
+
+
+def parse_text_datasets(datasets):
+    with mp_pool() as p:
+        obs = list(p.map(_pt_helper, datasets))
+    return obs

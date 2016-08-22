@@ -21,7 +21,7 @@ except ImportError:
     from backports.shutil_get_terminal_size import get_terminal_size
 
 from . import logging, util, _smcpp
-from .observe import Observer, Observable
+from .observe import targets
 
 logger = logging.getLogger(__name__)
 
@@ -117,21 +117,13 @@ class AbstractOptimizer(Observable):
 
 # LISTENER CLASSES
 
-# Decorator to target specific messages.
-def targets(target_message):
-    @wrapt.decorator
-    def wrapper(wrapped, instance, args, kwargs):
-        message = args[0]
-        if message == target_message:
-            wrapped(instance, *args, **kwargs)
-    return wrapper
-
-
 class HiddenStateOccupancyPrinter(Observer):
 
     @targets("post E-step")
     def update(self, message, *args, **kwargs):
-        hso = np.sum(kwargs['analysis']._im.xisums, axis=(0, 1))
+        hso = np.sum(
+                [np.sum(im.xisums, axis=(0, 1))
+                    for im in kwargs['analysis']._ims.values()], axis=0)
         hso /= hso.sum()
         logger.debug("hidden state occupancy:\n%s",
                      np.array_str(hso, precision=2))
@@ -333,32 +325,32 @@ class AsciiPlotter(Observer):
         logger.info("Plot of current model:\n%s", graph)
 
 
-class TransitionDebug(Observer):
-
-    def __init__(self, path):
-        self._path = path
-        try:
-            os.makedirs(path)
-        except OSError:
-            pass
-
-    @targets("post mini M-step")
-    def update(self, message, *args, **kwargs):
-        im = kwargs['analysis']._im
-        T = im.transition
-        xis = np.sum(im.xisums, axis=0)
-        np.savetxt(os.path.join(self._path, "xis.txt"),
-                   xis.astype("float"), fmt="%g")
-        log_T = np.array(ad.admath.log(T))
-        np.savetxt(os.path.join(self._path, "log_T.txt"),
-                   log_T.astype("float"), fmt="%g")
-        q3 = log_T * xis
-        np.savetxt(os.path.join(self._path, "q3.txt"),
-                   q3.astype("float"), fmt="%g")
-        for i, d in enumerate(im.model.dlist):
-            f = np.vectorize(lambda x, d=d: x.d(d))
-            np.savetxt(os.path.join(self._path, "q3.%d.txt" % i),
-                       f(q3).astype("float"), fmt="%g")
+# class TransitionDebug(Observer):
+# 
+#     def __init__(self, path):
+#         self._path = path
+#         try:
+#             os.makedirs(path)
+#         except OSError:
+#             pass
+# 
+#     @targets("post mini M-step")
+#     def update(self, message, *args, **kwargs):
+#         im = kwargs['analysis']._im
+#         T = im.transition
+#         xis = np.sum(im.xisums, axis=0)
+#         np.savetxt(os.path.join(self._path, "xis.txt"),
+#                    xis.astype("float"), fmt="%g")
+#         log_T = np.array(ad.admath.log(T))
+#         np.savetxt(os.path.join(self._path, "log_T.txt"),
+#                    log_T.astype("float"), fmt="%g")
+#         q3 = log_T * xis
+#         np.savetxt(os.path.join(self._path, "q3.txt"),
+#                    q3.astype("float"), fmt="%g")
+#         for i, d in enumerate(im.model.dlist):
+#             f = np.vectorize(lambda x, d=d: x.d(d))
+#             np.savetxt(os.path.join(self._path, "q3.%d.txt" % i),
+#                        f(q3).astype("float"), fmt="%g")
 
 
 class SMCPPOptimizer(AbstractOptimizer):
