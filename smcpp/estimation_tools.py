@@ -24,31 +24,6 @@ def mp_pool():
     p.terminate()
 
 
-# Simple adagrad implementation with bounds.
-AdagradResult = namedtuple("AdagradResult", "x f")
-
-
-def adagrad(f, x0, bounds, stepsize=1.0, args=[]):
-    fudge_factor = 1e-6  # for numerical stability
-    historical_grad = 0
-    x = x0
-    y = None
-    b = np.array(bounds).T
-
-    def project(z):
-        return np.maximum(b[0], np.minimum(b[1], z))
-
-    while True:
-        y, g = f(x, *args)
-        historical_grad += g.dot(g)
-        adjusted_grad = g / (fudge_factor + np.sqrt(historical_grad))
-        new_x = project(x - stepsize * adjusted_grad)
-        if np.max(np.abs(new_x - x)) < .001:
-            break
-        x = new_x
-    return AdagradResult(x=x, f=y)
-
-
 # Construct time intervals stuff
 def extract_pieces(piece_str):
     '''Convert PSMC-style piece string to model representation.'''
