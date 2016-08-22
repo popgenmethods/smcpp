@@ -160,6 +160,7 @@ def main(args):
 
         abnb_miss = [-1, 0, 0] * len(nb)
         abnb_nonseg = sum([[0, 0, x] for x in nb], [])
+        multiples = set()
         with RepeatingWriter(out) as rw:
             records = interleaved()
             last_pos = 0
@@ -172,8 +173,7 @@ def main(args):
                     continue
                 abnb = rec2gt(rec)
                 if rec.pos == last_pos:
-                    # FIXME: what to do with multiple records at same site
-                    logger.warn("Multiple entries found at position %d; skipping all but the first", rec.pos)
+                    multiples.add(rec.pos)
                     continue
                 span = rec.pos - last_pos - 1
                 if 1 <= span <= args.missing_cutoff:
@@ -183,3 +183,6 @@ def main(args):
                 rw.write([1] + abnb)
                 last_pos = rec.pos
             rw.write([contig_length - last_pos] + abnb_nonseg)
+        if multiples:
+            # FIXME: what to do with multiple records at same site
+            logger.warn("Multiple entries found at %d positions; skipped all but the first", len(multiples))
