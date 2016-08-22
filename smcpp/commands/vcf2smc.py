@@ -107,6 +107,7 @@ def main(args):
         out.write("# SMC++ ")
         json.dump({"__version__": __version__, "undist": undis, "dist": dis}, out)
         out.write("\n")
+        na = [len(d) for d in dis]
         nb = [len(u) for u in undis]
         # function to convert a VCF record to our format <span, dist gt, undist gt, # undist>
         def rec2gt(rec):
@@ -119,8 +120,11 @@ def main(args):
                   for undi in undis]
             b = [sum(_) for _ in bs]
             nb = [len(_) for _ in bs]
-            ret = list(sum(zip(a, b, nb), tuple()))
-            return ret
+            # Fold non-polymorphic (in subsample) sites
+            if np.array_equal(b, nb) and np.array_equal(a, na):
+                a = [0] * len(a)
+                b = [0] * len(b)
+            return list(sum(zip(a, b, nb), tuple()))
 
         region_iterator = vcf.fetch(contig=args.contig)
         contig_length = vcf.header.contigs[args.contig].length
