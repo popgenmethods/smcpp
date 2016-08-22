@@ -65,14 +65,14 @@ class AbstractOptimizer(Observable):
         return ret
 
     def _minimize(self, x0, coords, bounds):
-        # print("\n\ngradient check")
-        # for k in range(3):
-        #     y, dy = self._f(x0, self._analysis, coords, k)
-        #     for i in range(len(x0)):
-        #         x0[i] += 1e-8
-        #         y1, _ = self._f(x0, self._analysis, coords, k)
-        #         print("***grad", k, i, y1, (y1 - y) * 1e8, dy[i])
-        #         x0[i] -= 1e-8
+        if os.environ.get("SMCPP_GRADIENT_CHECK", False):
+            print("\n\ngradient check")
+            y, dy = self._f(x0, self._analysis, coords)
+            for i in range(len(x0)):
+                x0[i] += 1e-8
+                y1, _ = self._f(x0, self._analysis, coords)
+                print("***grad", i, y1, (y1 - y) * 1e8, dy[i])
+                x0[i] -= 1e-8
         return scipy.optimize.minimize(self._f, x0,
                                        jac=True,
                                        args=(self._analysis, coords),
