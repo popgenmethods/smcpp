@@ -269,7 +269,7 @@ cdef class _PyInferenceManager:
         def __get__(self):
             return _store_admatrix_helper(self._im.getEmission(), self._model.dlist)
 
-    def Q(self, k=None):
+    def Q(self, separate=False):
         cdef vector[adouble] ad_rets
         with nogil:
             ad_rets = self._im.Q()
@@ -285,8 +285,8 @@ cdef class _PyInferenceManager:
             qq.append(z)
             q += ad_rets[i]
             logger.debug(("q%d" % (i + 1), z, [z.d(x) for x in self._model.dlist]))
-        if k is not None:
-            return qq[k]
+        if separate:
+            return qq
         r = adnumber(toDouble(q))
         if self._model.dlist:
             r = _adouble_to_ad(q, self._model.dlist)
