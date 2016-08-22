@@ -113,12 +113,6 @@ cdef _store_admatrix_helper(Matrix[adouble] &mat, dlist):
             ary[i, j] = _adouble_to_ad(mat(i, j), dlist)
     return ary
 
-def validate_observation(ob):
-    if np.isfortran(ob):
-        raise ValueError("Input arrays must be C-ordered")
-    if np.any(np.logical_and(ob[:, 1] == 2, ob[:, 2] == ob[:, 3])):
-        raise RuntimeError("Error: data set contains sites where every individual is homozygous recessive. "
-                "Please encode / fold these as non-segregating (homozygous dominant).")
 
 cdef class _PyInferenceManager:
     cdef int _num_hmms
@@ -141,7 +135,6 @@ cdef class _PyInferenceManager:
             hidden_states[0] != 0., hidden_states[-1] != np.inf]):
             raise RuntimeError("Hidden states must be in ascending order with hs[0]=0 and hs[-1] = infinity")
         for ob in observations:
-            validate_observation(ob)
             vob = ob
             self._obs_ptrs.push_back(&vob[0, 0])
             Ls.append(ob.shape[0])

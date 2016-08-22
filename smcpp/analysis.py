@@ -36,7 +36,10 @@ class Analysis(Observer):
         self._init_hidden_states(args.M)
         self._perform_thinning(args.thinning)
         self._normalize_data(args.length_cutoff)
-        self._init_inference_manager(args.folded)
+        self._validate_data()
+        # TODO re-enable folded mode
+        # self._init_inference_manager(args.folded)
+        self._init_inference_manager(False)
 
     ## PRIVATE INIT FUNCTIONS
     def _load_data(self, files):
@@ -46,14 +49,12 @@ class Analysis(Observer):
         self._contigs = estimation_tools.parse_text_datasets(files)
         self._npop = max(c.npop for c in self._contigs)
         for c in self._contigs:
-            assert c.data.shape[1] == 1 + 3 * self._npop
+            assert len(c.n) == len(c.a)
+            assert c.a.max() <= 2
+            assert c.a.min() >= 0
+            assert c.a.sum() == 2
+            assert c.data.shape[1] == 1 + 3 * len(c.n)
         logger.info("%d population%s", self._npop, "" if self._npop == 1 else "s")
-        self._a, self._n = [
-                np.max([np.max(d[:, i::3], axis=0) for d in self._data], axis=0)
-                for i in (1, 3)
-            ]
-        logger.info("n=%s" % self._n)
-        logger.info("a=%s" % self._a)
 
     def _init_parameters(self, theta=None, rho=None):
         ## Set theta and rho to their default parameters
@@ -199,6 +200,14 @@ class Analysis(Observer):
                 ci += 1
         self._update_contigs(new_data)
 
+    def _validate_data(self):
+        for c in self._contigs:
+            assert c.data.flags.c_contiguous
+            if np.any(np.all(c.data[:, 1::3] == c.a[None, :], axis=1) &
+                      np.all(c.data[:, 2::3] == c.n[None, :], axis=1)):
+                raise RuntimeError("Error: data set contains sites where every "
+                        "individual is homozygous recessive. Please encode / "
+                        "fold these as non-segregating (homozygous dominant).")
 
     def _init_inference_manager(self, folded):
         ## Create inference object which will be used for all further calculations.
