@@ -28,7 +28,6 @@ class Analysis(Observer):
         self._penalty = args.regularization_penalty
         self._niter = args.em_iterations
         self._load_data(files)
-        self._compute_sfs()
         self._init_parameters(args.theta, args.rho)
         self._init_bounds(args.Nmin)
         self._init_model(args.initial_model, args.pieces, args.N0, args.t1,
@@ -105,14 +104,6 @@ class Analysis(Observer):
         #     # self._pretrain_penalizer = self._penalizer
         #     self._pretrain(theta, args.folded, args.pretrain_penalty)
 
-    # Compute observed / empirical SFS
-    def _compute_sfs(self):
-        logger.info("Computing SFS...")
-        self._full_sfs = estimation_tools.empirical_sfs(self._data, self._n, self._a)
-        s = self._full_sfs.sum()
-        logger.debug("Full SFS:\n%s\n(%d bases total)", 
-                str(self._full_sfs.astype('float') / s), s)
-    
     # Optionally thin each dataset
     def _perform_thinning(self, thinning):
         if thinning is None:
@@ -123,11 +114,6 @@ class Analysis(Observer):
         elif self._n.sum() > 2:
             logger.warn("Not thinning yet n = %d > 0. This probably "
                         "isn't what you desire, see --thinning", self._n.sum() // 2 + 1)
-        self._thinned_sfs = estimation_tools.empirical_sfs(self._data, self._n, self._a)
-        s = self._thinned_sfs.sum()
-        if s > 0:
-            logger.debug("SFS (after thinning):\n%s\n(%d bases total)", 
-                    str(self._thinned_sfs.astype('float') / s), s)
 
     def _init_model(self, initial_model, pieces, N0, t1, tK, offset,
                     knots, spline_class, fixed_split):
@@ -252,9 +238,6 @@ class Analysis(Observer):
         if not fix_rho:
             self._optimizer.register(optimizer.ParameterOptimizer("rho", (1e-6, 1e-2)))
 
-    # FIXME re-enable this
-    # def _pretrain(self, theta, folded, penalty):
-    #     estimation_tools.pretrain(self._model, self._sfs, self._bounds, theta, folded, penalty)
     ## END OF PRIVATE FUNCTIONS
 
     ## PUBLIC INTERFACE
