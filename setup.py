@@ -40,7 +40,6 @@ def lazy_extensions():
         extensions.append(## This depends on boost and is only used for testing purposes
                 Extension(
                     "smcpp._newick",
-                    # sources=["src/_pypsmcpp.pyx", "src/conditioned_sfs.cpp", "src/hmm.cpp"],
                     sources=["smcpp/_newick.pyx"],
                     include_dirs=["include"],
                     language="c++",
@@ -89,6 +88,7 @@ setup(name='smcpp',
             "numpy>=1.9",
             "matplotlib>=1.5",
             "pysam>=0.9",
+            "pandas",
             "future"],
         extras_require = {'gui': ["Gooey>=0.9"]},
         entry_points = {
