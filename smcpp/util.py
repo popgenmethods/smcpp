@@ -7,7 +7,7 @@ import multiprocessing
 import os
 from future.moves.itertools import zip_longest
 
-from . import logging, _smcpp, model
+from . import logging, _smcpp
 
 logger = logging.getLogger(__name__)
 
