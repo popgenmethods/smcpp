@@ -87,7 +87,8 @@ class Analysis(Observer):
         ## Construct bounds
         # P(seg) is at most theta * 2 * N_max / H_n << 1
         # For now, just base bounds off of population 1. 
-        Hn = np.log(self._n.sum())
+        sample_size = self._n.sum() + self._a.sum()
+        Hn = np.log(sample_size)
         Nmax = .1 / (2 * self._theta * Hn)
         logger.debug("Nmax calculated to be %g" % Nmax)
         self._bounds = (Nmin, Nmax)
