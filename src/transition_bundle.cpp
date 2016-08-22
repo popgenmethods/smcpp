@@ -7,21 +7,22 @@ void TransitionBundle::update(const Matrix<adouble> &new_T)
     const int M = T.rows();
     eigensystems.clear();
     span_Qs.clear();
-#pragma omp parallel for
+    Matrix<double> tmp;
     for (auto it = targets.begin(); it < targets.end(); ++it)
     {
-        Matrix<double> tmp;
-        int span = it->first;
         block_key key = it->second;
         if (this->eigensystems.count(key) == 0)
         {
             tmp = this->emission_probs->at(key).template cast<double>().asDiagonal() * this->Td.transpose();
             Eigen::EigenSolver<Matrix<double> > es(tmp);
-#pragma omp critical(emplace)
-            {
-                this->eigensystems.emplace(key, es);
-            }
+            this->eigensystems.emplace(key, es);
         }
+    }
+#pragma omp parallel for
+    for (auto it = targets.begin(); it < targets.end(); ++it)
+    {
+        int span = it->first;
+        block_key key = it->second;
         eigensystem eig = this->eigensystems.at(key);
         Matrix<std::complex<double> > Q(M, M);
         for (int a = 0; a < M; ++a)
