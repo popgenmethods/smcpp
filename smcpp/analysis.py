@@ -108,37 +108,6 @@ class Analysis(Observer):
         logger.debug("Full SFS:\n%s\n(%d bases total)", 
                 str(self._full_sfs.astype('float') / s), s)
     
-    def _prefit(self):
-        # Quickly fit model to the observed SFS, so as to accurately
-        # compute uniform hidden states and get a good starting point
-        # for the optimization.
-        sample_sfs = util.undistinguished_sfs(self._full_sfs)
-
-        model = self._model
-        def _f(x):
-            model[:] = [ad.adnumber(xx, tag=i) for i, xx in enumerate(x)]
-            csfs = _smcpp.raw_sfs(model, self._n, 0., np.inf)
-            csfs[0, 0] = 0
-            csfs *= self._theta
-            csfs[0, 0] = 1. - csfs.sum()
-            sfs = util.undistinguished_sfs(csfs)
-            kl = -(sample_sfs * ad.admath.log(sfs)).sum()
-            reg = self._penalty * model.regularizer()
-            kl += reg
-            ret = (kl.x, np.array(list(map(kl.d, model[:]))))
-            logger.debug("\n%s" % np.array_str(model[:].astype('float'), precision=3))
-            logger.debug((reg, ret))
-            return ret
-
-        x0 = self._model[:].astype("float")
-        bounds = np.log([self._bounds] * len(x0))
-        res = scipy.optimize.minimize(_f, x0, jac=True,
-                bounds=bounds,
-                method="L-BFGS-B")
-        # res = estimation_tools.adagrad(_f, x0, bounds)
-        logger.debug(res)
-        model[:] = res.x
-
     # Optionally thin each dataset
     def _perform_thinning(self, thinning):
         if thinning is None:
