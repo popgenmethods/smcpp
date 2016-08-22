@@ -196,6 +196,45 @@ def test_vs_momi_apart(model1, model2):
     print(j_momi)
     # np.testing.assert_allclose(j_momi, jm, rtol=1e-3)
 
+def test_bug(model1, model2):
+    n1 = 10
+    n2 = 10
+    split = 0.02
+
+    # Conditioned version
+    model = smcpp.model.SMCTwoPopulationModel(model1, model2, split)
+    jc = np.array(smcpp._smcpp.joint_csfs(n1, n2, 1, 1, model, [0., np.inf], 1000)).astype('float')[0]
+    jm = np.zeros([n1 + 2, n2 + 2])
+    for a1 in range(2):
+        for b1 in range(n1 + 1):
+            for a2 in range(2):
+                for b2 in range(n2 + 1):
+                    jm[a1 + b1, a2 + b2] += jc[a1, b1, a2, b2]
+    np.testing.assert_allclose(jm.sum(), jc.sum())
+    print("")
+    print(jm)
+
+    # Momi version
+    m2s = _cumsum0(model2.s)
+    tm2 = np.searchsorted(m2s, split)
+    m2s = m2s[:tm2]
+    m2a = model2.stepwise_values()[:tm2]
+    p2_events = [("-en", tt, "pop2", aa * 2.) for tt, aa in zip(m2s, m2a)]
+    events = _model_to_momi_events(model1.s, model1.stepwise_values() * 2., "pop1")
+    events.append(("-ej", split, "pop2", "pop1"))
+    events += p2_events
+    demo = momi.demography.make_demography(events, ["pop1", "pop2"], (n1 + 1, n2 + 1))
+    configs = [((n1 + 1 - a, a), (n2 + 1 - b, b))
+               for a in range(n1 + 2)
+               for b in range(n2 + 2)
+               if 0 < a + b < n1 + n2 + 2]
+    mconf = momi.config_array(("pop1", "pop2"), configs)
+    esfs = momi.expected_sfs(demo, mconf, mut_rate=1.0)
+    j_momi = np.zeros_like(jm)
+    for ((_, a), (_, b)), x in zip(configs, esfs):
+        j_momi[a, b] += x
+    print(j_momi)
+    # np.testing.assert_allclose(j_momi, jm, rtol=1e-3)
 # def test_jcsfs(jcsfs, model1, model2):
 #     jcsfs.compute(model1, model2, 0.25)
 # def test_jcsfs(jcsfs, model1, model2):

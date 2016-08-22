@@ -43,7 +43,7 @@ if __name__ == "__main__":
 
     scrm_args = [2 * args.n, 1]
     scrm_args.append("--transpose-segsites")
-    scrm_args += ["-SC", "abs"]
+    scrm_args += ["-SC", "abs", "-p", 14]
     scrm_args += ["-r", args.rho, args.length]
     scrm_args += scrm_extra_args
 

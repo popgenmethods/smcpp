@@ -1,8 +1,9 @@
-import smcpp._smcpp, smcpp.model
+import smcpp._smcpp, smcpp.model, smcpp.spline
 import numpy as np
 import sys
 import logging
 import ad
+
 
 
 def test_inference():
@@ -36,8 +37,7 @@ def test_inference():
          0.16388949439075173, 0.20479981185031038, 0.25592221813754867,
          0.31980586869051764, 0.39963624257870101, 0.49939398246933342]
     K = 10
-    model = smcpp.model.SMCModel(s, np.logspace(np.log10(.01), np.log10(3.),
-                                                K))
+    model = smcpp.model.SMCModel(s, np.logspace(np.log10(.01), np.log10(3.), K), smcpp.spline.CubicSpline)
     n = 30
     fakeobs = [[1, -1, 0, 0], [1, 1, 0, 0], [10, 0, 0, 0], [10, -1, 0, 0],
                [200000, 0, 0, n - 2], [1, 1, n - 4, n - 2]]
@@ -45,12 +45,12 @@ def test_inference():
     im = smcpp._smcpp.PyOnePopInferenceManager(
         n - 2, np.array(
             [fakeobs] * 40, dtype=np.int32), hs)
-    model[:] = [
-        ad.adnumber(0.002676322760403453), ad.adnumber(-0.010519987448975402),
-        ad.adnumber(0.006727140517177145), ad.adnumber(0.0031333684894676865),
-        ad.adnumber(-0.02302979056648467), ad.adnumber(0.0026368097606793172),
-        ad.adnumber(0.0019921562626012993), ad.adnumber(0.004958301100037235),
-        ad.adnumber(0.003199704865436452), ad.adnumber(0.0050129872575249744)
+    model[:] = [ad.adnumber(x, i) for i, x in enumerate([
+        0.002676322760403453, -0.01051998744897540,
+        0.006727140517177145, 0.003133368489467686,
+        -0.02302979056648467, 0.002636809760679317,
+        0.001992156262601299, 0.004958301100037235,
+        0.003199704865436452, 0.005012987257524974])
     ]
     print(model[:])
     print(model.stepwise_values())

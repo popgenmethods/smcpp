@@ -1,6 +1,6 @@
 #!/usr/bin/env python2.7
 
-from __future__ import division
+from __future__ import division, print_function
 import numpy as np
 import scipy.optimize
 import scipy.ndimage
@@ -33,11 +33,11 @@ parser.add_argument("--plot", default=False, action="store_true")
 parser.add_argument("--N0", type=int, default=10000)
 parser.add_argument("--theta", type=float, default=1.25e-8)
 parser.add_argument("--rho", type=float, default=1.25e-8)
-parser.add_argument("--estimated_rho", type=float, default=None)
+parser.add_argument("--estimated_rho", type=float)
 parser.add_argument("--M", type=int, default=32, help="number of hidden states")
-parser.add_argument("--panel-size", type=int, default=None)
-parser.add_argument("--missing", type=float, default=None)
-parser.add_argument("--error", type=float, default=None)
+parser.add_argument("--panel-size", type=int)
+parser.add_argument("--missing", type=float)
+parser.add_argument("--error", type=float)
 parser.add_argument("--thinning-factor", type=int, default=1)
 parser.add_argument("--ascertain", type=float, metavar="x", default=0.0, help="delete all SNPs with MAF < x")
 parser.add_argument("L", type=int)
@@ -80,44 +80,22 @@ if args.seed is not None:
 data0 = scrm.simulate(args.panel_size, args.N0, args.theta, args.rho, args.L, True, demography)
 print("done simulating")
 
-# Inflate singletons 
-# alpha fraction of called bases are false positive
-if args.error is not None:
-    # Each assayed position has an epsilon chance of being wrong.
-    nerr = np.random.poisson(args.error * args.L * n_max)
-    pos = zip(np.random.randint(0, n_max, nerr), np.random.randint(0, args.L, nerr))
+def perturb(data, error, f):
+    nerr = np.random.poisson(error * args.L * n_max)
+    print("errors: %d" % nerr)
     npos = np.random.random_integers(0, args.L - 1, size=nerr)
     ind = np.random.random_integers(0, n_max - 1, size=nerr)
     nhap = np.zeros([n_max, args.L], dtype=np.int8)
-    nhap[:, data0[1]] = data0[2]
-    # for i, j in enumerate(data0[1]):
-        #nhap[:, j] = data0[2][:, i]
-    nhap[ind, npos] = 1 - nhap[ind, npos]
-    # for i, j in zip(ind, npos):
-    #     nhap[i, j] = 1 - nhap[i, j]
+    nhap[:, data[1]] = data[2]
+    nhap[ind, npos] = f(nhap[ind, npos])
     npos = nhap.sum(axis=0) > 0
-    data0 = (data0[0], np.where(npos)[0], nhap[:, npos]) + data0[3:]
+    return (data[0], np.where(npos)[0], nhap[:, npos]) + data[3:]
 
-# Create missingness in data
-if args.missing is not None:
-    # Each assayed position has an epsilon chance of being missing.
-    nerr = np.random.poisson(args.missing * args.L * n_max)
-    pos = zip(np.random.randint(0, n_max, nerr), np.random.randint(0, args.L, nerr))
-    npos = np.random.random_integers(0, args.L - 1, size=nerr)
-    ind = np.random.random_integers(0, n_max - 1, size=nerr)
-    nhap = np.zeros([n_max, args.L], dtype=np.int8)
-    nhap[:, data0[1]] = data0[2]
-    nhap[ind, npos] = -1
-    npos = (nhap.min(axis=0) == -1) | ((nhap.min(axis=0) == 0) & (nhap.sum(axis=0) > 0))
-    data0 = (data0[0], np.where(npos)[0], nhap[:, npos]) + data0[3:]
+if args.error:
+    data0 = perturb(data0, args.error, lambda x: 1 - x)
 
-if args.missing is not None:
-    # randomly set some genotypes to missing
-    dim = data0[2].shape
-    dim = (2, dim[1])
-    nmiss = np.random.poisson(np.prod(dim) * args.missing)
-    i1, i2 = [np.random.randint(0, upper, size=nmiss) for upper in dim]
-    data0[2][i1, i2] = -1
+if args.missing:
+    data0 = perturb(data0, args.missing, lambda x: -1)
 
 # Draw from panel
 data = smcpp.util.dataset_from_panel(data0, n_max, (0, 1), True)
@@ -205,15 +183,15 @@ hsmid[-1] = 2 * hsmid[-2]
 tct_hs_out = (tct[None, :] - hsmid[:, None])**2
 
 err = {n: (full_gammas[n] * tct_hs_out).sum() for n in full_gammas}
-for n in sorted(err):
-    print("%d,%f" % (n, err[n]))
+with open(os.path.join(args.outdir, "mse.txt"), "wt") as f:
+    for n in sorted(err):
+        print("%d,%f" % (n, err[n]), file=f)
 if not args.plot:
     sys.exit(0)
 
 ai = 0
 label_text   = [r"%i kb" % int(args.L / 40. * 100. * loc/width) for loc in plt.xticks()[0]]
 mx = max([np.max(gm[g]) for g in gm])
-hs_mid = 0.5 * (hidden_states[1:] + hidden_states[:-1])
 sqer = {}
 mapstep = {}
 for n in sorted(gm):
