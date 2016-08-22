@@ -14,6 +14,7 @@ from appdirs import AppDirs
 from ad import adnumber, ADF
 
 from . import logging, version
+from .observe import Observer, targets
 
 logger = logging.getLogger(__name__)
 logger.debug("SMC++ " + version.__version__)
@@ -191,9 +192,14 @@ cdef class _PyInferenceManager:
             return self._model
         def __set__(self, model):
             self._model = model
-            cdef ParameterVector params = make_params(model)
-            with nogil:
-                self._im.setParams(params)
+            self._model.register(self)
+
+    # Technically should inherit from Observer, but cdef classes can't.
+    @targets("model update")
+    def update(self, message, *args, **kwargs):
+        cdef ParameterVector params = make_params(self.model)
+        with nogil:
+            self._im.setParams(params)
 
     property save_gamma:
         def __get__(self):

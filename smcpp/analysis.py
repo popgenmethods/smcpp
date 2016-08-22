@@ -12,13 +12,6 @@ from .observe import Observer
 
 logger = logging.getLogger(__name__)
 
-def _tied_property(attr):
-    def getx(self):
-        return getattr(self._im, attr)
-    def setx(self, x):
-        setattr(self._im, attr, x)
-    return property(getx, setx)
-        
 
 class Analysis(Observer):
     '''A dataset, model and inference manager to be used for estimation.'''
@@ -28,7 +21,6 @@ class Analysis(Observer):
         self._penalty = args.regularization_penalty
         self._niter = args.em_iterations
         self._load_data(files)
-        self._compute_sfs()
         self._init_parameters(args.theta, args.rho)
         self._init_bounds(args.Nmin)
         self._init_model(args.initial_model, args.pieces, args.N0, args.t1,
@@ -51,22 +43,21 @@ class Analysis(Observer):
         ## Parse each data set into an array of observations
         logger.info("Loading data...")
         self._files = files
-        self._data = util.parse_text_datasets(files)
-        self._npop = (self._data[0].shape[1] - 1) / 3
-        for d in self._data:
-            assert d.shape[1] == 1 + 3 * self._npop
+        self._contigs = estimation_tools.parse_text_datasets(files)
+        self._npop = max(c.npop for c in self._contigs)
+        for c in self._contigs:
+            assert c.data.shape[1] == 1 + 3 * self._npop
         logger.info("%d population%s", self._npop, "" if self._npop == 1 else "s")
-        self._n = np.max([np.max(obs[:, 3::3], axis=0) for obs in self._data], axis=0)
-        if self._npop == 1:
-            self._a = np.array([2])
-        else:
-            self._a = np.max([np.max(obs[:, 1::3], axis=0) for obs in self._data], axis=0)
+        self._a, self._n = [
+                np.max([np.max(d[:, i::3], axis=0) for d in self._data], axis=0)
+                for i in (1, 3)
+            ]
         logger.info("n=%s" % self._n)
         logger.info("a=%s" % self._a)
 
     def _init_parameters(self, theta=None, rho=None):
         ## Set theta and rho to their default parameters
-        self._L = sum([obs[:,0].sum() for obs in self._data])
+        self._L = sum([d[:,0].sum() for d in self._data])
         logger.info("%.2f Gb of data", self._L * 1e-9)
         if theta is not None:
             self._theta = theta
@@ -75,10 +66,10 @@ class Analysis(Observer):
             # for any sort of population structure or missing data.
             # TODO This could probably be improved.
             Lseg = 0
-            for obs in self._data:
+            for c in self._contigs:
                 conds = (
-                        (obs[:, 0] == 1) &
-                        ((obs[:, 1] > 0) | (obs[:, 2::2].max(axis=1) > 0))
+                        (c.data[:, 0] == 1) &
+                        ((c.data[:, 1] > 0) | (c.data[:, 2::2].max(axis=1) > 0))
                         )
                 Lseg += conds.sum()
             segfrac = 1. * Lseg / self._L
@@ -105,29 +96,20 @@ class Analysis(Observer):
         #     # self._pretrain_penalizer = self._penalizer
         #     self._pretrain(theta, args.folded, args.pretrain_penalty)
 
-    # Compute observed / empirical SFS
-    def _compute_sfs(self):
-        logger.info("Computing SFS...")
-        self._full_sfs = estimation_tools.empirical_sfs(self._data, self._n, self._a)
-        s = self._full_sfs.sum()
-        logger.debug("Full SFS:\n%s\n(%d bases total)", 
-                str(self._full_sfs.astype('float') / s), s)
-    
     # Optionally thin each dataset
     def _perform_thinning(self, thinning):
         if thinning is None:
             thinning = 400 * np.sum(self._n)
         if thinning > 1:
             logger.info("Thinning...")
-            self._data = estimation_tools.thin_dataset(self._data, thinning)
+            self._update_contigs(
+                    estimation_tools.thin_dataset(
+                        self._data, thinning)
+                    )
         elif self._n.sum() > 2:
             logger.warn("Not thinning yet n = %d > 0. This probably "
-                        "isn't what you desire, see --thinning", self._n.sum() // 2 + 1)
-        self._thinned_sfs = estimation_tools.empirical_sfs(self._data, self._n, self._a)
-        s = self._thinned_sfs.sum()
-        if s > 0:
-            logger.debug("SFS (after thinning):\n%s\n(%d bases total)", 
-                    str(self._thinned_sfs.astype('float') / s), s)
+                        "isn't what you desire, see --thinning",
+                        self._n.sum() // 2 + 1)
 
     def _init_model(self, initial_model, pieces, N0, t1, tK, offset,
                     knots, spline_class, fixed_split):
@@ -185,7 +167,10 @@ class Analysis(Observer):
 
     def _normalize_data(self, length_cutoff):
         ## break up long spans
-        self._data, attrs = estimation_tools.break_long_spans(self._data, self._rho, length_cutoff)
+        thinned_data, attrs = zip(
+                *(estimation_tools.break_long_spans(
+                    self._data, self._rho, length_cutoff)))
+        self._update_contigs(thinned_data)
         w, het = np.array([a[2:] for k in attrs for a in attrs[k]]).T
         avg = np.average(het, weights=w)
         n = len(het)
@@ -198,7 +183,7 @@ class Analysis(Observer):
             logger.debug("Average/sd het:%f(%f)", avg, sd)
             logger.debug("Keeping contigs within +-2 s.d. of mean")
         logger.debug("Average heterozygosity (derived / total bases) by data set (* = dropped)")
-        dsi = 0
+        ci = 0
         tpl = "%15d%15d%15d%12g"
         new_data = []
         for fn, key in zip(self._files, attrs):
@@ -207,33 +192,55 @@ class Analysis(Observer):
                 het = attr[-1]
                 mytpl = tpl
                 if abs(het - avg) <= 3 * sd:
-                    new_data.append(self._data[dsi])
+                    new_data.append(self._contigs[ci].data)
                 else:
                     mytpl += " *"
                 logger.debug(mytpl % attr)
-                dsi += 1
-        self._data = new_data
+                ci += 1
+        self._update_contigs(new_data)
 
 
     def _init_inference_manager(self, folded):
         ## Create inference object which will be used for all further calculations.
         logger.debug("Creating inference manager...")
+        self._ims = {}
         if self._npop == 1:
-            self._im = _smcpp.PyOnePopInferenceManager(self._n[0], self._data, self._hidden_states)
+            k = (self._n[0], None)
+            im = _smcpp.PyOnePopInferenceManager(self._n[0], self._data, self._hidden_states)
+            self._ims[k] = im
+            im.model = self.model
+            im.theta = self._theta
+            im.rho = self._rho
         elif self._npop == 2:
-            self._im = _smcpp.PyTwoPopInferenceManager(self._n[0], self._n[1],
-                    self._a[0], self._a[1], self._data, self._hidden_states)
+            contig_d = {}
+            pop1 = True
+            for c in self._contigs:
+                if c.npop == 1:
+                    assert c.a[0] = 2
+                    if pop1:
+                        k = ((2, c.n[0]), None)
+                    else:
+                        k = (None, (2, c.n[0]))
+                else:
+                    pop1 = False
+                    k = (tuple(c.a), tuple(c.n))
+                contig_d.setdefault(k, []).append(c)
+            for k in contig_d:
+                data = [c.data for c in contig_d[k]]
+                if None in k:
+                    n = k[0] if k[1] is None else k[1]
+                    im = _smcpp.PyOnePopInferenceManager(n, data, self._hidden_states)
+                    im.model = self.model.model1 if k[1] is None else self.model.model2
+                else:
+                    im = _smcpp.PyTwoPopInferenceManager(self._n[0], self._n[1],
+                            self._a[0], self._a[1], data, self._hidden_states)
+                    im.model = self.model
+                im.theta = self.theta
+                im.rho = self.rho
+                self._ims[k] = im
         else:
             logger.error("Only 1 or 2 populations are supported at this time")
             sys.exit(1)
-        self._im.model = self._model
-        # Model should completely live in the IM now
-        del self._model
-        self._im.theta = self._theta
-        self._im.rho = self._rho
-        self._im.folded = folded
-        # Receive updates whel model changes
-        self.model.register(self)
 
     def _init_optimizer(self, args, files, outdir, block_size,
             fix_rho, fixed_split, algorithm, tolerance):
@@ -252,9 +259,14 @@ class Analysis(Observer):
         if not fix_rho:
             self._optimizer.register(optimizer.ParameterOptimizer("rho", (1e-6, 1e-2)))
 
-    # FIXME re-enable this
-    # def _pretrain(self, theta, folded, penalty):
-    #     estimation_tools.pretrain(self._model, self._sfs, self._bounds, theta, folded, penalty)
+    def _update_contigs(self, new_data):
+        assert len(self._contigs) == len(new_data)
+        self._contigs = [Contig(data=d, n=c.n, a=c.a)
+                for c, d in zip(self._contigs, new_data)]
+
+    @property
+    def _data(self):
+        return [c.d for d in self._contigs]
     ## END OF PRIVATE FUNCTIONS
 
     ## PUBLIC INTERFACE
@@ -266,7 +278,7 @@ class Analysis(Observer):
     def Q(self, k=None):
         'Value of Q() function in M-step.'
         # q1, q2, q3 = self._im.Q(True)
-        qq = self._im.Q()
+        qq = sum([im.Q() for im in self._ims.values()])
         qr = -self._penalty * self.model.regularizer()
         logger.debug(("im.Q", float(qq), [qq.d(x) for x in self.model.dlist]))
         logger.debug(("reg", float(qr), [qr.d(x) for x in self.model.dlist]))
@@ -275,11 +287,17 @@ class Analysis(Observer):
     @logging.log_step("Running E-step...", "E-step completed.")
     def E_step(self):
         'Perform E-step.'
-        return self._im.E_step()
+        for im in self._ims.values():
+            im.E_step()
 
     def loglik(self):
         'Log-likelihood of data after most recent E-step.'
-        return self._im.loglik() - self._penalty * float(self.model.regularizer())
+        ll = sum(im.loglik() for im in self._ims.values())
+        return ll - self._penalty * float(self.model.regularizer())
+
+    @property
+    def model(self):
+        return self._model
 
     @property
     def bounds(self):
@@ -293,15 +311,6 @@ class Analysis(Observer):
     @property
     def N0(self):
         return self._N0
-
-    model = _tied_property("model")
-    theta = _tied_property("theta")
-    rho = _tied_property("rho")
-
-    def update(self, message, *args, **kwargs):
-        'Keep inference manager and model in sync by listening for model changes.'
-        if message == "model update":
-            self._im.model = self.model
 
     def dump(self, filename):
         'Dump result of this analysis to :filename:.'
