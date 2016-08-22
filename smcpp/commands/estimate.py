@@ -10,17 +10,14 @@ import sys
 import time
 import os
 
-
 # Package imports
 from ..logging import getLogger, setup_logging
-
-logger = getLogger(__name__)
-
 from .. import _smcpp, util, estimation_tools
 from ..model import SMCModel
 from ..analysis import Analysis
 from ..optimizer import SMCPPOptimizer
 
+logger = getLogger(__name__)
 np.set_printoptions(linewidth=120, suppress=True)
 
 def init_parser(parser):
@@ -36,10 +33,14 @@ def init_parser(parser):
                        help="starting point of first piece, in generations", default=100)
     model.add_argument('--tK', type=float, help="end-point of last piece, in generations", 
                        default=40000.)
-    model.add_argument('--knots', type=int, default=10, help="number of knots to use in internal representation")
+    model.add_argument('--knots', type=str, default="10",
+            help="number of knots to use in internal representation")
     # model.add_argument('--exponential-pieces', type=int,
     #                    nargs="+", help="piece(s) which have exponential growth")
     model.add_argument("--initial-model", help="initial model, i.e. result of previous SMC++ run")
+    model.add_argument('--offset', type=float, default=0.,
+                       help="offset (in coalescent units) to use "
+                            "when calculating time points")
     hmm.add_argument('--thinning', help="emit full SFS every <k>th site",
                      default=None, type=int, metavar="k")
     hmm.add_argument('--M', 
@@ -58,7 +59,10 @@ def init_parser(parser):
                            type=float, help="regularization penalty", default=1.)
     optimizer.add_argument('--spline',
                            choices=["bspline", "cubic", "akima", "pchip"],
-                           default="pchip", help="type of spline representation to use")
+                           default="cubic", help="type of spline representation to use")
+    optimizer.add_argument("--tolerance", type=float, default=5e-3,
+            help="stopping criterion for relative improvement in loglik "
+                 "in EM algorithm")
     optimizer.add_argument('--Nmin', type=float,
                            help="Lower bound on effective population size (in units of N0)",
                            default=.01)
@@ -68,8 +72,9 @@ def init_parser(parser):
                             help="population-scaled mutation rate. default: Watterson's estimator.")
     pop_params.add_argument('--rho', type=float,
                             help="population-scaled mutation rate. default: theta.")
-    pop_params.add_argument("--folded", action="store_true", default=False,
-                            help="use folded SFS for emission probabilites. useful if polarization is not known.")
+    # pop_params.add_argument("--folded", action="store_true", default=False,
+    #                         help="use folded SFS for emission probabilites. "
+    #                              "useful if polarization is not known.")
     hmm.add_argument('--length-cutoff',
                      help="omit sequences < cutoff", default=0, type=int)
     parser.add_argument("--pdb", action="store_true", help=argparse.SUPPRESS)

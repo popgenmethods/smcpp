@@ -27,19 +27,20 @@ class Analysis(Observer):
         self._N0 = args.N0
         self._penalty = args.regularization_penalty
         self._niter = args.em_iterations
-
         self._load_data(files)
         self._compute_sfs()
         self._init_parameters(args.theta, args.rho)
         self._init_bounds(args.Nmin)
         self._init_model(args.initial_model, args.pieces, args.N0, args.t1,
-                args.tK, args.knots, args.spline, args.fixed_split)
+                args.tK, args.offset, args.knots, args.spline, args.fixed_split)
         self._model.reset()
         # Add a small amount of noise to model. If all pieces are equal,
         # the derivatives can be off due to some branching in the spline
         # code.
         self._model.randomize()
-        self._init_optimizer(args, files, args.outdir, args.block_size, args.fix_rho, args.fixed_split, args.algorithm)
+        self._init_optimizer(args, files, args.outdir, args.block_size,
+                args.fix_rho, args.fixed_split, args.algorithm,
+                args.tolerance)
         self._init_hidden_states(args.M)
         self._perform_thinning(args.thinning)
         self._normalize_data(args.length_cutoff)
@@ -50,13 +51,16 @@ class Analysis(Observer):
         ## Parse each data set into an array of observations
         logger.info("Loading data...")
         self._files = files
-        self._data = data = util.parse_text_datasets(files)
-        self._npop = (data[0].shape[1] - 1) / 3
-        for d in data:
+        self._data = util.parse_text_datasets(files)
+        self._npop = (self._data[0].shape[1] - 1) / 3
+        for d in self._data:
             assert d.shape[1] == 1 + 3 * self._npop
         logger.info("%d population%s", self._npop, "" if self._npop == 1 else "s")
-        self._a = np.max([np.max(obs[:, 1::3], axis=0) for obs in self._data], axis=0)
         self._n = np.max([np.max(obs[:, 3::3], axis=0) for obs in self._data], axis=0)
+        if self._npop == 1:
+            self._a = np.array([2])
+        else:
+            self._a = np.max([np.max(obs[:, 1::3], axis=0) for obs in self._data], axis=0)
         logger.info("n=%s" % self._n)
         logger.info("a=%s" % self._a)
 
@@ -103,6 +107,7 @@ class Analysis(Observer):
 
     # Compute observed / empirical SFS
     def _compute_sfs(self):
+        logger.info("Computing SFS...")
         self._full_sfs = estimation_tools.empirical_sfs(self._data, self._n, self._a)
         s = self._full_sfs.sum()
         logger.debug("Full SFS:\n%s\n(%d bases total)", 
@@ -120,10 +125,12 @@ class Analysis(Observer):
                         "isn't what you desire, see --thinning", self._n.sum() // 2 + 1)
         self._thinned_sfs = estimation_tools.empirical_sfs(self._data, self._n, self._a)
         s = self._thinned_sfs.sum()
-        logger.debug("SFS (after thinning):\n%s\n(%d bases total)", 
-                str(self._thinned_sfs.astype('float') / s), s)
+        if s > 0:
+            logger.debug("SFS (after thinning):\n%s\n(%d bases total)", 
+                    str(self._thinned_sfs.astype('float') / s), s)
 
-    def _init_model(self, initial_model, pieces, N0, t1, tK, num_knots, spline_class, fixed_split):
+    def _init_model(self, initial_model, pieces, N0, t1, tK, offset,
+                    knots, spline_class, fixed_split):
         if initial_model is not None:
             d = json.load(open(initial_model, "rt"))
             if self._npop == 1:
@@ -139,9 +146,13 @@ class Analysis(Observer):
         fac = 2. * N0
         t1 /= fac
         tK /= fac
-        time_points = estimation_tools.construct_time_points(t1, tK, pieces)
+        time_points = estimation_tools.construct_time_points(t1, tK, pieces, offset)
         logger.debug("time points in coalescent scaling:\n%s", str(time_points))
-        knots = np.cumsum(estimation_tools.construct_time_points(t1, tK, [1] * num_knots))
+        try:
+            num_knots = int(knots)
+            knots = np.cumsum(estimation_tools.construct_time_points(t1, tK, [1] * num_knots, offset))
+        except ValueError:
+            knots = [float(x) for x in knots.split(",")]
         logger.debug("knots in coalescent scaling:\n%s", str(knots))
         spline_class = {"cubic": spline.CubicSpline,
                         "bspline" : spline.BSpline,
@@ -167,20 +178,42 @@ class Analysis(Observer):
         ## choose hidden states based on prior model
         dm = self._model.distinguished_model
         hs = estimation_tools.balance_hidden_states(dm, M)
-        cs = np.cumsum(dm.s)
-        cs = cs[cs < hs[1]]
-        self._hidden_states = np.sort(np.unique(np.concatenate([cs, hs])))
-        # self._hidden_states = np.concatenate([[0.], cs, [np.inf]])
+        self._hidden_states = np.sort(
+                np.unique(np.concatenate([self._model.distinguished_model._knots, hs]))
+            )
         logger.debug("%d hidden states:\n%s" % (len(self._hidden_states), str(self._hidden_states)))
 
     def _normalize_data(self, length_cutoff):
         ## break up long spans
         self._data, attrs = estimation_tools.break_long_spans(self._data, self._rho, length_cutoff)
-        # logger.debug("Average heterozygosity (derived / total bases) by data set:")
-        # for fn, key in zip(self._files, attrs):
-        #     logger.debug(fn + ":")
-        #     for attr in attrs[key]:
-        #         logger.debug("%15d%15d%15d%12g%12g" % attr)
+        w, het = np.array([a[2:] for k in attrs for a in attrs[k]]).T
+        avg = np.average(het, weights=w)
+        n = len(het)
+        if n == 1:
+            avg = 0.
+            sd = np.inf
+        else:
+            var = np.average((het - avg) ** 2, weights=w) * (n / (n - 1.))
+            sd = np.sqrt(var)
+            logger.debug("Average/sd het:%f(%f)", avg, sd)
+            logger.debug("Keeping contigs within +-2 s.d. of mean")
+        logger.debug("Average heterozygosity (derived / total bases) by data set (* = dropped)")
+        dsi = 0
+        tpl = "%15d%15d%15d%12g"
+        new_data = []
+        for fn, key in zip(self._files, attrs):
+            logger.debug(fn + ":")
+            for attr in attrs[key]:
+                het = attr[-1]
+                mytpl = tpl
+                if abs(het - avg) <= 3 * sd:
+                    new_data.append(self._data[dsi])
+                else:
+                    mytpl += " *"
+                logger.debug(mytpl % attr)
+                dsi += 1
+        self._data = new_data
+
 
     def _init_inference_manager(self, folded):
         ## Create inference object which will be used for all further calculations.
@@ -202,16 +235,17 @@ class Analysis(Observer):
         # Receive updates whel model changes
         self.model.register(self)
 
-    def _init_optimizer(self, outdir, block_size, fix_rho, fixed_split):
+    def _init_optimizer(self, args, files, outdir, block_size,
+            fix_rho, fixed_split, algorithm, tolerance):
         if self._npop == 1:
-            self._optimizer = optimizer.SMCPPOptimizer(self)
+            self._optimizer = optimizer.SMCPPOptimizer(self, algorithm, tolerance)
             # Also optimize knots in 1 pop case. Not yet implemented
             # for two pop case.
-            self._optimizer.register(optimizer.KnotOptimizer())
+            # self._optimizer.register(optimizer.KnotOptimizer())
         elif self._npop == 2:
-            self._optimizer = optimizer.TwoPopulationOptimizer(self)
+            self._optimizer = optimizer.TwoPopulationOptimizer(self, algorithm, tolerance)
             if fixed_split is None:
-                smax = np.sum(self.model.distinguished_model.s)
+                smax = np.sum(self._model.distinguished_model.s)
                 self._optimizer.register(optimizer.ParameterOptimizer("split", (0., smax), "model"))
         self._optimizer.block_size = block_size
         self._optimizer.register(optimizer.AnalysisSaver(outdir))
@@ -231,11 +265,12 @@ class Analysis(Observer):
 
     def Q(self, k=None):
         'Value of Q() function in M-step.'
-        q1 = self._im.Q(k)
-        q2 = -self._penalty * self.model.regularizer()
-        logger.debug(("im.Q", float(q1), [q1.d(x) for x in self.model.dlist]))
-        logger.debug(("reg", float(q2), [q2.d(x) for x in self.model.dlist]))
-        return q1 + q2
+        # q1, q2, q3 = self._im.Q(True)
+        qq = self._im.Q()
+        qr = -self._penalty * self.model.regularizer()
+        logger.debug(("im.Q", float(qq), [qq.d(x) for x in self.model.dlist]))
+        logger.debug(("reg", float(qr), [qr.d(x) for x in self.model.dlist]))
+        return qq + qr
 
     @logging.log_step("Running E-step...", "E-step completed.")
     def E_step(self):

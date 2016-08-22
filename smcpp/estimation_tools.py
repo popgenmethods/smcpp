@@ -63,8 +63,10 @@ def extract_pieces(piece_str):
     return pieces
 
 
-def construct_time_points(t1, tK, pieces):
-    s = np.diff(np.logspace(np.log10(t1), np.log10(tK), sum(pieces) + 1))
+def construct_time_points(t1, tK, pieces, offset):
+    s = np.diff(np.logspace(np.log10(offset + t1),
+                            np.log10(tK),
+                            sum(pieces) + 1))
     time_points = np.zeros(len(pieces))
     count = 0
     for i, p in enumerate(pieces):
@@ -100,7 +102,7 @@ def thin_dataset(dataset, thinning):
 def break_long_spans(dataset, rho, length_cutoff):
     # Spans longer than this are broken up
     # FIXME: should depend on rho
-    span_cutoff = 100000
+    span_cutoff = 1000000
     obs_list = []
     obs_attributes = {}
     for fn, obs in enumerate(dataset):
@@ -112,24 +114,26 @@ def break_long_spans(dataset, rho, length_cutoff):
             np.all(obs[:, 1::3] == -1, axis=1) &
             np.all(obs[:, 3::3] == 0, axis=1))[0]
         cob = 0
-        logger.info("Long missing spans: \n%s" % str(obs[long_spans]))
+        if obs[long_spans].size:
+            logger.info("Long missing spans: \n%s", (obs[long_spans]))
         positions = np.insert(np.cumsum(obs[:, 0]), 0, 0)
         for x in long_spans.tolist() + [None]:
             s = obs[cob:x, 0].sum()
             if s > length_cutoff:
                 obs_list.append(np.insert(obs[cob:x], 0, miss, 0))
-                sums = obs_list[-1].sum(axis=0)
+                l = obs_list[-1][:, 0].sum()
                 s2 = obs_list[-1][:, 1][obs_list[-1][:, 1] >= 0].sum()
                 obs_attributes.setdefault(fn, []).append(
-                    (positions[cob], positions[x],
-                     sums[0], 1. * s2 / sums[0], 1. * sums[2] / sums[0]))
+                        (positions[cob],
+                         positions[x] if x is not None else positions[-1],
+                         l, 1. * s2 / l))
             else:
                 logger.info("omitting sequence length < %d "
                             "as less than length cutoff %d" %
                             (s, length_cutoff))
             try:
                 cob = x + 1
-            except TypeError:  # fails when x = None at last iter
+            except TypeError:  # fails for final x=None
                 pass
     return obs_list, obs_attributes
 
@@ -159,8 +163,8 @@ def _esfs_helper(tup):
     ds, n, a = tup
     shp = [x + 1 for na in zip(a, n) for x in na]
     ret = np.zeros(shp, dtype=int)
-    for row in ds:
-        if np.all(row[1::3] >= 0) and np.all(row[3::3] == n):
-            coord = tuple([x for ab in zip(row[1::3], row[2::3]) for x in ab])
-            ret[coord] += row[0]
+    nmiss = np.where(np.all(ds[:, 1::3] >= 0, axis=1) & np.all(ds[:, 3::3] == n, axis=1))
+    for row in ds[nmiss]:
+        coord = tuple([x for ab in zip(row[1::3], row[2::3]) for x in ab])
+        ret[coord] += row[0]
     return ret

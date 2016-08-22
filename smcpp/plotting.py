@@ -79,11 +79,12 @@ def plot_psfs(psfs, xlim, ylim, xlabel, logy=False):
         # x *= 1. + (i - len(psfs)) / 50.
         if d['g'] is not None:
             x *= d['g']
+        x += off
         if label is None:
             plotfun(x, y, linewidth=2, color="black")
         else:
             labels += plotfun(x, y, label=label, color=colors.pop())
-        xmin = x[1] * 0.9
+        xmin = min(xmin, x[1] * 0.9)
         ymax = max(ymax, np.max(y))
         xmax = max(xmax, np.max(x))
     if labels:

@@ -20,19 +20,26 @@ except ImportError:
     from backports.shutil_which import which
     from backports.shutil_get_terminal_size import get_terminal_size
 
-from . import logging, util
+from . import logging, util, _smcpp
 from .observe import Observer, Observable
 
 logger = logging.getLogger(__name__)
+
+
+class EMTerminationException(Exception):
+    "Thrown when EM algorithm reaches stopping criterion."
+    pass
 
 
 class AbstractOptimizer(Observable):
     '''
     Abstract representation of the execution flow of the optimizer.
     '''
-    def __init__(self, analysis):
+    def __init__(self, analysis, algorithm, tolerance):
         Observable.__init__(self)
         self._analysis = analysis
+        self._algorithm = algorithm
+        self._tolerance = tolerance
 
     @abstractmethod
     def _coordinates(self, i):
@@ -70,60 +77,42 @@ class AbstractOptimizer(Observable):
                                        jac=True,
                                        args=(self._analysis, coords),
                                        bounds=bounds,
-                                       # options={'xtol': .001},
-                                       method="L-BFGS-B")
-        # return estimation_tools.adagrad(self._f, x0, bounds,
-        #     stepsize=1.0,
-        #     args=(self._analysis, coords))
+                                       options={'xtol': .001},
+                                       method=self._algorithm)
 
     def run(self, niter):
         self.update_observers('begin')
         model = self._analysis.model
-        for i in range(niter):
-            # Perform E-step
-            kwargs = {'i': i, 'niter': niter}
-            self.update_observers('pre-E step', **kwargs)
-            self._analysis.E_step()
-            self.update_observers('post E-step', **kwargs)
-            # Perform M-step
-            self.update_observers('pre M-step', **kwargs)
-            coord_list = self._coordinates()
-            for coords in coord_list:
-                self.update_observers('M step', coords=coords, **kwargs)
-                bounds = self._bounds(coords)
-                x0 = model[coords]
-                res = self._minimize(x0, coords, bounds)
-
-                # from collections import defaultdict
-                # ep = self._analysis._im.emission_probs
-                # gs = self._analysis._im.gamma_sums
-                # M = len(next(iter(gs[0].values())))
-                # ggs = defaultdict(lambda: np.zeros(M))
-                # for g in gs:
-                #     for k in g:
-                #         ggs[k] += g[k]
-                # pprint.pprint({(0, 0,0): ggs[(0, 0, 0)], (1,0,0): ggs[(1,0,0)]})
-                # vv = {k: (ggs[k] * ad.admath.log(ep[k])) for k in ggs}
-                # vi = sorted(vv.items(), key=lambda tup: abs(tup[1].sum()))
-                # kept = vi[-5:]
-                # pprint.pprint([(k, v.astype('float')) for k, v in kept])
-                # try:
-                # except:
-                #     pass
-                # vv = {k: (vv[k].x, [vv[k].d(l) for l in model.dlist]) for k in vv}
-                # pprint.pprint(vv)
-
-                self.update_observers('post mini M-step',
-                                      coords=coords,
-                                      res=res, **kwargs)
-                model[coords] = res.x
-            self.update_observers('post M-step', **kwargs)
+        try:
+            for i in range(niter):
+                # Perform E-step
+                kwargs = {'i': i, 'niter': niter}
+                self.update_observers('pre E-step', **kwargs)
+                self._analysis.E_step()
+                self.update_observers('post E-step', **kwargs)
+                # Perform M-step
+                self.update_observers('pre M-step', **kwargs)
+                coord_list = self._coordinates()
+                for coords in coord_list:
+                    self.update_observers('M step', coords=coords, **kwargs)
+                    bounds = self._bounds(coords)
+                    x0 = model[coords]
+                    res = self._minimize(x0, coords, bounds)
+                    self.update_observers('post mini M-step',
+                                          coords=coords,
+                                          res=res, **kwargs)
+                    model[coords] = res.x
+                self.update_observers('post M-step', **kwargs)
+        except EMTerminationException:
+            pass
         # Conclude the optimization and perform any necessary callbacks.
         self.update_observers('optimization finished')
 
     def update_observers(self, *args, **kwargs):
-        kwargs.update({'analysis': self._analysis,
-                       'model': self._analysis.model})
+        kwargs.update({
+            'optimizer': self,
+            'analysis': self._analysis,
+            'model': self._analysis.model})
         Observable.update_observers(self, *args, **kwargs)
 
 # LISTENER CLASSES
@@ -152,9 +141,9 @@ class ProgressPrinter(Observer):
 
     def update(self, message, *args, **kwargs):
         if message == "begin":
-            logger.info("Starting optimizer...")
+            logger.info("Starting EM algorithm...")
         if message == "pre E-step":
-            logger.info("Optimization iteration %d of %d...",
+            logger.info("EM iteration %d of %d...",
                         kwargs['i'] + 1, kwargs['niter'])
         if message == "M step":
             logger.debug("Optimizing coordinates %s", kwargs['coords'])
@@ -163,8 +152,7 @@ class ProgressPrinter(Observer):
         if message == "post M-step":
             logger.info("Current model:\n%s", kwargs['model'].to_s())
 
-
-class LoglikelihoodPrinter(Observer):
+class LoglikelihoodMonitor(Observer):
 
     def __init__(self):
         self._old_loglik = None
@@ -175,7 +163,12 @@ class LoglikelihoodPrinter(Observer):
         if self._old_loglik is None:
             logger.info("Loglik: %f", ll)
         else:
-            logger.info("New loglik: %f\t(old loglik: %f)", ll, self._old_loglik)
+            improvement = (self._old_loglik - ll) / self._old_loglik
+            logger.info("New loglik: %f\t(old: %f [%f%%])",
+                    ll, self._old_loglik, 100. * improvement)
+            if improvement < kwargs['optimizer']._tolerance:
+                logger.info("Log-likelihood improvement < tolerance; terminating")
+                raise EMTerminationException()
         self._old_loglik = ll
 
 
@@ -199,8 +192,9 @@ class AnalysisSaver(Observer):
         elif message == "optimization finished":
             dump(os.path.join(self._outdir, "model.final"))
 
+
 class KnotOptimizer(Observer):
-    
+
     @targets("pre M-step")
     def update(self, message, *args, **kwargs):
         # pick a random knot and optimize
@@ -215,25 +209,29 @@ class KnotOptimizer(Observer):
             else:
                 bounds = (knots[i - 1] * 1.1, knots[i + 1] * 0.9)
             analysis = kwargs['analysis']
-            logger.info("Old knot %d=%f Q=%f", i, knots[i], self._f(knots[i], analysis, i))
-            logger.debug("Bounds: (%f, %f)", *bounds)
-            res = scipy.optimize.minimize_scalar(self._f,
-                                                 args=(analysis, i),
-                                                 method='bounded',
-                                                 bounds=bounds)
-            logger.info("New knot %d=%f Q=%f", i, res.x, res.fun)
-            knots[i] = res.x
+            opt = kwargs['optimizer']
+            bounds = (bounds, opt._bounds([i])[0])
+            x0 = (knots[i], model[i])
+            logger.info("Old knot %d=(%f,%f) Q=%f", i, x0[0], x0[1], self._f(x0, analysis, i))
+            logger.debug("Bounds: %s", bounds)
+            res = scipy.optimize.minimize(self._f,
+                                          x0=x0,
+                                          args=(analysis, i),
+                                          bounds=bounds)
+            logger.info("New knot %d=(%f,%f) Q=%f", i, res.x[0], res.x[1], res.fun)
+            knots[i] = res.x[0]
+            model[i] = res.x[1]
             model.refit()
 
     def _f(self, x, analysis, i):
-        analysis.model._knots[i] = x
-        analysis.model[:] = analysis.model[:].astype('float')
-        analysis.model.refit()
+        analysis.model._knots[i] = x[0]
+        analysis.model[i] = x[1]
         # derivatives curretly not supported for 1D optimization. not
         # clear if they really help.
         ret = -float(analysis.Q())
-        logger.debug("knot %d Q(%f)=%f", i, x, ret)
+        logger.debug("knot %d Q(%s)=%f", i, x, ret)
         return ret
+
 
 class ParameterOptimizer(Observer):
 
@@ -294,15 +292,13 @@ class AsciiPlotter(Observer):
             x = np.cumsum(model.model1.s)
             y = model.model1.stepwise_values()
             z = model.model2.stepwise_values()
-            ind = np.searchsorted(np.cumsum(x), model.split)
-            z = z[:ind + 1]
             data = "\n".join([",".join(map(str, row)) for row in zip(x, y)])
             data += "\n" * 3
-            data += "\n".join([",".join(map(str, row)) for row in zip(x, z)])
+            data += "\n".join([",".join(map(str, row)) for row in zip(x, z) if row[0] <= model.split])
         else:
             x = np.cumsum(model.s)
             y = model.stepwise_values()
-            u = model.transformed_knots
+            u = model._knots
             v = np.exp(model[:].astype('float'))
             data = "\n".join([",".join(map(str, row)) for row in zip(x, y)])
             data += "\n" * 3
@@ -311,11 +307,9 @@ class AsciiPlotter(Observer):
         gnuplot = subprocess.Popen([self._gnuplot_path],
                                    stdin=subprocess.PIPE,
                                    stdout=subprocess.PIPE)
-        import sys
         def write(x):
             x += "\n"
             gnuplot.stdin.write(x.encode())
-            sys.stdout.write(x.encode())
         columns, lines = get_terminal_size((80, 20))
         width = columns * 3 // 5
         height = 25
@@ -329,14 +323,14 @@ class AsciiPlotter(Observer):
             if two_pop:
                 plot_cmd += ", '' i 1 with lines title 'Pop. 2';"
             else:
-                plot_cmd += ", '' i 1 with points title 'Knots';"
+                plot_cmd += ", '' i 1 with points notitle;"
             write(plot_cmd)
             open(f.name, "wt").write(data)
             write("unset key")
             write("exit")
             (stdout, stderr) = gnuplot.communicate()
             graph = stdout.decode()
-        logger.info("Current model:\n%s", graph)
+        logger.info("Plot of current model:\n%s", graph)
 
 
 class TransitionDebug(Observer):
@@ -370,13 +364,13 @@ class TransitionDebug(Observer):
 class SMCPPOptimizer(AbstractOptimizer):
     'Model fitting for one population.'
 
-    def __init__(self, analysis):
-        AbstractOptimizer.__init__(self, analysis)
+    def __init__(self, analysis, algorithm, tolerance):
+        AbstractOptimizer.__init__(self, analysis, algorithm, tolerance)
         observers = [
-            LoglikelihoodPrinter(),
             HiddenStateOccupancyPrinter(),
             ProgressPrinter(),
             ModelPrinter(),
+            LoglikelihoodMonitor(),
             # TransitionDebug("/export/home/terhorst/Dropbox.new/Dropbox/tdtmp"),
             # SplineDumper("/export/home/terhorst/Dropbox.new/Dropbox/tdtmp")
         ]
@@ -392,9 +386,9 @@ class SMCPPOptimizer(AbstractOptimizer):
         for b in range(model.K - self.block_size + 1):
             ret.append(list(range(b, min(model.K, b + self.block_size))))
         # After all coordinate-wise updates, optimize over whole function
-        # ret = ret[::-1]
+        ret = ret[::-1]
         ret.append(list(range(model.K)))
-        return [random.choice(ret)]
+        return ret
 
     def _bounds(self, coords):
         return np.log([self._analysis._bounds] * len(coords))
@@ -403,8 +397,9 @@ class SMCPPOptimizer(AbstractOptimizer):
 class TwoPopulationOptimizer(SMCPPOptimizer):
     'Model fitting for two populations.'
 
-    def __init__(self, analysis):
-        SMCPPOptimizer.__init__(self, analysis)
+    def __init__(self, analysis, algorithm, tolerance):
+        SMCPPOptimizer.__init__(self, analysis, algorithm, tolerance)
+        self.register(Pop1Optimizer())
 
     def _coordinates(self):
         K = self._analysis.model.distinguished_model.K

@@ -8,6 +8,7 @@ from .. import util, plotting, model
 
 def init_parser(parser):
     parser.add_argument("-g", nargs="+", type=float, help="Plot x-axis in years assuming generation time(s) of g")
+    parser.add_argument("-s", "--spline", action="store_true", help="Plot the underyling spline instead")
     parser.add_argument("--logy", action="store_true", help="ploy y on log axis")
     parser.add_argument("-t", "--offsets", type=float, nargs="+", 
             help="list of offsets, one for each <model>, to shift x axes. Useful for plotting aDNA")
@@ -39,17 +40,18 @@ def main(args):
         elif not os.path.exists(fn):
             sys.exit("File not found: %s" % fn)
         else:
-            res = json.load(open(fn, "rt"))
-            mod = res['model']
-            klass = getattr(model, mod['class'])
-            m = klass.from_dict(mod)
-            a = m.stepwise_values().astype('float')
-            s = m.s
-            d = {'a': m.stepwise_values(), 's': m.s, 'N0': res['N0'], 'model': m}
+            if args.spline:
+                d = {k:v for k, v in res.items() if k != 'model'}
+            else:
+                res = json.load(open(fn, "rt"))
+                mod = res['model']
+                klass = getattr(model, mod['class'])
+                m = klass.from_dict(mod)
+                a = m.stepwise_values().astype('float')
+                s = m.s
+                d = {'a': m.stepwise_values(), 's': m.s, 'N0': res['N0']}
         d['g'] = g
         psfs.append((label, d, off or 0))
-        if 'model' in d:
-            psfs.append((label, {k:v for k, v in d.items() if k != 'model'}, off or 0))
     if args.median:
         dmed = {'s': psfs[-1][1]['s'], 'N0': psfs[-1][1]['N0']}
         for x in "ab":

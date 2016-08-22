@@ -48,17 +48,18 @@ human = {
         }
 
 def undistinguished_sfs(sfs, folded=False):
+    a = sfs.shape[0] - 1
     n = sfs.shape[1] - 1
-    new_shape = [n + 2] + list(sfs.shape[2:])
+    new_shape = [n + a] + list(sfs.shape[2:])
     usfs = np.zeros(new_shape, dtype=sfs.dtype)
-    for i in range(3):
+    for i in range(a + 1):
         for j in range(n + 1):
-            if 0 <= i + j < n + 2:
+            if 0 <= i + j < n + a:
                 usfs[i + j] = usfs[i + j] + sfs[i, j]
     if folded:
         ret = [usfs[0]]
-        for i in range(1, -(-(n + 2) // 2)):
-            inds = list({i, n + 2 - i})
+        for i in range(1, -(-(n + a) // 2)):
+            inds = list({i, n + a - i})
             ret.append(usfs[inds].sum(axis=0))
         usfs = np.array(ret, dtype=sfs.dtype)
     return usfs

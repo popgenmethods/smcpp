@@ -62,7 +62,7 @@ def main(args):
         if not args.pop2:
             raise RuntimeError("--apart requires two populations")
         dist = [[args.pop1[0]], [args.pop2[0]]]
-        undist = [args.pop1[1:], args.pop2[1:]]
+        undist = [args.pop1, args.pop2]
     else:
         dist = [[args.pop1[0]] * 2, []]
         undist = [args.pop1[1:], args.pop2]
@@ -100,22 +100,23 @@ def main(args):
                 msg += "If you want to continue without these samples, use --ignore-missing."
                 raise RuntimeError(msg)
         undist = [[sample for sample in u if sample not in missing] for u in undist]
-        nb = [2 * len(u) for u in undist]
-        out.write("# SMC++ ")
-        json.dump({"__version__": __version__, "undist": undist, "dist": dist}, out)
-        out.write("\n")
 
+        dis = [list(enumerate(d)) for d in dist]
+        undis = [[(i, d) for i in range(2) for d in und if (i, d) not in di]
+                 for di, und in zip(dis, undist)]
+        out.write("# SMC++ ")
+        json.dump({"__version__": __version__, "undist": undis, "dist": dis}, out)
+        out.write("\n")
+        nb = [len(u) for u in undis]
         # function to convert a VCF record to our format <span, dist gt, undist gt, # undist>
         def rec2gt(rec):
             ref = rec.alleles[0]
-            da = [[rec.samples[di].alleles[i] for i, di in enumerate(d)]
-                  for d in dist]
+            da = [[rec.samples[d].alleles[i] for i, d in di] for di in dis]
             a = [sum(x != ref for x in d) if None not in d else -1
                  for d in da]
-            bs = [[allele != ref for u in und
-                   for allele in rec.samples[u].alleles 
-                   if allele is not None]
-                   for und in undist]
+            bs = [[rec.samples[d].alleles[i] != ref for i, d in undi
+                   if rec.samples[d].alleles[i] is not None]
+                  for undi in undis]
             b = [sum(_) for _ in bs]
             nb = [len(_) for _ in bs]
             ret = list(sum(zip(a, b, nb), tuple()))
@@ -170,6 +171,10 @@ def main(args):
                     last_pos = rec[2]
                     continue
                 abnb = rec2gt(rec)
+                if rec.pos == last_pos:
+                    # FIXME: what to do with multiple records at same site
+                    logger.warn("Multiple entries found at position %d; skipping all but the first", rec.pos)
+                    continue
                 span = rec.pos - last_pos - 1
                 if 1 <= span <= args.missing_cutoff:
                     rw.write([span] + abnb_nonseg)

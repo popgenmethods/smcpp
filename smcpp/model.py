@@ -2,7 +2,7 @@ from __future__ import absolute_import, division, print_function
 import numpy as np
 import ad.admath
 
-from . import spline, logging
+from . import spline, logging, util
 from .observe import Observable
 
 
@@ -12,8 +12,8 @@ logger = logging.getLogger(__name__)
 # Dummy class used for JCSFS and a few other places
 class PiecewiseModel(object):
     def __init__(self, s, a):
-        self.s = s
-        self.a = a
+        self.s = np.array(s)
+        self.a = np.array(a)
 
     def stepwise_values(self):
         return self.a
@@ -43,7 +43,8 @@ class SMCModel(Observable):
         self._cumsum_s = np.cumsum(s)
         self._knots = np.array(knots)
         self._trans = np.log
-        self._spline = self._spline_class(self._trans(self._knots))
+        # self._trans = lambda x: x
+        self._spline = self._spline_class(self.transformed_knots)
 
     @property
     def s(self):
@@ -58,7 +59,7 @@ class SMCModel(Observable):
 
     def refit(self):
         y = self[:]
-        self._spline = self._spline_class(self._trans(self._knots))
+        self._spline = self._spline_class(self.transformed_knots)
         self[:] = y
 
     def randomize(self):
@@ -67,6 +68,10 @@ class SMCModel(Observable):
     @property
     def knots(self):
         return self._knots
+
+    @property
+    def transformed_knots(self):
+        return self._trans(self._knots)
 
     def __setitem__(self, key, item):
         self._spline[key] = item
@@ -86,9 +91,7 @@ class SMCModel(Observable):
         return ret
 
     def regularizer(self):
-        # ret = self._spline.integrated_curvature()
-        ret = self._spline.roughness()
-        ret = (np.diff(self[:], 2) ** 2).sum()
+        ret = self._spline.integrated_curvature()
         if not isinstance(ret, ad.ADF):
             ret = ad.adnumber(ret)
         return ret
@@ -221,7 +224,12 @@ class SMCTwoPopulationModel(Observable):
 
     # FIXME this counts the part before the split twice
     def regularizer(self):
-        return sum([m.regularizer() for m in self._models])
+        ret = self.model1.regularizer()
+        m2 = _concat_models(self.model1, self.model2, self.split)
+        ret += (np.diff(m2.stepwise_values(), 2) ** 2).sum()
+        if not isinstance(ret, ad.ADF):
+            ret = ad.adnumber(ret)
+        return ret
 
     def reset_derivatives(self):
         for m in self._models:
@@ -235,3 +243,13 @@ class SMCTwoPopulationModel(Observable):
         a, cc = coords
         self._models[a][cc] = x
         self.update_observers('model update')
+
+def _concat_models(m1, m2, t):
+    a1 = m1.stepwise_values()
+    a2 = m2.stepwise_values()
+    cs = util.cumsum0(m1.s)
+    cs[-1] = np.inf
+    ip = np.searchsorted(cs, t, side="right")
+    ns = np.diff(np.insert(cs, ip, t))
+    na = np.concatenate([a1[:ip], a2[ip - 1:]])
+    return PiecewiseModel(ns, na)
