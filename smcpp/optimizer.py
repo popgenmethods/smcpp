@@ -21,7 +21,7 @@ except ImportError:
     from backports.shutil_get_terminal_size import get_terminal_size
 
 from . import logging, util, _smcpp
-from .observe import targets
+from .observe import targets, Observable, Observer
 
 logger = logging.getLogger(__name__)
 
@@ -388,10 +388,6 @@ class SMCPPOptimizer(AbstractOptimizer):
 
 class TwoPopulationOptimizer(SMCPPOptimizer):
     'Model fitting for two populations.'
-
-    def __init__(self, analysis, algorithm, tolerance):
-        SMCPPOptimizer.__init__(self, analysis, algorithm, tolerance)
-        self.register(Pop1Optimizer())
 
     def _coordinates(self):
         K = self._analysis.model.distinguished_model.K
