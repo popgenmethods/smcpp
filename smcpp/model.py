@@ -3,7 +3,7 @@ import numpy as np
 import ad.admath
 
 from . import spline, logging, util
-from .observe import Observable
+from .observe import Observable, Observer, targets
 
 
 logger = logging.getLogger(__name__)
@@ -142,12 +142,19 @@ class SMCModel(Observable):
         return SMCModel.from_dict(self.to_dict())
 
 
-class SMCTwoPopulationModel(Observable):
+class SMCTwoPopulationModel(Observable, Observer):
+
     def __init__(self, model1, model2, split, apart=False):
         Observable.__init__(self)
         self._models = [model1, model2]
+        model1.register(self)
+        model2.register(self)
         self._split = split
         self._apart = apart
+
+    @targets('model update')
+    def update(self, message, *args, **kwargs):
+        self.update_observers('model update')
 
     @property
     def split(self):
@@ -242,7 +249,6 @@ class SMCTwoPopulationModel(Observable):
     def __setitem__(self, coords, x):
         a, cc = coords
         self._models[a][cc] = x
-        self.update_observers('model update')
 
 def _concat_models(m1, m2, t):
     a1 = m1.stepwise_values()

@@ -187,13 +187,6 @@ cdef class _PyInferenceManager:
             self._model = model
             self._model.register(self)
 
-    # Technically should inherit from Observer, but cdef classes can't.
-    @targets("model update")
-    def update(self, message, *args, **kwargs):
-        cdef ParameterVector params = make_params(self.model)
-        with nogil:
-            self._im.setParams(params)
-
     property save_gamma:
         def __get__(self):
             return self._im.saveGamma
@@ -306,6 +299,13 @@ cdef class PyOnePopInferenceManager(_PyInferenceManager):
         with nogil:
             self._im = new OnePopInferenceManager(n, self._Ls, self._obs_ptrs, self._hs)
 
+    # Technically should inherit from Observer, but cdef classes can't.
+    @targets("model update")
+    def update(self, message, *args, **kwargs):
+        cdef ParameterVector params = make_params(self.model)
+        with nogil:
+            self._im.setParams(params)
+
 cdef class PyTwoPopInferenceManager(_PyInferenceManager):
 
     cdef TwoPopInferenceManager* _im2
@@ -318,17 +318,15 @@ cdef class PyTwoPopInferenceManager(_PyInferenceManager):
             self._im2 = new TwoPopInferenceManager(n1, n2, a1, a2, self._Ls, self._obs_ptrs, self._hs)
             self._im = self._im2
 
-    property model:
-        def __get__(self):
-            return self._model
-
-        def __set__(self, model):
-            self._model = model
-            cdef ParameterVector params1 = make_params(model.model1, model.dlist)
-            cdef ParameterVector params2 = make_params(model.model2, model.dlist)
-            cdef double split = model.split
-            with nogil:
-                self._im2.setParams(params1, params2, split)
+    # Technically should inherit from Observer, but cdef classes can't.
+    @targets("model update")
+    def update(self, message, *args, **kwargs):
+        model = self.model
+        cdef ParameterVector params1 = make_params(model.model1, model.dlist)
+        cdef ParameterVector params2 = make_params(model.model2, model.dlist)
+        cdef double split = model.split
+        with nogil:
+            self._im2.setParams(params1, params2, split)
 
 cdef class PyRateFunction:
     cdef unique_ptr[PiecewiseConstantRateFunction[adouble]] _eta

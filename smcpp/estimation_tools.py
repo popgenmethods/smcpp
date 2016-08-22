@@ -6,6 +6,7 @@ import scipy.optimize
 import scipy.interpolate
 import multiprocessing as mp
 from collections import namedtuple
+import json
 import contextlib
 
 from . import _smcpp, util
@@ -72,11 +73,11 @@ def _thin_helper(args):
 def thin_dataset(dataset, thinning):
     '''Only emit full SFS every <thinning> sites'''
     with mp_pool() as p:
-        return list(p.map(_thin_helper, [(chrom, thinning, i)
-                                         for i, chrom in enumerate(dataset)]))
+        return list(p.map(_thin_helper, 
+            [(chrom, th, i) for i, (chrom, th) in enumerate(zip(dataset, thinning))]))
 
 
-def break_long_spans(dataset, rho, length_cutoff):
+def break_long_spans(dataset, length_cutoff):
     # Spans longer than this are broken up
     # FIXME: should depend on rho
     span_cutoff = 1000000
@@ -152,7 +153,8 @@ def _pt_helper(fn):
         # This parser is way faster than loadtxt
         import pandas as pd
         A = pd.read_csv(fn, sep=' ', comment="#", header=None).values
-    except ImportError:
+    except ImportError as e:
+        logger.debug(e)
         A = np.loadtxt(fn, dtype=np.int32)
     if len(A) == 0:
         raise RuntimeError("empty dataset: %s" % fn)
@@ -161,19 +163,17 @@ def _pt_helper(fn):
         if first_line.startswith("# SMC++"):
             attrs = json.loads(first_line[7:])
             a = [len(a) for a in attrs['dist']]
-            n = [len[u] for u in attrs['undist']]
+            n = [len(u) for u in attrs['undist']]
         else:
             logger.warn("File %s doesn't appear to be in "
                         "SMC++ format. Please consider using vcf2smc...",
                         fn)
-            a = np.max(A[:, 1::3], axis=0)
-            n = np.max(A[:, 3::3], axis=0)
-    return Contig(
-            data=np.ascontiguousarray(A, dtype=np.int32),
-            n=n, a=a)
+            a = A[:, 1::3].max(axis=0)
+            n = A[:, 3::3].max(axis=0)
+    return Contig(data=np.ascontiguousarray(A, dtype='int32'), n=n, a=a)
 
 
 def parse_text_datasets(datasets):
     with mp_pool() as p:
-        obs = list(p.map(_pt_helper, datasets))
+        obs = list(map(_pt_helper, datasets))
     return obs

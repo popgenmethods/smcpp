@@ -1,8 +1,11 @@
+import numpy as np
+
+
 class Contig:
     def __init__(self, data, n, a):
         self.data = data
-        self.n = n
-        self.a = a
+        self.n = np.array(n)
+        self.a = np.array(a)
 
     @property
     def npop(self):

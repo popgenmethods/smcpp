@@ -7,39 +7,40 @@ import scipy.optimize
 import ad
 
 from . import estimation_tools, _smcpp, util, logging, optimizer, jcsfs, spline
+from .contig import Contig
 from .model import SMCModel, SMCTwoPopulationModel
-from .observe import Observer
 
 logger = logging.getLogger(__name__)
 
 
-class Analysis(Observer):
+class Analysis:
     '''A dataset, model and inference manager to be used for estimation.'''
     def __init__(self, files, args):
         # Misc. parameter initialiations
         self._N0 = args.N0
         self._penalty = args.regularization_penalty
         self._niter = args.em_iterations
+
+        # Data-related stuff
         self._load_data(files)
-        self._init_parameters(args.theta, args.rho)
+        self._validate_data()
+        self._perform_thinning(args.thinning)
+        self._normalize_data(args.length_cutoff)
+
+        # Initialize members
+        self._init_parameters(args.theta)
         self._init_bounds(args.Nmin)
         self._init_model(args.initial_model, args.pieces, args.N0, args.t1,
                 args.tK, args.offset, args.knots, args.spline, args.fixed_split)
+        self._init_hidden_states(args.M)
+        # TODO re-enable folded mode
+        # self._init_inference_manager(args.folded)
+        self._init_inference_manager(False)
         self._model.reset()
-        # Add a small amount of noise to model. If all pieces are equal,
-        # the derivatives can be off due to some branching in the spline
-        # code.
         self._model.randomize()
         self._init_optimizer(args, files, args.outdir, args.block_size,
                 args.fix_rho, args.fixed_split, args.algorithm,
                 args.tolerance)
-        self._init_hidden_states(args.M)
-        self._perform_thinning(args.thinning)
-        self._normalize_data(args.length_cutoff)
-        self._validate_data()
-        # TODO re-enable folded mode
-        # self._init_inference_manager(args.folded)
-        self._init_inference_manager(False)
 
     ## PRIVATE INIT FUNCTIONS
     def _load_data(self, files):
@@ -65,25 +66,29 @@ class Analysis(Observer):
         else:
             # Compute watterson's estimator while not really accounting
             # for any sort of population structure or missing data.
-            # TODO This could probably be improved.
-            Lseg = 0
+            # TODO This could be improved.
+            watt = []
             for c in self._contigs:
-                conds = (
-                        (c.data[:, 0] == 1) &
-                        ((c.data[:, 1] > 0) | (c.data[:, 2::2].max(axis=1) > 0))
-                        )
-                Lseg += conds.sum()
-            segfrac = 1. * Lseg / self._L
-            self._theta = segfrac / (1. / np.arange(1, np.sum(self._n))).sum()
+                ma = (c.a[None, :] * (c.data[:, 1::3] != -1)).sum(axis=1)
+                sample_size = ma + c.data[:, 3::3].sum(axis=1)
+                nseg = np.maximum(0, c.data[:, 1::3]).sum(axis=1) + c.data[:, 2::3].sum(axis=1) 
+                ss0 = sample_size > 0
+                span = c.data[ss0, 0]
+                nseg0 = nseg[ss0] > 0
+                watt.append((np.average(nseg0 / np.log(sample_size[ss0]), weights=span), len(ss0)))
+                assert(np.isfinite(watt[-1][0]))
+            x, w = np.array(watt).T
+            self._theta = np.average(x, weights=w)
         logger.info("theta: %f", self._theta)
         self._rho = rho or self._theta
+        assert np.all(np.isfinite([self._rho, self._theta]))
         logger.info("rho: %f", self._rho)
 
     def _init_bounds(self, Nmin):
         ## Construct bounds
         # P(seg) is at most theta * 2 * N_max / H_n << 1
         # For now, just base bounds off of population 1. 
-        sample_size = self._n.sum() + self._a.sum()
+        sample_size = 2 + max(sum(c.n) for c in self._contigs)
         Hn = np.log(sample_size)
         Nmax = .1 / (2 * self._theta * Hn)
         logger.debug("Nmax calculated to be %g" % Nmax)
@@ -99,18 +104,19 @@ class Analysis(Observer):
 
     # Optionally thin each dataset
     def _perform_thinning(self, thinning):
+        ns = np.array([sum(c.n) for c in self._contigs])
+        if isinstance(thinning, int):
+            thinning = np.array([thinning] * len(self._contigs))
         if thinning is None:
-            thinning = 400 * np.sum(self._n)
-        if thinning > 1:
+            thinning = 500 * ns
+        if np.any(thinning > 1):
             logger.info("Thinning...")
             self._update_contigs(
                     estimation_tools.thin_dataset(
                         self._data, thinning)
                     )
-        elif self._n.sum() > 2:
-            logger.warn("Not thinning yet n = %d > 0. This probably "
-                        "isn't what you desire, see --thinning",
-                        self._n.sum() // 2 + 1)
+        elif np.any(ns > 0):
+            logger.warn("Not thinning yet undistinguished lineages are present")
 
     def _init_model(self, initial_model, pieces, N0, t1, tK, offset,
                     knots, spline_class, fixed_split):
@@ -168,9 +174,7 @@ class Analysis(Observer):
 
     def _normalize_data(self, length_cutoff):
         ## break up long spans
-        thinned_data, attrs = zip(
-                *(estimation_tools.break_long_spans(
-                    self._data, self._rho, length_cutoff)))
+        thinned_data, attrs = estimation_tools.break_long_spans(self._data, length_cutoff)
         self._update_contigs(thinned_data)
         w, het = np.array([a[2:] for k in attrs for a in attrs[k]]).T
         avg = np.average(het, weights=w)
@@ -203,7 +207,7 @@ class Analysis(Observer):
     def _validate_data(self):
         for c in self._contigs:
             assert c.data.flags.c_contiguous
-            if np.any(np.all(c.data[:, 1::3] == c.a[None, :], axis=1) &
+            if np.any(np.all(c.data[:, 1::3] == c.a[None, :], axis=1) & 
                       np.all(c.data[:, 2::3] == c.n[None, :], axis=1)):
                 raise RuntimeError("Error: data set contains sites where every "
                         "individual is homozygous recessive. Please encode / "
@@ -214,8 +218,9 @@ class Analysis(Observer):
         logger.debug("Creating inference manager...")
         self._ims = {}
         if self._npop == 1:
-            k = (self._n[0], None)
-            im = _smcpp.PyOnePopInferenceManager(self._n[0], self._data, self._hidden_states)
+            n = max(c.n[0] for c in self._contigs)
+            k = (n, None)
+            im = _smcpp.PyOnePopInferenceManager(n, self._data, self._hidden_states)
             self._ims[k] = im
             im.model = self.model
             im.theta = self._theta
@@ -225,27 +230,27 @@ class Analysis(Observer):
             pop1 = True
             for c in self._contigs:
                 if c.npop == 1:
-                    assert c.a[0] = 2
+                    assert c.a[0] == 2
                     if pop1:
                         k = ((2, c.n[0]), None)
                     else:
                         k = (None, (2, c.n[0]))
                 else:
                     pop1 = False
-                    k = (tuple(c.a), tuple(c.n))
+                    k = (tuple(c.n), tuple(c.a))
                 contig_d.setdefault(k, []).append(c)
             for k in contig_d:
                 data = [c.data for c in contig_d[k]]
-                if None in k:
-                    n = k[0] if k[1] is None else k[1]
+                if None in k:  # one population case
+                    n = k[0][1] if k[1] is None else k[1][1]
                     im = _smcpp.PyOnePopInferenceManager(n, data, self._hidden_states)
                     im.model = self.model.model1 if k[1] is None else self.model.model2
                 else:
-                    im = _smcpp.PyTwoPopInferenceManager(self._n[0], self._n[1],
-                            self._a[0], self._a[1], data, self._hidden_states)
+                    im = _smcpp.PyTwoPopInferenceManager(k[0][0], k[0][1],
+                            k[1][0], k[1][1], data, self._hidden_states)
                     im.model = self.model
-                im.theta = self.theta
-                im.rho = self.rho
+                im.theta = self._theta
+                im.rho = self._rho
                 self._ims[k] = im
         else:
             logger.error("Only 1 or 2 populations are supported at this time")
@@ -275,7 +280,7 @@ class Analysis(Observer):
 
     @property
     def _data(self):
-        return [c.d for d in self._contigs]
+        return [c.data for c in self._contigs]
     ## END OF PRIVATE FUNCTIONS
 
     ## PUBLIC INTERFACE
@@ -320,6 +325,16 @@ class Analysis(Observer):
     @property
     def N0(self):
         return self._N0
+
+    @property
+    def rho(self):
+        return self._rho
+
+    @rho.setter
+    def rho(self, r):
+        self._rho = r
+        for im in self._ims.values():
+            im.rho = r
 
     def dump(self, filename):
         'Dump result of this analysis to :filename:.'
