@@ -23,7 +23,7 @@ def test_human():
     L = 100000
     a = np.array([1.0, 2.0, 1.0])
     s = np.array([2.5, 2.4, 1.0])
-    model = PiecewiseModel(s, a, [])
+    model = PiecewiseModel(a, s)
     sfs = truncated_sfs(model, n, 10.0)
     sfs *= 2 * N0 * theta
     # print(sfs)

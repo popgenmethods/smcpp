@@ -222,13 +222,3 @@ class RepeatingWriter:
         self._write_last_ob()
         logger.info("Wrote %d observations" % self.i)
 
-class OldStyleModel:
-    def __init__(self, a, b, s):
-        self.a = a
-        self.b = b
-        self.s = np.concatenate([s[:-1], [np.inf]])
-        self.t = np.concatenate([[0.], np.cumsum(self.s)])
-
-    def __call__(self, x):
-        ip = np.searchsorted(self.t, x) - 1
-        return self.a[ip] * (self.b[ip] / self.a[ip]) ** ((x - self.t[ip]) / (self.t[ip + 1] - self.t[ip]))

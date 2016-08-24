@@ -4,11 +4,13 @@ import wrapt
  
 
 # Decorator to target specific messages.
-def targets(target_message):
+def targets(target_messages):
+    if isinstance(target_messages, basestring):
+        target_messages = [target_messages]
     @wrapt.decorator
     def wrapper(wrapped, instance, args, kwargs):
         message = args[0]
-        if message == target_message:
+        if message in target_messages:
             wrapped(instance, *args, **kwargs)
     return wrapper
 

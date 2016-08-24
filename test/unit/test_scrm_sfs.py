@@ -5,6 +5,7 @@ import logging
 
 import util.scrm as scrm
 from smcpp.util import sawtooth, human
+from smcpp.model import PiecewiseModel
 from smcpp import _smcpp
 
 np.set_printoptions(suppress=False, linewidth=120)
@@ -14,15 +15,6 @@ theta = 1.25e-8
 def _scrm_sfs(args):
     np.random.seed(args[-1])
     return scrm.sfs(*(args[:-1]))
-
-class PiecewiseModel:
-    def __init__(self, s, a):
-        self.s = s
-        self.a = a
-        self.dlist = []
-
-    def stepwise_values(self):
-        return self.a
 
 def test_human():
     # Diploid effective population size
@@ -34,7 +26,7 @@ def test_human():
     n = 5
     L = 1000000
     t0, t1 = 1.0, 3.0
-    model = PiecewiseModel(s, a)
+    model = PiecewiseModel(a, s)
     sfs = _smcpp.raw_sfs(model, n, t0, t1)
     sfs *= 2 * N0 * theta
     sfs[0, 0] = 1. - sfs.sum()

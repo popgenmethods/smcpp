@@ -5,6 +5,8 @@ matplotlib.use('Agg')
 import numpy as np
 from numpy import array
 
+from . import model
+
 def pretty_plot():
     from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
     from matplotlib.figure import Figure
@@ -33,9 +35,9 @@ def plot_psfs(psfs, xlim, ylim, xlabel, logy=False):
     colors = list(matplotlib.cm.Dark2(np.linspace(0, 1, npsf)))
     for i, (label, d, off) in enumerate(psfs):
         N0 = d['N0']
-        a = d['a']
-        s = d['s']
         if 'b' in d:
+            a = d['a']
+            s = d['s']
             b = d['b']
             slope = np.log(a/b) / s
             cum = off
@@ -54,19 +56,19 @@ def plot_psfs(psfs, xlim, ylim, xlabel, logy=False):
             data.append((label, x, y))
             plotfun = ax.plot
         elif 'model' in d:
-            m = d['model']
+            m = model.SMCModel.from_dict(d['model'])
             x = np.logspace(np.log10(m.s[0]), np.log10(m.s.sum()), 200)
             y = m(x).astype('float')
             # if not logy:
             #     y *= 1e-3
             data.append((label, x, y))
             plotfun = ax.plot
-            # x2, y2 = (m._knots, np.exp(m[:].astype('float')))
-            # x2 *= 2. * d['N0']
-            # y2 *= d['N0']
-            # if d['g'] is not None:
-            #     x2 *= d['g']
-            # ax.scatter(x2,y2)
+            x2, y2 = (m._knots, np.exp(m[:].astype('float')))
+            x2 *= 2. * d['N0']
+            y2 *= d['N0']
+            if d['g'] is not None:
+                x2 *= d['g']
+            ax.scatter(x2,y2)
         else:
             x = np.cumsum(s)
             x = np.insert(x, 0, 0)[:-1]

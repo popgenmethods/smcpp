@@ -98,10 +98,10 @@ class AbstractOptimizer(Observable):
                     bounds = self._bounds(coords)
                     x0 = model[coords]
                     res = self._minimize(x0, coords, bounds)
+                    model[coords] = res.x
                     self.update_observers('post mini M-step',
                                           coords=coords,
                                           res=res, **kwargs)
-                    model[coords] = res.x
                 self.update_observers('post M-step', **kwargs)
         except EMTerminationException:
             pass
@@ -275,7 +275,7 @@ class AsciiPlotter(Observer):
     def __init__(self, gnuplot_path):
         self._gnuplot_path = gnuplot_path
 
-    @targets("post M-step")
+    @targets(["post M-step", "post mini M-step"])
     def update(self, message, *args, **kwargs):
         model = kwargs['model']
         two_pop = hasattr(model, 'split')
@@ -322,7 +322,8 @@ class AsciiPlotter(Observer):
             write("exit")
             (stdout, stderr) = gnuplot.communicate()
             graph = stdout.decode()
-        logger.info("Plot of current model:\n%s", graph)
+        logfun = logger.debug if message == "post mini M-step" else logger.info
+        logfun("Plot of current model:\n%s", graph)
 
 
 # class TransitionDebug(Observer):
@@ -375,11 +376,12 @@ class SMCPPOptimizer(AbstractOptimizer):
     def _coordinates(self):
         model = self._analysis.model
         ret = []
-        for b in range(model.K - self.block_size + 1):
+        for b in range(0, model.K - self.block_size + 1, max(1, self.block_size - 2)):
             ret.append(list(range(b, min(model.K, b + self.block_size))))
         # After all coordinate-wise updates, optimize over whole function
         ret = ret[::-1]
-        ret.append(list(range(model.K)))
+        # ret.append(list(range(model.K)))
+        # ret = ret[-1:]
         return ret
 
     def _bounds(self, coords):

@@ -139,7 +139,8 @@ class Analysis:
         logger.debug("time points in coalescent scaling:\n%s", str(time_points))
         try:
             num_knots = int(knots)
-            knots = np.cumsum(estimation_tools.construct_time_points(t1, tK, [1] * num_knots, offset))
+            knot_spans = np.ones(num_knots, dtype=int)
+            knots = np.cumsum(estimation_tools.construct_time_points(t1, tK, knot_spans, offset))
         except ValueError:
             knots = [float(x) for x in knots.split(",")]
         logger.debug("knots in coalescent scaling:\n%s", str(knots))
@@ -207,8 +208,10 @@ class Analysis:
     def _validate_data(self):
         for c in self._contigs:
             assert c.data.flags.c_contiguous
-            if np.any(np.all(c.data[:, 1::3] == c.a[None, :], axis=1) & 
-                      np.all(c.data[:, 2::3] == c.n[None, :], axis=1)):
+            bad = (np.all(c.data[:, 1::3] == c.a[None, :], axis=1) &
+                   np.all(c.data[:, 2::3] == c.n[None, :], axis=1))
+            if np.any(bad):
+                logger.error("In file %s, observations %s:", c.fn, np.where(bad)[0])
                 raise RuntimeError("Error: data set contains sites where every "
                         "individual is homozygous recessive. Please encode / "
                         "fold these as non-segregating (homozygous dominant).")

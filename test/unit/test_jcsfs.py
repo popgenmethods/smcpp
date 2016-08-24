@@ -15,7 +15,7 @@ def model1():
     ret[:] = 1.0
     s = [0.5, 1.0]
     a = [1.0, 4.]
-    ret = PiecewiseModel(s, a)
+    ret = PiecewiseModel(a, s)
     return ret
 
 @pytest.fixture
@@ -26,7 +26,7 @@ def model2():
     ret[:] = 1.0
     s = [.1, .2, .3]
     a = [2.0, 4.0, 2.]
-    ret = PiecewiseModel(s, a)
+    ret = PiecewiseModel(a, s)
     return ret
 
 @pytest.fixture
@@ -50,7 +50,7 @@ def _concat_models(model1, model2, split):
         sp[-1] = 1.
         ary.append((sp, ap, ip))
     s, a = [np.concatenate([ary[1][i][:ary[1][2]], ary[0][i][ary[0][2]:]]) for i in [0, 1]]
-    return PiecewiseModel(s, a)
+    return PiecewiseModel(a, s)
 np.set_printoptions(precision=3, linewidth=100)
 
 def _test_d(model1, model2):

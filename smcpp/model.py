@@ -10,8 +10,9 @@ logger = logging.getLogger(__name__)
 
 
 # Dummy class used for JCSFS and a few other places
-class PiecewiseModel(object):
-    def __init__(self, s, a):
+class PiecewiseModel(Observable):
+    def __init__(self, a, s):
+        Observable.__init__(self)
         self.s = np.array(s)
         self.a = np.array(a)
 
@@ -33,6 +34,26 @@ class PiecewiseModel(object):
             except AttributeError:
                 pass
         return ret
+
+
+class OldStyleModel(PiecewiseModel):
+    def __init__(self, a, b, s):
+        assert b[-1] == a[-1]
+        ap = []
+        sp = []
+        for aa, bb, ss, cs in zip(a, b, s, util.cumsum0(s)[:-1]):
+            print(aa,bb,ss,cs)
+            if aa == bb:
+                ap.append(aa)
+                sp.append(ss)
+            else:
+                s0 = cs if cs > 0 else 1e-5
+                s1 = s0 + ss
+                # t = np.logspace(np.log10(s0), np.log10(s1), 40)
+                t = np.linspace(s0, s1, 40)
+                sp += np.diff(t).tolist()
+                ap += (aa * (bb / aa) ** ((t[:-1] - s0) / (s1 - s0))).tolist()
+        PiecewiseModel.__init__(self, ap, sp)
 
 
 class SMCModel(Observable):
@@ -91,7 +112,9 @@ class SMCModel(Observable):
         return ret
 
     def regularizer(self):
-        ret = self._spline.integrated_curvature()
+        ret = self._spline.roughness()
+        # ret = (np.diff(self[:], 2) ** 2).sum()
+        # ret = (np.diff(np.sign(np.diff(self[:]))) ** 2).sum()
         if not isinstance(ret, ad.ADF):
             ret = ad.adnumber(ret)
         return ret
@@ -175,6 +198,11 @@ class SMCTwoPopulationModel(Observable, Observer):
     def s(self):
         return self.model1.s
 
+    def splitted_models(self):
+        ret = [self.model1]
+        ret.append(_concat_models(self.model1, self.model2, self.split))
+        return ret
+
     @property
     def model1(self):
         return self._models[0]
@@ -190,14 +218,14 @@ class SMCTwoPopulationModel(Observable, Observer):
             return self.model1
         s = self.model1.s
         a = self.model1.stepwise_values()
-        cs = cumsum0(self.model1.s)
+        cs = util.cumsum0(self.model1.s)
         cs[-1] = np.inf
         ip = np.searchsorted(cs, self._split)
         s = s[ip - 1:]
         a = a[ip - 1:]
         s[0] = split
         a[0] = np.inf
-        ret = PiecewiseModel(s, a)
+        ret = PiecewiseModel(a, s)
 
     @property
     def dlist(self):
@@ -258,4 +286,4 @@ def _concat_models(m1, m2, t):
     ip = np.searchsorted(cs, t, side="right")
     ns = np.diff(np.insert(cs, ip, t))
     na = np.concatenate([a1[:ip], a2[ip - 1:]])
-    return PiecewiseModel(ns, na)
+    return PiecewiseModel(na, ns)

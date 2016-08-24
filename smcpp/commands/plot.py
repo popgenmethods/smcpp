@@ -40,10 +40,10 @@ def main(args):
         elif not os.path.exists(fn):
             sys.exit("File not found: %s" % fn)
         else:
+            res = json.load(open(fn, "rt"))
             if args.spline:
-                d = {k:v for k, v in res.items() if k != 'model'}
+                d = res
             else:
-                res = json.load(open(fn, "rt"))
                 mod = res['model']
                 klass = getattr(model, mod['class'])
                 m = klass.from_dict(mod)

@@ -6,6 +6,7 @@ import numpy as np
 import sys
 from pysam import VariantFile, TabixFile
 import json
+from collections import Counter
 logger = getLogger(__name__)
 
 from ..logging import setup_logging
@@ -34,6 +35,7 @@ def init_parser(parser):
                  "from first sample in population 1 and second sample in population 2. "
                  "This option only makes sense for phased data with two populations. "
                  "(Default: both lineages from first sample in population 1.) ")
+    parser.add_argument("-i", type=int, help=argparse.SUPPRESS)
     parser.add_argument("--ignore-missing", default=False, action="store_true",
             help="ignore samples which are missing in the data")
     parser.add_argument("--missing-cutoff", "-c", metavar="c", type=int, default=None,
@@ -51,21 +53,35 @@ def init_parser(parser):
     parser.add_argument("pop2", type=comma_separated_list, nargs="?", default=[],
             help="Comma-separated list of sample ids from population 2.")
 
+
 def validate(args):
     if args.missing_cutoff and args.mask:
         raise RuntimeError("--missing-cutoff and --mask are mutually exclusive")
 
+
 def main(args):
     setup_logging(0)
     validate(args)
+    for i in [1, 2]:
+        attr = "pop%d" % i
+        ary = getattr(args, attr)
+        if len(ary) == 1 and ary[0][0] == "@":
+            setattr(args, attr, open(ary[0][1:], "rt").read().strip().split("\n"))
+    for i, p in enumerate([args.pop1, args.pop2], 1):
+        if p:
+            c = Counter(p)
+            if max(c.values()) > 1:
+                raise RuntimeError(
+                        "Pop %d has duplicated samples: %s" %
+                        (i, [item for item in c.items() if item[1] > 1]))
     if args.apart:
         if not args.pop2:
             raise RuntimeError("--apart requires two populations")
-        dist = [[args.pop1[0]], [args.pop2[0]]]
+        dist = [[args.pop1[args.i]], [args.pop2[args.i]]]
         undist = [args.pop1, args.pop2]
     else:
-        dist = [[args.pop1[0]] * 2, []]
-        undist = [args.pop1[1:], args.pop2]
+        dist = [[args.pop1[args.i]] * 2, []]
+        undist = [args.pop1[:i] + args.pop1[args.i + 1:], args.pop2]
     npop = 1
     logger.info("Population 1:")
     logger.info("Distinguished lineages: " + 

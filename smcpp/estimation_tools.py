@@ -165,15 +165,13 @@ def _pt_helper(fn):
             a = [len(a) for a in attrs['dist']]
             n = [len(u) for u in attrs['undist']]
         else:
-            logger.warn("File %s doesn't appear to be in "
-                        "SMC++ format. Please consider using vcf2smc...",
-                        fn)
+            logger.warn("File %s doesn't appear to be in SMC++ format", fn)
             a = A[:, 1::3].max(axis=0)
             n = A[:, 3::3].max(axis=0)
-    return Contig(data=np.ascontiguousarray(A, dtype='int32'), n=n, a=a)
+    return Contig(data=np.ascontiguousarray(A, dtype='int32'), n=n, a=a, fn=fn)
 
 
 def parse_text_datasets(datasets):
     with mp_pool() as p:
-        obs = list(map(_pt_helper, datasets))
+        obs = list(p.map(_pt_helper, datasets))
     return obs

@@ -59,12 +59,9 @@ init_logger_cb(logger_cb);
 # flat arrays
 aca = np.ascontiguousarray
 
-cdef ParameterVector make_params(model, dlist=None) except *:
-    if dlist is None:
-        dlist = model.dlist
+cdef ParameterVector make_params(a, s, dlist) except *:
     cdef ParameterVector ret
     cdef vector[adouble] r
-    a = model.stepwise_values()
     assert len(a) > 0
     for aa in a:
         if not isinstance(aa, ADF):
@@ -72,10 +69,13 @@ cdef ParameterVector make_params(model, dlist=None) except *:
         r.push_back(double_vec_to_adouble(aa.x, [aa.d(da) for da in dlist]))
     ret.push_back(r)
     cdef vector[adouble] cs
-    for ss in model.s:
+    for ss in s:
         cs.push_back(adouble(ss))
     ret.push_back(cs)
     return ret
+
+cdef ParameterVector make_params_from_model(model) except *:
+    return make_params(model.stepwise_values(), model.s, model.dlist)
 
 cdef _make_em_matrix(vector[pMatrixD] mats):
     cdef double[:, ::1] v
@@ -302,7 +302,7 @@ cdef class PyOnePopInferenceManager(_PyInferenceManager):
     # Technically should inherit from Observer, but cdef classes can't.
     @targets("model update")
     def update(self, message, *args, **kwargs):
-        cdef ParameterVector params = make_params(self.model)
+        cdef ParameterVector params = make_params_from_model(self.model)
         with nogil:
             self._im.setParams(params)
 
@@ -322,8 +322,9 @@ cdef class PyTwoPopInferenceManager(_PyInferenceManager):
     @targets("model update")
     def update(self, message, *args, **kwargs):
         model = self.model
-        cdef ParameterVector params1 = make_params(model.model1, model.dlist)
-        cdef ParameterVector params2 = make_params(model.model2, model.dlist)
+        ms = model.splitted_models()
+        cdef ParameterVector params1 = make_params(ms[0].stepwise_values(), ms[0].s, model.dlist)
+        cdef ParameterVector params2 = make_params(ms[1].stepwise_values(), ms[1].s, model.dlist)
         cdef double split = model.split
         with nogil:
             self._im2.setParams(params1, params2, split)
@@ -333,7 +334,7 @@ cdef class PyRateFunction:
     cdef object _model
     def __cinit__(self, model, hs):
         self._model = model
-        cdef ParameterVector params = make_params(model)
+        cdef ParameterVector params = make_params_from_model(model)
         cdef vector[double] _hs = hs
         with nogil:
             self._eta.reset(new PiecewiseConstantRateFunction[adouble](params, _hs))
@@ -356,7 +357,7 @@ cdef class PyRateFunction:
         return times
 
 def raw_sfs(model, int n, double t1, double t2, below_only=False):
-    cdef ParameterVector pv = make_params(model)
+    cdef ParameterVector pv = make_params_from_model(model)
     cdef Matrix[adouble] dsfs
     cdef Matrix[double] sfs
     ret = aca(np.zeros([3, n + 1]))
@@ -420,8 +421,8 @@ def thin_data(data, int thinning, int offset=0):
 def joint_csfs(int n1, int n2, int a1, int a2, model, hidden_states, int K=10):
     assert (a1 == 2 and a2 == 0) or (a1 == a2 == 1)
     cdef vector[double] hs = hidden_states
-    cdef ParameterVector p1 = make_params(model.model1)
-    cdef ParameterVector p2 = make_params(model.model2)
+    cdef ParameterVector p1 = make_params_from_model(model.model1)
+    cdef ParameterVector p2 = make_params_from_model(model.model2)
     cdef double split = model.split
     cdef vector[Matrix[adouble]] jc
     cdef PiecewiseConstantRateFunction[adouble] *eta
