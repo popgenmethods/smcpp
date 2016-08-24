@@ -293,11 +293,11 @@ cdef class _PyInferenceManager:
 
 cdef class PyOnePopInferenceManager(_PyInferenceManager):
 
-    def __cinit__(self, int n, observations, hidden_states):
+    def __cinit__(self, int n, observations, hidden_states, bool binning=False):
         # This is needed because cinit cannot be inherited
         self.__my_cinit__(observations, hidden_states)
         with nogil:
-            self._im = new OnePopInferenceManager(n, self._Ls, self._obs_ptrs, self._hs)
+            self._im = new OnePopInferenceManager(n, self._Ls, self._obs_ptrs, self._hs, binning)
 
     # Technically should inherit from Observer, but cdef classes can't.
     @targets("model update")
@@ -310,12 +310,12 @@ cdef class PyTwoPopInferenceManager(_PyInferenceManager):
 
     cdef TwoPopInferenceManager* _im2
 
-    def __cinit__(self, int n1, int n2, int a1, int a2, observations, hidden_states):
+    def __cinit__(self, int n1, int n2, int a1, int a2, observations, hidden_states, bool binning=False):
         # This is needed because cinit cannot be inherited
         self.__my_cinit__(observations, hidden_states)
         assert (a1 == 2 and a2 == 0) or (a1 == a2 == 1)
         with nogil:
-            self._im2 = new TwoPopInferenceManager(n1, n2, a1, a2, self._Ls, self._obs_ptrs, self._hs)
+            self._im2 = new TwoPopInferenceManager(n1, n2, a1, a2, self._Ls, self._obs_ptrs, self._hs, binning)
             self._im = self._im2
 
     # Technically should inherit from Observer, but cdef classes can't.

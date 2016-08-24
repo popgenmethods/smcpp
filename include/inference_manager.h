@@ -86,14 +86,16 @@ class NPopInferenceManager : public InferenceManager
             const std::vector<int> obs_lengths,
             const std::vector<int*> observations,
             const std::vector<double> hidden_states,
-            ConditionedSFS<adouble> *csfs) :
+            ConditionedSFS<adouble> *csfs,
+            const bool binning) :
         InferenceManager(P,
                 (na.tail(na.size() - 1).array() + 1).prod() * (n.array() + 1).prod(),
-                obs_lengths, observations, hidden_states, csfs), n(n), na(na),
-                tensordims(make_tensordims()), bins(construct_bins())
+                obs_lengths, observations, hidden_states, csfs),
+                n(n), na(na), tensordims(make_tensordims()), bins(construct_bins(binning))
     {}
 
     virtual ~NPopInferenceManager() = default;
+
 
     protected:
     // Virtual overrides
@@ -108,7 +110,7 @@ class NPopInferenceManager : public InferenceManager
     const FixedVector<int, P> na;
     const FixedVector<int, 2 * P> tensordims;
 
-    std::map<block_key, std::map<block_key, double> > construct_bins();
+    std::map<block_key, std::map<block_key, double> > construct_bins(const bool);
     std::map<block_key, std::map<block_key, double> > bins;
 };
 
@@ -119,7 +121,8 @@ class OnePopInferenceManager final : public NPopInferenceManager<1>
             const int n,
             const std::vector<int> obs_lengths,
             const std::vector<int*> observations,
-            const std::vector<double> hidden_states);
+            const std::vector<double> hidden_states,
+            const bool);
 };
 
 class TwoPopInferenceManager : public NPopInferenceManager<2>
@@ -130,7 +133,8 @@ class TwoPopInferenceManager : public NPopInferenceManager<2>
             const int a1, const int a2,
             const std::vector<int> obs_lengths,
             const std::vector<int*> observations,
-            const std::vector<double> hidden_states);
+            const std::vector<double> hidden_states,
+            const bool);
                 
     void setParams(const ParameterVector &params1, const ParameterVector &params2, const double split);
 

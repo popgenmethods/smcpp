@@ -7,28 +7,32 @@ struct bin_key
     template <typename Derived1>
     static std::set<block_key> run(
             const block_key &key, 
-            const Eigen::MatrixBase<Derived1> &na);
+            const Eigen::MatrixBase<Derived1> &na,
+            const bool);
 
     template <typename Derived1, typename Derived2>
     static std::set<block_key> run(
         const Eigen::MatrixBase<Derived1> &key, 
-        const Eigen::MatrixBase<Derived2> &na);
+        const Eigen::MatrixBase<Derived2> &na,
+        const bool);
 };
 
 template <size_t P>
 template <typename Derived1>
 std::set<block_key> bin_key<P>::run(
         const block_key &key, 
-        const Eigen::MatrixBase<Derived1> &na)
+        const Eigen::MatrixBase<Derived1> &na,
+        const bool enabled)
 {
-    return bin_key<P>::run(key.vals, na);
+    return bin_key<P>::run(key.vals, na, enabled);
 }
 
 template <>
 template <typename Derived1, typename Derived2>
 std::set<block_key> bin_key<1>::run(
         const Eigen::MatrixBase<Derived1> &key, 
-        const Eigen::MatrixBase<Derived2> &na)
+        const Eigen::MatrixBase<Derived2> &na,
+        const bool enabled)
 {
     Vector<int> tmp = key;
     std::set<block_key> init, ret;
@@ -41,7 +45,8 @@ std::set<block_key> bin_key<1>::run(
         }
     else
         init.emplace(tmp);
-    return init;
+    if (not enabled)
+        return init;
     for (const block_key &k : init)
     {
         const int nseg = k(0) + k(1);
@@ -61,10 +66,11 @@ template <size_t P>
 template <typename Derived1, typename Derived2>
 std::set<block_key> bin_key<P>::run(
         const Eigen::MatrixBase<Derived1> &key, 
-        const Eigen::MatrixBase<Derived2> &na)
+        const Eigen::MatrixBase<Derived2> &na,
+        const bool enabled)
 {
-    std::set<block_key> bk1 = bin_key<1>::run(key.head(3), na.head(1));
-    std::set<block_key> bk2 = bin_key<P - 1>::run(key.tail(3 * (P - 1)), na.tail(P - 1));
+    std::set<block_key> bk1 = bin_key<1>::run(key.head(3), na.head(1), enabled);
+    std::set<block_key> bk2 = bin_key<P - 1>::run(key.tail(3 * (P - 1)), na.tail(P - 1), enabled);
     std::set<block_key> ret;
     Vector<int> v(3 * P);
     for (const block_key& b1 : bk1)

@@ -270,7 +270,7 @@ block_key NPopInferenceManager<P>::bk_to_map_key(const block_key &bk)
 }
 
 template <size_t P>
-std::map<block_key, std::map<block_key, double> > NPopInferenceManager<P>::construct_bins()
+std::map<block_key, std::map<block_key, double> > NPopInferenceManager<P>::construct_bins(const bool binning)
 {
     std::map<block_key, std::map<block_key, double> > ret;
     for (auto ob : obs)
@@ -282,7 +282,7 @@ std::map<block_key, std::map<block_key, double> > NPopInferenceManager<P>::const
             if (ret.count(bk) == 0)
             {
                 std::map<block_key, double> m;
-                for (const block_key &kbin : bin_key<P>::run(bk, na))
+                for (const block_key &kbin : bin_key<P>::run(bk, na, binning))
                     for (const auto &p : marginalize_key<P>::run(kbin.vals, n, na))
                         m[bk_to_map_key(p.first)] += p.second;
                 ret[bk] = m;
@@ -418,24 +418,28 @@ OnePopInferenceManager::OnePopInferenceManager(
             const int n,
             const std::vector<int> obs_lengths,
             const std::vector<int*> observations,
-            const std::vector<double> hidden_states) :
+            const std::vector<double> hidden_states,
+            const bool binning) :
         NPopInferenceManager(
                 FixedVector<int, 1>::Constant(n),
                 FixedVector<int, 1>::Constant(2),
                 obs_lengths, observations, hidden_states, 
-                new OnePopConditionedSFS<adouble>(n)) {}
+                new OnePopConditionedSFS<adouble>(n),
+                binning) {}
 
 TwoPopInferenceManager::TwoPopInferenceManager(
             const int n1, const int n2,
             const int a1, const int a2,
             const std::vector<int> obs_lengths,
             const std::vector<int*> observations,
-            const std::vector<double> hidden_states) :
+            const std::vector<double> hidden_states,
+            const bool binning) :
         NPopInferenceManager(
                 (FixedVector<int, 2>() << n1, n2).finished(),
                 (FixedVector<int, 2>() << a1, a2).finished(),
                 obs_lengths, observations, hidden_states, 
-                new JointCSFS<adouble>(n1, n2, a1, a2, hidden_states)),
+                new JointCSFS<adouble>(n1, n2, a1, a2, hidden_states),
+                binning),
         a1(a1), a2(a2)
 {
     if (not ((a1 == 2 and a2 == 0) or 
