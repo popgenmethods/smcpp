@@ -302,7 +302,7 @@ class AsciiPlotter(Observer):
         def write(x):
             x += "\n"
             gnuplot.stdin.write(x.encode())
-        columns, lines = get_terminal_size((80, 20))
+        columns, lines = np.maximum(get_terminal_size(), [80, 25])
         width = columns * 3 // 5
         height = 25
         write("set term dumb {} {}".format(width, height))
