@@ -114,6 +114,7 @@ class SMCModel(Observable):
     def regularizer(self):
         ret = self._spline.roughness()
         # ret = (np.diff(self[:], 2) ** 2).sum()
+        ret += (self[:] ** 2).sum()
         # ret = (np.diff(np.sign(np.diff(self[:]))) ** 2).sum()
         if not isinstance(ret, ad.ADF):
             ret = ad.adnumber(ret)

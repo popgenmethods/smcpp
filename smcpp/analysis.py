@@ -30,9 +30,9 @@ class Analysis:
         # Initialize members
         self._init_parameters(args.theta)
         self._init_bounds(args.Nmin)
-        self._init_model(args.initial_model, args.pieces, args.N0, args.t1,
+        self._init_model(args.pieces, args.N0, args.t1,
                 args.tK, args.offset, args.knots, args.spline, args.fixed_split)
-        self._init_hidden_states(args.M)
+        self._init_hidden_states(args.initial_model, args.M)
         # TODO re-enable folded mode
         # self._init_inference_manager(args.folded)
         self._init_inference_manager(False)
@@ -118,16 +118,8 @@ class Analysis:
         elif np.any(ns > 0):
             logger.warn("Not thinning yet undistinguished lineages are present")
 
-    def _init_model(self, initial_model, pieces, N0, t1, tK, offset,
+    def _init_model(self, pieces, N0, t1, tK, offset,
                     knots, spline_class, fixed_split):
-        if initial_model is not None:
-            d = json.load(open(initial_model, "rt"))
-            if self._npop == 1:
-                klass = SMCModel
-            else:
-                klass = SMCTwoPopulationModel
-            self._model = klass.from_dict(d['model'])
-            return
         ## Initialize model
         # FIXME currently disabled.
         # exponential_pieces = args.exponential_pieces or []
@@ -164,9 +156,18 @@ class Analysis:
                 SMCModel(time_points, knots, spline_class),
                 split)
 
-    def _init_hidden_states(self, M):
+    def _init_hidden_states(self, initial_model, M):
+        if initial_model is not None:
+            d = json.load(open(initial_model, "rt"))
+            if self._npop == 1:
+                klass = SMCModel
+            else:
+                klass = SMCTwoPopulationModel
+            model = klass.from_dict(d['model'])
+        else:
+            model = self._model
         ## choose hidden states based on prior model
-        dm = self._model.distinguished_model
+        dm = model.distinguished_model
         hs = estimation_tools.balance_hidden_states(dm, M)
         self._hidden_states = np.sort(
                 np.unique(np.concatenate([self._model.distinguished_model._knots, hs]))
@@ -191,19 +192,19 @@ class Analysis:
         logger.debug("Average heterozygosity (derived / total bases) by data set (* = dropped)")
         ci = 0
         tpl = "%15d%15d%15d%12g"
-        new_data = []
+        new_contigs = []
         for fn, key in zip(self._files, attrs):
             logger.debug(fn + ":")
             for attr in attrs[key]:
                 het = attr[-1]
                 mytpl = tpl
-                if abs(het - avg) <= 3 * sd:
-                    new_data.append(self._contigs[ci].data)
+                if True or abs(het - avg) <= 3 * sd:
+                    new_contigs.append(self._contigs[ci])
                 else:
                     mytpl += " *"
                 logger.debug(mytpl % attr)
                 ci += 1
-        self._update_contigs(new_data)
+        self._contigs = new_contigs
 
     def _validate_data(self):
         for c in self._contigs:
