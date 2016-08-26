@@ -131,7 +131,7 @@ def break_long_spans(contigs, length_cutoff):
                 cob = x + 1
             except TypeError:  # fails for final x=None
                 pass
-    return obs_list, obs_attributes
+    return contig_list, obs_attributes
 
 
 def balance_hidden_states(model, M):

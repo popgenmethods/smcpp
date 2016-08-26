@@ -177,7 +177,7 @@ class Analysis:
 
     def _normalize_data(self, length_cutoff):
         ## break up long spans
-        self._contigs, attrs = estimation_tools.break_long_spans(self._data, length_cutoff)
+        self._contigs, attrs = estimation_tools.break_long_spans(self._contigs, length_cutoff)
         w, het = np.array([a[2:] for k in attrs for a in attrs[k]]).T
         avg = np.average(het, weights=w)
         n = len(het)
