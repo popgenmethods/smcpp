@@ -77,13 +77,29 @@ def thin_dataset(dataset, thinning):
             [(chrom, th, i) for i, (chrom, th) in enumerate(zip(dataset, thinning))]))
 
 
-def break_long_spans(dataset, length_cutoff):
+def recode_nonseg(contigs, cutoff=500000):
+    for c in contigs:
+        d = c.data
+        runs = (
+                (d[:, 0] > cutoff) &
+                np.all(d[:, 1::3] == 0, axis=1) &
+                np.all(d[:, 2::3] == 0, axis=1)
+                )
+        if np.any(runs):
+            logger.debug("Long nonsegregating runs in contig %s: \n%s", c.fn, d[runs])
+        d[runs, 1::3] = -1
+        d[runs, 3::3] = 0
+    return contigs
+
+
+def break_long_spans(contigs, length_cutoff):
     # Spans longer than this are broken up
     # FIXME: should depend on rho
     span_cutoff = 1000000
-    obs_list = []
+    contig_list = []
     obs_attributes = {}
-    for fn, obs in enumerate(dataset):
+    for i, contig in enumerate(contigs):
+        obs = contig.data
         miss = np.zeros_like(obs[0])
         miss[0] = 1
         miss[1::3] = -1
@@ -98,10 +114,12 @@ def break_long_spans(dataset, length_cutoff):
         for x in long_spans.tolist() + [None]:
             s = obs[cob:x, 0].sum()
             if s > length_cutoff:
-                obs_list.append(np.insert(obs[cob:x], 0, miss, 0))
-                l = obs_list[-1][:, 0].sum()
-                s2 = obs_list[-1][:, 1][obs_list[-1][:, 1] >= 0].sum()
-                obs_attributes.setdefault(fn, []).append(
+                contig_list.append(Contig(data=np.insert(obs[cob:x], 0, miss, 0),
+                                          fn=contig.fn, n=contig.n, a=contig.a))
+                last_data = contig_list[-1].data
+                l = last_data[:, 0].sum()
+                s2 = last_data[:, 1][last_data[:, 1] >= 0].sum()
+                obs_attributes.setdefault(i, []).append(
                         (positions[cob],
                          positions[x] if x is not None else positions[-1],
                          l, 1. * s2 / l))

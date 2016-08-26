@@ -60,7 +60,7 @@ def init_parser(parser):
     optimizer.add_argument('--spline',
                            choices=["bspline", "cubic", "akima", "pchip"],
                            default="cubic", help="type of spline representation to use")
-    optimizer.add_argument("--tolerance", type=float, default=5e-3,
+    optimizer.add_argument("--tolerance", type=float, default=1e-4,
             help="stopping criterion for relative improvement in loglik "
                  "in EM algorithm")
     optimizer.add_argument('--Nmin', type=float,

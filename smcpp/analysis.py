@@ -24,6 +24,7 @@ class Analysis:
         # Data-related stuff
         self._load_data(files)
         self._validate_data()
+        self._recode_nonseg()
         self._perform_thinning(args.thinning)
         self._normalize_data(args.length_cutoff)
 
@@ -176,8 +177,7 @@ class Analysis:
 
     def _normalize_data(self, length_cutoff):
         ## break up long spans
-        thinned_data, attrs = estimation_tools.break_long_spans(self._data, length_cutoff)
-        self._update_contigs(thinned_data)
+        self._contigs, attrs = estimation_tools.break_long_spans(self._data, length_cutoff)
         w, het = np.array([a[2:] for k in attrs for a in attrs[k]]).T
         avg = np.average(het, weights=w)
         n = len(het)
@@ -216,6 +216,9 @@ class Analysis:
                 raise RuntimeError("Error: data set contains sites where every "
                         "individual is homozygous recessive. Please encode / "
                         "fold these as non-segregating (homozygous dominant).")
+
+    def _recode_nonseg(self):
+        self._contigs = estimation_tools.recode_nonseg(self._contigs)
 
     def _init_inference_manager(self, folded):
         ## Create inference object which will be used for all further calculations.
