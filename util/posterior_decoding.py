@@ -120,6 +120,7 @@ def perturb(data, error, f):
     return (data[0], np.where(npos)[0], nhap[:, npos]) + data[3:]
 
 def perturb_simple(data, error, f):
+    ary = data[2]
     nerr = np.random.poisson(error * np.prod(ary.shape))
     print("errors: %d" % nerr)
     pos = np.random.randint(0, ary.shape[0], size=nerr)
@@ -138,7 +139,7 @@ data = smcpp.util.dataset_from_panel(data0, n_max, (0, 1), True)
 print("done panel")
 
 # Dump trees
-open(os.path.join(args.outdir, "trees.txt"), "wt").write("\n".join("[%d]%s" % c for c in data[3]))
+# open(os.path.join(args.outdir, "trees.txt"), "wt").write("\n".join("[%d]%s" % c for c in data[3]))
 
 # True coalescence times
 ct = [(c1, 2 * smcpp._newick.tmrca(c2, "1", "2")) for c1, c2 in data[3]]
@@ -150,8 +151,13 @@ hidden_states = np.concatenate([[0.], hidden_states, [np.inf]])
 print(hidden_states)
 hidden_states = smcpp.estimation_tools.balance_hidden_states(model, args.M + 1)
 print(hidden_states)
-# Get rid of these it's really annoying when you accidentally print them.
+# Get rid of trees it's really annoying when you accidentally print them.
 data = data[:3]
+
+hsmid = (hidden_states[1:] + hidden_states[:-1]) / 2.
+hsmid[-1] = 2 * hsmid[-2]
+
+tct_hs_out = (tct[None, :] - hsmid[:, None])**2
 
 if args.ascertain:
     maf = np.where(np.mean(data[2], axis=0) > args.ascertain)[0]
@@ -165,6 +171,8 @@ bks = {}
 maps = {}
 gammadict = {}
 datadict = {}
+err = {}
+err_map = {}
 for n in args.n:
     print("n=%d begin" % n)
     # subset data. some sites might be non-segregating in the subsample.
@@ -176,7 +184,7 @@ for n in args.n:
     obs = smcpp.util.hmm_data_format(dsub, n, (0, 1)).astype('int32')
     # oo[n] = np.array([c1[1:] for c1 in obs for _ in range(c1[0])])
     # obs[obs[:, 1] != -1, 2:] = 0
-    oo[n] = [smcpp.estimation_tools.thin_dataset([obs], [1])]
+    oo[n] = [smcpp.estimation_tools.thin_dataset([obs], [2])]
     oo[n], _ = smcpp.estimation_tools.break_long_spans(oo[n][0], 0)
     im = smcpp._smcpp.PyOnePopInferenceManager(n - 2, oo[n], hidden_states)
     im.theta = 2.0 * args.N0 * args.theta
@@ -189,19 +197,34 @@ for n in args.n:
     ims[n] = im
     # dump gamma file for each n
     gammadict[str(n)] = im.gammas[0]
-    datadict[str(n)] = oo[n][0]
+    # datadict[str(n)] = oo[n][0]
     gamma = np.zeros([args.M, args.L])
     sp = 0
     for row, col in zip(oo[n][0], im.gammas[0].T):
         an = row[0]
         gamma[:, sp:(sp+an)] = col[:, None] / an
         sp += an
-    full_gammas[n] = gamma
+    err[n] = (gamma * tct_hs_out).sum()
+    err_map[n] = tct_hs_out[np.argmax(gamma, axis=0), np.arange(args.L)].sum()
     print(gamma.mean(axis=1))
     gm[n] = scipy.ndimage.zoom(gamma, (1.0, 1. * width / args.L))
     maps[n] = np.argmax(gamma, axis=0)
+    if not args.plot:
+        del gm[n]
+        del gamma
+        del gammadict[str(n)]
+        del oo[n]
+        del ims[n]
     print("n=%d done" % n)
 
+print(err)
+with open(os.path.join(args.outdir, "mse.txt"), "wt") as f:
+    for n in sorted(err):
+        print("%d,%f,%f,%f,%f" % 
+                (n, err[n], err[2], err_map[n], 
+                    err_map[n] / err_map[2]), file=f)
+if not args.plot:
+    sys.exit(0)
 # np.savetxt(os.path.join(args.outdir, "hidden_states.txt"), hidden_states)
 # np.savez_compressed(os.path.join(args.outdir, "posteriors.npz"), **gammadict)
 # np.savez_compressed(os.path.join(args.outdir, "data.npz"), **datadict)
@@ -211,28 +234,8 @@ import matplotlib.pyplot as plt
 fig, axes = plt.subplots(nrows=len(args.n), sharex=True, sharey=True, figsize=(25, 15))
 if len(args.n) == 1:
     axes = [axes]
-# for i, ll in enumerate(((0, 1), (1, 2))[:2]):
-coal_times = np.searchsorted(hidden_states, list(smcpp.util.unpack(ct))) - 1
-zct = scipy.ndimage.zoom(list(smcpp.util.unpack(ct)), 1. * width / args.L)
-true_pos = scipy.ndimage.zoom(coal_times, 1. * width / args.L)
-# axes[-1].step(range(width), true_pos)
-#end i loop
 plt.set_cmap("magma")
 
-hsmid = (hidden_states[1:] + hidden_states[:-1]) / 2.
-hsmid[-1] = 2 * hsmid[-2]
-
-tct_hs_out = (tct[None, :] - hsmid[:, None])**2
-
-err = {n: (full_gammas[n] * tct_hs_out).sum() for n in full_gammas}
-err_map = {n: tct_hs_out[np.argmax(full_gammas[n], axis=0), np.arange(args.L)].sum() for n in full_gammas}
-with open(os.path.join(args.outdir, "mse.txt"), "wt") as f:
-    for n in sorted(err):
-        print("%d,%f,%f,%f,%f" % 
-                (n, err[n], err[n] / err[2], 
-                 err_map[n], err_map[n] / err_map[2]), file=f)
-if not args.plot:
-    sys.exit(0)
 
 ai = 0
 label_text   = [r"%i kb" % int(args.L / 40. * 100. * loc/width) for loc in plt.xticks()[0]]
