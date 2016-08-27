@@ -7,6 +7,7 @@ import sys
 from pysam import VariantFile, TabixFile
 import json
 from collections import Counter
+import progressbar
 logger = getLogger(__name__)
 
 from ..logging import setup_logging
@@ -35,7 +36,7 @@ def init_parser(parser):
                  "from first sample in population 1 and second sample in population 2. "
                  "This option only makes sense for phased data with two populations. "
                  "(Default: both lineages from first sample in population 1.) ")
-    parser.add_argument("-i", type=int, help=argparse.SUPPRESS)
+    parser.add_argument("-i", type=int, default=0, help=argparse.SUPPRESS)
     parser.add_argument("--ignore-missing", default=False, action="store_true",
             help="ignore samples which are missing in the data")
     parser.add_argument("--missing-cutoff", "-c", metavar="c", type=int, default=None,
@@ -181,16 +182,16 @@ def main(args):
         abnb_miss = [-1, 0, 0] * len(nb)
         abnb_nonseg = sum([[0, 0, x] for x in nb], [])
         multiples = set()
-        with RepeatingWriter(out) as rw:
-            records = interleaved()
+        with RepeatingWriter(out) as rw, progressbar.ProgressBar(max_value=contig_length) as bar:
             last_pos = 0
-            for ty, rec in records:
+            for ty, rec in interleaved():
                 if ty == "mask":
                     span = rec[1] - last_pos
                     rw.write([span] + abnb_nonseg)
                     rw.write([rec[2] - rec[1] + 1] + abnb_miss)
                     last_pos = rec[2]
                     continue
+                bar.update(rec.pos)
                 abnb = rec2gt(rec)
                 if rec.pos == last_pos:
                     multiples.add(rec.pos)

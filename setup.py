@@ -61,7 +61,9 @@ except ImportError:
 
 **********************************************************************
 """)
-dist.Distribution({'setup_requires': ['numpy', 'pkgconfig', 'cython']})
+# gmpy2 is not used in the Python code, but enforces the libmpfr and libgmp dependencies.
+dist.Distribution({'setup_requires': ['numpy', 'pkgconfig', 'cython', 'gmpy2']})
+
 
 setup(name='smcpp',
         description='SMC++',
@@ -74,8 +76,7 @@ setup(name='smcpp',
         use_scm_version=True,
         tests_require=['pytest'],
         install_requires=[
-            "gmpy2", # This is not used in the Python code, but 
-                     # enforces the libmpfr and libgmp dependencies.
+            "progressbar2",
             "setuptools_scm",
             "appdirs",
             "backports.shutil_which",
