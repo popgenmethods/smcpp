@@ -299,7 +299,10 @@ class Analysis:
     def Q(self, k=None):
         'Value of Q() function in M-step.'
         # q1, q2, q3 = self._im.Q(True)
-        qq = sum([im.Q() for im in self._ims.values()])
+        qq = 0.
+        for na in self._ims:
+            logger.debug(na)
+            qq += self._ims[na].Q()
         qr = -self._penalty * self.model.regularizer()
         logger.debug(("im.Q", float(qq), [qq.d(x) for x in self.model.dlist]))
         logger.debug(("reg", float(qr), [qr.d(x) for x in self.model.dlist]))
