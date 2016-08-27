@@ -158,13 +158,10 @@ class Analysis:
                 split)
 
     def _init_hidden_states(self, initial_model, M):
+        cls_d = {cls.__name__: cls for cls in (SMCModel, SMCTwoPopulationModel)}
         if initial_model is not None:
             d = json.load(open(initial_model, "rt"))
-            if self._npop == 1:
-                klass = SMCModel
-            else:
-                klass = SMCTwoPopulationModel
-            model = klass.from_dict(d['model'])
+            model = cls_d[d['model']['class']].from_dict(d['model'])
         else:
             model = self._model
         ## choose hidden states based on prior model
