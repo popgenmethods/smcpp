@@ -192,8 +192,7 @@ class SMCTwoPopulationModel(Observable, Observer):
     @property
     def split_ind(self):
         'Return k such that model2.t[k] <= split < model2.t[k + 1]'
-        cs = np.cumsum(self._models[1]._knots)
-        return np.searchsorted(cs, self._split) + 1
+        return np.searchsorted(self.model2.knots, self._split, side="right") - 1
 
     @property
     def s(self):
@@ -202,6 +201,8 @@ class SMCTwoPopulationModel(Observable, Observer):
     def splitted_models(self):
         ret = [self.model1]
         ret.append(_concat_models(self.model1, self.model2, self.split))
+        if max(abs(ret[-1].stepwise_values().astype('float'))) > 100:
+            raise RuntimeException('badness in split model')
         return ret
 
     @property
@@ -280,11 +281,12 @@ class SMCTwoPopulationModel(Observable, Observer):
         self._models[a][cc] = x
 
 def _concat_models(m1, m2, t):
-    a1 = m1.stepwise_values()
-    a2 = m2.stepwise_values()
-    cs = util.cumsum0(m1.s)
-    cs[-1] = np.inf
-    ip = np.searchsorted(cs, t, side="right")
-    ns = np.diff(np.insert(cs, ip, t))
-    na = np.concatenate([a1[:ip], a2[ip - 1:]])
-    return PiecewiseModel(na, ns)
+    ip = np.searchsorted(m1._knots, t, side="right")
+    nk = np.insert(m1._knots, ip, t)
+    ny = np.zeros_like(nk)
+    ny[:ip] = m2[:ip]
+    ny[ip] = ad.admath.log(m1(t).item())
+    ny[ip + 1:] = m1[ip:]
+    ret = SMCModel(m1.s, nk, m1._spline_class)
+    ret[:] = ny
+    return ret
