@@ -167,8 +167,14 @@ struct Logger : public std::ostream
 #define WARNING Logger(__FILE__, __LINE__, "WARNING")
 #define CRITICAL Logger(__FILE__, __LINE__, "CRITICAL")
 #define ERROR Logger(__FILE__, __LINE__, "ERROR")
+
+#ifdef NO_CHECK_NAN
+#define CHECK_NAN(x)
+#define CHECK_NAN_OR_NEGATIVE(x)
+#else
 #define CHECK_NAN(x) check_nan(x, __FILE__, __LINE__)
 #define CHECK_NAN_OR_NEGATIVE(x) check_nan(x, __FILE__, __LINE__); check_negative(x, __FILE__, __LINE__);
+#endif
 
 void check_nan(const double x, const char* file, const int line);
 void check_nan(const adouble &x, const char* file, const int line);

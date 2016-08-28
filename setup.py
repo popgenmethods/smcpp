@@ -31,10 +31,10 @@ def lazy_extensions():
                 sources=["smcpp/_smcpp.pyx"] + cpps,
                 language="c++",
                 include_dirs=[np.get_include(), "include", "include/eigen3"] + include_dirs,
-                # extra_compile_args=["-O0", "-ggdb3", "-std=c++11", "-Wno-unused-variable", "-Wno-unused-function", "-D_GLIBCXX_DEBUG"],
-                extra_compile_args=["-O2", "-std=c++11", "-Wno-deprecated-declarations", "-fopenmp"],
+                # extra_compile_args=["-O0", "-ggdb3", "-std=c++11", "-Wno-unused-variable", "-Wno-unused-function", "-D_GLIBCXX_DEBUG", "-fopenmp"],
+                extra_compile_args=["-O2", "-std=c++11", "-Wno-deprecated-declarations", "-fopenmp", "-DNO_CHECK_NAN"],
                 libraries=['mpfr', 'gmp', 'gmpxx', 'gsl', 'gslcblas'],
-                extra_link_args=['-fopenmp', "-L/usr/local/lib"],
+                extra_link_args=['-fopenmp', "-L/usr/local/lib", "-rdynamic"],
                 )]
     if True:
         extensions.append(## This depends on boost and is only used for testing purposes

@@ -68,6 +68,7 @@ void JointCSFS<T>::jcsfs_helper_tau_below_split(const int m,
             assert(trunc_csfs(i, j) > -1e-8); // truncation may lead to small negative values.
             if (trunc_csfs(i, j) > 0)
                 tensorRef(m, i, j, 0, 0) = weight * trunc_csfs(i, j);
+            CHECK_NAN(J[m]);
         }
     const Vector<T> trunc_sfs = undistinguishedSFS(trunc_csfs);
     T Et = Sn1.transpose().template cast<T>() * trunc_sfs;
@@ -116,6 +117,7 @@ void JointCSFS<T>::jcsfs_helper_tau_below_split(const int m,
                     T x2 = x * eMn12_avg(np1, b1);
                     tensorRef(m, 0, b1, 0, b2) += x0;
                     tensorRef(m, 2, b1, 0, b2) += x2;
+                    CHECK_NAN(J[m]);
                 }
 }
 
@@ -145,11 +147,13 @@ void JointCSFS<T>::jcsfs_helper_tau_above_split(const int m,
                         x *= h;
                         x *= weight;
                         tensorRef(m, i, b1, 0, b2) += x;
+                        CHECK_NAN(J[m]);
                     }
                 }
      
     // pop 1, below split
     Matrix<T> sfs_below = csfs.at(n1).compute_below(*eta1)[0];
+    CHECK_NAN(sfs_below);
     for (int i = 0; i < a1 + 1; ++i)
         for (int j = 0; j < n1 + 1; ++j)
         {
@@ -157,7 +161,6 @@ void JointCSFS<T>::jcsfs_helper_tau_above_split(const int m,
             if (sfs_below(i, j) > 0)
                 tensorRef(m, i, j, 0, 0) += weight * sfs_below(i, j);
         }
-
 }
 
 template <typename T>
@@ -249,6 +252,7 @@ void JointCSFS<T>::pre_compute_apart()
                         tensorRef(m, 1, b1, 0, b2) += 0.5 * h * csfs_shift(1, nseg) * T11(np1, b1) * T20(np2, b2);
                         tensorRef(m, 0, b1, 1, b2) += 0.5 * h * csfs_shift(1, nseg) * T10(np1, b1) * T21(np2, b2);
                         tensorRef(m, 0, b1, 0, b2) += h * csfs_shift(0, nseg) * T10(np1, b1) * T20(np2, b2);
+                        CHECK_NAN(J[m]);
                     }
     }
     // Cover edge case
@@ -288,6 +292,7 @@ void JointCSFS<T>::pre_compute_apart()
                     tensorRef(m, 0, 0, 0, k) += x1;
                     tensorRef(m, 0, 0, 1, k - 1) += x2;
                 }
+                CHECK_NAN(J[m]);
             }
         }
         T remain = eta_trunc.zero();
@@ -302,6 +307,7 @@ void JointCSFS<T>::pre_compute_apart()
                 tensorRef(m, 1, ni, 0, 0) -= remain;
             else
                 tensorRef(m, 0, 0, 1, ni) -= remain;
+            CHECK_NAN(J[m]);
         }
         first = false;
     }
@@ -325,7 +331,7 @@ void JointCSFS<T>::pre_compute_together()
     for (int m = 0; m < M; ++m)
     {
         J[m].fill(eta1->zero());
-        double t1 = hidden_states[m], t2 = hidden_states[m + 1];
+        const double t1 = hidden_states[m], t2 = hidden_states[m + 1];
         if (t1 < t2 and t2 <= split)
             jcsfs_helper_tau_below_split(m, t1, t2, 1.); 
         else if (split <= t1 and t1 < t2)
@@ -358,6 +364,7 @@ void JointCSFS<T>::pre_compute_together()
             remain -= split;
             tensorRef(m, 0, 0, 0, n2) -= remain;
         }
+        CHECK_NAN(J[m]);
     }
 }
 
