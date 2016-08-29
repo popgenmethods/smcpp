@@ -79,10 +79,9 @@ def main(args):
         if not args.pop2:
             raise RuntimeError("--apart requires two populations")
         dist = [[args.pop1[args.i]], [args.pop2[args.i]]]
-        undist = [args.pop1, args.pop2]
     else:
         dist = [[args.pop1[args.i]] * 2, []]
-        undist = [args.pop1[:i] + args.pop1[args.i + 1:], args.pop2]
+    undist = [args.pop1, args.pop2]
     npop = 1
     logger.info("Population 1:")
     logger.info("Distinguished lineages: " + 
