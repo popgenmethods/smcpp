@@ -42,3 +42,9 @@ class Observable(object):
     def update_observers(self, *args, **kwargs):
         for observer in self.observers:
             observer.update(*args, **kwargs)
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        # Do not try to pickle observers.
+        del state['observers']
+        return state

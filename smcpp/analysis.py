@@ -12,13 +12,15 @@ from multiprocessing.managers import BaseManager, NamespaceProxy
 from . import estimation_tools, _smcpp, util, logging, optimizer, jcsfs, spline
 from .contig import Contig
 from .model import SMCModel, SMCTwoPopulationModel
+from .observe import Observer, targets
 
 logger = logging.getLogger(__name__)
 
 
-class Analysis:
+class Analysis(Observer):
     '''A dataset, model and inference manager to be used for estimation.'''
     def __init__(self, files, args):
+        Observer.__init__(self)
         # Misc. parameter initialiations
         self._N0 = args.N0
         self._penalty = args.regularization_penalty
@@ -161,11 +163,15 @@ class Analysis:
                 SMCModel(time_points, knots, spline_class),
                 SMCModel(time_points, knots, spline_class),
                 split)
+        self._model.register(self)
 
-    def _model_changed(self):
-        for m in self._model_map:
-            for im in self._model_map[m]:
-                im.setModel(m)
+    @targets("model update")
+    def update(self, message, *args, **kwargs):
+        self._update_models()
+
+    def _update_models(self):
+        for im, f in self._model_updaters:
+            im.setModel(f())
 
     def _init_hidden_states(self, initial_model, M):
         cls_d = {cls.__name__: cls for cls in (SMCModel, SMCTwoPopulationModel)}
@@ -231,16 +237,21 @@ class Analysis:
         ## Create inference object which will be used for all further calculations.
         logger.debug("Creating inference manager...")
         self._ims = {}
-        self._model_map = {}
+        self._model_updaters = []
         self._smc_manager = SMCManager(ctx=self._mp_ctx)
         self._smc_manager.start()
+        def f():
+            return self.model
+        def f1():
+            return self.model.splitted_models()[0]
+        def f2():
+            return self.model.splitted_models()[1]
         if self._npop == 1:
             n = max(c.n[0] for c in self._contigs)
             k = (n, None)
             im = self._smc_manager.PyOnePopInferenceManager(n, self._data, self._hidden_states)
             self._ims[k] = im
-            im.setModel(self.model)
-            self._model_map.setdefault(self.model, []).append(im)
+            self._model_updaters.append((im, f))
             im.setTheta(self._theta)
             im.setRho(self._rho)
         elif self._npop == 2:
@@ -264,14 +275,15 @@ class Analysis:
                 if None in k:  # one population case
                     n = max(c.n for c in contigs)
                     im = self._smc_manager.PyOnePopInferenceManager(n, data, self._hidden_states)
-                    m = self.model.model1 if k[1] is None else self.model.model2
-                    im.setModel(m)
-                    self._model_map.setdefault(m, []).append(im)
+                    if k[1] is None:
+                        t = (im, f1)
+                    else:
+                        t = (im, f2)
                 else:
                     n = np.max([c.n for c in contigs], axis=0)
                     im = self._smc_manager.PyTwoPopInferenceManager(n[0], n[1], k[0], k[1], data, self._hidden_states)
-                    im.setModel(self.model)
-                    self._model_map.setdefault(self.model, []).append(im)
+                    t = (im, f)
+                self._model_updaters.append(t)
                 logger.debug(n)
                 im.setTheta(self._theta)
                 im.setRho(self._rho)
@@ -279,6 +291,7 @@ class Analysis:
         else:
             logger.error("Only 1 or 2 populations are supported at this time")
             sys.exit(1)
+        self._update_models()
 
     def _init_optimizer(self, args, files, outdir, block_size,
             fix_rho, fixed_split, algorithm, tolerance):
@@ -306,11 +319,6 @@ class Analysis:
     def _data(self):
         return [c.data for c in self._contigs]
     ## END OF PRIVATE FUNCTIONS
-
-    ## PUBLIC INTERFACE
-    def update_coords(self, coords, x):
-        self.model[coords] = x
-        self._model_changed()
 
     def run(self):
         'Perform the analysis.'
@@ -382,7 +390,7 @@ class Analysis:
     def rho(self, r):
         self._rho = r
         for im in self._ims.values():
-            im.rho = r
+            im.setRho(r)
 
     def dump(self, filename):
         'Dump result of this analysis to :filename:.'
