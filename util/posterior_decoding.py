@@ -184,7 +184,9 @@ for n in args.n:
     obs = smcpp.util.hmm_data_format(dsub, n, (0, 1)).astype('int32')
     # oo[n] = np.array([c1[1:] for c1 in obs for _ in range(c1[0])])
     # obs[obs[:, 1] != -1, 2:] = 0
-    oo[n] = np.array(smcpp.estimation_tools.thin_dataset([obs], [2]), dtype=np.int32)
+    oo[n] = np.array(smcpp.estimation_tools.thin_dataset([obs], [1]), dtype=np.int32)
+    o = oo[n][0]
+    o[o[:, 1] >= 0, 2:] = 0
     im = smcpp._smcpp.PyOnePopInferenceManager(n - 2, oo[n], hidden_states)
     im.theta = 2.0 * args.N0 * args.theta
     im.rho = 2.0 * args.estimated_rho * args.N0
