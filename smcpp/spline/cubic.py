@@ -18,12 +18,12 @@ def after(meth):
 def _TDMASolve(a, b, c, d):
     # a, b, c == diag(-1, 0, 1)
     n = len(d)  # n is the numbers of rows, a and c has length n-1
-    for i in xrange(n - 1):
+    for i in range(n - 1):
         d[i + 1] -= 1. * d[i] * a[i] / b[i]
         b[i + 1] -= 1. * c[i] * a[i] / b[i]
-    for i in reversed(xrange(n - 1)):
+    for i in reversed(range(n - 1)):
         d[i] -= d[i + 1] * c[i] / b[i + 1]
-    return [d[i] / b[i] for i in xrange(n)]
+    return [d[i] / b[i] for i in range(n)]
 
 
 class CubicSpline:

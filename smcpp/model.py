@@ -263,7 +263,7 @@ class SMCTwoPopulationModel(Observable, Observer):
     def regularizer(self):
         ret = self.model1.regularizer()
         m2 = _concat_models(self.model1, self.model2, self.split)
-        ret += (np.diff(m2.stepwise_values(), 2) ** 2).sum()
+        ret += m2.regularizer()
         if not isinstance(ret, ad.ADF):
             ret = ad.adnumber(ret)
         return ret

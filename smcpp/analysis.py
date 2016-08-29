@@ -56,6 +56,7 @@ class Analysis:
             assert c.a.min() >= 0
             assert c.a.sum() == 2
             assert c.data.shape[1] == 1 + 3 * len(c.n)
+            logger.debug("Contig(fn=%r, n=%r, a=%r)", c.fn, c.n, c.a)
         logger.info("%d population%s", self._npop, "" if self._npop == 1 else "s")
 
     def _init_parameters(self, theta=None, rho=None):

@@ -394,9 +394,8 @@ class TwoPopulationOptimizer(SMCPPOptimizer):
     def _coordinates(self):
         K = self._analysis.model.distinguished_model.K
         c1, c2 = [[list(range(b, min(K, b + self.block_size)))
-                   for b in range(0, ub + 1, self.block_size - 2)]
-                  for ub in [K - self.block_size,
-                             self._analysis.model.split_ind]]
+            for b in range(0, ub + 1, self.block_size - 2)][::-1]
+            for ub in [K - self.block_size, self._analysis.model.split_ind]]
         return [(i, cc) for i, c in enumerate([c1, c2]) for cc in c]
 
     def _bounds(self, coords):
