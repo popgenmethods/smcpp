@@ -55,11 +55,11 @@ def init_parser(parser):
                            help="do not estimate recombination rate from data")
     optimizer.add_argument('--block-size', type=int, default=3,
                            help="number of blocks to optimizer at a time for coordinate ascent")
-    optimizer.add_argument('--regularization-penalty',
+    optimizer.add_argument('--regularization-penalty', "-p",
                            type=float, help="regularization penalty", default=1.)
     optimizer.add_argument('--spline',
                            choices=["bspline", "cubic", "akima", "pchip"],
-                           default="cubic", help="type of spline representation to use")
+                           default="pchip", help="type of spline representation to use")
     optimizer.add_argument("--tolerance", type=float, default=1e-4,
             help="stopping criterion for relative improvement in loglik "
                  "in EM algorithm")

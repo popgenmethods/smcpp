@@ -4,6 +4,7 @@ import argparse
 import numpy as np
 import itertools as it
 import json
+from six.moves import zip_longest
 from .. import util, plotting, model
 
 def init_parser(parser):
@@ -30,7 +31,7 @@ def main(args):
         args.labels = []
     if args.offsets is None:
         args.offsets = []
-    for fn, label, off, g in it.izip_longest(args.model, args.labels, args.offsets, args.g or [], fillvalue=None):
+    for fn, label, off, g in zip_longest(args.model, args.labels, args.offsets, args.g or [], fillvalue=None):
         if label == "None": 
             label = None
         if fn in ["human", "sawtooth"]:
