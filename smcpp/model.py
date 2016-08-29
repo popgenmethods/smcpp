@@ -75,14 +75,6 @@ class SMCModel(Observable):
     def K(self):
         return len(self.knots)
 
-    def reset_derivatives(self):
-        self[:] = self[:].astype('float').astype('object')
-
-    def refit(self):
-        y = self[:]
-        self._spline = self._spline_class(self.transformed_knots)
-        self[:] = y
-
     def randomize(self):
         self[:] += np.random.normal(0., .01, size=len(self[:]))
 
@@ -176,6 +168,7 @@ class SMCTwoPopulationModel(Observable, Observer):
         self._split = split
         self._apart = apart
 
+    # Propagate changes from submodels up
     @targets('model update')
     def update(self, message, *args, **kwargs):
         self.update_observers('model update')
@@ -202,7 +195,8 @@ class SMCTwoPopulationModel(Observable, Observer):
         ret = [self.model1]
         ret.append(_concat_models(self.model1, self.model2, self.split))
         if max(abs(ret[-1].stepwise_values().astype('float'))) > 100:
-            raise RuntimeException('badness in split model')
+            logger.error(ret[-1].stepwise_values().astype('float'))
+            raise RuntimeError('badness in split model')
         return ret
 
     @property
@@ -261,16 +255,10 @@ class SMCTwoPopulationModel(Observable, Observer):
 
     # FIXME this counts the part before the split twice
     def regularizer(self):
-        ret = self.model1.regularizer()
-        m2 = _concat_models(self.model1, self.model2, self.split)
-        ret += m2.regularizer()
+        ret = sum([x.regularizer() for x in self.splitted_models()])
         if not isinstance(ret, ad.ADF):
             ret = ad.adnumber(ret)
         return ret
-
-    def reset_derivatives(self):
-        for m in self._models:
-            m.reset_derivatives()
 
     def __getitem__(self, coords):
         a, cc = coords
@@ -278,15 +266,18 @@ class SMCTwoPopulationModel(Observable, Observer):
 
     def __setitem__(self, coords, x):
         a, cc = coords
+        # This will generate 'model updated' messages in the submodels.
         self._models[a][cc] = x
 
 def _concat_models(m1, m2, t):
-    ip = np.searchsorted(m1._knots, t, side="right")
-    nk = np.insert(m1._knots, ip, t)
-    ny = np.zeros_like(nk)
+    # ip = np.searchsorted(m1._knots, t, side="right")
+    ip = np.argmin(np.abs(m1._knots - t))
+    nk = m1._knots.copy()
+    nk[ip] = t
+    ny = np.zeros_like(m2[:])
     ny[:ip] = m2[:ip]
     ny[ip] = ad.admath.log(m1(t).item())
-    ny[ip + 1:] = m1[ip:]
+    ny[ip + 1:] = m1[ip + 1:]
     ret = SMCModel(m1.s, nk, m1._spline_class)
     ret[:] = ny
     return ret

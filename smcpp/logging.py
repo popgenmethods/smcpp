@@ -7,10 +7,10 @@ import wrapt
 from logging import INFO, ERROR, WARNING, DEBUG, NOTSET, CRITICAL
 
 def getLogger(name):
-    if multiprocessing.current_process().name == "MainProcess":
-        return logging.getLogger(name)
-    else:
-        return multiprocessing.get_logger()
+    return logging.getLogger(name)
+    # if multiprocessing.current_process().name == "MainProcess":
+    # else:
+        # return multiprocessing.get_logger()
 
 def setup_logging(verbosity, debug_log=None):
     root = logging.getLogger()
@@ -21,13 +21,3 @@ def setup_logging(verbosity, debug_log=None):
         fh.setLevel(DEBUG)
         fh.setFormatter(sh.formatter)
         root.addHandler(fh)
-
-def log_step(entrance_msg, exit_msg):
-    @wrapt.decorator
-    def wrapper(wrapped, instance, args, kwargs):
-        logger = wrapped.__globals__['logger']
-        logger.info(entrance_msg)
-        ret = wrapped(*args, **kwargs)
-        logger.info(exit_msg)
-        return ret
-    return wrapper

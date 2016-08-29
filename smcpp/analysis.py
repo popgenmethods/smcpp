@@ -5,21 +5,27 @@ import sys
 import os.path
 import scipy.optimize
 import ad
+import multiprocessing as mp
+from concurrent.futures import ThreadPoolExecutor, wait, as_completed
+from multiprocessing.managers import BaseManager, NamespaceProxy
 
 from . import estimation_tools, _smcpp, util, logging, optimizer, jcsfs, spline
 from .contig import Contig
 from .model import SMCModel, SMCTwoPopulationModel
+from .observe import Observer, targets
 
 logger = logging.getLogger(__name__)
 
 
-class Analysis:
+class Analysis(Observer):
     '''A dataset, model and inference manager to be used for estimation.'''
     def __init__(self, files, args):
+        Observer.__init__(self)
         # Misc. parameter initialiations
         self._N0 = args.N0
         self._penalty = args.regularization_penalty
         self._niter = args.em_iterations
+        self._mp_ctx = mp.get_context('forkserver')
 
         # Data-related stuff
         self._load_data(files)
@@ -157,6 +163,15 @@ class Analysis:
                 SMCModel(time_points, knots, spline_class),
                 SMCModel(time_points, knots, spline_class),
                 split)
+        self._model.register(self)
+
+    @targets("model update")
+    def update(self, message, *args, **kwargs):
+        self._update_models()
+
+    def _update_models(self):
+        for im, f in self._model_updaters:
+            im.setModel(f())
 
     def _init_hidden_states(self, initial_model, M):
         cls_d = {cls.__name__: cls for cls in (SMCModel, SMCTwoPopulationModel)}
@@ -222,14 +237,23 @@ class Analysis:
         ## Create inference object which will be used for all further calculations.
         logger.debug("Creating inference manager...")
         self._ims = {}
+        self._model_updaters = []
+        self._smc_manager = SMCManager(ctx=self._mp_ctx)
+        self._smc_manager.start()
+        def f():
+            return self.model
+        def f1():
+            return self.model.splitted_models()[0]
+        def f2():
+            return self.model.splitted_models()[1]
         if self._npop == 1:
             n = max(c.n[0] for c in self._contigs)
             k = (n, None)
-            im = _smcpp.PyOnePopInferenceManager(n, self._data, self._hidden_states)
+            im = self._smc_manager.PyOnePopInferenceManager(n, self._data, self._hidden_states)
             self._ims[k] = im
-            im.model = self.model
-            im.theta = self._theta
-            im.rho = self._rho
+            self._model_updaters.append((im, f))
+            im.setTheta(self._theta)
+            im.setRho(self._rho)
         elif self._npop == 2:
             contig_d = {}
             pop1 = True
@@ -237,29 +261,37 @@ class Analysis:
                 if c.npop == 1:
                     assert c.a[0] == 2
                     if pop1:
-                        k = ((2, c.n[0]), None)
+                        k = (2, None)
                     else:
-                        k = (None, (2, c.n[0]))
+                        k = (None, 2)
                 else:
                     pop1 = False
-                    k = (tuple(c.n), tuple(c.a))
+                    k = tuple(c.a)
                 contig_d.setdefault(k, []).append(c)
             for k in contig_d:
-                data = [c.data for c in contig_d[k]]
+                contigs = contig_d[k]
+                logger.debug(k)
+                data = [c.data for c in contigs]
                 if None in k:  # one population case
-                    n = k[0][1] if k[1] is None else k[1][1]
-                    im = _smcpp.PyOnePopInferenceManager(n, data, self._hidden_states)
-                    im.model = self.model.model1 if k[1] is None else self.model.model2
+                    n = max(c.n for c in contigs)
+                    im = self._smc_manager.PyOnePopInferenceManager(n, data, self._hidden_states)
+                    if k[1] is None:
+                        t = (im, f1)
+                    else:
+                        t = (im, f2)
                 else:
-                    im = _smcpp.PyTwoPopInferenceManager(k[0][0], k[0][1],
-                            k[1][0], k[1][1], data, self._hidden_states)
-                    im.model = self.model
-                im.theta = self._theta
-                im.rho = self._rho
+                    n = np.max([c.n for c in contigs], axis=0)
+                    im = self._smc_manager.PyTwoPopInferenceManager(n[0], n[1], k[0], k[1], data, self._hidden_states)
+                    t = (im, f)
+                self._model_updaters.append(t)
+                logger.debug(n)
+                im.setTheta(self._theta)
+                im.setRho(self._rho)
                 self._ims[k] = im
         else:
             logger.error("Only 1 or 2 populations are supported at this time")
             sys.exit(1)
+        self._update_models()
 
     def _init_optimizer(self, args, files, outdir, block_size,
             fix_rho, fixed_split, algorithm, tolerance):
@@ -288,8 +320,6 @@ class Analysis:
         return [c.data for c in self._contigs]
     ## END OF PRIVATE FUNCTIONS
 
-    ## PUBLIC INTERFACE
-    @logging.log_step("Running optimizer...", "Optimization completed.")
     def run(self):
         'Perform the analysis.'
         self._optimizer.run(self._niter)
@@ -298,23 +328,41 @@ class Analysis:
         'Value of Q() function in M-step.'
         # q1, q2, q3 = self._im.Q(True)
         qq = 0.
-        for na in self._ims:
-            logger.debug(na)
-            qq += self._ims[na].Q()
+        td = {d.tag: d for d in self.model.dlist if d.tag is not None}
+        with ThreadPoolExecutor() as executor:
+            futures = []
+            for na in self._ims:
+                futures.append(executor.submit(self._ims[na].Q))
+            for x in as_completed(futures):
+                q = x.result()
+                d = q.d()
+                # Match proxied tags with our tags
+                d.update({td[dd.tag]: d[dd] for dd in d if dd.tag is not None})
+                qq += q
         qr = -self._penalty * self.model.regularizer()
         logger.debug(("im.Q", float(qq), [qq.d(x) for x in self.model.dlist]))
         logger.debug(("reg", float(qr), [qr.d(x) for x in self.model.dlist]))
         return qq + qr
 
-    @logging.log_step("Running E-step...", "E-step completed.")
     def E_step(self):
         'Perform E-step.'
-        for im in self._ims.values():
-            im.E_step()
+        logger.info('Running E-step')
+        with ThreadPoolExecutor() as executor:
+            futures = []
+            for na in self._ims:
+                futures.append(executor.submit(self._ims[na].E_step()))
+            wait(futures)
+        logger.info('E-step completed')
 
     def loglik(self):
         'Log-likelihood of data after most recent E-step.'
-        ll = sum(im.loglik() for im in self._ims.values())
+        ll = 0
+        with ThreadPoolExecutor() as executor:
+            futures = []
+            for na in self._ims:
+                futures.append(executor.submit(self._ims[na].loglik))
+            for x in as_completed(futures):
+                ll += x.result()
         return ll - self._penalty * float(self.model.regularizer())
 
     @property
@@ -342,10 +390,20 @@ class Analysis:
     def rho(self, r):
         self._rho = r
         for im in self._ims.values():
-            im.rho = r
+            im.setRho(r)
 
     def dump(self, filename):
         'Dump result of this analysis to :filename:.'
         d = {'N0': self._N0, 'theta': self._theta, 'rho': self._rho}
         d['model'] = self.model.to_dict()
         json.dump(d, open(filename + ".json", "wt"), sort_keys=True, indent=4)
+
+
+class SMCManager(BaseManager):
+    pass
+
+_exposed = ["Q", "E_step", "loglik"]
+_exposed += [x + y for x in ["get", "set"] for y in ["Model", "Rho", "Theta", "Xisums"]]
+for i in ["One", "Two"]:
+    m = "Py" + i + "PopInferenceManager"
+    SMCManager.register(m, getattr(_smcpp, m), exposed=_exposed)

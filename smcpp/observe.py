@@ -5,7 +5,7 @@ import wrapt
 
 # Decorator to target specific messages.
 def targets(target_messages):
-    if isinstance(target_messages, basestring):
+    if isinstance(target_messages, str):
         target_messages = [target_messages]
     @wrapt.decorator
     def wrapper(wrapped, instance, args, kwargs):
@@ -42,3 +42,9 @@ class Observable(object):
     def update_observers(self, *args, **kwargs):
         for observer in self.observers:
             observer.update(*args, **kwargs)
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        # Do not try to pickle observers.
+        del state['observers']
+        return state

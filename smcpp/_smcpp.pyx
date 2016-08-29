@@ -14,7 +14,6 @@ from appdirs import AppDirs
 from ad import adnumber, ADF
 
 from . import logging, version
-from .observe import Observer, targets
 
 logger = logging.getLogger(__name__)
 logger.debug("SMC++ " + version.__version__)
@@ -27,7 +26,7 @@ def _init_cache():
         os.makedirs(dirs.user_cache_dir)
     except OSError:
         pass
-    init_cache(os.path.join(dirs.user_cache_dir, "matrices.dat"))
+    init_cache(os.path.join(dirs.user_cache_dir, "matrices.dat").encode("UTF-8"))
 _init_cache()
 
 abort = False
@@ -116,7 +115,7 @@ cdef _store_admatrix_helper(Matrix[adouble] &mat, dlist):
 
 cdef class _PyInferenceManager:
     cdef int _num_hmms
-    cdef object _observations, _model, _theta, _rho
+    cdef object _dlist, _observations, _theta, _rho
     cdef public long long seed
     cdef vector[double] _hs
     cdef vector[int] _Ls
@@ -157,6 +156,12 @@ cdef class _PyInferenceManager:
         def __get__(self):
             return self._observations
 
+    def getTheta(self):
+        return self.theta
+
+    def setTheta(self, theta):
+        self.theta = theta
+
     property theta:
         def __get__(self):
             return self._theta
@@ -164,6 +169,12 @@ cdef class _PyInferenceManager:
         def __set__(self, theta):
             self._theta = theta
             self._im.setTheta(theta)
+
+    def getRho(self):
+        return self.rho
+
+    def setRho(self, rho):
+        self.rho = rho
 
     property rho:
         def __get__(self):
@@ -173,19 +184,24 @@ cdef class _PyInferenceManager:
             self._rho = rho
             self._im.setRho(rho)
 
-
     def E_step(self, forward_backward_only=False):
         cdef bool fbOnly = forward_backward_only
         with nogil:
             self._im.Estep(fbOnly)
         _check_abort()
 
-    property model:
-        def __get__(self):
-            return self._model
-        def __set__(self, model):
-            self._model = model
-            self._model.register(self)
+    def setModel(self, m):
+        self._dlist = m.dlist
+        self._update_model(m)
+
+    # def getModel(self):
+    #     return self.model
+
+    # property model:
+    #     def __get__(self):
+    #         return self.getModel()
+    #     def __set__(self, m):
+    #         self.setModel(m)
 
     property save_gamma:
         def __get__(self):
@@ -211,7 +227,7 @@ cdef class _PyInferenceManager:
                 M = deref(it).second.size()
                 v = np.zeros(M, dtype=object)
                 for i in range(M):
-                    v[i] = _adouble_to_ad(deref(it).second(i), self._model.dlist)
+                    v[i] = _adouble_to_ad(deref(it).second(i), self._dlist)
                 ret[tuple(bk)] = v
                 inc(it)
             return ret
@@ -245,21 +261,24 @@ cdef class _PyInferenceManager:
         def __get__(self):
             return _make_em_matrix(self._im.getGammas())
 
+    def getXisums(self):
+        return self.xisums
+
     property xisums:
         def __get__(self):
             return _make_em_matrix(self._im.getXisums())
 
     property pi:
         def __get__(self):
-            return _store_admatrix_helper(self._im.getPi(), self._model.dlist)
+            return _store_admatrix_helper(self._im.getPi(), self._dlist)
 
     property transition:
         def __get__(self):
-            return _store_admatrix_helper(self._im.getTransition(), self._model.dlist)
+            return _store_admatrix_helper(self._im.getTransition(), self._dlist)
 
     property emission:
         def __get__(self):
-            return _store_admatrix_helper(self._im.getEmission(), self._model.dlist)
+            return _store_admatrix_helper(self._im.getEmission(), self._dlist)
 
     def Q(self, separate=False):
         cdef vector[adouble] ad_rets
@@ -269,19 +288,19 @@ cdef class _PyInferenceManager:
         cdef int i
         cdef adouble q
         q = ad_rets[0]
-        q1 = _adouble_to_ad(ad_rets[0], self._model.dlist)
+        q1 = _adouble_to_ad(ad_rets[0], self._dlist)
         qq = [q1]
-        logger.debug(("q1", q1, [q1.d(x) for x in self._model.dlist]))
+        logger.debug(("q1", q1, [q1.d(x) for x in self._dlist]))
         for i in range(1, 3):
-            z = _adouble_to_ad(ad_rets[i], self._model.dlist)
+            z = _adouble_to_ad(ad_rets[i], self._dlist)
             qq.append(z)
             q += ad_rets[i]
-            logger.debug(("q%d" % (i + 1), z, [z.d(x) for x in self._model.dlist]))
+            logger.debug(("q%d" % (i + 1), z, [z.d(x) for x in self._dlist]))
         if separate:
             return qq
         r = adnumber(toDouble(q))
-        if self._model.dlist:
-            r = _adouble_to_ad(q, self._model.dlist)
+        if self._dlist:
+            r = _adouble_to_ad(q, self._dlist)
         return r
 
     def loglik(self):
@@ -299,10 +318,8 @@ cdef class PyOnePopInferenceManager(_PyInferenceManager):
         with nogil:
             self._im = new OnePopInferenceManager(n, self._Ls, self._obs_ptrs, self._hs, binning)
 
-    # Technically should inherit from Observer, but cdef classes can't.
-    @targets("model update")
-    def update(self, message, *args, **kwargs):
-        cdef ParameterVector params = make_params_from_model(self.model)
+    def _update_model(self, m):
+        cdef ParameterVector params = make_params_from_model(m)
         with nogil:
             self._im.setParams(params)
 
@@ -319,13 +336,11 @@ cdef class PyTwoPopInferenceManager(_PyInferenceManager):
             self._im = self._im2
 
     # Technically should inherit from Observer, but cdef classes can't.
-    @targets("model update")
-    def update(self, message, *args, **kwargs):
-        model = self.model
-        ms = model.splitted_models()
-        cdef ParameterVector params1 = make_params(ms[0].stepwise_values(), ms[0].s, model.dlist)
-        cdef ParameterVector params2 = make_params(ms[1].stepwise_values(), ms[1].s, model.dlist)
-        cdef double split = model.split
+    def _update_model(self, m):
+        ms = m.splitted_models()
+        cdef ParameterVector params1 = make_params(ms[0].stepwise_values(), ms[0].s, m.dlist)
+        cdef ParameterVector params2 = make_params(ms[1].stepwise_values(), ms[1].s, m.dlist)
+        cdef double split = m.split
         with nogil:
             self._im2.setParams(params1, params2, split)
 
