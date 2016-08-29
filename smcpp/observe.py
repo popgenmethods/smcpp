@@ -5,7 +5,7 @@ import wrapt
 
 # Decorator to target specific messages.
 def targets(target_messages):
-    if isinstance(target_messages, basestring):
+    if isinstance(target_messages, str):
         target_messages = [target_messages]
     @wrapt.decorator
     def wrapper(wrapped, instance, args, kwargs):

@@ -58,8 +58,7 @@ class AbstractOptimizer(Observable):
     def _f(self, x, analysis, coords, k=None):
         logger.debug(x.astype('float'))
         x = self._prepare_x(x)
-        analysis.model.reset_derivatives()
-        analysis.model[coords] = x
+        analysis.update_coords(coords, x)
         q = -analysis.Q(k)
         ret = [q.x, np.array(list(map(q.d, x)))]
         return ret
@@ -82,7 +81,6 @@ class AbstractOptimizer(Observable):
 
     def run(self, niter):
         self.update_observers('begin')
-        model = self._analysis.model
         try:
             for i in range(niter):
                 # Perform E-step
@@ -96,9 +94,9 @@ class AbstractOptimizer(Observable):
                 for coords in coord_list:
                     self.update_observers('M step', coords=coords, **kwargs)
                     bounds = self._bounds(coords)
-                    x0 = model[coords]
+                    x0 = self._analysis.model[coords]
                     res = self._minimize(x0, coords, bounds)
-                    model[coords] = res.x
+                    self._analysis.update_coords(coords, res.x)
                     self.update_observers('post mini M-step',
                                           coords=coords,
                                           res=res, **kwargs)
@@ -122,7 +120,7 @@ class HiddenStateOccupancyPrinter(Observer):
     @targets("post E-step")
     def update(self, message, *args, **kwargs):
         hso = np.sum(
-                [np.sum(im.xisums, axis=(0, 1))
+                [np.sum(im.getXisums(), axis=(0, 1))
                     for im in kwargs['analysis']._ims.values()], axis=0)
         hso /= hso.sum()
         logger.debug("hidden state occupancy:\n%s",

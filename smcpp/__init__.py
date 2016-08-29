@@ -32,7 +32,7 @@ def init_logging():
 
 
 init_logging()
-logging.getLogger(__name__).info("SMC++ " + __version__)
+# logging.getLogger(__name__).info("SMC++ " + __version__)
 
 # Apply a monkeypatch to ad to prevent the O(k^2) computation of 2nd derivatives
 def _my_apply_chain_rule(ad_funcs, variables, lc_wrt_args, qc_wrt_args,

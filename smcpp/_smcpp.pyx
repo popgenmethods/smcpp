@@ -27,7 +27,7 @@ def _init_cache():
         os.makedirs(dirs.user_cache_dir)
     except OSError:
         pass
-    init_cache(os.path.join(dirs.user_cache_dir, "matrices.dat"))
+    init_cache(os.path.join(dirs.user_cache_dir, "matrices.dat").encode("UTF-8"))
 _init_cache()
 
 abort = False
@@ -157,6 +157,12 @@ cdef class _PyInferenceManager:
         def __get__(self):
             return self._observations
 
+    def getTheta(self):
+        return self.theta
+
+    def setTheta(self, theta):
+        self.theta = theta
+
     property theta:
         def __get__(self):
             return self._theta
@@ -164,6 +170,12 @@ cdef class _PyInferenceManager:
         def __set__(self, theta):
             self._theta = theta
             self._im.setTheta(theta)
+
+    def getRho(self):
+        return self.rho
+
+    def setRho(self, rho):
+        self.rho = rho
 
     property rho:
         def __get__(self):
@@ -179,6 +191,13 @@ cdef class _PyInferenceManager:
         with nogil:
             self._im.Estep(fbOnly)
         _check_abort()
+
+    def setModel(self, m):
+        self.model = m
+        self.update("model update")
+
+    def getModel(self):
+        return self.model
 
     property model:
         def __get__(self):
@@ -244,6 +263,9 @@ cdef class _PyInferenceManager:
     property gammas:
         def __get__(self):
             return _make_em_matrix(self._im.getGammas())
+
+    def getXisums(self):
+        return self.xisums
 
     property xisums:
         def __get__(self):
