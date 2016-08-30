@@ -417,7 +417,7 @@ class SplitAnalysis(BaseAnalysis):
         m1 = _model_cls_d[d['model']['class']].from_dict(d['model'])
         d = json.load(open(pop2, "rt"))
         m2 = _model_cls_d[d['model']['class']].from_dict(d['model'])
-        self._model = SMCTwoPopulationModel(m1, m2, np.sum(m1.s))
+        self._model = SMCTwoPopulationModel(m1, m2, np.sum(m1.s) * 0.5)
         self._model.register(self)
 
 class SMCManager(BaseManager):
