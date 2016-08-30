@@ -11,6 +11,7 @@ def init_parser_class(parser_module, parser):
 
 CMDS = [
         ('estimate', commands.estimate, 'Fit SMC++ to data'),
+        ('split', commands.split, 'Estimate split time in two population model'),
         ('plot', commands.plot, 'Plot size history from fitted model'),
         ('posterior', commands.posterior, 'Plot posterior decoding for a region'),
         ('vcf2smc', commands.vcf2smc, 'Convert VCF to SMC++ format'),

@@ -9,7 +9,7 @@ from .. import util, plotting, model
 
 def init_parser(parser):
     parser.add_argument("-g", nargs="+", type=float, help="Plot x-axis in years assuming generation time(s) of g")
-    parser.add_argument("-s", "--step-function", action="store_true",
+    parser.add_argument("-s", "--step-function", action="store_true", 
             help="Plot the step function used to represent the spline instead of spline itself.")
     parser.add_argument("--logy", action="store_true", help="ploy y on log axis")
     parser.add_argument("-t", "--offsets", type=float, nargs="+", 

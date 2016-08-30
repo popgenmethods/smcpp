@@ -35,7 +35,6 @@ class PiecewiseModel(Observable):
                 pass
         return ret
 
-
 class OldStyleModel(PiecewiseModel):
     def __init__(self, a, b, s):
         assert b[-1] == a[-1]

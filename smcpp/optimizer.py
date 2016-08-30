@@ -401,3 +401,7 @@ class TwoPopulationOptimizer(SMCPPOptimizer):
 
     def _bounds(self, coords):
         return SMCPPOptimizer._bounds(self, coords[1])
+
+class SplitOptimizer(SMCPPOptimizer):
+    def _coordinates(self):
+        return []

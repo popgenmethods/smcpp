@@ -116,7 +116,7 @@ def test_vs_momi_together(model1, model2):
     import momi, momi.demography
     n1 = 7
     n2 = 5
-    split = 1.0
+    split = .02
 
     # Conditioned version
     model = smcpp.model.SMCTwoPopulationModel(model1, model2, split)
@@ -157,9 +157,9 @@ def test_vs_momi_together(model1, model2):
 
 def test_vs_momi_apart(model1, model2):
     import momi, momi.demography
-    n1 = 5
-    n2 = 5
-    split = 1.0
+    n1 = 15
+    n2 = 17
+    split = .1
 
     # Conditioned version
     model = smcpp.model.SMCTwoPopulationModel(model1, model2, split)

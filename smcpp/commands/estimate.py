@@ -49,10 +49,6 @@ def init_parser(parser):
                      help="number of EM steps to perform", default=10)
     optimizer.add_argument('--algorithm', choices=["L-BFGS-B", "TNC"],
             default="L-BFGS-B", help=argparse.SUPPRESS)
-    optimizer.add_argument('--fixed-split', type=float,
-                           help="instead of estimating split time, fix it to this value. (two-population models only.)")
-    optimizer.add_argument("--fix-rho", default=False, action="store_true",
-                           help="do not estimate recombination rate from data")
     optimizer.add_argument('--block-size', type=int, default=3,
                            help="number of blocks to optimizer at a time for coordinate ascent")
     optimizer.add_argument('--regularization-penalty', "-p",
@@ -71,13 +67,12 @@ def init_parser(parser):
     pop_params.add_argument('--theta', type=float,
                             help="population-scaled mutation rate. default: Watterson's estimator.")
     pop_params.add_argument('--rho', type=float,
-                            help="population-scaled mutation rate. default: theta.")
+                            help="fix recombination rate to this value. default: estimate from data.")
     # pop_params.add_argument("--folded", action="store_true", default=False,
     #                         help="use folded SFS for emission probabilites. "
     #                              "useful if polarization is not known.")
     hmm.add_argument('--length-cutoff',
                      help="omit sequences < cutoff", default=0, type=int)
-    parser.add_argument("--pdb", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("-o", "--outdir", help="output directory",
                         default=".", widget="DirChooser")
     parser.add_argument('-v', '--verbose', action='count', default=0,
@@ -96,9 +91,6 @@ def validate_args(args):
 
 
 def main(args):
-    if args.pdb:
-        from pudb import set_trace
-        sys.excepthook = lambda *args: set_trace()
     ## Create output directory
     try:
         os.makedirs(args.outdir)
