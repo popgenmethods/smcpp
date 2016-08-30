@@ -30,11 +30,9 @@ def plot_psfs(psfs, xlim, ylim, xlabel, logy=False):
     xmax = ymax = 0.
     xmin = np.inf
     labels = []
-    data = []
+    series = []
     npsf = sum(label != "None" for label, _, _ in psfs)
-    colors = list(matplotlib.cm.Dark2(np.linspace(0, 1, npsf)))
     for i, (label, d, off) in enumerate(psfs):
-        N0 = d['N0']
         if 'b' in d:
             a = d['a']
             s = d['s']
@@ -53,42 +51,42 @@ def plot_psfs(psfs, xlim, ylim, xlabel, logy=False):
             y = np.concatenate([y, [a[-1], a[-1]]])
             # if not logy:
             #     y *= 1e-3
-            data.append((label, x, y))
-            plotfun = ax.plot
+            series.append((label, x, y, ax.plot))
         elif 'model' in d:
-            m = model.SMCModel.from_dict(d['model'])
-            x = np.logspace(np.log10(m.s[0]), np.log10(m.s.sum()), 200)
-            y = m(x).astype('float')
-            # if not logy:
-            #     y *= 1e-3
-            data.append((label, x, y))
-            plotfun = ax.plot
-            x2, y2 = (m._knots, np.exp(m[:].astype('float')))
-            x2 *= 2. * d['N0']
-            y2 *= d['N0']
-            if d['g'] is not None:
-                x2 *= d['g']
-            ax.scatter(x2,y2)
+            cls = getattr(model, d['model']['class'])
+            m = cls.from_dict(d['model'])
+            if isinstance(m, model.SMCTwoPopulationModel):
+                ms = m.splitted_models()
+                labels = label.split(",")
+            else:
+                ms = [m]
+                labels = [label]
+            for m, l in zip(ms, labels):
+                x = np.logspace(np.log10(m.s[0]), np.log10(m.s.sum()), 200)
+                y = m(x).astype('float')
+                x2, y2 = (m._knots, np.exp(m[:].astype('float')))
+                # if not logy:
+                #     y *= 1e-3
+                series.append((l, x, y, ax.plot))
+                series.append((None, x2, y2, ax.scatter))
         else:
-            x = np.cumsum(s)
+            x = np.cumsum(d['s'])
             x = np.insert(x, 0, 0)[:-1]
-            y = a
-            def f(*args, **kwargs):
-                return ax.step(*args, where='post', **kwargs)
-            plotfun = f
-        x *= 2 * N0
-        y *= N0
-        # x *= 1. + (i - len(psfs)) / 50.
-        if d['g'] is not None:
-            x *= d['g']
-        x += off
+            y = d['a']
+            series.append((label, x, y, ax.step))
+    N0 = d['N0']
+    g = d.get('g', None) or 1
+    labels = []
+    for label, x, y, plotfun in series:
+        xp = 2 * N0 * g * x
+        yp = N0 * y
         if label is None:
-            plotfun(x, y, linewidth=2, color="black")
+            plotfun(xp, yp, linewidth=2, color="black")
         else:
-            labels += plotfun(x, y, label=label, color=colors.pop())
-        xmin = min(xmin, x[1] * 0.9)
-        ymax = max(ymax, np.max(y))
-        xmax = max(xmax, np.max(x))
+            labels += plotfun(xp, yp, label=label, linewidth=2)
+        xmin = min(xmin, xp[1] * 0.9)
+        ymax = max(ymax, np.max(yp))
+        xmax = max(xmax, np.max(xp))
     if labels:
         first_legend = ax.legend(handles=labels, loc=9, ncol=4, prop={'size':8})
     ax.set_xscale('log')
@@ -103,7 +101,7 @@ def plot_psfs(psfs, xlim, ylim, xlabel, logy=False):
     ax.set_xlim(*xlim)
     ax.set_ylim(*ylim)
     fig.tight_layout()
-    return fig, data
+    return fig
 
 def make_psfs(d):
     ret = {'fit': {'a': d['a'], 'b': d['b'], 's': d['s']},

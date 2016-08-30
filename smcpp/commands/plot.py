@@ -9,7 +9,8 @@ from .. import util, plotting, model
 
 def init_parser(parser):
     parser.add_argument("-g", nargs="+", type=float, help="Plot x-axis in years assuming generation time(s) of g")
-    parser.add_argument("-s", "--spline", action="store_true", help="Plot the underyling spline instead")
+    parser.add_argument("-s", "--step-function", action="store_true",
+            help="Plot the step function used to represent the spline instead of spline itself.")
     parser.add_argument("--logy", action="store_true", help="ploy y on log axis")
     parser.add_argument("-t", "--offsets", type=float, nargs="+", 
             help="list of offsets, one for each <model>, to shift x axes. Useful for plotting aDNA")
@@ -17,7 +18,6 @@ def init_parser(parser):
     parser.add_argument("-x", "--xlim", type=float, nargs=2, default=None, help="x-axis limits")
     parser.add_argument("-y", "--ylim", type=float, nargs=2, default=None, help="y-axis limits")
     parser.add_argument("-l", "--labels", type=str, help="label for each plotted function", nargs="+")
-    parser.add_argument("-c", "--csv", help="also write <plot.pdf.csv> containing data used to make plot", action="store_true", default=False)
     parser.add_argument("pdf", type=str, help="output PDF", metavar="plot.pdf", widget="FileChooser")
     parser.add_argument("model", type=str, help="SMC++ models to plot", nargs="+", widget="MultiFileChooser")
 
@@ -42,15 +42,15 @@ def main(args):
             sys.exit("File not found: %s" % fn)
         else:
             res = json.load(open(fn, "rt"))
-            if args.spline:
-                d = res
-            else:
+            if args.step_function:
                 mod = res['model']
                 klass = getattr(model, mod['class'])
                 m = klass.from_dict(mod)
                 a = m.stepwise_values().astype('float')
                 s = m.s
                 d = {'a': m.stepwise_values(), 's': m.s, 'N0': res['N0']}
+            else:
+                d = res
         d['g'] = g
         psfs.append((label, d, off or 0))
     if args.median:
@@ -58,11 +58,7 @@ def main(args):
         for x in "ab":
             dmed[x] = np.median([p[1][x] for p in psfs], axis=0)
         psfs.append((None, dmed, 0))
-    fig, data = plotting.plot_psfs(psfs, xlim=args.xlim, ylim=args.ylim,
+    fig = plotting.plot_psfs(psfs, xlim=args.xlim, ylim=args.ylim,
                                    xlabel="Generations" if args.g is None else "Years", 
                                    logy=args.logy) 
     plotting.save_pdf(fig, args.pdf)
-    if args.csv:
-        with open(args.pdf + ".csv", "wt") as f:
-            f.write("label,x,y\n")
-            f.write("\n".join(",".join((str(label), str(xx), str(yy))) for label, x, y in data for xx, yy in zip(x, y)))
