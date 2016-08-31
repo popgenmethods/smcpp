@@ -83,7 +83,7 @@ std::vector<Matrix<T> > OnePopConditionedSFS<T>::compute_above(const PiecewiseCo
 }
 
 template <typename T>
-std::vector<Matrix<T> > OnePopConditionedSFS<T>::compute(const PiecewiseConstantRateFunction<T> &eta) const
+std::vector<Matrix<T> > OnePopConditionedSFS<T>::compute(const PiecewiseConstantRateFunction<T> &eta)
 {
     DEBUG << "compute called";
     const int M = eta.getHiddenStates().size() - 1;

@@ -18,7 +18,7 @@ HMM::HMM(const int hmm_num, const Matrix<int> &obs, const InferenceBundle* ib) :
         gamma_sums.at(key) += span * uniform;
     }
     xisum.setZero();
-    gamma0 = uniform;
+    gamma0.setZero();
 }
 
 double HMM::loglik()

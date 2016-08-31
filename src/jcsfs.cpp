@@ -4,16 +4,52 @@
 #include "jcsfs.h"
 
 // Utility functions
-
-inline double scipy_stats_hypergeom_pmf(const int k, const int M, const int n, const int N)
+double hyp(const int k, const int M, const int n, const int N)
 {
-    // scipy.stats.hypergeom.pmf(k, M, n, N) = choose(n, k) * choose(M - n, N - k) 
-    // gsl_ran_hypergeometric_pdf(unsigned int k, unsigned int n1, unsigned int n2, unsigned int t) = C(n_1, k) C(n_2, t - k) / C(n_1 + n_2, t)
-    const int gsl_n1 = n;
-    const int gsl_k = k;
-    const int gsl_n2 = M - n;
-    const int gsl_t = N;
-    return gsl_ran_hypergeometric_pdf(gsl_k, gsl_n1, gsl_n2, gsl_t);
+   // scipy.stats.hypergeom.pmf(k, M, n, N) = choose(n, k) * choose(M - n, N - k)
+   // gsl_ran_hypergeometric_pdf(unsigned int k, unsigned int n1, unsigned int n2, unsigned int t) = C(n_1, k) C(n_2, t - k) / C(
+   const int gsl_n1 = n;
+   const int gsl_k = k;
+   const int gsl_n2 = M - n;
+   const int gsl_t = N;
+   return gsl_ran_hypergeometric_pdf(gsl_k, gsl_n1, gsl_n2, gsl_t);
+}
+
+template <typename T>
+Matrix<double> JointCSFS<T>::make_hyp1()
+{
+    Matrix<double> ret(n1 + 1, n1 + n2 + 1);
+    ret.setZero();
+    for (int b1 = 0; b1 <= n1; ++b1)
+        for (int b2 = 0; b2 <= n2; ++b2)
+            for (int nseg = 0; nseg <= n1 + n2; ++nseg)
+                for (int np1 = std::max(nseg - n2, 0); np1 <= std::min(nseg, n1); ++np1)
+                    ret(np1, nseg) = hyp(np1, n1 + n2, nseg, n1);
+    return ret;
+}
+
+template <typename T>
+Matrix<double> JointCSFS<T>::make_hyp2()
+{
+    Matrix<double> ret(n1 + 2, n1 + n2);
+    ret.setZero();
+    for (int b1 = 0; b1 <= n1; ++b1)
+        for (int b2 = 0; b2 <= n2; ++b2)
+            for (int nseg = 1; nseg <= n1 + n2; ++nseg)
+                for (int np1 = std::max(nseg - n2, 0); np1 <= std::min(nseg, n1 + 1); ++np1)
+                    ret(np1, nseg - 1) = hyp(np1, n1 + n2 + 1, nseg, n1 + 1);
+    return ret;
+}
+
+template <typename T>
+double JointCSFS<T>::scipy_stats_hypergeom_pmf(const int k, const int M, const int n, const int N)
+{
+    if (M == n1 + n2)
+        return hyp1(k, n);
+    else if (M == n1 + n2 + 1)
+        return hyp2(k, n - 1);
+    else
+        throw std::runtime_error("bad hyp");
 }
 
 template <typename T>
@@ -83,30 +119,40 @@ void JointCSFS<T>::jcsfs_helper_tau_below_split(const int m,
     eMn10_avg.fill(eta1_shift.zero());
     eMn12_avg.fill(eta1_shift.zero());
     std::mt19937 gen;
+    const T cRts1 = Rts1;
+#pragma omp parallel for
     for (int k = 0; k < K; ++k)
     {
         // FIXME do something with seeding.
         T t = eta.random_time(1., t1, t2, gen);
         T Rt = eta.R(t);
-        Matrix<T> A = togetherM.Mn1p1.expM(Rts1 - Rt);
+        Matrix<T> A = togetherM.Mn1p1.expM(cRts1 - Rt);
         Matrix<T> B = togetherM.Mn10.expM(Rt);
         Matrix<T> C = togetherM.Mn12.expM(Rt);
-        eMn10_avg += (A * S0.template cast<T>().asDiagonal()).leftCols(n1 + 1) * B;
-        eMn12_avg += (A * S2.template cast<T>().asDiagonal()).rightCols(n1 + 1) * C;
+        Matrix<T> Mn10 = (A * S0.template cast<T>().asDiagonal()).leftCols(n1 + 1) * B;
+        Matrix<T> Mn12 = (A * S2.template cast<T>().asDiagonal()).rightCols(n1 + 1) * C;
+#pragma omp critical(add_Emn)
+        {
+            eMn10_avg += Mn10;
+            eMn12_avg += Mn12;
+        }
+        /*
         Matrix<double> eMn10_d = eMn10_avg.template cast<double>();
         Matrix<double> eMn12_d = eMn12_avg.template cast<double>();
         if (eMn10_d.minCoeff() < -1e-8)
             throw std::runtime_error("emn10 is wrong");
         if (eMn12_d.minCoeff() < -1e-8)
             throw std::runtime_error("emn12 is wrong");
+        */
     }
     eMn10_avg /= (double)K;
     eMn12_avg /= (double)K;
     // Now moran down
-    for (int b1 = 0; b1 < n1 + 1; ++b1)
-        for (int b2 = 0; b2 < n2 + 1; ++b2)
-            for (int nseg = 1; nseg < n1 + n2 + 1; ++nseg)
-                for (int np1 = std::max(nseg - n2, 0); np1 < std::min(nseg, n1 + 1) + 1; ++np1)
+#pragma omp parallel for collapse(2)
+    for (int b1 = 0; b1 <= n1; ++b1)
+        for (int b2 = 0; b2 <= n2; ++b2)
+            for (int nseg = 1; nseg <= n1 + n2; ++nseg)
+                for (int np1 = std::max(nseg - n2, 0); np1 <= std::min(nseg, n1 + 1); ++np1)
                 {
                     int np2 = nseg - np1;
                     double h = scipy_stats_hypergeom_pmf(np1, n1 + n2 + 1, nseg, n1 + 1);
@@ -132,6 +178,7 @@ void JointCSFS<T>::jcsfs_helper_tau_above_split(const int m,
     PiecewiseConstantRateFunction<T> shifted_eta1(shiftParams(params1, split), {t1 - split, t2 - split});
     Matrix<T> rsfs = csfs.at(n1 + n2).compute(shifted_eta1)[0];
 
+#pragma omp parallel for collapse(2)
     for (int b1 = 0; b1 < n1 + 1; ++b1)
         for (int b2 = 0; b2 < n2 + 1; ++b2)
             for (int nseg = 0; nseg < n1 + n2 + 1; ++nseg)
@@ -164,22 +211,8 @@ void JointCSFS<T>::jcsfs_helper_tau_above_split(const int m,
 }
 
 template <typename T>
-std::vector<Matrix<T> > JointCSFS<T>::compute(const PiecewiseConstantRateFunction<T>&) const
+std::vector<Matrix<T> > JointCSFS<T>::compute(const PiecewiseConstantRateFunction<T>&)
 {
-    return J;
-}
-
-
-// Public class methods
-template <typename T>
-void JointCSFS<T>::pre_compute(
-        const ParameterVector &params1, 
-        const ParameterVector &params2, 
-        double split)
-{
-    this->split = split;
-    this->params1 = params1;
-    this->params2 = params2;
     if (a1 == 1 and a2 == 1)
         pre_compute_apart();
     else if (a1 == 2 and a2 == 0)
@@ -201,6 +234,18 @@ void JointCSFS<T>::pre_compute(
         tensorRef(m, 0, 0, 0, 0) *= 0.;
         tensorRef(m, a1, n1, a2, n2) *= 0;
     }
+    return J;
+}
+
+
+// Public class methods
+template <typename T>
+void JointCSFS<T>::pre_compute(const ParameterVector &params1, 
+        const ParameterVector &params2, double split)
+{
+    this->split = split;
+    this->params1 = params1;
+    this->params2 = params2;
 }
 
 template <typename T>
@@ -277,7 +322,6 @@ void JointCSFS<T>::pre_compute_apart()
             double fac = (double)k / (double)(ni + 1);
             const T x1 = (1. - fac) * rsfs_below(k - 1);
             const T x2 = fac * rsfs_below(k - 1);
-#pragma omp parallel for
             for (int m = 0; m < M; ++m)
             // a1 and a2 cannot coalesce beneath the split so this part is
             // the same for all hidden states.

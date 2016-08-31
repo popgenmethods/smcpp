@@ -22,7 +22,7 @@ class ConditionedSFS
 {
     public:
     virtual ~ConditionedSFS() = default;
-    virtual std::vector<Matrix<T> > compute(const PiecewiseConstantRateFunction<T> &) const = 0;
+    virtual std::vector<Matrix<T> > compute(const PiecewiseConstantRateFunction<T> &) = 0;
 };
 
 template <typename T>
@@ -30,7 +30,7 @@ class OnePopConditionedSFS : public ConditionedSFS<T>
 {
     public:
     OnePopConditionedSFS(int);
-    std::vector<Matrix<T> > compute(const PiecewiseConstantRateFunction<T> &) const;
+    std::vector<Matrix<T> > compute(const PiecewiseConstantRateFunction<T> &);
 
     std::vector<Matrix<T> > compute_below(const PiecewiseConstantRateFunction<T> &) const;
     std::vector<Matrix<T> > compute_above(const PiecewiseConstantRateFunction<T> &) const;
@@ -48,7 +48,7 @@ class DummySFS : public ConditionedSFS<T>
     public:
     DummySFS(const int dim, const int M, const std::vector<double*> sfs) : dim(dim), M(M), precomputedSFS(storeSFS(sfs)) {}
 
-    std::vector<Matrix<T> > compute(const PiecewiseConstantRateFunction<T> &) const
+    std::vector<Matrix<T> > compute(const PiecewiseConstantRateFunction<T> &)
     {
         return precomputedSFS;
     }
