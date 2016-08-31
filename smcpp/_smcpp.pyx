@@ -115,14 +115,15 @@ cdef _store_admatrix_helper(Matrix[adouble] &mat, dlist):
 
 cdef class _PyInferenceManager:
     cdef int _num_hmms
-    cdef object _dlist, _observations, _theta, _rho
+    cdef object _dlist, _observations, _theta, _rho, _im_id
     cdef public long long seed
     cdef vector[double] _hs
     cdef vector[int] _Ls
     cdef InferenceManager* _im
     cdef vector[int*] _obs_ptrs
 
-    def __my_cinit__(self, observations, hidden_states):
+    def __my_cinit__(self, observations, hidden_states, im_id=None):
+        self._im_id = im_id
         self.seed = 1
         cdef int[:, ::1] vob
         if len(observations) == 0:
@@ -295,7 +296,7 @@ cdef class _PyInferenceManager:
             z = _adouble_to_ad(ad_rets[i], self._dlist)
             qq.append(z)
             q += ad_rets[i]
-            logger.debug(("q%d" % (i + 1), z, [z.d(x) for x in self._dlist]))
+            logger.debug(("im(%r).q%d" % (self._im_id, i + 1), z, [z.d(x) for x in self._dlist]))
         if separate:
             return qq
         r = adnumber(toDouble(q))
@@ -312,11 +313,11 @@ cdef class _PyInferenceManager:
 
 cdef class PyOnePopInferenceManager(_PyInferenceManager):
 
-    def __cinit__(self, int n, observations, hidden_states, bool binning=False):
+    def __cinit__(self, int n, observations, hidden_states, im_id):
         # This is needed because cinit cannot be inherited
-        self.__my_cinit__(observations, hidden_states)
+        self.__my_cinit__(observations, hidden_states, im_id)
         with nogil:
-            self._im = new OnePopInferenceManager(n, self._Ls, self._obs_ptrs, self._hs, binning)
+            self._im = new OnePopInferenceManager(n, self._Ls, self._obs_ptrs, self._hs, False)
 
     def _update_model(self, m):
         cdef ParameterVector params = make_params_from_model(m)
@@ -327,12 +328,12 @@ cdef class PyTwoPopInferenceManager(_PyInferenceManager):
 
     cdef TwoPopInferenceManager* _im2
 
-    def __cinit__(self, int n1, int n2, int a1, int a2, observations, hidden_states, bool binning=False):
+    def __cinit__(self, int n1, int n2, int a1, int a2, observations, hidden_states, im_id):
         # This is needed because cinit cannot be inherited
-        self.__my_cinit__(observations, hidden_states)
+        self.__my_cinit__(observations, hidden_states, im_id)
         assert (a1 == 2 and a2 == 0) or (a1 == a2 == 1)
         with nogil:
-            self._im2 = new TwoPopInferenceManager(n1, n2, a1, a2, self._Ls, self._obs_ptrs, self._hs, binning)
+            self._im2 = new TwoPopInferenceManager(n1, n2, a1, a2, self._Ls, self._obs_ptrs, self._hs, False)
             self._im = self._im2
 
     # Technically should inherit from Observer, but cdef classes can't.

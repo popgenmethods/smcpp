@@ -141,7 +141,7 @@ class BaseAnalysis(Observer):
         if self._npop == 1:
             n = max(c.n[0] for c in self._contigs)
             k = (n, None)
-            im = _smcpp.PyOnePopInferenceManager(n, self._data, self._hidden_states)
+            im = _smcpp.PyOnePopInferenceManager(n, self._data, self._hidden_states, k)
             self._ims[k] = im
             self._model_updaters.append((im, f))
             im.setTheta(self._theta)
@@ -166,14 +166,14 @@ class BaseAnalysis(Observer):
                 data = [c.data for c in contigs]
                 if None in k:  # one population case
                     n = max(c.n for c in contigs)
-                    im = _smcpp.PyOnePopInferenceManager(n, data, self._hidden_states)
+                    im = _smcpp.PyOnePopInferenceManager(n, data, self._hidden_states, k)
                     if k[1] is None:
                         t = (im, f1)
                     else:
                         t = (im, f2)
                 else:
                     n = np.max([c.n for c in contigs], axis=0)
-                    im = _smcpp.PyTwoPopInferenceManager(n[0], n[1], k[0], k[1], data, self._hidden_states)
+                    im = _smcpp.PyTwoPopInferenceManager(n[0], n[1], k[0], k[1], data, self._hidden_states, k)
                     t = (im, f)
                 self._model_updaters.append(t)
                 logger.debug(n)

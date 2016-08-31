@@ -371,7 +371,6 @@ void JointCSFS<T>::pre_compute_together()
     eMn1[1] = togetherM.Mn11.expM(Rts1);
     eMn1[2] = eMn1[0].reverse();
     eMn2 = togetherM.Mn2.expM(Rts2);
-#pragma omp parallel for
     for (int m = 0; m < M; ++m)
     {
         J[m].fill(eta1->zero());
