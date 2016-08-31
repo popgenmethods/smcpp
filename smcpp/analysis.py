@@ -296,19 +296,13 @@ class Analysis(BaseAnalysis):
         self._hidden_states = np.array([0., np.inf])
         self._init_inference_manager(False)
         self._init_optimizer(args, files, args.outdir, args.block_size,
-                args.rho, args.algorithm, args.tolerance)
+                args.algorithm, args.tolerance, learn_rho=False)
         self._optimizer.run(1)
 
         self._init_hidden_states(args.initial_model, args.M)
         self._init_inference_manager(False)
-
-        # TODO re-enable folded mode
-        # self._init_inference_manager(args.folded)
-
-        self._model.reset()
-        self._model.randomize()
         self._init_optimizer(args, files, args.outdir, args.block_size,
-                args.rho, args.algorithm, args.tolerance)
+                args.algorithm, args.tolerance, learn_rho=True)
 
     def _init_parameters(self, theta=None, rho=None):
         ## Set theta and rho to their default parameters
@@ -372,7 +366,7 @@ class Analysis(BaseAnalysis):
 
 
     def _init_optimizer(self, args, files, outdir, block_size,
-            rho, algorithm, tolerance):
+            algorithm, tolerance, learn_rho):
         if self._npop == 1:
             self._optimizer = optimizer.SMCPPOptimizer(self, algorithm, tolerance)
             # Also optimize knots in 1 pop case. Not yet implemented
@@ -384,7 +378,7 @@ class Analysis(BaseAnalysis):
             self._optimizer.register(optimizer.ParameterOptimizer("split", (0., smax), "model"))
         self._optimizer.block_size = block_size
         self._optimizer.register(optimizer.AnalysisSaver(outdir))
-        if not rho:
+        if learn_rho:
             self._optimizer.register(optimizer.ParameterOptimizer("rho", (1e-6, 1e-2)))
 
     ## END OF PRIVATE FUNCTIONS

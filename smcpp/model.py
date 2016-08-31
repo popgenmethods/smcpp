@@ -19,6 +19,9 @@ class PiecewiseModel(Observable):
     def stepwise_values(self):
         return self.a
 
+    def regularizer(self):
+        return (np.diff(self.a) ** 2).sum()
+
     def __getitem__(self, it):
         return self.a[it]
 
@@ -33,7 +36,7 @@ class PiecewiseModel(Observable):
                 ret += [d for d in yy.d() if d.tag is not None]
             except AttributeError:
                 pass
-        return ret
+        return list(set(ret))
 
 class OldStyleModel(PiecewiseModel):
     def __init__(self, a, b, s):
@@ -104,7 +107,6 @@ class SMCModel(Observable):
 
     def regularizer(self):
         ret = self._spline.roughness()
-        # ret = (np.diff(self[:], 2) ** 2).sum()
         ret += (self[:] ** 2).sum()
         # ret = (np.diff(np.sign(np.diff(self[:]))) ** 2).sum()
         if not isinstance(ret, ad.ADF):
@@ -270,13 +272,20 @@ class SMCTwoPopulationModel(Observable, Observer):
 
 def _concat_models(m1, m2, t):
     # ip = np.searchsorted(m1._knots, t, side="right")
-    ip = np.argmin(np.abs(m1._knots - t))
-    nk = m1._knots.copy()
-    nk[ip] = t
-    ny = np.zeros_like(m2[:])
-    ny[:ip] = m2[:ip]
-    ny[ip] = ad.admath.log(m1(t).item())
-    ny[ip + 1:] = m1[ip + 1:]
-    ret = SMCModel(m1.s, nk, m1._spline_class)
-    ret[:] = ny
-    return ret
+    # ip = np.argmin(np.abs(m1._knots - t))
+    # nk = m1._knots.copy()
+    # nk[ip] = t
+    # ny = np.zeros_like(m2[:])
+    # ny[:ip] = m2[:ip]
+    # ny[ip] = ad.admath.log(m1(t).item())
+    # ny[ip + 1:] = m1[ip + 1:]
+    # ret = SMCModel(m1.s, nk, m1._spline_class)
+    # ret[:] = ny
+    # return ret
+    cs = util.cumsum0(m1.s)
+    cs[-1] = np.inf
+    ip = np.searchsorted(cs, t)
+    sp = np.diff(np.insert(cs, ip, t))
+    sp[-1] = 1.
+    ap = np.concatenate([m1.stepwise_values()[:ip - 1], m1(t), m2.stepwise_values()[ip - 1:]])
+    return PiecewiseModel(ap, sp)
