@@ -40,7 +40,8 @@ InferenceManager::InferenceManager(
 {
     if (*std::min_element(hidden_states.begin(), hidden_states.end()) != 0.)
         throw std::runtime_error("first hidden interval should be [0, <something>)");
-    pi = Vector<adouble>::Zero(M);
+    // pi = Vector<adouble>::Zero(M);
+    recompute_initial_distribution();
     transition = Matrix<adouble>::Zero(M, M);
     transition.setZero();
     InferenceBundle *ibp = &ib;

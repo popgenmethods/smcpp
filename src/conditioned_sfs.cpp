@@ -117,8 +117,8 @@ std::vector<Matrix<T> > incorporate_theta(const std::vector<Matrix<T> > &csfs, d
             std::cout << theta << std::endl;
             throw;
         }
-        T tiny = tauh - tauh + 1e-20;
-        ret[i] = ret[i].unaryExpr([=](const T x) { if (x < 1e-20) return tiny; if (x < -1e-8) throw std::domain_error("very negative sfs"); return x; });
+        T tiny = tauh - tauh + 1e-10;
+        ret[i] = ret[i].unaryExpr([=](const T x) { if (x < 1e-10) return tiny; if (x < -1e-8) throw std::domain_error("very negative sfs"); return x; });
         CHECK_NAN(ret[i]);
         tauh = ret[i].sum();
         ret[i](0, 0) = 1. - tauh;

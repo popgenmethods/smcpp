@@ -6,7 +6,20 @@
 HMM::HMM(const int hmm_num, const Matrix<int> &obs, const InferenceBundle* ib) : 
     hmm_num(hmm_num), obs(obs), ib(ib), M(ib->pi->rows()), L(obs.rows()), ll(0.),
     alpha_hat(M, L), xisum(M, M), c(L)
-{}
+{
+    gamma_sums.clear();
+    Vector<double> uniform = ib->pi->template cast<double>();
+    for (int ell = 0; ell < L; ++ell)
+    {
+        int span = obs(ell, 0);
+        block_key key = ob_key(ell);
+        if (gamma_sums.count(key) == 0)
+            gamma_sums.emplace(key, Vector<double>::Zero(M));
+        gamma_sums.at(key) += span * uniform;
+    }
+    xisum.setZero();
+    gamma0 = uniform;
+}
 
 double HMM::loglik()
 {
