@@ -5,7 +5,7 @@ import sys
 import os.path
 import scipy.optimize
 import ad
-import multiprocessing as mp
+import multiprocessing.dummy as mp
 from concurrent.futures import ThreadPoolExecutor, wait, as_completed
 from multiprocessing.managers import BaseManager, NamespaceProxy
 
@@ -26,7 +26,7 @@ class BaseAnalysis(Observer):
         self._N0 = args.N0
         self._penalty = args.regularization_penalty
         self._niter = args.em_iterations
-        self._mp_ctx = mp.get_context('forkserver')
+        # self._mp_ctx = mp.get_context('forkserver')
 
         # Data-related stuff
         self._load_data(files)
@@ -130,8 +130,8 @@ class BaseAnalysis(Observer):
         logger.debug("Creating inference manager...")
         self._ims = {}
         self._model_updaters = []
-        self._smc_manager = SMCManager(ctx=self._mp_ctx)
-        self._smc_manager.start()
+        # self._smc_manager = SMCManager(ctx=self._mp_ctx)
+        # self._smc_manager.start()
         def f():
             return self.model
         def f1():
@@ -141,7 +141,7 @@ class BaseAnalysis(Observer):
         if self._npop == 1:
             n = max(c.n[0] for c in self._contigs)
             k = (n, None)
-            im = self._smc_manager.PyOnePopInferenceManager(n, self._data, self._hidden_states)
+            im = _smcpp.PyOnePopInferenceManager(n, self._data, self._hidden_states)
             self._ims[k] = im
             self._model_updaters.append((im, f))
             im.setTheta(self._theta)
@@ -166,14 +166,14 @@ class BaseAnalysis(Observer):
                 data = [c.data for c in contigs]
                 if None in k:  # one population case
                     n = max(c.n for c in contigs)
-                    im = self._smc_manager.PyOnePopInferenceManager(n, data, self._hidden_states)
+                    im = _smcpp.PyOnePopInferenceManager(n, data, self._hidden_states)
                     if k[1] is None:
                         t = (im, f1)
                     else:
                         t = (im, f2)
                 else:
                     n = np.max([c.n for c in contigs], axis=0)
-                    im = self._smc_manager.PyTwoPopInferenceManager(n[0], n[1], k[0], k[1], data, self._hidden_states)
+                    im = _smcpp.PyTwoPopInferenceManager(n[0], n[1], k[0], k[1], data, self._hidden_states)
                     t = (im, f)
                 self._model_updaters.append(t)
                 logger.debug(n)
@@ -184,6 +184,16 @@ class BaseAnalysis(Observer):
             logger.error("Only 1 or 2 populations are supported at this time")
             sys.exit(1)
         self._update_models()
+
+    def _init_bounds(self, Nmin):
+        ## Construct bounds
+        # P(seg) is at most theta * 2 * N_max / H_n << 1
+        # For now, just base bounds off of population 1.
+        sample_size = 2 + max(sum(c.n) for c in self._contigs)
+        Hn = np.log(sample_size)
+        Nmax = .1 / (2 * self._theta * Hn)
+        logger.debug("Nmax calculated to be %g" % Nmax)
+        self._bounds = (Nmin, Nmax)
 
     @property
     def _data(self):
@@ -217,7 +227,7 @@ class BaseAnalysis(Observer):
                 d.update({td[dd.tag]: d[dd] for dd in d if dd.tag is not None})
                 qq += q
         qr = -self._penalty * self.model.regularizer()
-        logger.debug(("im.Q", float(qq), [qq.d(x) for x in self.model.dlist]))
+        logger.debug(("Q", float(qq), [qq.d(x) for x in self.model.dlist]))
         logger.debug(("reg", float(qr), [qr.d(x) for x in self.model.dlist]))
         return qq + qr
 
@@ -227,7 +237,7 @@ class BaseAnalysis(Observer):
         with ThreadPoolExecutor() as executor:
             futures = []
             for na in self._ims:
-                futures.append(executor.submit(self._ims[na].E_step()))
+                futures.append(executor.submit(self._ims[na].E_step))
             wait(futures)
         logger.info('E-step completed')
 
@@ -282,11 +292,18 @@ class Analysis(BaseAnalysis):
         self._init_bounds(args.Nmin)
         self._init_model(args.pieces, args.N0, args.t1,
                 args.tK, args.offset, args.knots, args.spline)
+
+        self._hidden_states = np.array([0., np.inf])
+        self._init_inference_manager(False)
+        self._init_optimizer(args, files, args.outdir, args.block_size,
+                args.rho, args.algorithm, args.tolerance)
+        self._optimizer.run(1)
+
         self._init_hidden_states(args.initial_model, args.M)
+        self._init_inference_manager(False)
 
         # TODO re-enable folded mode
         # self._init_inference_manager(args.folded)
-        self._init_inference_manager(False)
 
         self._model.reset()
         self._model.randomize()
@@ -319,25 +336,6 @@ class Analysis(BaseAnalysis):
         self._rho = rho or self._theta
         assert np.all(np.isfinite([self._rho, self._theta]))
         logger.info("rho: %f", self._rho)
-
-    def _init_bounds(self, Nmin):
-        ## Construct bounds
-        # P(seg) is at most theta * 2 * N_max / H_n << 1
-        # For now, just base bounds off of population 1. 
-        sample_size = 2 + max(sum(c.n) for c in self._contigs)
-        Hn = np.log(sample_size)
-        Nmax = .1 / (2 * self._theta * Hn)
-        logger.debug("Nmax calculated to be %g" % Nmax)
-        self._bounds = (Nmin, Nmax)
-
-        # if not args.no_pretrain:
-        #     logger.info("Pretraining")
-        #     # pretrain if requested
-        #     self._pretrain_penalizer = functools.partial(estimation_tools.regularizer, 
-        #             penalty=args.pretrain_penalty, f=args.regularizer)
-        #     # self._pretrain_penalizer = self._penalizer
-        #     self._pretrain(theta, args.folded, args.pretrain_penalty)
-
 
     def _init_model(self, pieces, N0, t1, tK, offset, knots, spline_class):
         ## Initialize model
@@ -400,12 +398,15 @@ class SplitAnalysis(BaseAnalysis):
         BaseAnalysis.__init__(self, files, args)
         assert self._npop == 2
         self._init_model(args.pop1, args.pop2)
+        self._init_bounds(.001)
         self._init_hidden_states(args.pop1, args.M)
         self._init_inference_manager(False)
         self._init_optimizer(args, files, args.outdir, args.algorithm, args.tolerance)
 
     def _init_optimizer(self, args, files, outdir, algorithm, tolerance):
-        self._optimizer = optimizer.SplitOptimizer(self, algorithm, tolerance)
+        # self._optimizer = optimizer.SplitOptimizer(self, algorithm, tolerance)
+        self._optimizer = optimizer.TwoPopulationOptimizer(self, algorithm, tolerance)
+        self._optimizer.block_size = 3
         smax = np.sum(self._model.distinguished_model.s)
         self._optimizer.register(optimizer.ParameterOptimizer("split", (0., smax), "model"))
         self._optimizer.register(optimizer.AnalysisSaver(outdir))
@@ -419,12 +420,3 @@ class SplitAnalysis(BaseAnalysis):
         m2 = _model_cls_d[d['model']['class']].from_dict(d['model'])
         self._model = SMCTwoPopulationModel(m1, m2, np.sum(m1.s) * 0.5)
         self._model.register(self)
-
-class SMCManager(BaseManager):
-    pass
-
-_exposed = ["Q", "E_step", "loglik"]
-_exposed += [x + y for x in ["get", "set"] for y in ["Model", "Rho", "Theta", "Xisums"]]
-for i in ["One", "Two"]:
-    m = "Py" + i + "PopInferenceManager"
-    SMCManager.register(m, getattr(_smcpp, m), exposed=_exposed)

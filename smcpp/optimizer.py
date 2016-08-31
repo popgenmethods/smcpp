@@ -381,8 +381,7 @@ class SMCPPOptimizer(AbstractOptimizer):
             ret.append(list(range(b, min(model.K, b + self.block_size))))
         # After all coordinate-wise updates, optimize over whole function
         ret = ret[::-1]
-        # ret.append(list(range(model.K)))
-        # ret = ret[-1:]
+        ret.append(list(range(model.K)))
         return ret
 
     def _bounds(self, coords):
