@@ -195,9 +195,6 @@ class SMCTwoPopulationModel(Observable, Observer):
     def splitted_models(self):
         ret = [self.model1]
         ret.append(_concat_models(self.model1, self.model2, self.split))
-        if max(abs(ret[-1].stepwise_values().astype('float'))) > 100:
-            logger.error(ret[-1].stepwise_values().astype('float'))
-            raise RuntimeError('badness in split model')
         return ret
 
     @property
@@ -287,5 +284,5 @@ def _concat_models(m1, m2, t):
     ip = np.searchsorted(cs, t)
     sp = np.diff(np.insert(cs, ip, t))
     sp[-1] = 1.
-    ap = np.concatenate([m1.stepwise_values()[:ip - 1], m1(t), m2.stepwise_values()[ip - 1:]])
+    ap = np.concatenate([m2.stepwise_values()[:ip - 1], m1(t), m1.stepwise_values()[ip - 1:]])
     return PiecewiseModel(ap, sp)
