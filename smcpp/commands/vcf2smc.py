@@ -6,7 +6,7 @@ import numpy as np
 import sys
 from pysam import VariantFile, TabixFile
 import json
-from collections import Counter
+from collections import Counter, namedtuple
 import progressbar
 logger = getLogger(__name__)
 
@@ -15,28 +15,21 @@ from ..util import optional_gzip, RepeatingWriter
 from ..version import __version__
 
 
-def comma_separated_list(x):
-    return x.split(",")
+SampleList = namedtuple("SampleList", "pid samples")
 
 
-def comma_separated_fixed_list(lower, upper):
-    def f(x):
-        ret = comma_separated_list(x)
-        if not lower <= len(ret) <= upper:
-            raise argparse.ArgumentTypeError(
-                    "%r is not a comma-separated list of between %d and %d elements" %
-                    (x, lower, upper))
-        return ret
-    return f
+def sample_list(x):
+    try:
+        x1, x2 = x.split(":")
+        return SampleList(x1, x2.split(","))
+    except:
+        raise argparse.ArgumentTypeError(
+                "%r should be a comma-separated list of sample ids preceded by a "
+                "population identifier. See 'smc++ vcf2smc -h'." % x)
 
 
 def init_parser(parser):
-    parser.add_argument("--apart", "-a", action="store_true",
-            help="If specified, distinguished lineages will be pulled from "
-                 "from first sample in population 1 and second sample in population 2. "
-                 "This option only makes sense for phased data with two populations. "
-                 "(Default: both lineages from first sample in population 1.) ")
-    parser.add_argument("-i", type=int, default=0, help=argparse.SUPPRESS)
+    parser.add_argument("-d", nargs=2, help=argparse.SUPPRESS)
     parser.add_argument("--ignore-missing", default=False, action="store_true",
             help="ignore samples which are missing in the data")
     parser.add_argument("--missing-cutoff", "-c", metavar="c", type=int, default=None,
@@ -49,10 +42,11 @@ def init_parser(parser):
     parser.add_argument("out", metavar="out[.gz]",
             help="output SMC++ file", widget="FileChooser")
     parser.add_argument("contig", help="contig to parse")
-    parser.add_argument("pop1", type=comma_separated_list,
-            help="Comma-separated list of sample ids from population 1.")
-    parser.add_argument("pop2", type=comma_separated_list, nargs="?", default=[],
-            help="Comma-separated list of sample ids from population 2.")
+    parser.add_argument("pop1", type=sample_list,
+            help="List of sample ids from population 1. "
+                 "Format: <pop_id>:<sample_id_1>,<sample_id_2>,...,<sample_id_N>") 
+    parser.add_argument("pop2", type=sample_list, nargs="?", default=SampleList(None, []),
+            help="List of sample ids from population 2, in same format.")
 
 
 def validate(args):
@@ -65,39 +59,49 @@ def main(args):
     validate(args)
     for i in [1, 2]:
         attr = "pop%d" % i
-        ary = getattr(args, attr)
+        pid, ary = getattr(args, attr)
         if len(ary) == 1 and ary[0][0] == "@":
-            setattr(args, attr, open(ary[0][1:], "rt").read().strip().split("\n"))
-    for i, p in enumerate([args.pop1, args.pop2], 1):
-        if p:
-            c = Counter(p)
+            setattr(args, attr, SampleList(pid, open(ary[0][1:], "rt").read().strip().split("\n")))
+    pop_d = dict([args.pop1, args.pop2])
+    for pid in pop_d:
+        if pop_d[pid]:
+            c = Counter(pop_d[pid])
             if max(c.values()) > 1:
                 raise RuntimeError(
-                        "Pop %d has duplicated samples: %s" %
-                        (i, [item for item in c.items() if item[1] > 1]))
-    if args.apart:
-        if not args.pop2:
-            raise RuntimeError("--apart requires two populations")
-        dist = [[args.pop1[args.i]], [args.pop2[args.i]]]
-    else:
-        dist = [[args.pop1[args.i]] * 2, []]
-    undist = [args.pop1, args.pop2]
+                        "Population %s has duplicated samples: %s" %
+                        (pid, [item for item in c.items() if item[1] > 1]))
+    dist = [[], []]
+    if not args.d:
+        first_sid = args.pop1.samples[0]
+        args.d = [first_sid + ":0", first_sid + ":1"]
+    all_samples = set(args.pop1.samples) | set(args.pop2.samples)
+    for sid_i in args.d:
+        sid, i = sid_i.split(":")
+        i = int(i)
+        if sid not in all_samples:
+            raise RuntimeError("%s is not in the sample list" % sid)
+        if sid in args.pop1.samples:
+            d = dist[0]
+        else:
+            assert sid in args.pop2.samples
+            d = dist[1]
+        d.append((sid, i))
+    undist = [[(k, i) for k in p.samples for i in (0, 1) if (k, i) not in d]
+              for p, d in zip((args.pop1, args.pop2), dist)]
     npop = 1
-    logger.info("Population 1:")
-    logger.info("Distinguished lineages: " + 
-                ", ".join(["%s:%d" % c[::-1] for c in enumerate(dist[0], 1)]))
-    logger.info("Undistinguished samples: " + ", ".join(undist[0]))
-    if args.pop2:
+    def print_pop(i):
+        logger.info("Population %d:" % i)
+        logger.info("Distinguished lineages: " + ", ".join("%s:%d" % t for t in dist[i - 1]))
+        logger.info("Undistinguished lineages: " + ", ".join("%s:%d" % t for t in undist[i - 1]))
+    print_pop(1)
+    if args.pop2.pid is not None:
         npop = 2
-        common = set(args.pop1) & set(args.pop2)
+        common = set(args.pop1.samples) & set(args.pop2.samples)
         if common:
             logger.error("Populations 1 and 2 should be disjoint, "
                          "but both contain " + ", ".join(common))
             sys.exit(1)
-        logger.info("Population 2:")
-        logger.info("Distinguished lineages: " +
-                    ", ".join(["%s:%d" % c[::-1] for c in enumerate(dist[1], 1)]))
-        logger.info("Undistinguished samples: " + ", ".join(undist[1]))
+        print_pop(2)
 
     ## Start parsing
     vcf = VariantFile(args.vcf)
@@ -105,9 +109,9 @@ def main(args):
         samples = list(vcf.header.samples)
         dist = dist[:npop]
         undist = undist[:npop]
-        if not all([set(d) <= set(samples) for d in dist]):
+        if not set([dd[0] for d in dist for dd in d]) <= set(samples):
             raise RuntimeError("Distinguished lineages not found in data?")
-        missing = [samp for u in undist for samp in u if samp not in samples]
+        missing = [s for u in undist for s, _ in u if s not in samples]
         if missing:
             msg = "The following samples were not found in the data: %s. " % ", ".join(missing)
             if args.ignore_missing:
@@ -115,25 +119,23 @@ def main(args):
             else:
                 msg += "If you want to continue without these samples, use --ignore-missing."
                 raise RuntimeError(msg)
-        undist = [[sample for sample in u if sample not in missing] for u in undist]
+        undist = [[t for t in u if t[0] not in missing] for u in undist]
 
-        dis = [list(enumerate(d)) for d in dist]
-        undis = [[(i, d) for i in range(2) for d in und if (i, d) not in di]
-                 for di, und in zip(dis, undist)]
+        # Write header
+        pids = [a.pid for a in (args.pop1, args.pop2)[:npop]]
         out.write("# SMC++ ")
-        json.dump({"__version__": __version__, "undist": undis, "dist": dis}, out)
+        json.dump({"__version__": __version__, "pids": pids, "undist": undist, "dist": dist}, out)
         out.write("\n")
-        na = [len(d) for d in dis]
-        nb = [len(u) for u in undis]
+        na = list(map(len, dist))
+        nb = list(map(len, undist))
+
         # function to convert a VCF record to our format <span, dist gt, undist gt, # undist>
         def rec2gt(rec):
             ref = rec.alleles[0]
-            da = [[rec.samples[d].alleles[i] for i, d in di] for di in dis]
-            a = [sum(x != ref for x in d) if None not in d else -1
-                 for d in da]
-            bs = [[rec.samples[d].alleles[i] != ref for i, d in undi
-                   if rec.samples[d].alleles[i] is not None]
-                  for undi in undis]
+            da = [[rec.samples[d].alleles[i] for d, i in di] for di in dist]
+            a = [sum([x != ref for x in d]) if None not in d else -1 for d in da]
+            bs = [[rec.samples[d].alleles[i] != ref for d, i in un if rec.samples[d].alleles[i] is not None] 
+                  for un in undist]
             b = [sum(_) for _ in bs]
             nb = [len(_) for _ in bs]
             # Fold non-polymorphic (in subsample) sites

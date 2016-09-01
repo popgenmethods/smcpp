@@ -12,10 +12,11 @@ logger = logging.getLogger(__name__)
 # Dummy class used for JCSFS and a few other places
 class PiecewiseModel(Observable):
     def __init__(self, a, s):
+        assert len(a) == len(s)
         Observable.__init__(self)
         self.s = np.array(s)
         self.a = np.array(a)
-
+        
     def stepwise_values(self):
         return self.a
 
@@ -151,8 +152,8 @@ class SMCModel(Observable):
         r[:] = d['y']
         return r
 
-    @property
-    def distinguished_model(self):
+    def distinguished_model(self, index):
+        assert index == 0
         return self
 
     def copy(self):
@@ -161,13 +162,12 @@ class SMCModel(Observable):
 
 class SMCTwoPopulationModel(Observable, Observer):
 
-    def __init__(self, model1, model2, split, apart=False):
+    def __init__(self, model1, model2, split):
         Observable.__init__(self)
         self._models = [model1, model2]
         model1.register(self)
         model2.register(self)
         self._split = split
-        self._apart = apart
 
     # Propagate changes from submodels up
     @targets('model update')
@@ -193,9 +193,8 @@ class SMCTwoPopulationModel(Observable, Observer):
         return self.model1.s
 
     def splitted_models(self):
-        ret = [self.model1]
-        ret.append(_concat_models(self.model1, self.model2, self.split))
-        return ret
+        # return [self.model1, ConcatenatedModel(self.model1, self.model2, self.split)]
+        return [self.model1, _concat_models(self.model1, self.model2, self.split)]
 
     @property
     def model1(self):
@@ -205,21 +204,21 @@ class SMCTwoPopulationModel(Observable, Observer):
     def model2(self):
         return self._models[1]
 
-    @property
-    def distinguished_model(self):
-        return self.model1
-        if not self._apart:
-            return self.model1
+    def distinguished_model(self, index=0):
+        if index is not None:
+            return self.splitted_models()[index]
+        # The "apart" case
         s = self.model1.s
         a = self.model1.stepwise_values()
         cs = util.cumsum0(self.model1.s)
         cs[-1] = np.inf
         ip = np.searchsorted(cs, self._split)
-        s = s[ip - 1:]
-        a = a[ip - 1:]
-        s[0] = split
-        a[0] = np.inf
-        ret = PiecewiseModel(a, s)
+        sp = np.diff(np.insert(cs, ip, self._split))
+        sp[-1] = 1.
+        s = sp[ip - 1:]
+        s[0] = self.split
+        a = np.insert(a[ip - 1:], 0, np.inf)
+        return PiecewiseModel(a, s)
 
     @property
     def dlist(self):
@@ -267,22 +266,16 @@ class SMCTwoPopulationModel(Observable, Observer):
         # This will generate 'model updated' messages in the submodels.
         self._models[a][cc] = x
 
+
 def _concat_models(m1, m2, t):
     # ip = np.searchsorted(m1._knots, t, side="right")
-    # ip = np.argmin(np.abs(m1._knots - t))
-    # nk = m1._knots.copy()
-    # nk[ip] = t
-    # ny = np.zeros_like(m2[:])
-    # ny[:ip] = m2[:ip]
-    # ny[ip] = ad.admath.log(m1(t).item())
-    # ny[ip + 1:] = m1[ip + 1:]
-    # ret = SMCModel(m1.s, nk, m1._spline_class)
-    # ret[:] = ny
-    # return ret
-    cs = util.cumsum0(m1.s)
-    cs[-1] = np.inf
-    ip = np.searchsorted(cs, t)
-    sp = np.diff(np.insert(cs, ip, t))
-    sp[-1] = 1.
-    ap = np.concatenate([m2.stepwise_values()[:ip - 1], m1(t), m1.stepwise_values()[ip - 1:]])
-    return PiecewiseModel(ap, sp)
+    ip = np.argmin(np.abs(m1._knots - t))
+    nk = m1._knots.copy()
+    nk[ip] = t
+    ny = np.zeros_like(m2[:])
+    ny[:ip] = m2[:ip]
+    ny[ip] = ad.admath.log(m1(t).item())
+    ny[ip + 1:] = m1[ip + 1:]
+    ret = SMCModel(m1.s, nk, m1._spline_class)
+    ret[:] = ny
+    return ret

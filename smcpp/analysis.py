@@ -40,16 +40,37 @@ class BaseAnalysis(Observer):
         ## Parse each data set into an array of observations
         logger.info("Loading data...")
         self._files = files
-        self._contigs = estimation_tools.parse_text_datasets(files)
-        self._npop = max(c.npop for c in self._contigs)
+        self._contigs = estimation_tools.load_data(files)
+        pops = set(c.pid for c in self._contigs)
+        unique_pops = list(set(x for p in pops for x in p))
+        assert len(unique_pops) <= 2, (
+                "Only one or two populations are supported, but the "
+                "following were found in the data: %r" % unique_pops)
+        if len(unique_pops) == 2:
+            u = tuple(unique_pops)
+            try:
+                if u in pops:
+                    assert u[::-1] not in pops
+                    self._populations = u
+                elif u[::-1] in pops:
+                    assert u not in pops
+                    self._populations = u[::-1]
+                else:
+                    assert False
+            except AssertionError:
+                raise RuntimeError("Exactly one of {%r | %r} must be represented in the data", (u, u[::-1]))
+        else:
+            assert len(unique_pops) == 1
+            self._populations = (unique_pops,)
+        
         for c in self._contigs:
             assert len(c.n) == len(c.a)
             assert c.a.max() <= 2
             assert c.a.min() >= 0
             assert c.a.sum() == 2
             assert c.data.shape[1] == 1 + 3 * len(c.n)
-            logger.debug("Contig(fn=%r, n=%r, a=%r)", c.fn, c.n, c.a)
-        logger.info("%d population%s", self._npop, "" if self._npop == 1 else "s")
+            logger.debug("Contig(pid=%r, fn=%r, n=%r, a=%r)", c.pid, c.fn, c.n, c.a)
+        logger.info("%d population%s", self.npop, "" if self.npop == 1 else "s")
 
     def _validate_data(self):
         for c in self._contigs:
@@ -75,7 +96,7 @@ class BaseAnalysis(Observer):
         if np.any(thinning > 1):
             logger.info("Thinning...")
             new_data = estimation_tools.thin_dataset(self._data, thinning)
-            self._contigs = [Contig(data=d, n=c.n, a=c.a) 
+            self._contigs = [Contig(data=d, pid=c.pid, fn=c.fn, n=c.n, a=c.a) 
                              for c, d in zip(self._contigs, new_data)]
         elif np.any(ns > 0):
             logger.warn("Not thinning yet undistinguished lineages are present")
@@ -118,72 +139,35 @@ class BaseAnalysis(Observer):
         else:
             model = self._model
         ## choose hidden states based on prior model
-        dm = model.distinguished_model
+        dm = model.distinguished_model(0)
         hs = estimation_tools.balance_hidden_states(dm, M)
         self._hidden_states = np.sort(
-                np.unique(np.concatenate([self._model.distinguished_model._knots, hs]))
+                np.unique(np.concatenate([self._model.distinguished_model(0)._knots, hs]))
             )
         logger.debug("%d hidden states:\n%s" % (len(self._hidden_states), str(self._hidden_states)))
 
     def _init_inference_manager(self, folded):
         ## Create inference object which will be used for all further calculations.
         logger.debug("Creating inference manager...")
+        d = {}
         self._ims = {}
-        self._model_updaters = []
-        # self._smc_manager = SMCManager(ctx=self._mp_ctx)
-        # self._smc_manager.start()
-        def f():
-            return self.model
-        def f1():
-            return self.model.splitted_models()[0]
-        def f2():
-            return self.model.splitted_models()[1]
-        if self._npop == 1:
-            n = max(c.n[0] for c in self._contigs)
-            k = (n, None)
-            im = _smcpp.PyOnePopInferenceManager(n, self._data, self._hidden_states, k)
+        for c in self._contigs:
+            k = (c.pid, tuple(c.n), tuple(c.a))
+            d.setdefault(k, []).append(c)
+        for pid, n, a in d:
+            k = (pid, n, a)
+            data = [contig.data for contig in d[k]]
+            if len(pid) == 1:
+                di = self._populations.index(pid[0])
+                im = _smcpp.PyOnePopInferenceManager(n[0], data, self._hidden_states, di, k)
+            else:
+                assert len(pid) == 2
+                im = _smcpp.PyTwoPopInferenceManager(n[0], n[1], a[0], a[1], data, self._hidden_states, k)
+            im.model = self._model
+            im.theta = self._theta
+            im.rho = self._rho
             self._ims[k] = im
-            self._model_updaters.append((im, f))
-            im.setTheta(self._theta)
-            im.setRho(self._rho)
-        elif self._npop == 2:
-            contig_d = {}
-            pop1 = True
-            for c in self._contigs:
-                if c.npop == 1:
-                    assert c.a[0] == 2
-                    if pop1:
-                        k = (2, None)
-                    else:
-                        k = (None, 2)
-                else:
-                    pop1 = False
-                    k = tuple(c.a)
-                contig_d.setdefault(k, []).append(c)
-            for k in contig_d:
-                contigs = contig_d[k]
-                logger.debug(k)
-                data = [c.data for c in contigs]
-                if None in k:  # one population case
-                    n = max(c.n for c in contigs)
-                    im = _smcpp.PyOnePopInferenceManager(n, data, self._hidden_states, k)
-                    if k[1] is None:
-                        t = (im, f1)
-                    else:
-                        t = (im, f2)
-                else:
-                    n = np.max([c.n for c in contigs], axis=0)
-                    im = _smcpp.PyTwoPopInferenceManager(n[0], n[1], k[0], k[1], data, self._hidden_states, k)
-                    t = (im, f)
-                self._model_updaters.append(t)
-                logger.debug(n)
-                im.setTheta(self._theta)
-                im.setRho(self._rho)
-                self._ims[k] = im
-        else:
-            logger.error("Only 1 or 2 populations are supported at this time")
-            sys.exit(1)
-        self._update_models()
+        self._model.reset()
 
     def _init_bounds(self, Nmin):
         ## Construct bounds
@@ -202,10 +186,6 @@ class BaseAnalysis(Observer):
     @targets("model update")
     def update(self, message, *args, **kwargs):
         self._update_models()
-
-    def _update_models(self):
-        for im, f in self._model_updaters:
-            im.setModel(f())
 
     def run(self):
         'Perform the analysis.'
@@ -264,7 +244,7 @@ class BaseAnalysis(Observer):
     def rho(self, r):
         self._rho = r
         for im in self._ims.values():
-            im.setRho(r)
+            im.rho = r
 
     @property
     def N0(self):
@@ -273,7 +253,7 @@ class BaseAnalysis(Observer):
     @property
     def npop(self):
         'The number of populations contained in this analysis.'
-        return self._npop
+        return len(self._populations)
 
     def dump(self, filename):
         'Dump result of this analysis to :filename:.'
@@ -352,29 +332,25 @@ class Analysis(BaseAnalysis):
                         "bspline" : spline.BSpline,
                         "akima": spline.AkimaSpline, 
                         "pchip": spline.PChipSpline}[spline_class]
-        if self._npop == 1:
+        if self.npop == 1:
             self._model = SMCModel(time_points, knots, spline_class)
-            logger.debug("initial model:\n%s" % np.array_str(self._model[:].astype('float'), precision=3))
         else:
             split = tK - t1  # just pick the midpoint as a starting value.
             split /= 2. * N0
-            self._model = SMCTwoPopulationModel(
-                SMCModel(time_points, knots, spline_class),
-                SMCModel(time_points, knots, spline_class),
-                split)
-        self._model.register(self)
+            mods = [SMCModel(time_points, knots, spline_class) for _ in self._populations]
+            self._model = SMCTwoPopulationModel(mods[0], mods[1], split)
 
 
     def _init_optimizer(self, args, files, outdir, block_size,
             algorithm, tolerance, learn_rho):
-        if self._npop == 1:
+        if self.npop == 1:
             self._optimizer = optimizer.SMCPPOptimizer(self, algorithm, tolerance)
             # Also optimize knots in 1 pop case. Not yet implemented
             # for two pop case.
             # self._optimizer.register(optimizer.KnotOptimizer())
-        elif self._npop == 2:
+        elif self.npop == 2:
             self._optimizer = optimizer.TwoPopulationOptimizer(self, algorithm, tolerance)
-            smax = np.sum(self._model.distinguished_model.s)
+            smax = np.sum(self._model.distinguished_model(0).s)
             self._optimizer.register(optimizer.ParameterOptimizer("split", (0., smax), "model"))
         self._optimizer.block_size = block_size
         self._optimizer.register(optimizer.AnalysisSaver(outdir))
@@ -390,7 +366,7 @@ class Analysis(BaseAnalysis):
 class SplitAnalysis(BaseAnalysis):
     def __init__(self, files, args):
         BaseAnalysis.__init__(self, files, args)
-        assert self._npop == 2
+        assert self.npop == 2
         self._init_model(args.pop1, args.pop2)
         self._init_bounds(.001)
 
@@ -404,9 +380,7 @@ class SplitAnalysis(BaseAnalysis):
         self._init_optimizer(args, files, args.outdir, args.algorithm, args.tolerance)
 
     def _init_optimizer(self, args, files, outdir, algorithm, tolerance):
-        # self._optimizer = optimizer.SplitOptimizer(self, algorithm, tolerance)
-        self._optimizer = optimizer.TwoPopulationOptimizer(self, algorithm, tolerance)
-        self._optimizer.block_size = 3
+        self._optimizer = optimizer.SplitOptimizer(self, algorithm, tolerance)
         smax = np.sum(self._model.distinguished_model.s)
         self._optimizer.register(optimizer.ParameterOptimizer("split", (0., smax), "model"))
         self._optimizer.register(optimizer.AnalysisSaver(outdir))

@@ -2,7 +2,8 @@ import numpy as np
 
 
 class Contig:
-    def __init__(self, data, n, a, fn=None):
+    def __init__(self, pid, data, n, a, fn=None):
+        self.pid = pid
         self.data = data
         self.n = np.array(n)
         self.a = np.array(a)
@@ -10,4 +11,4 @@ class Contig:
 
     @property
     def npop(self):
-        return len(self.n)
+        return len(self.pid)

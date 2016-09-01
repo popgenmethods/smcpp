@@ -103,7 +103,7 @@ class NPopInferenceManager : public InferenceManager
     FixedVector<int, 2 * P> make_tensordims();
     block_key bk_to_map_key(const block_key &bk);
 
-    Vector<adouble> tensorRef(const block_key &bk);
+    virtual Vector<adouble> tensorRef(const block_key &bk);
 
     // Passed-in parameters
     const FixedVector<int, P> n;
@@ -136,7 +136,10 @@ class TwoPopInferenceManager : public NPopInferenceManager<2>
             const std::vector<double> hidden_states,
             const bool);
                 
-    void setParams(const ParameterVector &params1, const ParameterVector &params2, const double split);
+    void setParams(const ParameterVector&, const ParameterVector&, const ParameterVector&, const double);
+
+    protected:
+    Vector<adouble> tensorRef(const block_key &bk);
 
     private:
     const int a1, a2;

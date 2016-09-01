@@ -14,6 +14,7 @@ from appdirs import AppDirs
 from ad import adnumber, ADF
 
 from . import logging, version
+from .observe import targets
 
 logger = logging.getLogger(__name__)
 logger.debug("SMC++ " + version.__version__)
@@ -115,7 +116,7 @@ cdef _store_admatrix_helper(Matrix[adouble] &mat, dlist):
 
 cdef class _PyInferenceManager:
     cdef int _num_hmms
-    cdef object _dlist, _observations, _theta, _rho, _im_id
+    cdef object _model, _observations, _theta, _rho, _im_id
     cdef public long long seed
     cdef vector[double] _hs
     cdef vector[int] _Ls
@@ -157,12 +158,6 @@ cdef class _PyInferenceManager:
         def __get__(self):
             return self._observations
 
-    def getTheta(self):
-        return self.theta
-
-    def setTheta(self, theta):
-        self.theta = theta
-
     property theta:
         def __get__(self):
             return self._theta
@@ -170,12 +165,6 @@ cdef class _PyInferenceManager:
         def __set__(self, theta):
             self._theta = theta
             self._im.setTheta(theta)
-
-    def getRho(self):
-        return self.rho
-
-    def setRho(self, rho):
-        self.rho = rho
 
     property rho:
         def __get__(self):
@@ -191,18 +180,12 @@ cdef class _PyInferenceManager:
             self._im.Estep(fbOnly)
         _check_abort()
 
-    def setModel(self, m):
-        self._dlist = m.dlist
-        self._update_model(m)
-
-    # def getModel(self):
-    #     return self.model
-
-    # property model:
-    #     def __get__(self):
-    #         return self.getModel()
-    #     def __set__(self, m):
-    #         self.setModel(m)
+    property model:
+        def __get__(self):
+            return self._model
+        def __set__(self, m):
+            self._model = m
+            m.register(self)
 
     property save_gamma:
         def __get__(self):
@@ -228,7 +211,7 @@ cdef class _PyInferenceManager:
                 M = deref(it).second.size()
                 v = np.zeros(M, dtype=object)
                 for i in range(M):
-                    v[i] = _adouble_to_ad(deref(it).second(i), self._dlist)
+                    v[i] = _adouble_to_ad(deref(it).second(i), self._model.dlist)
                 ret[tuple(bk)] = v
                 inc(it)
             return ret
@@ -271,15 +254,15 @@ cdef class _PyInferenceManager:
 
     property pi:
         def __get__(self):
-            return _store_admatrix_helper(self._im.getPi(), self._dlist)
+            return _store_admatrix_helper(self._im.getPi(), self._model.dlist)
 
     property transition:
         def __get__(self):
-            return _store_admatrix_helper(self._im.getTransition(), self._dlist)
+            return _store_admatrix_helper(self._im.getTransition(), self._model.dlist)
 
     property emission:
         def __get__(self):
-            return _store_admatrix_helper(self._im.getEmission(), self._dlist)
+            return _store_admatrix_helper(self._im.getEmission(), self._model.dlist)
 
     def Q(self, separate=False):
         cdef vector[adouble] ad_rets
@@ -287,21 +270,18 @@ cdef class _PyInferenceManager:
             ad_rets = self._im.Q()
         _check_abort()
         cdef int i
-        cdef adouble q
-        q = ad_rets[0]
-        q1 = _adouble_to_ad(ad_rets[0], self._dlist)
-        qq = [q1]
-        logger.debug(("q1", q1, [q1.d(x) for x in self._dlist]))
-        for i in range(1, 3):
-            z = _adouble_to_ad(ad_rets[i], self._dlist)
+        cdef adouble q = adouble(0)
+        qq = []
+        for i in range(3):
+            z = _adouble_to_ad(ad_rets[i], self._model.dlist)
             qq.append(z)
             q += ad_rets[i]
-            logger.debug(("im(%r).q%d" % (self._im_id, i + 1), z, [z.d(x) for x in self._dlist]))
+            logger.debug(("im(%r).q%d" % (self._im_id, i + 1), z, [z.d(x) for x in self._model.dlist]))
         if separate:
             return qq
         r = adnumber(toDouble(q))
-        if self._dlist:
-            r = _adouble_to_ad(q, self._dlist)
+        if self._model.dlist:
+            r = _adouble_to_ad(q, self._model.dlist)
         return r
 
     def loglik(self):
@@ -312,38 +292,53 @@ cdef class _PyInferenceManager:
         return sum(llret)
 
 cdef class PyOnePopInferenceManager(_PyInferenceManager):
+    cdef int _distinguished_index
 
-    def __cinit__(self, int n, observations, hidden_states, im_id):
+    def __cinit__(self, int n, observations, hidden_states, distinguished_index, im_id):
         # This is needed because cinit cannot be inherited
         self.__my_cinit__(observations, hidden_states, im_id)
+        self._distinguished_index = distinguished_index
         with nogil:
             self._im = new OnePopInferenceManager(n, self._Ls, self._obs_ptrs, self._hs, False)
 
-    def _update_model(self, m):
-        cdef ParameterVector params = make_params_from_model(m)
+    @targets("model update")
+    def update(self, message, *args, **kwargs):
+        m = self._model
+        dm = m.distinguished_model(self._distinguished_index)
+        cdef ParameterVector params = make_params_from_model(dm)
         with nogil:
             self._im.setParams(params)
 
 cdef class PyTwoPopInferenceManager(_PyInferenceManager):
 
     cdef TwoPopInferenceManager* _im2
+    cdef object _di
 
     def __cinit__(self, int n1, int n2, int a1, int a2, observations, hidden_states, im_id):
         # This is needed because cinit cannot be inherited
+        assert a1 + a2 == 2
         self.__my_cinit__(observations, hidden_states, im_id)
-        assert (a1 == 2 and a2 == 0) or (a1 == a2 == 1)
+        if a1 == 2:
+            self._di = 0
+        elif a2 == 2:
+            self._di = 1
+        else:
+            # Apart case
+            self._di = None
         with nogil:
             self._im2 = new TwoPopInferenceManager(n1, n2, a1, a2, self._Ls, self._obs_ptrs, self._hs, False)
             self._im = self._im2
 
-    # Technically should inherit from Observer, but cdef classes can't.
-    def _update_model(self, m):
+    @targets("model update")
+    def update(self, message, *args, **kwargs):
+        m = self._model
+        cdef ParameterVector distinguished_params = make_params_from_model(m.distinguished_model(self._di))
         ms = m.splitted_models()
-        cdef ParameterVector params1 = make_params(ms[0].stepwise_values(), ms[0].s, m.dlist)
-        cdef ParameterVector params2 = make_params(ms[1].stepwise_values(), ms[1].s, m.dlist)
+        cdef ParameterVector params1 = make_params_from_model(ms[0])
+        cdef ParameterVector params2 = make_params_from_model(ms[1])
         cdef double split = m.split
         with nogil:
-            self._im2.setParams(params1, params2, split)
+            self._im2.setParams(distinguished_params, params1, params2, split)
 
 cdef class PyRateFunction:
     cdef unique_ptr[PiecewiseConstantRateFunction[adouble]] _eta

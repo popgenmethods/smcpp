@@ -392,7 +392,7 @@ class TwoPopulationOptimizer(SMCPPOptimizer):
     'Model fitting for two populations.'
 
     def _coordinates(self):
-        K = self._analysis.model.distinguished_model.K
+        K = len(self._analysis.model.model1[:])
         c1, c2 = [[list(range(b, min(K, b + self.block_size)))
             for b in range(0, ub + 1, self.block_size - 2)][::-1]
             for ub in [K - self.block_size, self._analysis.model.split_ind]]
@@ -402,6 +402,7 @@ class TwoPopulationOptimizer(SMCPPOptimizer):
     def _bounds(self, coords):
         return SMCPPOptimizer._bounds(self, coords[1])
 
-class SplitOptimizer(SMCPPOptimizer):
+class SplitOptimizer(TwoPopulationOptimizer):
     def _coordinates(self):
-        return []
+        K = self._analysis.model.distinguished_model.K
+        return [(i, np.arange(K)) for i in (0, 1)]

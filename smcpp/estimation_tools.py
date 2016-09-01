@@ -115,7 +115,7 @@ def break_long_spans(contigs, length_cutoff):
             s = obs[cob:x, 0].sum()
             if s > length_cutoff:
                 contig_list.append(Contig(data=np.insert(obs[cob:x], 0, miss, 0),
-                                          fn=contig.fn, n=contig.n, a=contig.a))
+                                          pid=contig.pid, fn=contig.fn, n=contig.n, a=contig.a))
                 last_data = contig_list[-1].data
                 l = last_data[:, 0].sum()
                 s2 = last_data[:, 1][last_data[:, 1] >= 0].sum()
@@ -166,7 +166,7 @@ def _esfs_helper(tup):
     return ret
 
 
-def _pt_helper(fn):
+def _load_data_helper(fn):
     try:
         # This parser is way faster than loadtxt
         import pandas as pd
@@ -184,12 +184,16 @@ def _pt_helper(fn):
             n = [len(u) for u in attrs['undist']]
         else:
             logger.warn("File %s doesn't appear to be in SMC++ format", fn)
+            attrs = {'pid': ['pop1']}
             a = A[:, 1::3].max(axis=0)
             n = A[:, 3::3].max(axis=0)
-    return Contig(data=np.ascontiguousarray(A, dtype='int32'), n=n, a=a, fn=fn)
+    return Contig(
+            pid=tuple(attrs['pids']),
+            data=np.ascontiguousarray(A, dtype='int32'), 
+            n=n, a=a, fn=fn)
 
 
-def parse_text_datasets(datasets):
+def load_data(files):
     with mp_pool() as p:
-        obs = list(p.map(_pt_helper, datasets))
+        obs = list(map(_load_data_helper, files))
     return obs

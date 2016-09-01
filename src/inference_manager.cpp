@@ -394,6 +394,18 @@ void NPopInferenceManager<P>::recompute_emission_probs()
     DEBUG << "recompute done";
 }
 
+Vector<adouble> TwoPopInferenceManager::tensorRef(const block_key &key)
+{
+    Vector<int> vals = key.vals;
+    // Support the case of (0, 2) by flipping the key
+    if (na(0) == 0 and na(1) == 2)
+    {
+        vals.head(2) = key.vals.tail(2);
+        vals.tail(2) = key.vals.head(2);
+    }
+    return tensorSlice<4>::run(emission, key.vals, tensordims);
+}
+
 template <size_t P>
 Vector<adouble> NPopInferenceManager<P>::tensorRef(const block_key &key)
 {
@@ -428,6 +440,17 @@ OnePopInferenceManager::OnePopInferenceManager(
                 new OnePopConditionedSFS<adouble>(n),
                 binning) {}
 
+JointCSFS<adouble>* create_jcsfs(int n1, int n2, int a1, int a2, const std::vector<double> &hidden_states)
+{
+    if (a1 == 0 and a2 == 2)
+    {
+        std::swap(n1, n2);
+        std::swap(a1, a2);
+    }
+    return new JointCSFS<adouble>(n1, n2, a1, a2, hidden_states);
+
+}
+
 TwoPopInferenceManager::TwoPopInferenceManager(
             const int n1, const int n2,
             const int a1, const int a2,
@@ -439,30 +462,20 @@ TwoPopInferenceManager::TwoPopInferenceManager(
                 (FixedVector<int, 2>() << n1, n2).finished(),
                 (FixedVector<int, 2>() << a1, a2).finished(),
                 obs_lengths, observations, hidden_states, 
-                new JointCSFS<adouble>(n1, n2, a1, a2, hidden_states),
-                binning),
-        a1(a1), a2(a2)
+                create_jcsfs(n1, n2, a1, a2, hidden_states),
+                binning), a1(a1), a2(a2)
 {
-    if (not ((a1 == 2 and a2 == 0) or 
-             (a1 == 1 and a2 == 1)))
+    if (a1 + a2 != 2)
         throw std::runtime_error("configuration not supported");
 }
 
-void TwoPopInferenceManager::setParams(const ParameterVector &params1, const ParameterVector &params2, const double split)
+void TwoPopInferenceManager::setParams(
+        const ParameterVector &distinguished_params,
+        const ParameterVector &params1,
+        const ParameterVector &params2,
+        const double split)
 {
-    if (a1 == 1 and a2 == 1)
-    {
-        ParameterVector paramsSplit = shiftParams(params1, split);
-        // before split, prevent all coalescence
-        adouble inf = paramsSplit[0][0];
-        inf *= 0.;
-        inf.value() = INFINITY;
-        paramsSplit[0].emplace(paramsSplit[0].begin(), inf);
-        paramsSplit[1].emplace(paramsSplit[1].begin(), split);
-        InferenceManager::setParams(paramsSplit);
-    }
-    else
-        InferenceManager::setParams(params1);
+    InferenceManager::setParams(distinguished_params);
     dynamic_cast<JointCSFS<adouble>*>(csfs.get())->pre_compute(params1, params2, split);
 }
 
