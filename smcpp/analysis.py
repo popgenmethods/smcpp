@@ -393,6 +393,12 @@ class SplitAnalysis(BaseAnalysis):
         assert self._npop == 2
         self._init_model(args.pop1, args.pop2)
         self._init_bounds(.001)
+
+        self._hidden_states = np.array([0., np.inf])
+        self._init_inference_manager(False)
+        self._init_optimizer(args, files, args.outdir, args.algorithm, args.tolerance)
+        self._optimizer.run(1)
+
         self._init_hidden_states(args.pop1, args.M)
         self._init_inference_manager(False)
         self._init_optimizer(args, files, args.outdir, args.algorithm, args.tolerance)
