@@ -184,7 +184,7 @@ def _load_data_helper(fn):
             n = [len(u) for u in attrs['undist']]
         else:
             logger.warn("File %s doesn't appear to be in SMC++ format", fn)
-            attrs = {'pid': ['pop1']}
+            attrs = {'pids': ['pop1']}
             a = A[:, 1::3].max(axis=0)
             n = A[:, 3::3].max(axis=0)
     return Contig(
@@ -195,5 +195,5 @@ def _load_data_helper(fn):
 
 def load_data(files):
     with mp_pool() as p:
-        obs = list(map(_load_data_helper, files))
+        obs = list(p.map(_load_data_helper, files))
     return obs

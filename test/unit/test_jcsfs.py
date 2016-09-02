@@ -5,7 +5,7 @@ import numpy as np
 import smcpp
 from smcpp import util
 from smcpp.jcsfs import JointCSFS
-from smcpp.model import SMCModel, PiecewiseModel
+from smcpp.model import SMCModel, SMCTwoPopulationModel, PiecewiseModel
 
 @pytest.fixture
 def model1():
@@ -28,6 +28,10 @@ def model2():
     a = [2.0, 4.0, 2.]
     ret = PiecewiseModel(a, s)
     return ret
+
+@pytest.fixture
+def model12(model1, model2):
+    return SMCTwoPopulationModel(model1, model2, .5)
 
 @pytest.fixture
 def jcsfs():
@@ -53,21 +57,19 @@ def _concat_models(model1, model2, split):
     return PiecewiseModel(a, s)
 np.set_printoptions(precision=3, linewidth=100)
 
-def _test_d(model1, model2):
+def test_d(model12):
     ts = [0.0, 0.5, 1.0, np.inf]
-    split = 0.25
     n1 = 10 
     n2 = 8
-    j = JointCSFS(n1, n2, 2, 0, ts, 100)
-    ders = model1[:3] = ad.adnumber(model1[:3])
-    j0 = j.compute(model1, model2, split)
-    model1.reset_derivatives()
-    for i in range(3):
-        model1[i] += 1e-8
-        j1 = j.compute(model1, model2, split)
-        model1[i] -= 1e-8
+    model1 = model12.model1
+    ders = model1.a = np.array([ad.adnumber(x, tag=i) for i, x in enumerate(model1.a)], dtype=object)
+    j0 = smcpp._smcpp.joint_csfs(n1, n2, 2, 0, model12, [0., 1.0], 100)[0]
+    for i in range(2):
+        model1.a[i].x += 1e-8
+        j1 = np.array(smcpp._smcpp.joint_csfs(n1, n2, 2, 0, model12, [0., 1.0], 100))[0]
+        model1.a[i].x -= 1e-8
         for x, y in zip(j0.flat, j1.flat):
-            print(x.d(ders[i]), (y - x) * 1e-8)
+            print(x.d(ders[i]), float(y - x) * 1e8)
     assert False
     
 

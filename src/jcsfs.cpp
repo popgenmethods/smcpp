@@ -104,7 +104,6 @@ void JointCSFS<T>::jcsfs_helper_tau_below_split(const int m,
             assert(trunc_csfs(i, j) > -1e-8); // truncation may lead to small negative values.
             if (trunc_csfs(i, j) > 0)
                 tensorRef(m, i, j, 0, 0) = weight * trunc_csfs(i, j);
-            CHECK_NAN(J[m]);
         }
     const Vector<T> trunc_sfs = undistinguishedSFS(trunc_csfs);
     T Et = Sn1.transpose().template cast<T>() * trunc_sfs;
@@ -114,57 +113,54 @@ void JointCSFS<T>::jcsfs_helper_tau_below_split(const int m,
     // Above split, then moran down
     const ParameterVector params1_shift = shiftParams(params1, split);
     const PiecewiseConstantRateFunction<T> eta1_shift(params1_shift, {0., INFINITY});
-    Vector<T> sfs_above_split = undistinguishedSFS(csfs.at(n1 + n2 - 1).compute(eta1_shift)[0]);
+    const Vector<T> sfs_above_split = undistinguishedSFS(csfs.at(n1 + n2 - 1).compute(eta1_shift)[0]);
     Matrix<T> eMn10_avg(n1 + 2, n1 + 1), eMn12_avg(n1 + 2, n1 + 1);
     eMn10_avg.fill(eta1_shift.zero());
     eMn12_avg.fill(eta1_shift.zero());
     std::mt19937 gen;
     const T cRts1 = Rts1;
-#pragma omp parallel for
     for (int k = 0; k < K; ++k)
     {
         // FIXME do something with seeding.
-        T t = eta.random_time(1., t1, t2, gen);
-        T Rt = eta.R(t);
-        Matrix<T> A = togetherM.Mn1p1.expM(cRts1 - Rt);
-        Matrix<T> B = togetherM.Mn10.expM(Rt);
-        Matrix<T> C = togetherM.Mn12.expM(Rt);
-        Matrix<T> Mn10 = (A * S0.template cast<T>().asDiagonal()).leftCols(n1 + 1) * B;
-        Matrix<T> Mn12 = (A * S2.template cast<T>().asDiagonal()).rightCols(n1 + 1) * C;
-#pragma omp critical(add_Emn)
-        {
-            eMn10_avg += Mn10;
-            eMn12_avg += Mn12;
-        }
-        /*
-        Matrix<double> eMn10_d = eMn10_avg.template cast<double>();
-        Matrix<double> eMn12_d = eMn12_avg.template cast<double>();
-        if (eMn10_d.minCoeff() < -1e-8)
-            throw std::runtime_error("emn10 is wrong");
-        if (eMn12_d.minCoeff() < -1e-8)
-            throw std::runtime_error("emn12 is wrong");
-        */
+        const T t = eta.random_time(1., t1, t2, gen);
+        const T Rt = eta.R(t);
+        const Matrix<T> A = togetherM.Mn1p1.expM(cRts1 - Rt);
+        const Matrix<T> B = togetherM.Mn10.expM(Rt);
+        const Matrix<T> C = togetherM.Mn12.expM(Rt);
+        const Matrix<T> Mn10 = (A * S0.template cast<T>().asDiagonal()).leftCols(n1 + 1) * B;
+        const Matrix<T> Mn12 = (A * S2.template cast<T>().asDiagonal()).rightCols(n1 + 1) * C;
+        eMn10_avg += Mn10;
+        eMn12_avg += Mn12;
     }
     eMn10_avg /= (double)K;
     eMn12_avg /= (double)K;
+    Matrix<T> const& c_eMn10_avg = eMn10_avg;
+    Matrix<T> const& c_eMn12_avg = eMn12_avg;
+    Matrix<T> const& c_eMn2 = eMn2;
     // Now moran down
 #pragma omp parallel for collapse(2)
     for (int b1 = 0; b1 <= n1; ++b1)
+    {
         for (int b2 = 0; b2 <= n2; ++b2)
+        {
             for (int nseg = 1; nseg <= n1 + n2; ++nseg)
+            {
                 for (int np1 = std::max(nseg - n2, 0); np1 <= std::min(nseg, n1 + 1); ++np1)
                 {
-                    int np2 = nseg - np1;
-                    double h = scipy_stats_hypergeom_pmf(np1, n1 + n2 + 1, nseg, n1 + 1);
-                    T x = sfs_above_split(nseg - 1) * eMn2(np2, b2);
+                    const int np2 = nseg - np1;
+                    const double h = scipy_stats_hypergeom_pmf(np1, n1 + n2 + 1, nseg, n1 + 1);
+                    T x = sfs_above_split(nseg - 1);
+                    x *= c_eMn2(np2, b2);
                     x *= h;
                     x *= weight;
-                    T x0 = x * eMn10_avg(np1, b1);
-                    T x2 = x * eMn12_avg(np1, b1);
+                    T x0 = x * c_eMn10_avg(np1, b1);
+                    T x2 = x * c_eMn12_avg(np1, b1);
                     tensorRef(m, 0, b1, 0, b2) += x0;
                     tensorRef(m, 2, b1, 0, b2) += x2;
-                    CHECK_NAN(J[m]);
                 }
+            }
+        }
+    }
 }
 
 template <typename T>
@@ -176,12 +172,17 @@ void JointCSFS<T>::jcsfs_helper_tau_above_split(const int m,
     DEBUG << "jcsfs_above t1:" << t1 << " t2:" << t2;
     // Shift eta1 back by split units in time 
     PiecewiseConstantRateFunction<T> shifted_eta1(shiftParams(params1, split), {t1 - split, t2 - split});
-    Matrix<T> rsfs = csfs.at(n1 + n2).compute(shifted_eta1)[0];
+    const Matrix<T> rsfs = csfs.at(n1 + n2).compute(shifted_eta1)[0];
+    Matrix<T> const& c_eMn2 = eMn2;
+    std::array<Matrix<T>, 3> const& c_eMn1 = eMn1;
 
 #pragma omp parallel for collapse(2)
     for (int b1 = 0; b1 < n1 + 1; ++b1)
+    {
         for (int b2 = 0; b2 < n2 + 1; ++b2)
+        {
             for (int nseg = 0; nseg < n1 + n2 + 1; ++nseg)
+            {
                 for (int np1 = std::max(nseg - n2, 0); np1 < std::min(nseg, n1) + 1; ++np1)
                 {
                     int np2 = nseg - np1;
@@ -190,17 +191,20 @@ void JointCSFS<T>::jcsfs_helper_tau_above_split(const int m,
                     double h = scipy_stats_hypergeom_pmf(np1, n1 + n2, nseg, n1);
                     for (int i = 0; i < 3; ++i)
                     {
-                        T x = rsfs(i, nseg) * eMn1[i](np1, b1) * eMn2(np2, b2);
+                        T x = rsfs(i, nseg);
+                        x *= c_eMn1[i](np1, b1);
+                        x *= c_eMn2(np2, b2);
                         x *= h;
                         x *= weight;
                         tensorRef(m, i, b1, 0, b2) += x;
-                        CHECK_NAN(J[m]);
                     }
                 }
+            }
+        }
+    }
      
     // pop 1, below split
     Matrix<T> sfs_below = csfs.at(n1).compute_below(*eta1)[0];
-    CHECK_NAN(sfs_below);
     for (int i = 0; i < a1 + 1; ++i)
         for (int j = 0; j < n1 + 1; ++j)
         {
@@ -233,6 +237,7 @@ std::vector<Matrix<T> > JointCSFS<T>::compute(const PiecewiseConstantRateFunctio
         // zero out nonsegregating sites
         tensorRef(m, 0, 0, 0, 0) *= 0.;
         tensorRef(m, a1, n1, a2, n2) *= 0;
+        CHECK_NAN(J[m]);
     }
     return J;
 }
@@ -287,8 +292,11 @@ void JointCSFS<T>::pre_compute_apart()
         const Matrix<T> csfs_shift = csfs_at_split[i++];
 #pragma omp parallel for collapse(2)
         for (int b1 = 0; b1 <= n1; ++b1)
+        {
             for (int b2 = 0; b2 <= n2; ++b2)
+            {
                 for (int nseg = 0; nseg <= n1 + n2; ++nseg)
+                {
                     for (int np1 = std::max(nseg - n2, 0); np1 <= std::min(nseg, n1); ++np1)
                     {
                         const int np2 = nseg - np1;
@@ -297,8 +305,10 @@ void JointCSFS<T>::pre_compute_apart()
                         tensorRef(m, 1, b1, 0, b2) += 0.5 * h * csfs_shift(1, nseg) * T11(np1, b1) * T20(np2, b2);
                         tensorRef(m, 0, b1, 1, b2) += 0.5 * h * csfs_shift(1, nseg) * T10(np1, b1) * T21(np2, b2);
                         tensorRef(m, 0, b1, 0, b2) += h * csfs_shift(0, nseg) * T10(np1, b1) * T20(np2, b2);
-                        CHECK_NAN(J[m]);
                     }
+                }
+            }
+        }
     }
     // Cover edge case
     if (split == 0.)
@@ -336,7 +346,6 @@ void JointCSFS<T>::pre_compute_apart()
                     tensorRef(m, 0, 0, 0, k) += x1;
                     tensorRef(m, 0, 0, 1, k - 1) += x2;
                 }
-                CHECK_NAN(J[m]);
             }
         }
         T remain = eta_trunc.zero();
@@ -351,7 +360,6 @@ void JointCSFS<T>::pre_compute_apart()
                 tensorRef(m, 1, ni, 0, 0) -= remain;
             else
                 tensorRef(m, 0, 0, 1, ni) -= remain;
-            CHECK_NAN(J[m]);
         }
         first = false;
     }
@@ -407,7 +415,6 @@ void JointCSFS<T>::pre_compute_together()
             remain -= split;
             tensorRef(m, 0, 0, 0, n2) -= remain;
         }
-        CHECK_NAN(J[m]);
     }
 }
 

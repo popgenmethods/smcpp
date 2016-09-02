@@ -385,7 +385,8 @@ class SMCPPOptimizer(AbstractOptimizer):
         return ret
 
     def _bounds(self, coords):
-        return np.log([self._analysis._bounds] * len(coords))
+        ret = np.log([self._analysis._bounds] * len(coords))
+        return ret
 
 
 class TwoPopulationOptimizer(SMCPPOptimizer):

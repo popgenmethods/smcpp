@@ -61,7 +61,7 @@ class BaseAnalysis(Observer):
                 raise RuntimeError("Exactly one of {%r | %r} must be represented in the data", (u, u[::-1]))
         else:
             assert len(unique_pops) == 1
-            self._populations = (unique_pops,)
+            self._populations = tuple(unique_pops)
         
         for c in self._contigs:
             assert len(c.n) == len(c.a)
@@ -167,7 +167,7 @@ class BaseAnalysis(Observer):
             im.theta = self._theta
             im.rho = self._rho
             self._ims[k] = im
-        self._model.reset()
+        self._model.randomize()
 
     def _init_bounds(self, Nmin):
         ## Construct bounds
@@ -195,17 +195,12 @@ class BaseAnalysis(Observer):
         'Value of Q() function in M-step.'
         # q1, q2, q3 = self._im.Q(True)
         qq = 0.
-        td = {d.tag: d for d in self.model.dlist if d.tag is not None}
         with ThreadPoolExecutor() as executor:
             futures = []
             for na in self._ims:
                 futures.append(executor.submit(self._ims[na].Q))
             for x in as_completed(futures):
-                q = x.result()
-                d = q.d()
-                # Match proxied tags with our tags
-                d.update({td[dd.tag]: d[dd] for dd in d if dd.tag is not None})
-                qq += q
+                qq += x.result()
         qr = -self._penalty * self.model.regularizer()
         logger.debug(("Q", float(qq), [qq.d(x) for x in self.model.dlist]))
         logger.debug(("reg", float(qr), [qr.d(x) for x in self.model.dlist]))

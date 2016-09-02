@@ -104,7 +104,7 @@ class SMCModel(Observable):
                 ret += [d for d in yy.d() if d.tag is not None]
             except AttributeError:
                 pass
-        return ret
+        return list(set(ret))
 
     def regularizer(self):
         ret = self._spline.roughness()
@@ -222,7 +222,7 @@ class SMCTwoPopulationModel(Observable, Observer):
 
     @property
     def dlist(self):
-        return self._models[0].dlist + self._models[1].dlist
+        return list(set(self._models[0].dlist + self._models[1].dlist))
 
     def randomize(self):
         for m in self._models:
