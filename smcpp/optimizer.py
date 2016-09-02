@@ -405,5 +405,5 @@ class TwoPopulationOptimizer(SMCPPOptimizer):
 
 class SplitOptimizer(TwoPopulationOptimizer):
     def _coordinates(self):
-        K = self._analysis.model.distinguished_model.K
+        K = self._analysis.model.distinguished_model(0).K
         return [(i, np.arange(K)) for i in (0, 1)]

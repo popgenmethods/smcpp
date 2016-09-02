@@ -8,6 +8,7 @@ import multiprocessing as mp
 from collections import namedtuple
 import json
 import contextlib
+import pandas as pd
 
 from . import _smcpp, util
 from .contig import Contig
@@ -48,7 +49,7 @@ def construct_time_points(t1, tK, pieces, offset):
     time_points = np.zeros(len(pieces))
     count = 0
     for i, p in enumerate(pieces):
-        time_points[i] = s[count:(count+p)].sum()
+        time_points[i] = s[count:(count + p)].sum()
         count += p
     return np.concatenate([[t1], time_points])
 
@@ -77,18 +78,20 @@ def thin_dataset(dataset, thinning):
             [(chrom, th, i) for i, (chrom, th) in enumerate(zip(dataset, thinning))]))
 
 
-def recode_nonseg(contigs, cutoff=500000):
-    for c in contigs:
-        d = c.data
-        runs = (
+def recode_nonseg(contigs, cutoff):
+    if cutoff is not None:
+        for c in contigs:
+            d = c.data
+            runs = (
                 (d[:, 0] > cutoff) &
                 np.all(d[:, 1::3] == 0, axis=1) &
                 np.all(d[:, 2::3] == 0, axis=1)
-                )
-        if np.any(runs):
-            logger.debug("Long nonsegregating runs in contig %s: \n%s", c.fn, d[runs])
-        d[runs, 1::3] = -1
-        d[runs, 3::3] = 0
+            )
+            if np.any(runs):
+                logger.debug(
+                    "Long nonsegregating runs in contig %s: \n%s", c.fn, d[runs])
+            d[runs, 1::3] = -1
+            d[runs, 3::3] = 0
     return contigs
 
 
@@ -120,9 +123,9 @@ def break_long_spans(contigs, length_cutoff):
                 l = last_data[:, 0].sum()
                 s2 = last_data[:, 1][last_data[:, 1] >= 0].sum()
                 obs_attributes.setdefault(i, []).append(
-                        (positions[cob],
-                         positions[x] if x is not None else positions[-1],
-                         l, 1. * s2 / l))
+                    (positions[cob],
+                     positions[x] if x is not None else positions[-1],
+                     l, 1. * s2 / l))
             else:
                 logger.info("omitting sequence length < %d "
                             "as less than length cutoff %d" %
@@ -168,8 +171,7 @@ def _esfs_helper(tup):
 
 def _load_data_helper(fn):
     try:
-        # This parser is way faster than loadtxt
-        import pandas as pd
+        # This parser is way faster than np.loadtxt
         A = pd.read_csv(fn, sep=' ', comment="#", header=None).values
     except ImportError as e:
         logger.debug(e)
@@ -182,15 +184,18 @@ def _load_data_helper(fn):
             attrs = json.loads(first_line[7:])
             a = [len(a) for a in attrs['dist']]
             n = [len(u) for u in attrs['undist']]
+            if "pids" not in attrs:
+                logger.warn("%s lacks population ids. Timidly proceeding with defaults...", fn)
+                attrs["pids"] = ["pop%d" % i for i, _ in enumerate(a, 1)]
         else:
             logger.warn("File %s doesn't appear to be in SMC++ format", fn)
             attrs = {'pids': ['pop1']}
             a = A[:, 1::3].max(axis=0)
             n = A[:, 3::3].max(axis=0)
     return Contig(
-            pid=tuple(attrs['pids']),
-            data=np.ascontiguousarray(A, dtype='int32'), 
-            n=n, a=a, fn=fn)
+        pid=tuple(attrs['pids']),
+        data=np.ascontiguousarray(A, dtype='int32'),
+        n=n, a=a, fn=fn)
 
 
 def load_data(files):

@@ -31,7 +31,7 @@ class BaseAnalysis(Observer):
         # Data-related stuff
         self._load_data(files)
         self._validate_data()
-        self._recode_nonseg()
+        self._recode_nonseg(args.nonseg_cutoff)
         self._perform_thinning(args.thinning)
         self._normalize_data(args.length_cutoff)
 
@@ -83,8 +83,8 @@ class BaseAnalysis(Observer):
                         "individual is homozygous recessive. Please encode / "
                         "fold these as non-segregating (homozygous dominant).")
 
-    def _recode_nonseg(self):
-        self._contigs = estimation_tools.recode_nonseg(self._contigs)
+    def _recode_nonseg(self, cutoff):
+        self._contigs = estimation_tools.recode_nonseg(self._contigs, cutoff)
 
     def _perform_thinning(self, thinning):
         # thin each dataset
@@ -114,7 +114,7 @@ class BaseAnalysis(Observer):
             var = np.average((het - avg) ** 2, weights=w) * (n / (n - 1.))
             sd = np.sqrt(var)
             logger.debug("Average/sd het:%f(%f)", avg, sd)
-            logger.debug("Keeping contigs within +-2 s.d. of mean")
+            logger.debug("Keeping contigs within ±3 s.d. of mean")
         logger.debug("Average heterozygosity (derived / total bases) by data set (* = dropped)")
         ci = 0
         tpl = "%15d%15d%15d%12g"
@@ -124,7 +124,7 @@ class BaseAnalysis(Observer):
             for attr in attrs[key]:
                 het = attr[-1]
                 mytpl = tpl
-                if True or abs(het - avg) <= 3 * sd:
+                if abs(het - avg) <= 3 * sd:
                     new_contigs.append(self._contigs[ci])
                 else:
                     mytpl += " *"
@@ -132,9 +132,9 @@ class BaseAnalysis(Observer):
                 ci += 1
         self._contigs = new_contigs
 
-    def _init_hidden_states(self, initial_model, M):
-        if initial_model is not None:
-            d = json.load(open(initial_model, "rt"))
+    def _init_hidden_states(self, prior_model, M):
+        if prior_model is not None:
+            d = json.load(open(prior_model, "rt"))
             model = _model_cls_d[d['model']['class']].from_dict(d['model'])
         else:
             model = self._model
@@ -182,10 +182,6 @@ class BaseAnalysis(Observer):
     @property
     def _data(self):
         return [c.data for c in self._contigs]
-
-    @targets("model update")
-    def update(self, message, *args, **kwargs):
-        self._update_models()
 
     def run(self):
         'Perform the analysis.'
@@ -274,7 +270,7 @@ class Analysis(BaseAnalysis):
                 args.algorithm, args.tolerance, learn_rho=False)
         self._optimizer.run(1)
 
-        self._init_hidden_states(args.initial_model, args.M)
+        self._init_hidden_states(args.prior_model, args.M)
         self._init_inference_manager(False)
         self._init_optimizer(args, files, args.outdir, args.block_size,
                 args.algorithm, args.tolerance, learn_rho=True)
@@ -314,7 +310,7 @@ class Analysis(BaseAnalysis):
         fac = 2. * N0
         t1 /= fac
         tK /= fac
-        time_points = estimation_tools.construct_time_points(t1, tK, pieces, offset)
+        time_points = estimation_tools.construct_time_points(t1, tK, pieces, 0.)
         logger.debug("time points in coalescent scaling:\n%s", str(time_points))
         try:
             num_knots = int(knots)
@@ -376,7 +372,7 @@ class SplitAnalysis(BaseAnalysis):
 
     def _init_optimizer(self, args, files, outdir, algorithm, tolerance):
         self._optimizer = optimizer.SplitOptimizer(self, algorithm, tolerance)
-        smax = np.sum(self._model.distinguished_model.s)
+        smax = np.sum(self._model.distinguished_model(0).s)
         self._optimizer.register(optimizer.ParameterOptimizer("split", (0., smax), "model"))
         self._optimizer.register(optimizer.AnalysisSaver(outdir))
 
@@ -388,4 +384,3 @@ class SplitAnalysis(BaseAnalysis):
         d = json.load(open(pop2, "rt"))
         m2 = _model_cls_d[d['model']['class']].from_dict(d['model'])
         self._model = SMCTwoPopulationModel(m1, m2, np.sum(m1.s) * 0.5)
-        self._model.register(self)

@@ -38,7 +38,7 @@ def plot_psfs(psfs, xlim, ylim, xlabel, logy=False):
             s = d['s']
             b = d['b']
             slope = np.log(a/b) / s
-            cum = off
+            cum = 0.
             x = []
             y = []
             for aa, bb, ss in zip(b[:-1], slope[:-1], s[:-1]):
@@ -51,7 +51,7 @@ def plot_psfs(psfs, xlim, ylim, xlabel, logy=False):
             y = np.concatenate([y, [a[-1], a[-1]]])
             # if not logy:
             #     y *= 1e-3
-            series.append((label, x, y, ax.plot))
+            series.append((label, x, y, ax.plot, off))
         elif 'model' in d:
             cls = getattr(model, d['model']['class'])
             m = cls.from_dict(d['model'])
@@ -67,18 +67,18 @@ def plot_psfs(psfs, xlim, ylim, xlabel, logy=False):
                 x2, y2 = (m._knots, np.exp(m[:].astype('float')))
                 # if not logy:
                 #     y *= 1e-3
-                series.append((l, x, y, ax.plot))
-                series.append((None, x2, y2, ax.scatter))
+                series.append((l, x, y, ax.plot, off))
+                series.append((None, x2, y2, ax.scatter, off))
         else:
             x = np.cumsum(d['s'])
             x = np.insert(x, 0, 0)[:-1]
             y = d['a']
-            series.append((label, x, y, ax.step))
+            series.append((label, x, y, ax.step, off))
     N0 = d['N0']
     g = d.get('g', None) or 1
     labels = []
-    for label, x, y, plotfun in series:
-        xp = 2 * N0 * g * x
+    for label, x, y, plotfun, off in series:
+        xp = 2 * N0 * g * x + off
         yp = N0 * y
         if label is None:
             plotfun(xp, yp, linewidth=2, color="black")
