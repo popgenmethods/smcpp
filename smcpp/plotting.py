@@ -31,6 +31,17 @@ def plot_psfs(psfs, xlim, ylim, xlabel, logy=False):
     xmin = np.inf
     labels = []
     series = []
+    data = [["label", "x", "y", "plot_type", "plot_num"]]
+    def saver(f, ty):
+        def g(x, y, label, data=data, **kwargs):
+            data += [(label, xx, yy, ty, saver.plot_num) for xx, yy in zip(x, y)]
+            saver.plot_num += 1
+            return f(x, y, label=label, **kwargs)
+        g.i = 0
+        return g
+    saver.plot_num = 0
+    my_axplot = saver(ax.plot, "path")
+    my_axstep = saver(ax.step, "step")
     npsf = sum(label != "None" for label, _, _ in psfs)
     for i, (label, d, off) in enumerate(psfs):
         if 'b' in d:
@@ -51,15 +62,17 @@ def plot_psfs(psfs, xlim, ylim, xlabel, logy=False):
             y = np.concatenate([y, [a[-1], a[-1]]])
             # if not logy:
             #     y *= 1e-3
-            series.append((label, x, y, ax.plot, off))
+            series.append((label, x, y, my_axplot, off))
         elif 'model' in d:
             cls = getattr(model, d['model']['class'])
-            m = cls.from_dict(d['model'])
-            if isinstance(m, model.SMCTwoPopulationModel):
-                ms = m.splitted_models()
+            mb = cls.from_dict(d['model'])
+            split = False
+            if isinstance(mb, model.SMCTwoPopulationModel):
+                split = True
+                ms = mb.splitted_models()
                 labels = label.split(",")
             else:
-                ms = [m]
+                ms = [mb]
                 labels = [label]
             for m, l in zip(ms, labels):
                 x = np.logspace(np.log10(m.s[0]), np.log10(m.s.sum()), 200)
@@ -67,13 +80,19 @@ def plot_psfs(psfs, xlim, ylim, xlabel, logy=False):
                 x2, y2 = (m._knots, np.exp(m[:].astype('float')))
                 # if not logy:
                 #     y *= 1e-3
-                series.append((l, x, y, ax.plot, off))
-                series.append((None, x2, y2, ax.scatter, off))
+                series.append([l, x, y, my_axplot, off])
+                series.append([None, x2, y2, ax.scatter, off])
+            if split:
+                for i in 1, 2:
+                    x = series[-i][1]
+                    coords = x <= mb.split
+                    for j in 1, 2:
+                        series[-i][j] = series[-i][j][coords]
         else:
             x = np.cumsum(d['s'])
             x = np.insert(x, 0, 0)[:-1]
             y = d['a']
-            series.append((label, x, y, ax.step, off))
+            series.append((label, x, y, my_axstep, off))
     N0 = d['N0']
     g = d.get('g', None) or 1
     labels = []
@@ -101,88 +120,4 @@ def plot_psfs(psfs, xlim, ylim, xlabel, logy=False):
     ax.set_xlim(*xlim)
     ax.set_ylim(*ylim)
     fig.tight_layout()
-    return fig
-
-def make_psfs(d):
-    ret = {'fit': {'a': d['a'], 'b': d['b'], 's': d['s']},
-            None: {'a': d['a0'], 'b': d['b0'], 's': d['s0']}}
-    if 'coal_times' in d:
-        ret['coal_times'] = d['coal_times']
-    return ret
-
-def plot_output(psfs, fname, **kwargs):
-    save_pdf(plot_psfs(psfs, **kwargs), fname)
-
-def plot_matrices():
-    from io import StringIO
-    mats = {}
-    with open("matrices.txt", "rt") as mfile:
-        try:
-            while True:
-                name = next(mfile).strip()
-                lines = []
-                while True:
-                    l = next(mfile).strip()
-                    if l:
-                        lines.append(l)
-                    else:
-                        break
-                mats[name] = np.loadtxt(StringIO("\n".join(lines)))
-        except StopIteration:
-            mats[name] = np.loadtxt(StringIO("\n".join(lines)))
-    from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
-    from matplotlib.figure import Figure
-    for name in mats:
-        fig = Figure()
-        FigureCanvas(fig)
-        ax = fig.add_subplot(111)
-        ax.pcolor(np.log(1 + np.abs(mats[name])))
-        save_pdf(fig, "%s.pdf" % name)
-    return mats
-
-def imshow(M, out_png):
-    import matplotlib
-    matplotlib.use('Agg')
-    import matplotlib.pyplot as plt 
-    plt.imshow(M)
-    plt.savefig(out_png)
-
-def convert_msmc(msmc_out, fac):
-    mu = 1.25e-8
-    with open(msmc_out, "rt") as f:
-        hdr = next(f)
-        a = []
-        s = []
-        for line in f:
-            j, tj, tj1, lam = line.strip().split()
-            s.append(float(tj1) - float(tj))
-            a.append(float(lam))
-    a = np.array(a)
-    s = np.array(s)
-    s /= mu
-    a = 1. / a
-    a /= 2. * mu
-    return {'a': a / fac, 'b': a / fac, 's': s / fac}
-
-def convert_psmc(psmc_out):
-    lines = list(open(psmc_out, "rt"))
-    i = -1
-    while not lines[i].startswith("RS\t0"):
-        i -= 1
-    theta0 = float(lines[i - 3].strip().split()[1])
-    N0 = theta0 / (4 * 1.25e-8) / 100
-    # N0 = 10000.
-    t = []
-    a = []
-    while i < -2:
-        fields = lines[i].strip().split()
-        t.append(float(fields[2]))
-        a.append(float(fields[3]))
-        i += 1
-    t = np.array(t) 
-    a = np.array(a)
-    s = t[1:] - t[:-1]
-    s = np.append(s, 1.0)
-    s *= 3
-    a *= 3
-    return {'s': s, 'a': a, 'b': a}
+    return fig, data

@@ -39,6 +39,7 @@ def add_common_estimation_args(parser):
                            default="L-BFGS-B", help=argparse.SUPPRESS)
     optimizer.add_argument('--block-size', type=int, default=3,
                            help="number of blocks to optimize at a time for coordinate ascent")
+    optimizer.add_argument('--factr', type=float, default=1e-9, help=argparse.SUPPRESS)
     optimizer.add_argument('--regularization-penalty', "-p",
                            type=float, help="regularization penalty", default=1.)
     optimizer.add_argument("--tolerance", type=float, default=1e-4,

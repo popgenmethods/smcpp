@@ -35,11 +35,12 @@ class AbstractOptimizer(Observable):
     '''
     Abstract representation of the execution flow of the optimizer.
     '''
-    def __init__(self, analysis, algorithm, tolerance):
+    def __init__(self, analysis, algorithm, tolerance, solver_args={}):
         Observable.__init__(self)
         self._analysis = analysis
         self._algorithm = algorithm
         self._tolerance = tolerance
+        self._solver_args = solver_args
 
     @abstractmethod
     def _coordinates(self, i):
@@ -76,7 +77,7 @@ class AbstractOptimizer(Observable):
                                        jac=True,
                                        args=(self._analysis, coords),
                                        bounds=bounds,
-                                       options={'xtol': .001},
+                                       options=self._solver_args,
                                        method=self._algorithm)
 
     def run(self, niter):
@@ -358,8 +359,8 @@ class AsciiPlotter(Observer):
 class SMCPPOptimizer(AbstractOptimizer):
     'Model fitting for one population.'
 
-    def __init__(self, analysis, algorithm, tolerance):
-        AbstractOptimizer.__init__(self, analysis, algorithm, tolerance)
+    def __init__(self, analysis, algorithm, tolerance, solver_args):
+        AbstractOptimizer.__init__(self, analysis, algorithm, tolerance, solver_args)
         observers = [
             HiddenStateOccupancyPrinter(),
             ProgressPrinter(),

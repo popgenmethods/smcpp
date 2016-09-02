@@ -26,6 +26,9 @@ class BaseAnalysis(Observer):
         self._N0 = args.N0
         self._penalty = args.regularization_penalty
         self._niter = args.em_iterations
+        args.solver_args = {}
+        if args.factr:
+            args.solver_args['factr'] = args.factr
         # self._mp_ctx = mp.get_context('forkserver')
 
         # Data-related stuff
@@ -331,22 +334,24 @@ class Analysis(BaseAnalysis):
             mods = [SMCModel(time_points, knots, spline_class) for _ in self._populations]
             self._model = SMCTwoPopulationModel(mods[0], mods[1], split)
 
-
-    def _init_optimizer(self, args, files, outdir, block_size,
-            algorithm, tolerance, learn_rho):
+    def _init_optimizer(self, args, files, outdir, block_size, algorithm, tolerance, learn_rho):
         if self.npop == 1:
-            self._optimizer = optimizer.SMCPPOptimizer(self, algorithm, tolerance)
+            self._optimizer = optimizer.SMCPPOptimizer(
+                self, algorithm, tolerance, args.solver_args)
             # Also optimize knots in 1 pop case. Not yet implemented
             # for two pop case.
             # self._optimizer.register(optimizer.KnotOptimizer())
         elif self.npop == 2:
-            self._optimizer = optimizer.TwoPopulationOptimizer(self, algorithm, tolerance)
+            self._optimizer = optimizer.TwoPopulationOptimizer(
+                self, algorithm, tolerance, args.solver_args)
             smax = np.sum(self._model.distinguished_model(0).s)
-            self._optimizer.register(optimizer.ParameterOptimizer("split", (0., smax), "model"))
+            self._optimizer.register(
+                optimizer.ParameterOptimizer("split", (0., smax), "model"))
         self._optimizer.block_size = block_size
         self._optimizer.register(optimizer.AnalysisSaver(outdir))
         if learn_rho:
-            self._optimizer.register(optimizer.ParameterOptimizer("rho", (1e-6, 1e-2)))
+            self._optimizer.register(
+                optimizer.ParameterOptimizer("rho", (1e-6, 1e-2)))
 
     ## END OF PRIVATE FUNCTIONS
     @property
@@ -371,7 +376,7 @@ class SplitAnalysis(BaseAnalysis):
         self._init_optimizer(args, files, args.outdir, args.algorithm, args.tolerance)
 
     def _init_optimizer(self, args, files, outdir, algorithm, tolerance):
-        self._optimizer = optimizer.SplitOptimizer(self, algorithm, tolerance)
+        self._optimizer = optimizer.SplitOptimizer(self, algorithm, tolerance, args.solver_args)
         smax = np.sum(self._model.distinguished_model(0).s)
         self._optimizer.register(optimizer.ParameterOptimizer("split", (0., smax), "model"))
         self._optimizer.register(optimizer.AnalysisSaver(outdir))
