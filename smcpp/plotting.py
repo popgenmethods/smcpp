@@ -70,7 +70,10 @@ def plot_psfs(psfs, xlim, ylim, xlabel, logy=False):
             if isinstance(mb, model.SMCTwoPopulationModel):
                 split = True
                 ms = mb.splitted_models()
-                labels = label.split(",")
+                if label:
+                    labels = label.split(",")
+                else:
+                    labels = (None, None)
             else:
                 ms = [mb]
                 labels = [label]
@@ -100,7 +103,7 @@ def plot_psfs(psfs, xlim, ylim, xlabel, logy=False):
         xp = 2 * N0 * g * x + off
         yp = N0 * y
         if label is None:
-            plotfun(xp, yp, linewidth=2, color="black")
+            plotfun(xp, yp, linewidth=2, label=label, color="black")
         else:
             labels += plotfun(xp, yp, label=label, linewidth=2)
         xmin = min(xmin, xp[1] * 0.9)

@@ -28,6 +28,9 @@ def add_common_estimation_args(parser):
                       help="omit sequences < cutoff. default: 10000", default=10000, type=int)
     data.add_argument('--thinning', help="only emit full SFS every <k>th site. default: 400 * n.",
                       default=None, type=int, metavar="k")
+    data.add_argument('--no-filter', help="do not drop contigs with extreme heterozygosity. "
+                                          "(not recommended unless data set is small)",
+                      action="store_true", default=False)
     # data.add_argument("--folded", action="store_true", default=False,
     #                         help="use folded SFS for emission probabilites. "
     #                              "useful if polarization is not known.")

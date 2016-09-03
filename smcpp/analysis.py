@@ -12,16 +12,14 @@ from multiprocessing.managers import BaseManager, NamespaceProxy
 from . import estimation_tools, _smcpp, util, logging, optimizer, jcsfs, spline
 from .contig import Contig
 from .model import SMCModel, SMCTwoPopulationModel
-from .observe import Observer, targets
 
 logger = logging.getLogger(__name__)
 
 _model_cls_d = {cls.__name__: cls for cls in (SMCModel, SMCTwoPopulationModel)}
 
-class BaseAnalysis(Observer):
+class BaseAnalysis:
     "Base class for analysis of population genetic data."
     def __init__(self, files, args):
-        Observer.__init__(self)
         # Misc. parameter initialiations
         self._N0 = args.N0
         self._penalty = args.regularization_penalty
@@ -36,7 +34,7 @@ class BaseAnalysis(Observer):
         self._validate_data()
         self._recode_nonseg(args.nonseg_cutoff)
         self._perform_thinning(args.thinning)
-        self._normalize_data(args.length_cutoff)
+        self._normalize_data(args.length_cutoff, args.no_filter)
 
     ## PRIVATE INIT FUNCTIONS
     def _load_data(self, files):
@@ -104,7 +102,7 @@ class BaseAnalysis(Observer):
         elif np.any(ns > 0):
             logger.warn("Not thinning yet undistinguished lineages are present")
 
-    def _normalize_data(self, length_cutoff):
+    def _normalize_data(self, length_cutoff, no_filter):
         ## break up long spans
         self._contigs, attrs = estimation_tools.break_long_spans(self._contigs, length_cutoff)
         w, het = np.array([a[2:] for k in attrs for a in attrs[k]]).T
@@ -117,7 +115,8 @@ class BaseAnalysis(Observer):
             var = np.average((het - avg) ** 2, weights=w) * (n / (n - 1.))
             sd = np.sqrt(var)
             logger.debug("Average/sd het:%f(%f)", avg, sd)
-            logger.debug("Keeping contigs within ±3 s.d. of mean")
+            if not no_filter:
+                logger.debug("Keeping contigs within +-3 s.d. of mean")
         logger.debug("Average heterozygosity (derived / total bases) by data set (* = dropped)")
         ci = 0
         tpl = "%15d%15d%15d%12g"
@@ -127,7 +126,7 @@ class BaseAnalysis(Observer):
             for attr in attrs[key]:
                 het = attr[-1]
                 mytpl = tpl
-                if abs(het - avg) <= 3 * sd:
+                if no_filter or abs(het - avg) <= 3 * sd:
                     new_contigs.append(self._contigs[ci])
                 else:
                     mytpl += " *"
