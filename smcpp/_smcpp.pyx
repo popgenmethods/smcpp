@@ -334,8 +334,8 @@ cdef class PyTwoPopInferenceManager(_PyInferenceManager):
         m = self._model
         cdef ParameterVector distinguished_params = make_params_from_model(m.distinguished_model(self._di))
         ms = m.splitted_models()
-        cdef ParameterVector params1 = make_params_from_model(ms[0])
-        cdef ParameterVector params2 = make_params_from_model(ms[1])
+        cdef ParameterVector params1 = make_params(ms[0].stepwise_values(), ms[0].s, m.dlist)
+        cdef ParameterVector params2 = make_params(ms[1].stepwise_values(), ms[1].s, m.dlist)
         cdef double split = m.split
         with nogil:
             self._im2.setParams(distinguished_params, params1, params2, split)
