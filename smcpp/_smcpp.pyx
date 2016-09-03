@@ -332,7 +332,8 @@ cdef class PyTwoPopInferenceManager(_PyInferenceManager):
     @targets("model update")
     def update(self, message, *args, **kwargs):
         m = self._model
-        cdef ParameterVector distinguished_params = make_params_from_model(m.distinguished_model(self._di))
+        dm = m.distinguished_model(self._di)
+        cdef ParameterVector distinguished_params = make_params(dm.stepwise_values(), dm.s, m.dlist)
         ms = m.splitted_models()
         cdef ParameterVector params1 = make_params(ms[0].stepwise_values(), ms[0].s, m.dlist)
         cdef ParameterVector params2 = make_params(ms[1].stepwise_values(), ms[1].s, m.dlist)
