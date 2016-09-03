@@ -237,7 +237,7 @@ class ParameterOptimizer(Observer):
     @targets("pre M-step")
     def update(self, message, *args, **kwargs):
         param = self._param
-        logger.debug("Updating %s", param)
+        logger.info("Updating %s", param)
         tgt = kwargs[self._target]
         analysis = kwargs['analysis']
         if param not in ("theta", "rho", "split"):
@@ -249,7 +249,7 @@ class ParameterOptimizer(Observer):
                                              args=(analysis, tgt, param),
                                              method='bounded',
                                              bounds=self._bounds)
-        logger.debug("New %s: Q(%g)=%g", param, res.x, res.fun)
+        logger.info("New %s: %g", param, res.x)
         setattr(tgt, param, res.x)
 
     def _f(self, x, analysis, tgt, param):
