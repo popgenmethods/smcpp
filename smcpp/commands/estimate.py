@@ -36,6 +36,7 @@ def add_common_estimation_args(parser):
     #                              "useful if polarization is not known.")
 
     optimizer = parser.add_argument_group("Optimization parameters")
+    optimizer.add_argument("--no-initialize", action="store_true", default=False, help=argparse.SUPPRESS)
     optimizer.add_argument('--em-iterations', type=int,
                            help="number of EM steps to perform", default=10)
     optimizer.add_argument('--algorithm', choices=["L-BFGS-B", "TNC"],

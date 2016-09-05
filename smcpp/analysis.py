@@ -266,11 +266,12 @@ class Analysis(BaseAnalysis):
         self._init_model(args.pieces, args.N0, args.t1,
                 args.tK, args.offset, args.knots, args.spline)
 
-        self._hidden_states = np.array([0., np.inf])
-        self._init_inference_manager(False)
-        self._init_optimizer(args, files, args.outdir, args.block_size,
-                args.algorithm, args.tolerance, learn_rho=False)
-        self._optimizer.run(1)
+        if not args.no_initialize:
+            self._hidden_states = np.array([0., np.inf])
+            self._init_inference_manager(False)
+            self._init_optimizer(args, files, args.outdir, args.block_size,
+                    args.algorithm, args.tolerance, learn_rho=False)
+            self._optimizer.run(1)
 
         self._init_hidden_states(args.prior_model, args.M)
         self._init_inference_manager(False)
