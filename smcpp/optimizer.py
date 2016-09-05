@@ -378,8 +378,9 @@ class SMCPPOptimizer(AbstractOptimizer):
     def _coordinates(self):
         model = self._analysis.model
         ret = []
-        for b in range(0, model.K - self.block_size + 1, max(1, self.block_size - 2)):
-            ret.append(list(range(b, min(model.K, b + self.block_size))))
+        K = model.K - 1
+        for b in range(0, K - self.block_size + 1, max(1, self.block_size - 2)):
+            ret.append(list(range(b, min(K, b + self.block_size))))
         # After all coordinate-wise updates, optimize over whole function
         ret = ret[::-1]
         ret.append(list(range(model.K)))
