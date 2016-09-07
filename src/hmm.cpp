@@ -5,7 +5,7 @@
 
 HMM::HMM(const int hmm_num, const Matrix<int> &obs, const InferenceBundle* ib) : 
     hmm_num(hmm_num), obs(obs), ib(ib), M(ib->pi->rows()), L(obs.rows()), ll(0.),
-    alpha_hat(M, L), xisum(M, M), c(L)
+    alpha_hat(M, L + 1), xisum(M, M), c(L + 1)
 {
     gamma_sums.clear();
     Vector<double> uniform = ib->pi->template cast<double>();
@@ -18,7 +18,6 @@ HMM::HMM(const int hmm_num, const Matrix<int> &obs, const InferenceBundle* ib) :
         gamma_sums.at(key) += span * uniform;
     }
     xisum.setZero();
-    gamma0.setZero();
 }
 
 double HMM::loglik()
@@ -39,31 +38,30 @@ void HMM::domain_error(double ret)
 void HMM::Estep(bool fbOnly)
 {
     TransitionBundle *tb = ib->tb;
-    alpha_hat = Matrix<double>::Zero(M, L);
+    alpha_hat = Matrix<double>::Zero(M, L + 1);
     if (*(ib->saveGamma))
-        gamma = Matrix<double>::Zero(M, L);
+        gamma = Matrix<double>::Zero(M, L + 1);
     Matrix<double> T = tb->Td;
     gamma_sums.clear();
     const Vector<double> z = Vector<double>::Zero(M);
     gamma_sums.emplace(ob_key(0), z);
-    alpha_hat.col(0) = ib->pi->template cast<double>().cwiseProduct(ib->emission_probs->at(ob_key(0)).template cast<double>());
-	c(0) = alpha_hat.col(0).sum();
-    alpha_hat.col(0) /= c(0);
     Eigen::DiagonalMatrix<double, Eigen::Dynamic, Eigen::Dynamic> B;
     DEBUG << "forward algorithm (HMM #" << hmm_num << ")";
     int prog = (int)((double)L * 0.1);
     ll = 0.;
-    for (int ell = 1; ell < L; ++ell)
+    alpha_hat.col(0) = ib->pi->template cast<double>();
+    c(0) = 1.;
+    for (int ell = 1; ell < L + 1; ++ell)
     {
         if (ell == prog)
         {
             DEBUG << "hmm " << hmm_num << ": " << (int)(100. * (double)ell / (double)L) << "%";
             prog += (int)((double)L * 0.1);
         }
-        block_key key = ob_key(ell);
+        block_key key = ob_key(ell - 1);
         gamma_sums.emplace(key, z);
         B = ib->emission_probs->at(key).template cast<double>().asDiagonal();
-        int span = obs(ell, 0);
+        int span = obs(ell - 1, 0);
         if (span > 1 and tb->eigensystems.count(key) > 0)
         {
             eigensystem es = tb->eigensystems.at(key);
@@ -96,11 +94,11 @@ void HMM::Estep(bool fbOnly)
     Matrix<std::complex<double> > Q(M, M);
     Matrix<double> Q_r(M, M);
     DEBUG << "backward algorithm (HMM #" << hmm_num << ")";
-    for (int ell = L - 1; ell > 0; --ell)
+    for (int ell = L; ell > 0; --ell)
     {
         v.setZero();
-        int span = obs(ell, 0);
-        block_key key = ob_key(ell);
+        int span = obs(ell - 1, 0);
+        block_key key = ob_key(ell - 1);
         B = ib->emission_probs->at(key).template cast<double>().asDiagonal();
         if (span > 1 and tb->eigensystems.count(key) > 0)
         {
@@ -144,10 +142,7 @@ void HMM::Estep(bool fbOnly)
         if (*(ib->saveGamma))
             gamma.col(ell) = v;
     }
-    gamma0 = alpha_hat.col(0).cwiseProduct(beta);
-    gamma_sums.at(ob_key(0)) += gamma0;
-    if (*(ib->saveGamma))
-        gamma.col(0) = gamma0;
+    gamma.col(0) = alpha_hat.col(0).cwiseProduct(beta);
     xisum = xisum.cwiseProduct(T);
 }
 
@@ -157,7 +152,7 @@ Vector<adouble> HMM::Q(void)
     Vector<adouble> ret(3);
     ret.setZero();
     Vector<adouble> pi = *(ib->pi);
-    ret(0) = (pi.array().log() * gamma0.array().template cast<adouble_base_type>()).sum();
+    ret(0) = (pi.array().log() * gamma.col(0).array().template cast<adouble_base_type>()).sum();
 
     std::vector<adouble> gs;
     for (auto &p : gamma_sums)

@@ -30,7 +30,7 @@ class HMM
     const int M, L;
     double ll;
     Matrix<double> alpha_hat, xisum, gamma;
-    Vector<double> c, gamma0;
+    Vector<double> c;
     std::map<block_key, Vector<double> > gamma_sums;
 };
 
