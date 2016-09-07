@@ -220,5 +220,5 @@ class RepeatingWriter:
 
     def __exit__(self, type, value, traceback):
         self._write_last_ob()
+        self.f = None
         logger.info("Wrote %d observations" % self.i)
-
