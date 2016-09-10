@@ -74,6 +74,7 @@ cdef extern from "piecewise_constant_rate_function.h":
         PiecewiseConstantRateFunction(const ParameterVector, const vector[double])
         T R(T x)
         T random_time(const double, const double, const long long)
+        vector[T] average_coal_times() const
 
 # This code is only used for testing purposes
 cdef extern from "jcsfs.h":

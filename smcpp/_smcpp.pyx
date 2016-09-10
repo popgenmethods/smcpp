@@ -356,6 +356,10 @@ cdef class PyRateFunction:
         cdef adouble Rt = self._eta.get().R(adouble(t))
         return _adouble_to_ad(Rt, self._model.dlist)
 
+    def average_coal_times(self):
+        cdef vector[adouble] v = self._eta.get().average_coal_times()
+        return [toDouble(vv) for vv in v]
+
     def random_coal_times(self, t1, t2, K):
         cdef adouble t
         times = []
