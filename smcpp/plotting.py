@@ -44,6 +44,8 @@ def plot_psfs(psfs, xlim, ylim, xlabel, logy=False):
     my_axstep = saver(ax.step, "step")
     npsf = sum(label != "None" for label, _, _ in psfs)
     for i, (label, d, off) in enumerate(psfs):
+        N0 = d['N0']
+        g = d.get('g', None) or 1
         if 'b' in d:
             a = d['a']
             s = d['s']
@@ -62,7 +64,7 @@ def plot_psfs(psfs, xlim, ylim, xlabel, logy=False):
             y = np.concatenate([y, [a[-1], a[-1]]])
             # if not logy:
             #     y *= 1e-3
-            series.append((label, x, y, my_axplot, off))
+            series.append((label, x, y, my_axplot, off, N0, g))
         elif 'model' in d:
             cls = getattr(model, d['model']['class'])
             mb = cls.from_dict(d['model'])
@@ -83,8 +85,8 @@ def plot_psfs(psfs, xlim, ylim, xlabel, logy=False):
                 x2, y2 = (m._knots, np.exp(m[:].astype('float')))
                 # if not logy:
                 #     y *= 1e-3
-                series.append([l, x, y, my_axplot, off])
-                series.append([None, x2, y2, ax.scatter, off])
+                series.append([l, x, y, my_axplot, off, N0, g])
+                series.append([None, x2, y2, ax.scatter, off, N0, g])
             if split:
                 for i in 1, 2:
                     x = series[-i][1]
@@ -95,11 +97,9 @@ def plot_psfs(psfs, xlim, ylim, xlabel, logy=False):
             x = np.cumsum(d['s'])
             x = np.insert(x, 0, 0)[:-1]
             y = d['a']
-            series.append((label, x, y, my_axstep, off))
-    N0 = d['N0']
-    g = d.get('g', None) or 1
+            series.append((label, x, y, my_axstep, off, N0, g))
     labels = []
-    for label, x, y, plotfun, off in series:
+    for label, x, y, plotfun, off, N0, g in series:
         xp = 2 * N0 * g * x + off
         yp = N0 * y
         if label is None:
