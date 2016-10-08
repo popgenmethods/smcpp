@@ -4,19 +4,18 @@ import matplotlib, matplotlib.cm
 matplotlib.use('Agg')
 import numpy as np
 from numpy import array
+import seaborn as sns
 
 from . import model
 
 def pretty_plot():
     from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
     from matplotlib.figure import Figure
+    sns.set(style="ticks")
     fig = Figure()
     FigureCanvas(fig)
     ax = fig.add_subplot(111)
-    ax.spines["top"].set_visible(False)  
-    ax.spines["right"].set_visible(False)  
-    ax.get_xaxis().tick_bottom()  
-    ax.get_yaxis().tick_left()  
+    sns.despine(fig)
     return fig, ax
 
 def save_pdf(plt, filename):

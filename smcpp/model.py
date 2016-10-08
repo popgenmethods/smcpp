@@ -200,6 +200,10 @@ class SMCTwoPopulationModel(Observable, Observer):
         return self._models[0]
 
     @property
+    def K(self):
+        return self.model1.K
+
+    @property
     def model2(self):
         return self._models[1]
 

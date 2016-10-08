@@ -106,7 +106,7 @@ class BaseAnalysis:
         ## break up long spans
         self._contigs, attrs = estimation_tools.break_long_spans(self._contigs, length_cutoff)
         w, het = np.array([a[2:] for k in attrs for a in attrs[k]]).T
-        avg = np.average(het, weights=w)
+        self._het = avg = np.average(het, weights=w)
         n = len(het)
         if n == 1:
             avg = 0.
@@ -177,7 +177,7 @@ class BaseAnalysis:
         # For now, just base bounds off of population 1.
         sample_size = 2 + max(sum(c.n) for c in self._contigs)
         Hn = np.log(sample_size)
-        Nmax = .1 / (2 * self._theta * Hn)
+        Nmax = 1 / (2 * self._theta * Hn)
         logger.debug("Nmax calculated to be %g" % Nmax)
         self._bounds = (Nmin, Nmax)
 
@@ -326,28 +326,34 @@ class Analysis(BaseAnalysis):
                         "bspline" : spline.BSpline,
                         "akima": spline.AkimaSpline, 
                         "pchip": spline.PChipSpline}[spline_class]
+        y0 = self._het / (2. * self._theta)
+        logger.debug("Long term avg. effective population size: %f", y0)
+        y0 = np.log(y0)
         if self.npop == 1:
             self._model = SMCModel(time_points, knots, spline_class)
+            self._model[-1] = y0
         else:
             split = tK - t1  # just pick the midpoint as a starting value.
             split /= 2. * N0
-            mods = [SMCModel(time_points, knots, spline_class) for _ in self._populations]
+            mods = []
+            for _ in self._populations:
+                mods.append(SMCModel(time_points, knots, spline_class))
+                mods[-1][-1] = y0
             self._model = SMCTwoPopulationModel(mods[0], mods[1], split)
 
     def _init_optimizer(self, args, files, outdir, block_size, algorithm, tolerance, learn_rho):
         if self.npop == 1:
             self._optimizer = optimizer.SMCPPOptimizer(
-                self, algorithm, tolerance, args.solver_args)
+                self, algorithm, tolerance, block_size, args.solver_args)
             # Also optimize knots in 1 pop case. Not yet implemented
             # for two pop case.
             # self._optimizer.register(optimizer.KnotOptimizer())
         elif self.npop == 2:
             self._optimizer = optimizer.TwoPopulationOptimizer(
-                self, algorithm, tolerance, args.solver_args)
+                self, algorithm, tolerance, block_size, args.solver_args)
             smax = np.sum(self._model.distinguished_model(0).s)
             self._optimizer.register(
                 optimizer.ParameterOptimizer("split", (0., smax), "model"))
-        self._optimizer.block_size = block_size
         self._optimizer.register(optimizer.AnalysisSaver(outdir))
         if learn_rho:
             self._optimizer.register(
@@ -368,15 +374,15 @@ class SplitAnalysis(BaseAnalysis):
 
         self._hidden_states = np.array([0., np.inf])
         self._init_inference_manager(False)
-        self._init_optimizer(args, files, args.outdir, args.algorithm, args.tolerance)
+        self._init_optimizer(args, files, args.outdir, args.algorithm, args.tolerance, args.block_size)
         self._optimizer.run(1)
 
         self._init_hidden_states(args.pop1, args.M)
         self._init_inference_manager(False)
-        self._init_optimizer(args, files, args.outdir, args.algorithm, args.tolerance)
+        self._init_optimizer(args, files, args.outdir, args.algorithm, args.tolerance, args.block_size)
 
-    def _init_optimizer(self, args, files, outdir, algorithm, tolerance):
-        self._optimizer = optimizer.SplitOptimizer(self, algorithm, tolerance, args.solver_args)
+    def _init_optimizer(self, args, files, outdir, algorithm, tolerance, block_size):
+        self._optimizer = optimizer.TwoPopulationOptimizer(self, algorithm, tolerance, block_size, args.solver_args)
         smax = np.sum(self._model.distinguished_model(0).s)
         self._optimizer.register(optimizer.ParameterOptimizer("split", (0., smax), "model"))
         self._optimizer.register(optimizer.AnalysisSaver(outdir))

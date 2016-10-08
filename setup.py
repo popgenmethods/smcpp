@@ -76,6 +76,7 @@ setup(name='smcpp',
         use_scm_version=True,
         tests_require=['pytest'],
         install_requires=[
+            "seaborn",
             "progressbar2",
             "setuptools_scm",
             "appdirs",

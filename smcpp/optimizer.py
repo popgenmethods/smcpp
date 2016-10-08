@@ -35,11 +35,12 @@ class AbstractOptimizer(Observable):
     '''
     Abstract representation of the execution flow of the optimizer.
     '''
-    def __init__(self, analysis, algorithm, tolerance, solver_args={}):
+    def __init__(self, analysis, algorithm, tolerance, block_size, solver_args={}):
         Observable.__init__(self)
         self._analysis = analysis
         self._algorithm = algorithm
         self._tolerance = tolerance
+        self._block_size = block_size
         self._solver_args = solver_args
 
     @abstractmethod
@@ -359,8 +360,8 @@ class AsciiPlotter(Observer):
 class SMCPPOptimizer(AbstractOptimizer):
     'Model fitting for one population.'
 
-    def __init__(self, analysis, algorithm, tolerance, solver_args):
-        AbstractOptimizer.__init__(self, analysis, algorithm, tolerance, solver_args)
+    def __init__(self, analysis, algorithm, tolerance, block_size, solver_args):
+        AbstractOptimizer.__init__(self, analysis, algorithm, tolerance, block_size, solver_args)
         observers = [
             HiddenStateOccupancyPrinter(),
             ProgressPrinter(),
@@ -378,9 +379,9 @@ class SMCPPOptimizer(AbstractOptimizer):
     def _coordinates(self):
         model = self._analysis.model
         ret = []
-        K = model.K - 1
-        for b in range(0, K - self.block_size + 1, max(1, self.block_size - 2)):
-            ret.append(list(range(b, min(K, b + self.block_size))))
+        K = model.K
+        for b in range(0, K - self._block_size + 1, max(1, self._block_size - 2)):
+            ret.append(list(range(b, min(K, b + self._block_size))))
         ret = ret[::-1]
         return ret
 
@@ -393,17 +394,7 @@ class TwoPopulationOptimizer(SMCPPOptimizer):
     'Model fitting for two populations.'
 
     def _coordinates(self):
-        K = len(self._analysis.model.model1[:])
-        c1, c2 = [[list(range(b, min(K, b + self.block_size)))
-            for b in range(0, ub + 1, self.block_size - 2)][::-1]
-            for ub in [K - self.block_size, self._analysis.model.split_ind]]
-        ret =  sorted([(i, cc) for i, c in enumerate([c1, c2]) for cc in c], key=lambda x: x[1])[::-1]
-        return ret
+        return [(i, x) for x in SMCPPOptimizer._coordinates(self) for i in (0, 1)]
 
     def _bounds(self, coords):
         return SMCPPOptimizer._bounds(self, coords[1])
-
-class SplitOptimizer(TwoPopulationOptimizer):
-    def _coordinates(self):
-        K = self._analysis.model.distinguished_model(0).K
-        return [(i, np.arange(K)) for i in (0, 1)]
