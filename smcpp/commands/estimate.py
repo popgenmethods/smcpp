@@ -57,8 +57,7 @@ def add_common_estimation_args(parser):
     hmm.add_argument(
         '--M', type=int, help="number of hidden states", default=32)
 
-    parser.add_argument("-o", "--outdir", help="output directory",
-                        default=".", widget="DirChooser")
+    parser.add_argument("-o", "--outdir", help="output directory", default=".")
     parser.add_argument('-v', '--verbose', action='count', default=0,
                         help="increase debugging output, specify multiply times for more")
 
@@ -95,8 +94,8 @@ def init_parser(parser):
                             help="population-scaled mutation rate. default: Watterson's estimator.")
     pop_params.add_argument('--rho', '-r', type=float,
                             help="fix recombination rate to this value. default: estimate from data.")
-    parser.add_argument('data', nargs="+", help="data file(s) in SMC++ format",
-                        widget="MultiFileChooser")
+    parser.add_argument('data', nargs="+", help="data file(s) in SMC++ format")
+                        
 
 
 def validate_args(args):

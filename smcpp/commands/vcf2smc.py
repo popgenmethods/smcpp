@@ -35,12 +35,11 @@ def init_parser(parser):
     parser.add_argument("--missing-cutoff", "-c", metavar="c", type=int, default=None,
             help="treat runs of homozygosity longer than <c> base pairs as missing")
     parser.add_argument("--mask", "-m",
-            help="BED-formatted mask of missing regions",
-            widget="FileChooser")
+            help="BED-formatted mask of missing regions")
     parser.add_argument("vcf", metavar="vcf[.gz]",
-            help="input VCF file", widget="FileChooser")
+            help="input VCF file")
     parser.add_argument("out", metavar="out[.gz]",
-            help="output SMC++ file", widget="FileChooser")
+            help="output SMC++ file")
     parser.add_argument("contig", help="contig to parse")
     parser.add_argument("pop1", type=sample_list,
             help="List of sample ids from population 1. "

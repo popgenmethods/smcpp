@@ -21,8 +21,8 @@ def init_parser(parser):
             help="number of columns in outputted posterior decoding matrix. If "
             "width < L, matrix will be downsampled prior to plotting. ")
     parser.add_argument("--colorbar", action="store_true", help="Add a colorbar")
-    parser.add_argument("model", type=str, help="SMC++ model to use in forward-backward algorithm", widget="FileChooser")
-    parser.add_argument("data", type=str, help="data to decode", widget="FileChooser")
+    parser.add_argument("model", type=str, help="SMC++ model to use in forward-backward algorithm")
+    parser.add_argument("data", type=str, help="data to decode")
     parser.add_argument("output", type=str, help="destination of posterior decoding matrix")
 
 def main(args):

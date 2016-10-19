@@ -30,10 +30,8 @@ def init_parser(parser):
                         default=None, help="y-axis limits")
     parser.add_argument("-l", "--labels", type=str,
                         help="label for each plotted function", nargs="+")
-    parser.add_argument("pdf", type=str, help="output PDF",
-                        metavar="plot.pdf", widget="FileChooser")
-    parser.add_argument("model", type=str, help="SMC++ models to plot",
-                        nargs="+", widget="MultiFileChooser")
+    parser.add_argument("pdf", type=str, help="output PDF", metavar="plot.pdf")
+    parser.add_argument("model", type=str, help="SMC++ models to plot", nargs="+")
 
 def main(args):
     psfs = []

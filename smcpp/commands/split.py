@@ -22,9 +22,9 @@ np.set_printoptions(linewidth=120, suppress=True)
 def init_parser(parser):
     '''Configure parser and parse args.'''
     add_common_estimation_args(parser)
-    parser.add_argument('pop1', help="marginal fit for population 1", widget="MultiFileChooser")
-    parser.add_argument('pop2', help="marginal fit for population 2", widget="MultiFileChooser")
-    parser.add_argument('data', nargs="+", help="data file(s) in SMC++ format", widget="MultiFileChooser")
+    parser.add_argument('pop1', help="marginal fit for population 1")
+    parser.add_argument('pop2', help="marginal fit for population 2")
+    parser.add_argument('data', nargs="+", help="data file(s) in SMC++ format")
 
 
 def main(args):
