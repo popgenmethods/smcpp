@@ -49,8 +49,14 @@ def init_parser(parser):
 
 
 def validate(args):
-    if args.missing_cutoff and args.mask:
+    opts = [args.missing_cutoff, args.mask]
+    if all(opts):
         raise RuntimeError("--missing-cutoff and --mask are mutually exclusive")
+    if not any(opts):
+        logger.warn("Neither missing cutoff (-c) or mask (-m) has been specified. "
+                    "This means that stretches of the chromosome that do not have "
+                    "any VCF entries (for example, centromeres) will be interpreted "
+                    "as homozygous recessive.")
 
 
 def main(args):
