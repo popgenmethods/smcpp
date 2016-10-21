@@ -61,7 +61,11 @@ class AbstractOptimizer(Observable):
         logger.debug(x.astype('float'))
         x = self._prepare_x(x)
         analysis.model[coords] = x
-        q = -analysis.Q(k)
+        q = analysis.Q(k)
+        # autodiff doesn't like multiplying and dividing inf
+        if np.isinf(q.x):
+            return [np.inf, np.zeros(len(x))]
+        q = -q
         ret = [q.x, np.array(list(map(q.d, x)))]
         return ret
 

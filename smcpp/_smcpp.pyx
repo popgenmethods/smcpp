@@ -266,8 +266,14 @@ cdef class _PyInferenceManager:
 
     def Q(self, separate=False):
         cdef vector[adouble] ad_rets
-        with nogil:
-            ad_rets = self._im.Q()
+        try:
+            with nogil:
+                ad_rets = self._im.Q()
+        except RuntimeError as e:
+            if str(e) == "SFS is not a probability distribution":
+                logger.debug("Model does not induce a valid probability distribution")
+                return adnumber(-np.inf)
+            raise
         _check_abort()
         cdef int i
         cdef adouble q = adouble(0)

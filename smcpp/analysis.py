@@ -177,7 +177,7 @@ class BaseAnalysis:
         # For now, just base bounds off of population 1.
         sample_size = 2 + max(sum(c.n) for c in self._contigs)
         Hn = np.log(sample_size)
-        Nmax = 1 / (2 * self._theta * Hn)
+        Nmax = 1 / (2 * self._theta * Hn) / 5.
         logger.debug("Nmax calculated to be %g" % Nmax)
         self._bounds = (Nmin, Nmax)
 

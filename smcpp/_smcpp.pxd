@@ -47,7 +47,7 @@ cdef extern from "inference_manager.h":
         void Estep(bool)
         void setParams(const ParameterVector &) except +
         vector[double] loglik()
-        vector[adouble] Q()
+        vector[adouble] Q() except +
         bool debug
         bool saveGamma
         bool folded
