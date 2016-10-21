@@ -5,7 +5,9 @@
 
 HMM::HMM(const int hmm_num, const Matrix<int> &obs, const InferenceBundle* ib) : 
     hmm_num(hmm_num), obs(obs), ib(ib), M(ib->pi->rows()), L(obs.rows()), ll(0.),
-    alpha_hat(M, L + 1), xisum(M, M), c(L + 1)
+    alpha_hat(M, L + 1), xisum(M, M), gamma(M, 1), c(L + 1)
+    // Gamma has one column because gamma.col(0) will be set to calculate
+    // the initial distribution term
 {
     gamma_sums.clear();
     Vector<double> uniform = ib->pi->template cast<double>();
