@@ -394,17 +394,6 @@ void NPopInferenceManager<P>::recompute_emission_probs()
     DEBUG << "recompute done";
 }
 
-Vector<adouble> TwoPopInferenceManager::tensorRef(const block_key &key)
-{
-    Vector<int> vals = key.vals;
-    // Support the case of (0, 2) by flipping the key
-    if (na(0) == 0 and na(1) == 2)
-    {
-        vals.head(2) = key.vals.tail(2);
-        vals.tail(2) = key.vals.head(2);
-    }
-    return tensorSlice<4>::run(emission, key.vals, tensordims);
-}
 
 template <size_t P>
 Vector<adouble> NPopInferenceManager<P>::tensorRef(const block_key &key)
@@ -443,12 +432,8 @@ OnePopInferenceManager::OnePopInferenceManager(
 JointCSFS<adouble>* create_jcsfs(int n1, int n2, int a1, int a2, const std::vector<double> &hidden_states)
 {
     if (a1 == 0 and a2 == 2)
-    {
-        std::swap(n1, n2);
-        std::swap(a1, a2);
-    }
+        throw std::runtime_error("(0,2) not supported");
     return new JointCSFS<adouble>(n1, n2, a1, a2, hidden_states);
-
 }
 
 TwoPopInferenceManager::TwoPopInferenceManager(

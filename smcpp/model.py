@@ -8,12 +8,21 @@ from .observe import Observable, Observer, targets
 
 logger = logging.getLogger(__name__)
 
+class BaseModel(Observable):
+    def __init__(self, pid):
+        Observable.__init__(self)
+        self._pid = pid
+
+    @property
+    def pid(self):
+        return self._pid
+
 
 # Dummy class used for JCSFS and a few other places
-class PiecewiseModel(Observable):
-    def __init__(self, a, s):
+class PiecewiseModel(BaseModel):
+    def __init__(self, a, s, pid=None):
+        BaseModel.__init__(self, pid)
         assert len(a) == len(s)
-        Observable.__init__(self)
         self.s = np.array(s)
         self.a = np.array(a)
         
@@ -59,9 +68,9 @@ class OldStyleModel(PiecewiseModel):
         PiecewiseModel.__init__(self, ap, sp)
 
 
-class SMCModel(Observable):
-    def __init__(self, s, knots, spline_class=spline.PChipSpline):
-        Observable.__init__(self)
+class SMCModel(BaseModel):
+    def __init__(self, s, knots, spline_class, pid):
+        BaseModel.__init__(self, pid)
         self._spline_class = spline_class
         self._s = np.array(s)
         self._cumsum_s = np.cumsum(s)
@@ -69,6 +78,10 @@ class SMCModel(Observable):
         self._trans = np.log
         # self._trans = lambda x: x
         self._spline = self._spline_class(self.transformed_knots)
+
+    def for_pop(self, pid):
+        assert pid == self.pid
+        return self
 
     @property
     def s(self):
@@ -135,24 +148,27 @@ class SMCModel(Observable):
         return "\n" + "\n".join(ret)
 
     def to_dict(self):
-        return {
-                'class': self.__class__.__name__,
-                's': list(self._s),
-                'knots': list(self._knots),
-                'spline_class': self._spline_class.__name__,
-                'y': self[:].astype('float').tolist()
-                }
+        d = {}
+        d.update({
+            'class': self.__class__.__name__,
+            's': list(self._s),
+            'knots': list(self._knots),
+            'spline_class': self._spline_class.__name__,
+            'y': self[:].astype('float').tolist(),
+            'pid': self.pid,
+            })
+        return d
 
     @classmethod
     def from_dict(cls, d):
         assert cls.__name__ == d['class']
         spc = getattr(spline, d['spline_class'])
-        r = cls(d['s'], d['knots'], spc)
+        r = cls(d['s'], d['knots'], spc, d['pid'])
         r[:] = d['y']
         return r
 
-    def distinguished_model(self, index):
-        assert index == 0
+    @property
+    def distinguished_model(self):
         return self
 
     def copy(self):
@@ -167,6 +183,29 @@ class SMCTwoPopulationModel(Observable, Observer):
         model1.register(self)
         model2.register(self)
         self._split = split
+
+    @property
+    def distinguished_model(self):
+        return self.model1
+
+    def for_pop(self, pid):
+        if pid == None:
+            # Special value indicating distinguished model when both lineages are apart.
+            s = self.model1.s
+            a = self.model1.stepwise_values()
+            cs = util.cumsum0(self.model1.s)
+            cs[-1] = np.inf
+            ip = np.searchsorted(cs, self._split)
+            sp = np.diff(np.insert(cs, ip, self._split))
+            sp[-1] = 1.
+            s = sp[ip - 1:]
+            s[0] = self.split
+            a = np.insert(a[ip - 1:], 0, np.inf)
+            return PiecewiseModel(a, s, None)
+        i = self.pids.index(pid)
+        if i == 0:
+            return self.model1
+        return _concat_models(self.model1, self.model2, self.split, pid)
 
     # Propagate changes from submodels up
     @targets('model update')
@@ -191,10 +230,6 @@ class SMCTwoPopulationModel(Observable, Observer):
     def s(self):
         return self.model1.s
 
-    def splitted_models(self):
-        # return [self.model1, ConcatenatedModel(self.model1, self.model2, self.split)]
-        return [self.model1, _concat_models(self.model1, self.model2, self.split)]
-
     @property
     def model1(self):
         return self._models[0]
@@ -207,21 +242,9 @@ class SMCTwoPopulationModel(Observable, Observer):
     def model2(self):
         return self._models[1]
 
-    def distinguished_model(self, index=0):
-        if index is not None:
-            return self.splitted_models()[index]
-        # The "apart" case
-        s = self.model1.s
-        a = self.model1.stepwise_values()
-        cs = util.cumsum0(self.model1.s)
-        cs[-1] = np.inf
-        ip = np.searchsorted(cs, self._split)
-        sp = np.diff(np.insert(cs, ip, self._split))
-        sp[-1] = 1.
-        s = sp[ip - 1:]
-        s[0] = self.split
-        a = np.insert(a[ip - 1:], 0, np.inf)
-        return PiecewiseModel(a, s)
+    @property
+    def pids(self):
+        return [m.pid for m in self._models]
 
     @property
     def dlist(self):
@@ -255,7 +278,7 @@ class SMCTwoPopulationModel(Observable, Observer):
 
     # FIXME this counts the part before the split twice
     def regularizer(self):
-        ret = sum([x.regularizer() for x in self.splitted_models()])
+        ret = sum([self.for_pop(pid).regularizer() for pid in self.pids])
         if not isinstance(ret, ad.ADF):
             ret = ad.adnumber(ret)
         return ret
@@ -270,7 +293,7 @@ class SMCTwoPopulationModel(Observable, Observer):
         self._models[a][cc] = x
 
 
-def _concat_models(m1, m2, t):
+def _concat_models(m1, m2, t, pid):
     # ip = np.searchsorted(m1._knots, t, side="right")
     ip = np.argmin(np.abs(m1._knots - t))
     nk = m1._knots.copy()
@@ -279,6 +302,6 @@ def _concat_models(m1, m2, t):
     ny[:ip] = m2[:ip]
     ny[ip] = ad.admath.log(m1(t).item())
     ny[ip + 1:] = m1[ip + 1:]
-    ret = SMCModel(m1.s, nk, m1._spline_class)
+    ret = SMCModel(m1.s, nk, m1._spline_class, pid)
     ret[:] = ny
     return ret

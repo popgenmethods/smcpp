@@ -119,9 +119,16 @@ def break_long_spans(contigs, length_cutoff):
             if s > length_cutoff:
                 contig_list.append(Contig(data=np.insert(obs[cob:x], 0, miss, 0),
                                           pid=contig.pid, fn=contig.fn, n=contig.n, a=contig.a))
+                if contig.a[0] == 1:
+                    a_cols = [1, 4]
+                else:
+                    assert contig.a[0] == 2
+                    a_cols = [1]
                 last_data = contig_list[-1].data
                 l = last_data[:, 0].sum()
-                s2 = last_data[:, 1][last_data[:, 1] >= 0].sum()
+                lda = last_data[:, a_cols]
+                s2 = lda[lda.min(axis=1) >= 0].sum()
+                assert s2 >= 0
                 obs_attributes.setdefault(i, []).append(
                     (positions[cob],
                      positions[x] if x is not None else positions[-1],
@@ -189,13 +196,19 @@ def _load_data_helper(fn):
                 attrs["pids"] = ["pop%d" % i for i, _ in enumerate(a, 1)]
         else:
             logger.warn("File %s doesn't appear to be in SMC++ format", fn)
-            attrs = {'pids': ['pop1']}
+            npop = (A.shape[1] - 1) // 3
+            attrs = {'pids': ['pop%d' % i for i in range(1, npop + 1)]}
             a = A[:, 1::3].max(axis=0)
             n = A[:, 3::3].max(axis=0)
-    return Contig(
-        pid=tuple(attrs['pids']),
-        data=np.ascontiguousarray(A, dtype='int32'),
-        n=n, a=a, fn=fn)
+    pid = tuple(attrs['pids'])
+    # Internally we always put the population with the distinguished lineage first.
+    if len(a) == 2 and a[0] == 0 and a[1] == 2:
+        n = n[::-1]
+        a = a[::-1]
+        pid = pid[::-1]
+        A = A[:, [0, 4, 5, 6, 1, 2, 3]]
+    data = np.ascontiguousarray(A, dtype='int32')
+    return Contig(pid=pid, data=data, n=n, a=a, fn=fn)
 
 
 def load_data(files):

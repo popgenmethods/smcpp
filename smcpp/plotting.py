@@ -70,14 +70,11 @@ def plot_psfs(psfs, xlim, ylim, xlabel, logy=False):
             split = False
             if isinstance(mb, model.SMCTwoPopulationModel):
                 split = True
-                ms = mb.splitted_models()
-                if label:
-                    labels = label.split(",")
-                else:
-                    labels = (None, None)
+                ms = [mb.for_pop(pid) for pid in mb.pids]
+                labels = mb.pids
             else:
                 ms = [mb]
-                labels = [label]
+                labels = [mb.pid]
             for m, l in zip(ms, labels):
                 x = np.logspace(np.log10(m.s[0]), np.log10(m.s.sum()), 200)
                 y = m(x).astype('float')

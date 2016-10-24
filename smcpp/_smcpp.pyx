@@ -298,39 +298,38 @@ cdef class _PyInferenceManager:
         return sum(llret)
 
 cdef class PyOnePopInferenceManager(_PyInferenceManager):
-    cdef int _distinguished_index
 
-    def __cinit__(self, int n, observations, hidden_states, distinguished_index, im_id):
+    def __cinit__(self, int n, observations, hidden_states, im_id):
         # This is needed because cinit cannot be inherited
         self.__my_cinit__(observations, hidden_states, im_id)
-        self._distinguished_index = distinguished_index
         with nogil:
             self._im = new OnePopInferenceManager(n, self._Ls, self._obs_ptrs, self._hs, False)
 
+    @property
+    def pid(self):
+        assert len(self._im_id[0]) == 1
+        return self._im_id[0][0]
+
     @targets("model update")
     def update(self, message, *args, **kwargs):
-        m = self._model
-        dm = m.distinguished_model(self._distinguished_index)
-        cdef ParameterVector params = make_params_from_model(dm)
+        m = self._model.for_pop(self.pid)
+        cdef ParameterVector params = make_params_from_model(m)
         with nogil:
             self._im.setParams(params)
 
 cdef class PyTwoPopInferenceManager(_PyInferenceManager):
 
     cdef TwoPopInferenceManager* _im2
-    cdef object _di
+    cdef int _a1
 
     def __cinit__(self, int n1, int n2, int a1, int a2, observations, hidden_states, im_id):
         # This is needed because cinit cannot be inherited
         assert a1 + a2 == 2
+        assert a1 in [1, 2]
+        assert a2 in [0, 1]
+        self._a1 = a1
         self.__my_cinit__(observations, hidden_states, im_id)
-        if a1 == 2:
-            self._di = 0
-        elif a2 == 2:
-            self._di = 1
-        else:
-            # Apart case
-            self._di = None
+        assert a1 in [1, 2], "a2=2 is not supported"
         with nogil:
             self._im2 = new TwoPopInferenceManager(n1, n2, a1, a2, self._Ls, self._obs_ptrs, self._hs, False)
             self._im = self._im2
@@ -338,9 +337,15 @@ cdef class PyTwoPopInferenceManager(_PyInferenceManager):
     @targets("model update")
     def update(self, message, *args, **kwargs):
         m = self._model
-        dm = m.distinguished_model(self._di)
+        pids = self._im_id[0]
+        if self._a1 == 1:
+            dist = None
+        else:
+            assert self._a1 == 2
+            dist = pids[0]
+        dm = m.for_pop(dist)
         cdef ParameterVector distinguished_params = make_params(dm.stepwise_values(), dm.s, m.dlist)
-        ms = m.splitted_models()
+        ms = [m.for_pop(p) for p in pids]
         cdef ParameterVector params1 = make_params(ms[0].stepwise_values(), ms[0].s, m.dlist)
         cdef ParameterVector params2 = make_params(ms[1].stepwise_values(), ms[1].s, m.dlist)
         cdef double split = m.split
@@ -416,10 +421,9 @@ def thin_data(data, int thinning, int offset=0):
         b_view[:] = vdata[j, 2::3]
         nb_view[:] = vdata[j, 3::3]
         sa = a.sum()
+        thin_view[::3] = a_view
         if sa == 2:
             thin_view[::3] = 0
-        else:
-            thin_view[::3] = a_view
         while span > 0:
             if i < thinning and i + span >= thinning:
                 if thinning - i > 1:

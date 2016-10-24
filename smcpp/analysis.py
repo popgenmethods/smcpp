@@ -43,26 +43,12 @@ class BaseAnalysis:
         self._files = files
         self._contigs = estimation_tools.load_data(files)
         pops = set(c.pid for c in self._contigs)
-        unique_pops = list(set(x for p in pops for x in p))
+        unique_pops = list({x for p in pops for x in p})
         assert len(unique_pops) <= 2, (
                 "Only one or two populations are supported, but the "
                 "following were found in the data: %r" % unique_pops)
-        if len(unique_pops) == 2:
-            u = tuple(unique_pops)
-            try:
-                if u in pops:
-                    assert u[::-1] not in pops
-                    self._populations = u
-                elif u[::-1] in pops:
-                    assert u not in pops
-                    self._populations = u[::-1]
-                else:
-                    assert False
-            except AssertionError:
-                raise RuntimeError("Exactly one of {%r | %r} must be represented in the data", (u, u[::-1]))
-        else:
-            assert len(unique_pops) == 1
-            self._populations = tuple(unique_pops)
+        assert len(unique_pops) <= 2
+        self._populations = tuple(unique_pops)
         
         for c in self._contigs:
             assert len(c.n) == len(c.a)
@@ -141,10 +127,10 @@ class BaseAnalysis:
         else:
             model = self._model
         ## choose hidden states based on prior model
-        dm = model.distinguished_model(0)
+        dm = model.distinguished_model
         hs = estimation_tools.balance_hidden_states(dm, M)
         self._hidden_states = np.sort(
-                np.unique(np.concatenate([self._model.distinguished_model(0)._knots, hs]))
+                np.unique(np.concatenate([self._model.distinguished_model._knots, hs]))
             )
         logger.debug("%d hidden states:\n%s" % (len(self._hidden_states), str(self._hidden_states)))
 
@@ -160,8 +146,7 @@ class BaseAnalysis:
             k = (pid, n, a)
             data = [contig.data for contig in d[k]]
             if len(pid) == 1:
-                di = self._populations.index(pid[0])
-                im = _smcpp.PyOnePopInferenceManager(n[0], data, self._hidden_states, di, k)
+                im = _smcpp.PyOnePopInferenceManager(n[0], data, self._hidden_states, k)
             else:
                 assert len(pid) == 2
                 im = _smcpp.PyTwoPopInferenceManager(n[0], n[1], a[0], a[1], data, self._hidden_states, k)
@@ -330,14 +315,14 @@ class Analysis(BaseAnalysis):
         logger.debug("Long term avg. effective population size: %f", y0)
         y0 = np.log(y0)
         if self.npop == 1:
-            self._model = SMCModel(time_points, knots, spline_class)
+            self._model = SMCModel(time_points, knots, spline_class, self._populations[0])
             self._model[-1] = y0
         else:
             split = tK - t1  # just pick the midpoint as a starting value.
             split /= 2. * N0
             mods = []
-            for _ in self._populations:
-                mods.append(SMCModel(time_points, knots, spline_class))
+            for pid in self._populations:
+                mods.append(SMCModel(time_points, knots, spline_class, pid))
                 mods[-1][-1] = y0
             self._model = SMCTwoPopulationModel(mods[0], mods[1], split)
 
@@ -351,7 +336,7 @@ class Analysis(BaseAnalysis):
         elif self.npop == 2:
             self._optimizer = optimizer.TwoPopulationOptimizer(
                 self, algorithm, tolerance, block_size, args.solver_args)
-            smax = np.sum(self._model.distinguished_model(0).s)
+            smax = np.sum(self._model.distinguished_model.s)
             self._optimizer.register(
                 optimizer.ParameterOptimizer("split", (0., smax), "model"))
         self._optimizer.register(optimizer.AnalysisSaver(outdir))
@@ -383,7 +368,7 @@ class SplitAnalysis(BaseAnalysis):
 
     def _init_optimizer(self, args, files, outdir, algorithm, tolerance, block_size):
         self._optimizer = optimizer.TwoPopulationOptimizer(self, algorithm, tolerance, block_size, args.solver_args)
-        smax = np.sum(self._model.distinguished_model(0).s)
+        smax = np.sum(self._model.distinguished_model.s)
         self._optimizer.register(optimizer.ParameterOptimizer("split", (0., smax), "model"))
         self._optimizer.register(optimizer.AnalysisSaver(outdir))
 
