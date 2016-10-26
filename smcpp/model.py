@@ -69,7 +69,7 @@ class OldStyleModel(PiecewiseModel):
 
 
 class SMCModel(BaseModel):
-    def __init__(self, s, knots, spline_class, pid):
+    def __init__(self, s, knots, spline_class=spline.CubicSpline, pid=None):
         BaseModel.__init__(self, pid)
         self._spline_class = spline_class
         self._s = np.array(s)

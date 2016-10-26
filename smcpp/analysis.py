@@ -33,8 +33,7 @@ class BaseAnalysis:
         self._load_data(files)
         self._validate_data()
         self._recode_nonseg(args.nonseg_cutoff)
-        self._perform_thinning(args.thinning)
-        self._normalize_data(args.length_cutoff, args.no_filter)
+
 
     ## PRIVATE INIT FUNCTIONS
     def _load_data(self, files):
@@ -245,6 +244,9 @@ class Analysis(BaseAnalysis):
     def __init__(self, files, args):
         BaseAnalysis.__init__(self, files, args)
 
+        # Perform initial filtering for weird contigs
+        self._normalize_data(args.length_cutoff, args.no_filter)
+
         # Initialize members
         self._init_parameters(args.theta, args.rho)
         self._init_bounds(args.Nmin)
@@ -258,6 +260,10 @@ class Analysis(BaseAnalysis):
                     args.algorithm, args.tolerance, learn_rho=False)
             self._optimizer.run(1)
 
+        # Thin the data
+        self._perform_thinning(args.thinning)
+
+        # Continue initializing
         self._init_hidden_states(args.prior_model, args.M)
         self._init_inference_manager(False)
         self._init_optimizer(args, files, args.outdir, args.block_size,
@@ -359,18 +365,24 @@ class SplitAnalysis(BaseAnalysis):
 
         self._hidden_states = np.array([0., np.inf])
         self._init_inference_manager(False)
-        self._init_optimizer(args, files, args.outdir, args.algorithm, args.tolerance, args.block_size)
+        self._init_optimizer(args, files, args.outdir, args.algorithm, args.tolerance, args.block_size, False)
+        # Hack to only estimate split time.
         self._optimizer.run(1)
+
+        # After inferring initial split time, thin
+        self._perform_thinning(args.thinning)
+        self._normalize_data(args.length_cutoff, args.no_filter)
 
         self._init_hidden_states(args.pop1, args.M)
         self._init_inference_manager(False)
         self._init_optimizer(args, files, args.outdir, args.algorithm, args.tolerance, args.block_size)
 
-    def _init_optimizer(self, args, files, outdir, algorithm, tolerance, block_size):
+    def _init_optimizer(self, args, files, outdir, algorithm, tolerance, block_size, save=True):
         self._optimizer = optimizer.TwoPopulationOptimizer(self, algorithm, tolerance, block_size, args.solver_args)
         smax = np.sum(self._model.distinguished_model.s)
         self._optimizer.register(optimizer.ParameterOptimizer("split", (0., smax), "model"))
-        self._optimizer.register(optimizer.AnalysisSaver(outdir))
+        if save:
+            self._optimizer.register(optimizer.AnalysisSaver(outdir))
 
     def _init_model(self, pop1, pop2):
         d = json.load(open(pop1, "rt"))
