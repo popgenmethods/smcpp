@@ -9,16 +9,17 @@ Quick Start Guide
 
 2. Convert your VCF(s) to the SMC++ input format with vcf2smc_::
 
-     $ smc++ vcf2smc my.data.vcf.gz chr1 data/example.chr1.smc.gz
+     $ smc++ vcf2smc my.data.vcf.gz out/chr1.smc.gz chr1 Pop1:S1,S2
 
-   This command will parse data for the contig ``chr1`` across all
-   samples in the VCF. You should run this once for each independent
-   contig in your dataset, producing one SMC++ output file per contig.
+   This command will parse data for the contig ``chr1`` for samples
+   ``S1`` and ``S2`` which are members of population ``Pop1``. You
+   should run this once for each independent contig in your dataset,
+   producing one SMC++ output file per contig.
 
 3. Fit the model using estimate_::
 
-     $ smc++ estimate --theta .00025 -o analysis/ data/example.chr*.smc.gz
-     
+     $ smc++ estimate --theta .00025 -o analysis/ out/example.chr*.smc.gz
+
    Depending on sample size and your machine, the fitting procedure
    should take between a few minutes and a few hours. The fitted model
    will be stored in JSON format in ``analysis/model.final.json``. For
@@ -26,7 +27,7 @@ Quick Start Guide
 
 4. Visualize the results using plot_::
 
-     $ smc++ plot --labels species1 -- analysis/model.final.json results/fit.pdf
+     $ smc++ plot analysis/model.final.json plot.pdf
 
 ============
 Installation
@@ -34,7 +35,7 @@ Installation
 
 SMC++ is installed using ``pip``, the Python package manager::
 
-     $ pip install git+https://github.com/terhorst/pmscpp.git@current
+     $ pip install git+https://github.com/terhorst/smcpp.git
 
 Depending on your platform, ``pip`` will either download a pre-compiled
 binary, or compile SMC++ from scratch.
@@ -44,8 +45,7 @@ Requirements
 
 SMC++ requires the following libraries and executables in order to run:
 
-- Python 2.7 or greater. SMC++ is compatible with Python 3, but only
-  in console mode.
+- Python 2.7 or greater.
 - gmp_, for some rational field computations.
 - mpfr_, for some extended precision calculations.
 - gsl_, the GNU Scientific Library.
@@ -89,7 +89,7 @@ OpenMP. For this reason it is recommended that you use gcc instead.
 In order to tell ``pip`` to use gcc, set the ``CC`` and ``CXX``
 environment variables, e.g.::
 
-    $ CC=gcc-5 CXX=g++-5 pip install git+https://github.com/terhorst/pmscpp.git@current
+    $ CC=gcc-5 CXX=g++-5 pip install git+https://github.com/terhorst/smcpp.git
 
 .. _OpenMP: http://openmp.org
 
@@ -109,14 +109,12 @@ Then, install SMC++ using ``pip`` as described above.
 
 .. _virtual environment: http://docs.python-guide.org/en/latest/dev/virtualenvs/
 
-==========================
-Description of subcommands
-==========================
+=====
+Usage
+=====
 
-SMC++ comprises several subcommands which are accessed using the syntax 
-
-.. code-block:: bash
-
+SMC++ comprises several subcommands which are accessed using the syntax::
+    
     $ smc++ <subcommand>
 
 vcf2smc
@@ -127,39 +125,48 @@ SMC++.
 Required arguments
 ------------------
 
-    1. An `indexed VCF file <http://www.htslib.org/doc/tabix.html>`_.
-    2. An output file. Appending the ``.gz`` extension will cause the output
-       to be compressed; the estimate_ command can read from both compressed
-       and uncompressed data sources.
-    3. A contig name. Each call to vcf2smc_ processes a single contig. 
-       VCFs containing multiple contigs should be processed via multiple
-       separate runs.
+1. An `indexed VCF file <http://www.htslib.org/doc/tabix.html>`_.
+2. An output file. Appending the ``.gz`` extension will cause the output
+   to be compressed; the estimate_ command can read from both compressed
+   and uncompressed data sources.
+3. A contig name. Each call to vcf2smc_ processes a single contig. 
+   VCFs containing multiple contigs should be processed via multiple
+   separate runs.
+4. A list of population(s) and samples. Each population has an id followed
+   by a comma-separated list of sample IDs (column names in the VCF). Up to
+   two populations are supported.
+
+For example, to convert contig ``chr1`` of ``vcf.gz`` using samples
+``NA12878`` and ``NA12879`` of population ``CEU``, saving to
+``chr1.smc.gz``, use::
+
+    $ smc++ vcf2smc vcf.gz chr1.smc.gz chr1 CEU:NA12878,NA12879
 
 Optional arguments
 ------------------
-Following the three required arguments, the user may append sample
-names corresponding to columns in the VCF file. *If no sample names are
-supplied, all samples in the VCF are converted*. The user should ensure
-that this is the desired behavior since e.g. the VCF may contain samples
-from multiple distinct populations.
-
-SMC++ relies crucially on the notion of a *distinguished individual*
-(see paper for details on this terminology). The identity of the
-distinguished individual is set using the ``-i`` option, which specifies
-the (zero-based) position in the sample list of the distinguished
-individual. The default is ``-i 0``.
-
-By varying ``-i`` over the same VCF, the user can create distinct data
-sets for estimation. This is useful for forming composite likelihoods.
-For example, the following command will create three data sets from
-contig ``chr1`` of ``myvcf.gz``, by varying the identity of the distinguished
-individual and treating the remaining two samples as "undistinguished":
-
-.. code-block:: bash
-
-    for i in {0..2}; 
-        do smc++ vcf2smc -i $i myvcf.gz out.$i.txt chr1 NA12877 NA12878 NA12890; 
-    done
+- ``-d``.  SMC++ relies crucially on the notion of a pair of *distinguished lineages*
+  (see paper for details on this terminology). The identity of the
+  distinguished lineages is set using the ``-d`` option, which specifies
+  the sample(s) which will form the distinguished pair. ``-d`` accepts to
+  sample ids. The first allele will be taken from sample 1 and the second
+  from sample 2. To form the distinguished pair using one
+  haplotype from each of ``NA1287{8,9}`` using the above example::
+  
+      $ smc++ vcf2smc -d NA12878 NA12879 vcf.gz chr1.smc.gz chr1 CEU:NA12878,NA12879
+  
+  Note that "first" and "second" allele have no meaning for unphased data!
+  
+  By varying ``-d`` over the same VCF, the user can create distinct data
+  sets for estimation. This is useful for forming composite likelihoods.
+  For example, the following command will create three data sets from
+  contig ``chr1`` of ``myvcf.gz``, by varying the identity of the distinguished
+  individual and treating the remaining two samples as "undistinguished":
+  
+  .. code-block:: bash
+  
+      for i in {7..9}; 
+          do smc++ vcf2smc -d NA1287$i NA1287$i myvcf.gz out.$i.txt chr1 NA12877 NA12878 NA12890; 
+      done
 
 Manual conversion
 -----------------
@@ -170,16 +177,33 @@ data format should see the `input data format`_ description below.
 estimate
 ========
 
-     Here, the ``--theta`` option specifies a known mutation rate of
-     :math:`\mu=1.25 \times 10^{-8}`/bp/gen in units of the reference
-     effective population size :math:`2 N_0`. (The reference population
-     size may be adjusted using the ``--N0`` switch.) If :math:`\theta` is not
-     known for your species, it will be estimated from data using Watterson's
-     estimator.
+This command will fit a population size history to data. The basic usage
+is::
+
+    $ smc++ estimate -o out data.smc.gz
+
+Recommended arguments
+---------------------
+
+- ``--theta`` specifies the population-scaled mutation rate, that is
+  :math:`2 N_0 \mu` where :math:`\mu` denotes the per-generation
+  mutation rate, and :math:`N_0` is the baseline diploid effective
+  population size (see ``--N0``, below). If ``-theta`` is not specified,
+  Watterson's estimator will be used. It is recommended to set this
+  using prior knowledge of :math:`\mu` if at all possible.
+
+
 
 plot
 ====
 
+This command plots fitted size histories.
+
+split
+=====
+
+This command fits two-population split models using marginal estimates
+produced by estimate_.
 
 ============
 File Formats
@@ -241,14 +265,3 @@ Upon completion, SMC++ will write a `JSON-formatted
 <https://en.wikipedia.org/wiki/JSON>`_ model file into the into the
 analysis directory. The file is human-readable and contains various
 parameters related to the fitting procedure.
-
-Upon completion, SMC++ will output a tab-delimited table containing
-the estimation results. The three columns `a`, `b`, and `s` define a
-piecewise population model such that the estimated effective population
-size `s` generations in the past, `eta(s)`, is:::
-
-    eta(s) = a[i] * exp(log(b[i]/a[i])/(s[i] - s[i-1]) * (s - s[i-1])), s[i-1] <= s < s[i],
-
-where we define `s[0] = 0` by convention. Note that the population      
-sizes `a` and `b` are the *diploid* effective population size at each   
-corresponding time interval.                                            

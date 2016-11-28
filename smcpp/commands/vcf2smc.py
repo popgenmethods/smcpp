@@ -29,7 +29,9 @@ def sample_list(x):
 
 
 def init_parser(parser):
-    parser.add_argument("-d", nargs=2, help=argparse.SUPPRESS)
+    parser.add_argument("-d", nargs=2, metavar="sample_id", 
+            help="identity of distinguished lineages. First allele from sample_id 1 and "
+            "second allele from sample_id 2 will be used.")
     parser.add_argument("--ignore-missing", default=False, action="store_true",
             help="ignore samples which are missing in the data")
     parser.add_argument("--missing-cutoff", "-c", metavar="c", type=int, default=None,
