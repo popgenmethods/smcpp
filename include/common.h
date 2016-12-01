@@ -1,12 +1,10 @@
 #ifndef COMMON_H
 #define COMMON_H
 
-#include <mutex>
 #include <iostream>
-#include <vector>
-#include <random>
-#include <array>
 #include <ostream>
+#include <vector>
+#include <array>
 
 #include <Eigen/Dense>
 #include <unsupported/Eigen/MatrixFunctions>

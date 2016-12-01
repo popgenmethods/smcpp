@@ -1,3 +1,4 @@
+#include <numeric>
 #include <execinfo.h>
 #include <signal.h>
 #include <unistd.h>

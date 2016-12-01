@@ -27,7 +27,7 @@ def check_for_openmp():
     filename = r'test.c'
     open(filename, 'w').write(omp_test)
     with open(os.devnull, 'w') as fnull:
-        result = subprocess.call(['cc', '-fopenmp', filename],
+        result = subprocess.call([os.environ.get("CC", 'cc'), '-fopenmp', filename],
                                  stdout=fnull, stderr=fnull)
     os.chdir(curdir)
     #clean up
