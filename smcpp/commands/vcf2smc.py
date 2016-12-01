@@ -12,7 +12,7 @@ logger = getLogger(__name__)
 
 from ..logging import setup_logging
 from ..util import optional_gzip, RepeatingWriter
-from ..version import __version__
+from ..version import version
 
 
 SampleList = namedtuple("SampleList", "pid samples")
@@ -131,7 +131,7 @@ def main(args):
         # Write header
         pids = [a.pid for a in (args.pop1, args.pop2)[:npop]]
         out.write("# SMC++ ")
-        json.dump({"__version__": __version__, "pids": pids, "undist": undist, "dist": dist}, out)
+        json.dump({"version": version, "pids": pids, "undist": undist, "dist": dist}, out)
         out.write("\n")
         na = list(map(len, dist))
         nb = list(map(len, undist))

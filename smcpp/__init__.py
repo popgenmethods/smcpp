@@ -6,8 +6,6 @@ import numpy as np
 import warnings
 warnings.filterwarnings("error", category=np.VisibleDeprecationWarning)
 
-from .version import __version__
-
 np.seterr(divide='raise', invalid='raise', over='raise')
 
 class _SMCPPFilter:

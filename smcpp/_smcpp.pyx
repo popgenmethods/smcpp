@@ -17,12 +17,12 @@ from . import logging, version
 from .observe import targets
 
 logger = logging.getLogger(__name__)
-logger.debug("SMC++ " + version.__version__)
+logger.debug("SMC++ " + version.version)
 
 init_eigen()
 
 def _init_cache():
-    dirs = AppDirs("smcpp", "popgenmethods", version=version.MAJOR)
+    dirs = AppDirs("smcpp", "popgenmethods", version=version.version)
     try:
         os.makedirs(dirs.user_cache_dir)
     except OSError:

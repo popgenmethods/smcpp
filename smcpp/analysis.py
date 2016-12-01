@@ -5,9 +5,21 @@ import sys
 import os.path
 import scipy.optimize
 import ad
-import multiprocessing.dummy as mp
-from concurrent.futures import ThreadPoolExecutor, wait, as_completed
-from multiprocessing.managers import BaseManager, NamespaceProxy
+import multiprocessing
+import os
+
+try:
+    import concurrent.futures as futures
+except ImportError:
+    import futures
+
+try:
+    cpu_count = os.cpu_count()
+except:
+    cpu_count = multiprocessing.cpu_count()
+
+def thread_pool():
+    return futures.ThreadPoolExecutor(cpu_count)
 
 from . import estimation_tools, _smcpp, util, logging, optimizer, jcsfs, spline
 from .contig import Contig
@@ -27,7 +39,6 @@ class BaseAnalysis:
         args.solver_args = {}
         if args.factr:
             args.solver_args['factr'] = args.factr
-        # self._mp_ctx = mp.get_context('forkserver')
 
         # Data-related stuff
         self._load_data(files)
@@ -177,11 +188,11 @@ class BaseAnalysis:
         'Value of Q() function in M-step.'
         # q1, q2, q3 = self._im.Q(True)
         qq = 0.
-        with ThreadPoolExecutor() as executor:
-            futures = []
+        with thread_pool() as executor:
+            fs = []
             for na in self._ims:
-                futures.append(executor.submit(self._ims[na].Q))
-            for x in as_completed(futures):
+                fs.append(executor.submit(self._ims[na].Q))
+            for x in futures.as_completed(fs):
                 qq += x.result()
         qr = -self._penalty * self.model.regularizer()
         logger.debug(("Q", float(qq), [qq.d(x) for x in self.model.dlist]))
@@ -191,21 +202,21 @@ class BaseAnalysis:
     def E_step(self):
         'Perform E-step.'
         logger.info('Running E-step')
-        with ThreadPoolExecutor() as executor:
-            futures = []
+        with thread_pool() as executor:
+            fs = []
             for na in self._ims:
-                futures.append(executor.submit(self._ims[na].E_step))
-            wait(futures)
+                fs.append(executor.submit(self._ims[na].E_step))
+            futures.wait(fs)
         logger.info('E-step completed')
 
     def loglik(self):
         'Log-likelihood of data after most recent E-step.'
         ll = 0
-        with ThreadPoolExecutor() as executor:
-            futures = []
+        with thread_pool() as executor:
+            fs = []
             for na in self._ims:
-                futures.append(executor.submit(self._ims[na].loglik))
-            for x in as_completed(futures):
+                fs.append(executor.submit(self._ims[na].loglik))
+            for x in futures.as_completed(fs):
                 ll += x.result()
         return ll - self._penalty * float(self.model.regularizer())
 
