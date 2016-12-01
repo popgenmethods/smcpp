@@ -7,7 +7,7 @@
 struct block_key 
 { 
     block_key(const Vector<int> &vals) : vals(vals) {}
-    const Vector<int> vals;
+    Vector<int> vals;
 
     int operator()(int k) const { return vals(k); }
 

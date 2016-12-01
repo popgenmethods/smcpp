@@ -4,24 +4,68 @@ import os
 import os.path
 import glob
 import sys
+import tempfile
+import subprocess
+import shutil    
+import warnings
+
+# see http://openmp.org/wp/openmp-compilers/
+omp_test = \
+r"""
+#include <omp.h>
+#include <stdio.h>
+int main() {
+#pragma omp parallel
+printf("Hello from thread %d, nthreads %d\n", omp_get_thread_num(), omp_get_num_threads());
+}
+"""
+
+def check_for_openmp():
+    tmpdir = tempfile.mkdtemp()
+    curdir = os.getcwd()
+    os.chdir(tmpdir)
+
+    filename = r'test.c'
+    with open(filename, 'w', 0) as file:
+        file.write(omp_test)
+    with open(os.devnull, 'w') as fnull:
+        result = subprocess.call(['cc', '-fopenmp', filename],
+                                 stdout=fnull, stderr=fnull)
+    print(result)
+    os.chdir(curdir)
+    #clean up
+    shutil.rmtree(tmpdir)
+    return result == 0
 
 # Remove the "-Wstrict-prototypes" compiler option, which isn't valid for C++.
 import distutils.sysconfig
 cfg_vars = distutils.sysconfig.get_config_vars()
 for key, value in cfg_vars.items():
     if type(value) == str:
-        cfg_vars[key] = value.replace("-Wstrict-prototypes", "")
+        for w in ["-Wstrict-prototypes", "-Wno-error=shorten-64-to-32"]:
+            cfg_vars[key] = value.replace(w, "")
 
 cpps = [f for f in glob.glob("src/*.cpp") if 
         not os.path.basename(f).startswith("_") 
         and not os.path.basename(f).startswith("test")]
 
+extra_compile_args=["-O2", "-std=c++11", "-Wno-deprecated-declarations", "-DNO_CHECK_NAN"]
+extra_compile_args=["-O0", "-g", "-std=c++11", "-Wno-deprecated-declarations"]
+extra_link_args=[]
+
+if check_for_openmp():
+    extra_compile_args.append('-fopenmp')
+    extra_link_args.append('-fopenmp')
+else:
+    warnings.warn("OpenMP compiler support not detected. Compiling SMC++ with OpenMP support is "
+                  "*highly recommended* for performance reasons.")
+
 def lazy_extensions():
     # Lazy evaluation allows us to use setup_requires without have to import at
     # top level
     from Cython.Build import cythonize
-    import numpy as np
     import pkgconfig
+    import numpy as np
     include_dirs = ['/usr/local/include']
     for dep in ['gsl', 'mpfr']:
         include_dirs += [path.strip() for path in pkgconfig.cflags(dep).split("-I") if path.strip()]
@@ -31,13 +75,13 @@ def lazy_extensions():
                 sources=["smcpp/_smcpp.pyx"] + cpps,
                 language="c++",
                 include_dirs=[np.get_include(), "include", "include/eigen3"] + include_dirs,
-                # extra_compile_args=["-O0", "-ggdb3", "-std=c++11", "-Wno-unused-variable", "-Wno-unused-function", "-D_GLIBCXX_DEBUG", "-fopenmp"],
-                extra_compile_args=["-O2", "-std=c++11", "-Wno-deprecated-declarations", "-fopenmp", "-DNO_CHECK_NAN"],
+                library_dirs=['/usr/local/lib'],
                 libraries=['mpfr', 'gmp', 'gmpxx', 'gsl', 'gslcblas'],
-                extra_link_args=['-fopenmp', "-L/usr/local/lib", "-rdynamic"],
+                extra_compile_args=extra_compile_args,
+                extra_link_args=extra_link_args
                 )]
-    if True:
-        extensions.append(## This depends on boost and is only used for testing purposes
+    if False:
+        extensions.append(  # This depends on boost and is only used for testing purposes
                 Extension(
                     "smcpp._newick",
                     sources=["smcpp/_newick.pyx"],
@@ -48,22 +92,7 @@ def lazy_extensions():
                 )
     return cythonize(extensions)
 
-## Create a dummy distro in order to get setup_requires without
-## having to have already installed these modules
-## numpy auto install doesn't work.
-try:
-    import numpy
-except ImportError:
-    sys.exit("""
-**********************************************************************
-
- Setup requires numpy order to proceed. Please install it and re-run.
-
-**********************************************************************
-""")
-# gmpy2 is not used in the Python code, but enforces the libmpfr and libgmp dependencies.
-dist.Distribution({'setup_requires': ['numpy', 'pkgconfig', 'cython', 'gmpy2']})
-
+dist.Distribution({'setup_requires': ['numpy', 'pkgconfig', 'cython']})
 
 setup(name='smcpp',
         description='SMC++',
@@ -72,8 +101,8 @@ setup(name='smcpp',
         url='https://github.com/terhorst/smc++',
         ext_modules=lazy_extensions(), # cythonize(extensions),
         packages=find_packages(),
-        setup_requires=['pytest-runner', 'numpy', 'pkgconfig', 'cython', 'setuptools_scm'],
-        use_scm_version=True,
+        setup_requires=['pytest-runner', 'gmpy2', 'pkgconfig', 'cython', 'setuptools_scm'],
+        use_scm_version={'write_to': "smcpp/version.py"},
         tests_require=['pytest'],
         install_requires=[
             "seaborn",
@@ -82,6 +111,7 @@ setup(name='smcpp',
             "appdirs",
             "backports.shutil_which",
             "backports.shutil_get_terminal_size",
+            "futures",
             "wrapt>=1.10",
             "setuptools>=19.6",
             "ad>=1.2.2",
@@ -92,9 +122,9 @@ setup(name='smcpp',
             "pysam>=0.9",
             "pandas",
             "future"],
-        extras_require = {'gui': ["Gooey>=0.9"]},
         entry_points = {
             'console_scripts': ['smc++ = smcpp.frontend.console:main'],
-            'gui_scripts': ['smc++-gui = smcpp.frontend.gui:main [gui]']
             }
     )
+
+

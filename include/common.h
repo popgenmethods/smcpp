@@ -139,26 +139,26 @@ void store_matrix(const Matrix<adouble> &M, double *out, double *jac);
 
 void init_logger_cb(void(*)(const char*, const char*, const char*));
 void call_logger(const char*, const char*, const char*);
-struct Logger : public std::ostream
+struct Logger
 {
     static void(*logger_cb)(const char*, const char*, const char*);
-    Logger(const char* name, int line, const char* level) : name(name), line(line), level(level) {}
+    Logger(const char* name, int line, const char* level);
     const char* name;
     const int line;
     const char* level;
     std::stringstream stream;
+    std::ostringstream oss;
     template <typename T>
-    Logger &operator<<(const T &data)
+    Logger& operator<<(const T &data)
     {
         (stream) << data;
         return *this;
     }
-    ~Logger()
-    {
-        std::ostringstream oss;
-        oss << name << ":" << line;
-        call_logger(oss.str().c_str(), level, stream.str().c_str());
-    }
+    virtual ~Logger();
+
+    private:
+    Logger(const Logger&);
+    Logger& operator=(const Logger&);
 };
 
 #define DEBUG Logger(__FILE__, __LINE__, "DEBUG")

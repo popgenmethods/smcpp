@@ -38,6 +38,13 @@ void call_logger(const char* name, const char* level, const char* message)
         Logger::logger_cb(name, level, message);
 }
 
+Logger::Logger(const char* name, int line, const char* level) : name(name), line(line), level(level) {}
+Logger::~Logger()
+{
+    oss << name << ":" << line;
+    call_logger(oss.str().c_str(), level, stream.str().c_str());
+}
+
 void signal_bt(int sig)
 {
 #pragma omp critical(stacktrace)
