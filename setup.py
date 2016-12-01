@@ -57,6 +57,11 @@ else:
     warnings.warn("OpenMP compiler support not detected. Compiling SMC++ with OpenMP support is "
                   "*highly recommended* for performance reasons.")
 
+libraries = ['mpfr', 'gmp', 'gmpxx', 'gsl', 'gslcblas']
+if os.environ.get("SMCPP_STATIC", False):  # static link
+    libraries = [':lib%s.a' % lib for lib in libraries]
+    extra_link_args.append("-L%s/opt_static/lib" % os.environ['HOME'])
+
 def lazy_extensions():
     # Lazy evaluation allows us to use setup_requires without have to import at
     # top level
@@ -73,7 +78,7 @@ def lazy_extensions():
                 language="c++",
                 include_dirs=[np.get_include(), "include", "include/eigen3"] + include_dirs,
                 library_dirs=['/usr/local/lib'],
-                libraries=['mpfr', 'gmp', 'gmpxx', 'gsl', 'gslcblas'],
+                libraries=libraries,
                 extra_compile_args=extra_compile_args,
                 extra_link_args=extra_link_args
                 )]
