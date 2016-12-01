@@ -5,3 +5,5 @@ clean:
 current_tag:
 	git tag -f -m 'current tag' -a current
 	git push -f --tags pgm
+wheel:
+	python setup.py bdist_wheel
