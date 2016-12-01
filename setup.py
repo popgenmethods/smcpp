@@ -24,14 +24,11 @@ def check_for_openmp():
     tmpdir = tempfile.mkdtemp()
     curdir = os.getcwd()
     os.chdir(tmpdir)
-
     filename = r'test.c'
-    with open(filename, 'w', 0) as file:
-        file.write(omp_test)
+    open(filename, 'w').write(omp_test)
     with open(os.devnull, 'w') as fnull:
         result = subprocess.call(['cc', '-fopenmp', filename],
                                  stdout=fnull, stderr=fnull)
-    print(result)
     os.chdir(curdir)
     #clean up
     shutil.rmtree(tmpdir)
