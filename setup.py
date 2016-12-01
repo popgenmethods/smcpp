@@ -39,7 +39,7 @@ import distutils.sysconfig
 cfg_vars = distutils.sysconfig.get_config_vars()
 for key, value in cfg_vars.items():
     if type(value) == str:
-        for w in ["-Wstrict-prototypes", "-Wno-error=shorten-64-to-32"]:
+        for w in ["-Wstrict-prototypes"]:
             cfg_vars[key] = value.replace(w, "")
 
 cpps = [f for f in glob.glob("src/*.cpp") if 
@@ -47,7 +47,7 @@ cpps = [f for f in glob.glob("src/*.cpp") if
         and not os.path.basename(f).startswith("test")]
 
 extra_compile_args=["-O2", "-std=c++11", "-Wno-deprecated-declarations", "-DNO_CHECK_NAN"]
-extra_compile_args=["-O0", "-g", "-std=c++11", "-Wno-deprecated-declarations"]
+# extra_compile_args=["-O0", "-g", "-std=c++11", "-Wno-deprecated-declarations"]
 extra_link_args=[]
 
 if check_for_openmp():
