@@ -35,7 +35,7 @@ Installation
 
 SMC++ is installed using ``pip``, the Python package manager::
 
-     $ pip install git+https://github.com/terhorst/smcpp.git
+     $ pip install -r https://raw.githubusercontent.com/popgenmethods/smcpp/current/requirements.txt
 
 Depending on your platform, ``pip`` will either download a pre-compiled
 binary, or compile SMC++ from scratch.
@@ -89,7 +89,8 @@ OpenMP. For this reason it is recommended that you use gcc instead.
 In order to tell ``pip`` to use gcc, set the ``CC`` and ``CXX``
 environment variables, e.g.::
 
-    $ CC=gcc-5 CXX=g++-5 pip install git+https://github.com/terhorst/smcpp.git
+    $ export CC=gcc-5 CXX=g++-5 
+    $ pip install -r https://raw.githubusercontent.com/popgenmethods/smcpp/current/requirements.txt
 
 .. _OpenMP: http://openmp.org
 
