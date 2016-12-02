@@ -59,8 +59,8 @@ else:
 
 libraries = ['mpfr', 'gmp', 'gmpxx', 'gsl', 'gslcblas']
 if os.environ.get("SMCPP_STATIC", False):  # static link
-    libraries = [':lib%s.a' % lib for lib in libraries]
-    extra_link_args.append("-L%s/opt_static/lib" % os.environ['HOME'])
+    extra_link_args.append("-L%s" % os.environ['SMCPP_STATIC'])
+    libraries = ["%s_s" % lib for lib in libraries]
 
 def lazy_extensions():
     # Lazy evaluation allows us to use setup_requires without have to import at
