@@ -20,4 +20,3 @@ seaborn==0.7.1
 setuptools-scm==1.11.1
 six==1.10.0
 wrapt==1.10.8
--e git+https://github.com/popgenmethods/smcpp.git@current#egg=smcpp
