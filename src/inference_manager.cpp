@@ -250,7 +250,7 @@ template <size_t P>
 FixedVector<int, 2 * P> NPopInferenceManager<P>::make_tensordims()
 {
     FixedVector<int, 2 * P> ret;
-    for (int p = 0; p < P; ++p)
+    for (size_t p = 0; p < P; ++p)
     {
         ret(2 * p) = na(p) + 1;
         ret(2 * p + 1) = n(p) + 1;
@@ -262,7 +262,7 @@ template <size_t P>
 block_key NPopInferenceManager<P>::bk_to_map_key(const block_key &bk)
 {
     Vector<int> ret(2 * P);
-    for (int p = 0; p < P; ++p)
+    for (size_t p = 0; p < P; ++p)
     {
         ret(2 * p) = bk(3 * p);
         ret(2 * p + 1) = bk(3 * p + 1);

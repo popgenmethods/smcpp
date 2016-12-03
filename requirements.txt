@@ -3,11 +3,11 @@ appdirs==1.4.0
 backports.shutil-get-terminal-size==1.0.0
 backports.shutil-which==3.5.1
 cycler==0.10.0
-Cython==0.25.1
+Cython>=0.20
 future==0.16.0
 futures==3.0.5
-matplotlib==1.5.3
-numpy==1.11.2
+matplotlib>=1.5
+numpy>=1.6
 pandas==0.19.1
 progressbar2==3.11.0
 pyparsing==2.1.10
@@ -15,9 +15,8 @@ pysam==0.9.1.4
 python-dateutil==2.6.0
 python-utils==2.0.0
 pytz==2016.7
-scipy==0.18.1
+scipy>=0.17
 seaborn==0.7.1
 setuptools-scm==1.11.1
 six==1.10.0
 wrapt==1.10.8
--e git+https://github.com/popgenmethods/smcpp.git@current#egg=smcpp

@@ -50,17 +50,19 @@ extra_compile_args=["-O2", "-std=c++11", "-Wno-deprecated-declarations", "-DNO_C
 # extra_compile_args=["-O0", "-g", "-std=c++11", "-Wno-deprecated-declarations"]
 extra_link_args=[]
 
+libraries = ['mpfr', 'gmp', 'gmpxx', 'gsl', 'gslcblas']
 if check_for_openmp():
     extra_compile_args.append('-fopenmp')
-    extra_link_args.append('-fopenmp')
+    extra_link_args.append("-fopenmp")
 else:
     warnings.warn("OpenMP compiler support not detected. Compiling SMC++ with OpenMP support is "
                   "*highly recommended* for performance reasons.")
 
-libraries = ['mpfr', 'gmp', 'gmpxx', 'gsl', 'gslcblas']
 if os.environ.get("SMCPP_STATIC", False):  # static link
+    libraries = [':lib%s.a' % lib for lib in libraries]
     extra_link_args.append("-L%s" % os.environ['SMCPP_STATIC'])
-    libraries = ["%s_s" % lib for lib in libraries]
+    extra_link_args.append("-static-libstdc++")
+    extra_link_args.append("-static-libgcc")
 
 def lazy_extensions():
     # Lazy evaluation allows us to use setup_requires without have to import at
@@ -100,10 +102,10 @@ setup(name='smcpp',
         description='SMC++',
         author='Jonathan Terhorst, Jack Kamm, Yun S. Song',
         author_email='terhorst@stat.berkeley.edu',
-        url='https://github.com/terhorst/smc++',
+        url='https://github.com/popgenmethods/smc++',
         ext_modules=lazy_extensions(), # cythonize(extensions),
         packages=find_packages(),
-        setup_requires=['pytest-runner', 'gmpy2', 'pkgconfig', 'cython', 'setuptools_scm'],
+        setup_requires=['pytest-runner', 'pkgconfig', 'cython', 'setuptools_scm'],
         use_scm_version={'write_to': "smcpp/version.py"},
         tests_require=['pytest'],
         install_requires=[

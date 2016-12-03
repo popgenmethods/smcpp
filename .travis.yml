@@ -1,0 +1,29 @@
+compiler:
+    - gcc
+
+addons:
+    apt:
+        sources:
+            - llvm-toolchain-precise
+            - ubuntu-toolchain-r-test
+        packages:
+            - g++-5
+            - gcc-5
+
+matrix:
+    include:
+        - os: linux
+          sudo: required
+          env: PY=2
+        - os: linux
+          sudo: required
+          language: generic
+          env: PY=3
+        - os: osx
+          language: generic
+          env: PY=2
+        - os: osx
+          language: generic
+          env: PY=3
+
+script: ".travis/travis.sh"

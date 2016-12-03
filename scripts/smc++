@@ -1,0 +1,32 @@
+import smcpp.frontend.console
+import smcpp._smcpp
+# All imports from _smcpp.pyx included here to help pyinstaller find them.
+import random
+import sys
+import numpy as np
+import collections
+import scipy.optimize
+import collections
+import wrapt
+import six
+import os.path
+import pysam.version
+import pysam.calignmentfile
+import pysam.cbcf
+import pysam.samtools
+import pysam.config
+import pysam.Pileup
+import pysam.cfaidx
+import pysam.cvcf
+import pysam.ctabix
+import pysam.calignedsegment
+import pysam.utils
+import pysam.csamfile
+import pysam.libchtslib
+import pysam.ctabixproxies
+import pysam.cutils
+from appdirs import AppDirs
+from ad import adnumber, ADF
+
+## main
+smcpp.frontend.console.main()
