@@ -2,20 +2,23 @@
 #!/bin/bash
 
 if [[ $TRAVIS_OS_NAME == 'osx' ]]; then
-
-    # Install some custom requirements on OS X
-    # e.g. brew install pyenv-virtualenv
     brew update
-    brew install mpfr gmp gsl pyenv-virtualenv 
-    eval "$(pyenv init -)"
-    eval "$(pyenv virtualenv-init -)"
-
-    pyenv virtualenv $TOXENV py$TOXENV
-    pyenv activate py$TOXENV
+    brew install mpfr gmp gsl
+    OS=MacOSx
 else
     sudo apt-get -qq update
     sudo apt-get install -y libmpc-dev libmpfr-dev libgmp-dev libgsl0-dev 
+	OS=Linux
 fi
 
+wget http://repo.continuum.io/miniconda/Miniconda$TOXENV-latest-$OS-x86_64.sh -O miniconda.sh
+bash miniconda.sh -b -p $HOME/miniconda
+export PATH="$HOME/miniconda/bin:$PATH"
+hash -r
+conda config --set always_yes yes --set changeps1 no
+conda update -q conda
+conda info -a
+conda create -q -n test-environment python=$TRAVIS_PYTHON_VERSION atlas numpy scipy matplotlib pandas dateutil Cython
+source activate test-environment
 pip install -r requirements.txt
 python setup.py develop
