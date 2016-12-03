@@ -10,7 +10,7 @@ else
 	OS=Linux
 fi
 
-wget http://repo.continuum.io/miniconda/Miniconda$TOXENV-latest-$OS-x86_64.sh -O miniconda.sh
+wget http://repo.continuum.io/miniconda/Miniconda$PY-latest-$OS-x86_64.sh -O miniconda.sh
 bash miniconda.sh -b -p $HOME/miniconda
 export PATH="$HOME/miniconda/bin:$PATH"
 hash -r
