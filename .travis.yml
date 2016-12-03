@@ -7,9 +7,7 @@ compiler:
 
 language: python
 python:
-    - "2.6"
     - "2.7"
-    - "3.2"
     - "3.3"
     - "3.4"
     - "3.5"
@@ -17,7 +15,7 @@ python:
 before_install:
     - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew update          ; fi
     - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install mpfr gmp gsl; fi
-    - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then apt-get -qq update; fi
-    - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then apt-get install -y libmpfr-dev libgmp-dev libgsl-dev; fi
+    - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get -qq update; fi
+    - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get install -y libmpfr-dev libgmp-dev libgsl-dev; fi
 
 install: "pip install -r requirements.txt"
