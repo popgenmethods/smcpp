@@ -1,6 +1,15 @@
 compiler:
     - gcc
 
+addons:
+    apt:
+        sources:
+            - llvm-toolchain-precise
+            - ubuntu-toolchain-r-test
+        packages:
+            - g++-5
+            - gcc-5
+
 matrix:
     include:
         - os: linux

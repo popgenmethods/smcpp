@@ -1,9 +1,8 @@
 #!/bin/bash
-#!/bin/bash
 
 if [[ $TRAVIS_OS_NAME == 'osx' ]]; then
     brew update
-    brew install mpfr gmp gsl
+    brew install mpfr gmp gsl homebrew/versions/gcc5
     OS=MacOSx
 else
     sudo apt-get -qq update
@@ -21,4 +20,4 @@ conda info -a
 conda create -q -n test-environment python=$TRAVIS_PYTHON_VERSION atlas numpy scipy matplotlib pandas dateutil Cython
 source activate test-environment
 pip install -r requirements.txt
-python setup.py develop
+CC=gcc-5 CXX=g++-5 python setup.py develop
