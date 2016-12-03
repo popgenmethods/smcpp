@@ -17,7 +17,7 @@ hash -r
 conda config --set always_yes yes --set changeps1 no
 conda update -q conda
 conda info -a
-conda create -q -n test-environment python=$TRAVIS_PYTHON_VERSION atlas numpy scipy matplotlib pandas dateutil Cython
+conda create -q -n test-environment atlas numpy scipy matplotlib pandas dateutil Cython pysam
 source activate test-environment
 pip install -r requirements.txt
 CC=gcc-5 CXX=g++-5 python setup.py develop
