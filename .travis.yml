@@ -5,8 +5,14 @@ os:
 compiler:
     - gcc
 
-script:
-    - make 
+language: python
+python:
+    - "2.6"
+    - "2.7"
+    - "3.2"
+    - "3.3"
+    - "3.4"
+    - "3.5"
 
 before_install:
     - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew update          ; fi
@@ -14,10 +20,4 @@ before_install:
     - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then apt-get -qq update; fi
     - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then apt-get install -y libmpfr-dev libgmp-dev libgsl-dev; fi
 
-deploy:
-    provider: releases
-    api_key: "GITHUB OAUTH TOKEN"
-    file: "FILE TO UPLOAD"
-    skip_cleanup: true
-    on:
-        tags: true
+install: "pip install -r requirements.txt"
