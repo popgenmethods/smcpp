@@ -25,6 +25,10 @@ import pysam.csamfile
 import pysam.libchtslib
 import pysam.ctabixproxies
 import pysam.cutils
+import packaging
+import packaging.version
+import packaging.specifiers
+import packaging.requirements
 from appdirs import AppDirs
 from ad import adnumber, ADF
 
