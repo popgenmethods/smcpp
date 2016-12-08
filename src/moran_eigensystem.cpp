@@ -10,13 +10,13 @@ Eigen::SparseMatrix<mpq_class, Eigen::RowMajor> moran_rate_matrix(int N)
         mpq_class sm = 0, b;
         if (i > 0)
         {
-            b = i * (N - i) / 2_mpq;
+            b = i * (N - i) / 2;
             ret.insert(i, i - 1) = b;
             sm += b;
         }
         if (i < N)
         {
-            b = i * (N - i) / 2_mpq;
+            b = i * (N - i) / 2;
             ret.insert(i, i + 1) = b;
             sm += b;
         }
@@ -33,13 +33,13 @@ Eigen::SparseMatrix<mpq_class, Eigen::RowMajor> modified_moran_rate_matrix(int N
         mpq_class sm = 0, b;
         if (i > 0)
         {
-            b = (na - a) * i + i * (N - i) / 2_mpq;
+            b = (na - a) * i + i * (N - i) / 2;
             ret.insert(i, i - 1) = b;
             sm += b;
         }
         if (i < N)
         {
-            b = a * (N - i) + i * (N - i) / 2_mpq;
+            b = a * (N - i) + i * (N - i) / 2;
             ret.insert(i, i + 1) = b;
             sm += b;
         }
@@ -70,7 +70,7 @@ MoranEigensystem& compute_moran_eigensystem(int n)
             Mt, I(n + 1, n + 1), A;
         Mt = M.transpose();
         MoranEigensystem ret(n);
-        ret.Uinv(0, 0) = 1_mpq;
+        ret.Uinv(0, 0) = 1;
         I.setIdentity();
         for (int k = 2; k < n + 3; ++k)
         {
