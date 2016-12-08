@@ -11,7 +11,7 @@ numpy>=1.6
 pandas==0.19.1
 progressbar2==3.11.0
 pyparsing==2.1.10
-pysam==0.9.1.4
+pysam>=0.9
 python-dateutil==2.6.0
 python-utils==2.0.0
 pytz==2016.7

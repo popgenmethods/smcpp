@@ -17,7 +17,7 @@ hash -r
 conda config --set always_yes yes --set changeps1 no
 conda update -q conda
 conda info -a
-conda create -q -n test-environment atlas numpy scipy matplotlib pandas dateutil Cython pysam
+conda create -q -n test-environment atlas numpy scipy matplotlib pandas dateutil Cython pysam curl openblas
 source activate test-environment
 pip install -r requirements.txt
 pip install setuptools pip packaging pyinstaller==3.1.1
