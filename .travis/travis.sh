@@ -20,7 +20,7 @@ conda info -a
 conda create -q -n test-environment atlas numpy scipy matplotlib pandas dateutil Cython pysam
 source activate test-environment
 pip install -r requirements.txt
-pip install pyinstaller==3.1.1
+pip install setuptools pip pyinstaller==3.1.1
 CC=gcc-5 CXX=g++-5 python setup.py develop
 pyinstaller --clean -F --exclude PyQt5 --exclude PyQt4 --exclude pyside scripts/smc++
 dist/smc++ estimate -h
