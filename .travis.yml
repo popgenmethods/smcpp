@@ -1,6 +1,8 @@
 compiler:
     - gcc
 
+cache: pip
+
 addons:
     apt:
         sources:
