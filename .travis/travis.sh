@@ -25,5 +25,7 @@ pip install pyinstaller==3.1.1
 pip install -r requirements.txt
 CC=gcc-5 CXX=g++-5 python setup.py develop
 pyinstaller --clean -F --exclude PyQt5 --exclude PyQt4 --exclude pyside scripts/smc++
+BINARY=dist/smc++-$TRAVIS_OS_NAME
 dist/smc++ estimate -h
 dist/smc++ vcf2smc -h
+mv dist/smc++ $BINARY
