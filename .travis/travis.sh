@@ -1,5 +1,7 @@
 #!/bin/bash
 
+BINARY=dist/smcpp-$TRAVIS_OS_NAME
+
 if [[ $TRAVIS_OS_NAME == 'osx' ]]; then
     brew update
     brew install mpfr gmp gsl homebrew/versions/gcc5
@@ -17,7 +19,7 @@ hash -r
 conda config --set always_yes yes --set changeps1 no
 conda update -q conda
 conda info -a
-conda create -q -n test-environment atlas numpy scipy matplotlib pandas dateutil Cython pysam curl openblas
+conda create -q -n test-environment numpy scipy matplotlib pandas dateutil Cython pysam curl openblas libpython
 source activate test-environment
 pip install --upgrade pip
 pip install --upgrade setuptools
@@ -25,7 +27,6 @@ pip install pyinstaller==3.1.1 packaging
 pip install -r requirements.txt
 CC=gcc-5 CXX=g++-5 python setup.py develop
 pyinstaller --clean -F --exclude PyQt5 --exclude PyQt4 --exclude pyside scripts/smc++
-BINARY=dist/smc++-$TRAVIS_OS_NAME
 dist/smc++ estimate -h
 dist/smc++ vcf2smc -h
 mv dist/smc++ $BINARY
