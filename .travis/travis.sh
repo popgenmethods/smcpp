@@ -21,7 +21,7 @@ conda create -q -n test-environment atlas numpy scipy matplotlib pandas dateutil
 source activate test-environment
 pip install --upgrade pip
 pip install --upgrade setuptools
-pip install pyinstaller==3.1.1
+pip install pyinstaller==3.1.1 packaging
 pip install -r requirements.txt
 CC=gcc-5 CXX=g++-5 python setup.py develop
 pyinstaller --clean -F --exclude PyQt5 --exclude PyQt4 --exclude pyside scripts/smc++
