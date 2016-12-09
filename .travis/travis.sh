@@ -19,11 +19,11 @@ hash -r
 conda config --set always_yes yes --set changeps1 no
 conda update -q conda
 conda info -a
-conda create -q -n test-environment numpy scipy matplotlib pandas dateutil Cython pysam curl openblas
+conda create -q -n test-environment numpy scipy matplotlib pandas dateutil Cython pysam curl openblas pyinstaller
 source activate test-environment
 pip install --upgrade pip
 pip install --upgrade setuptools
-pip install pyinstaller==3.1.1 packaging
+pip install packaging
 pip install -r requirements.txt
 CC=gcc-5 CXX=g++-5 python setup.py develop
 pyinstaller --clean -F --exclude PyQt5 --exclude PyQt4 --exclude pyside scripts/smc++
