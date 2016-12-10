@@ -76,7 +76,7 @@ below_coeff compute_below_coeffs(int n)
         {
             MatrixXq mnew(n + 1, nn - 1);
             mnew.col(nn - 2).setZero();
-            mnew(nn - 2, nn - 2) = 1_mpq;
+            mnew(nn - 2, nn - 2) = 1;
 #pragma omp parallel for
             for (int k = nn - 1; k > 1; --k)
             {
@@ -106,7 +106,7 @@ mpq_class calculate_Wnbj(int n, int b, int j)
         case 2:
             return mpq_class(6, n + 1);
         case 3:
-            if (n == 2 * b) return 0_mpq;
+            if (n == 2 * b) return 0;
             return mpq_class(30 * (n - 2 * b), (n + 1) * (n + 2));
         default:
             std::array<int, 3> key = {n, b, j};
