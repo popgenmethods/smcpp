@@ -1,0 +1,81 @@
+name: test-environment
+channels: !!python/tuple
+- defaults
+dependencies:
+- anaconda-client=1.6.0=py35_0
+- bioconda::bcftools=1.3.1=1
+- bioconda::curl=7.45.0=2
+- bioconda::expat=2.1.0=0
+- bioconda::htslib=1.3.1=1
+- bioconda::pysam=0.9.1.4=py35_0
+- bioconda::samtools=1.3.1=5
+- cairo=1.12.18=6
+- cloog=0.18.0=0
+- clyent=1.2.2=py35_0
+- conda-forge::gmp=6.1.1=1
+- cycler=0.10.0=py35_0
+- cython=0.25.2=py35_0
+- dbus=1.10.10=0
+- fontconfig=2.11.1=6
+- freetype=2.5.5=1
+- gcc=4.8.5=7
+- glib=2.43.0=1
+- gsl=2.2.1=0
+- gst-plugins-base=1.8.0=0
+- gstreamer=1.8.0=0
+- harfbuzz=0.9.39=1
+- icu=54.1=0
+- isl=0.12.2=0
+- jpeg=8d=2
+- libffi=3.2.1=0
+- libgcc=5.2.0=0
+- libgfortran=3.0.0=1
+- libiconv=1.14=0
+- libpng=1.6.22=0
+- libxcb=1.12=1
+- libxml2=2.9.4=0
+- matplotlib=1.5.0=np110py35_0
+- mkl=11.3.3=0
+- mpc=1.0.3=0
+- mpfr=3.1.5=0
+- numpy=1.10.4=py35_2
+- openblas=0.2.14=4
+- openssl=1.0.2j=0
+- pandas=0.18.1=np110py35_0
+- pango=1.39.0=1
+- pip=9.0.1=py35_1
+- pixman=0.32.6=0
+- pyparsing=2.1.4=py35_0
+- pyqt=4.11.4=py35_4
+- python=3.5.2=0
+- python-dateutil=2.6.0=py35_0
+- pytz=2016.10=py35_0
+- pyyaml=3.12=py35_0
+- qt=4.8.7=4
+- readline=6.2=2
+- requests=2.12.3=py35_0
+- scipy=0.17.1=np110py35_1
+- setuptools=27.2.0=py35_0
+- sip=4.18=py35_0
+- six=1.10.0=py35_0
+- sqlite=3.13.0=0
+- tk=8.5.18=0
+- wheel=0.29.0=py35_0
+- xz=5.2.2=0
+- yaml=0.1.6=0
+- zlib=1.2.8=3
+- pip:
+  - ad==1.3.2
+  - appdirs==1.4.0
+  - backports.shutil-get-terminal-size==1.0.0
+  - backports.shutil-which==3.5.1
+  - future==0.16.0
+  - futures==3.0.5
+  - packaging==16.8
+  - progressbar2==3.11.0
+  - python-utils==2.0.1
+  - seaborn==0.7.1
+  - setuptools-scm==1.11.1
+  - wrapt==1.10.8
+prefix: /export/home/terhorst/miniconda/envs/test-environment
+

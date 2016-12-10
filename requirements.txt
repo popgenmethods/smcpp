@@ -3,10 +3,10 @@ appdirs==1.4.0
 backports.shutil-get-terminal-size==1.0.0
 backports.shutil-which==3.5.1
 cycler==0.10.0
-Cython>=0.20
+Cython>=0.21
 future==0.16.0
-futures==3.0.5
-matplotlib==1.5.0
+futures>=3.0.5
+matplotlib>=1.5
 numpy>=1.6
 pandas==0.19.1
 progressbar2==3.11.0
