@@ -7,7 +7,7 @@ import sys
 from pysam import VariantFile, TabixFile
 import json
 from collections import Counter, namedtuple
-import progressbar
+import tqdm
 logger = getLogger(__name__)
 
 from ..logging import setup_logging
@@ -190,7 +190,7 @@ def main(args):
         abnb_miss = [-1, 0, 0] * len(nb)
         abnb_nonseg = sum([[0, 0, x] for x in nb], [])
         multiples = set()
-        with RepeatingWriter(out) as rw, progressbar.ProgressBar(max_value=contig_length) as bar:
+        with RepeatingWriter(out) as rw, tqdm.tqdm(total=contig_length) as bar:
             last_pos = 0
             for ty, rec in interleaved():
                 if ty == "mask":

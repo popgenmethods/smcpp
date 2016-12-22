@@ -26,7 +26,7 @@ dependencies:
   - future==0.16.0
   - futures==3.0.5
   - packaging==16.8
-  - progressbar2==3.11.0
+  - tqdm==4.9.0
   - python-utils==2.0.1
   - seaborn==0.7.1
   - setuptools-scm==1.11.1

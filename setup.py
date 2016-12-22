@@ -110,7 +110,7 @@ setup(name='smcpp',
         tests_require=['pytest'],
         install_requires=[
             "seaborn",
-            "progressbar2",
+            "tqdm",
             "setuptools_scm",
             "appdirs",
             "backports.shutil_which",
