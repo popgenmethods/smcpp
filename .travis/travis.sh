@@ -19,7 +19,7 @@ conda env create -f .conda.yml
 source activate test-environment
 CC=gcc CXX=g++ python setup.py develop
 pip install git+https://github.com/pyinstaller/pyinstaller@483c819
-pyinstaller --clean -F --exclude PyQt5 --exclude PyQt4 --exclude pyside scripts/smc++
-dist/smc++ estimate -h
-dist/smc++ vcf2smc -h
+pyinstaller --clean -s -F --exclude PyQt5 --exclude PyQt4 --exclude pyside scripts/smc++
+dist/smc++ vcf2smc example/example.vcf.gz example/example.smc.gz 1 msp:msp_0,msp_1,msp_2
+dist/smc++ estimate --theta .00025 --em-iterations 1 example/example.smc.gz
 mv dist/smc++ $BINARY
