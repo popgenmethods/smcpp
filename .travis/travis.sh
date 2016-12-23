@@ -1,6 +1,6 @@
 #!/bin/bash
 
-BINARY=dist/smcpp-$TRAVIS_OS_NAME
+BINARY=dist/smcpp-$(git describe --tags)-$TRAVIS_OS_NAME
 
 if [[ $TRAVIS_OS_NAME == 'osx' ]]; then
     OS=MacOSX

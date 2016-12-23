@@ -7,7 +7,7 @@ import sys
 from pysam import VariantFile, TabixFile
 import json
 from collections import Counter, namedtuple
-import progressbar
+import tqdm
 logger = getLogger(__name__)
 
 from ..logging import setup_logging
@@ -162,7 +162,7 @@ def main(args):
                 args.missing_cutoff = np.inf
         mask_iterator = (x.split("\t") for x in mask_iterator)
         mask_iterator = ((x[0], int(x[1]), int(x[2])) for x in mask_iterator)
-        snps_only = (rec for rec in region_iterator if len(rec.alleles) == 2 and set(rec.alleles) <= set("ACTG"))
+        snps_only = (rec for rec in region_iterator if len(rec.alleles) == 2 and set(rec.alleles) <= set("ACTG01"))
 
         def interleaved():
             cmask = next(mask_iterator, None)
@@ -190,7 +190,7 @@ def main(args):
         abnb_miss = [-1, 0, 0] * len(nb)
         abnb_nonseg = sum([[0, 0, x] for x in nb], [])
         multiples = set()
-        with RepeatingWriter(out) as rw, progressbar.ProgressBar(max_value=contig_length) as bar:
+        with RepeatingWriter(out) as rw, tqdm.tqdm(total=contig_length) as bar:
             last_pos = 0
             for ty, rec in interleaved():
                 if ty == "mask":

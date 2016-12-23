@@ -103,6 +103,9 @@ class BaseAnalysis:
         self._contigs, attrs = estimation_tools.break_long_spans(self._contigs, length_cutoff)
         w, het = np.array([a[2:] for k in attrs for a in attrs[k]]).T
         self._het = avg = np.average(het, weights=w)
+        if self._het == 0:
+            logger.error("Data contain *no* mutations. Inference is impossible.")
+            sys.exit(1)
         n = len(het)
         if n == 1:
             avg = 0.
