@@ -1,34 +1,39 @@
 addons:
-    apt:
-        packages: [g++-5, gcc-5]
-        sources: [llvm-toolchain-precise, ubuntu-toolchain-r-test]
+  apt:
+    packages:
+    - g++-5
+    - gcc-5
+    sources:
+    - llvm-toolchain-precise
+    - ubuntu-toolchain-r-test
 cache: pip
-compiler: [gcc]
+compiler:
+- gcc
 matrix:
-    include:
-      - os: linux
-        deploy:
-            on: 
-                repo: popgenmethods/smcpp
-                tags: true
-            api_key:
-                secure: rR8zHcZNXb8Wi2v1APgJ9088+PPncVE1bQxZABzpmvjKpzR+xjdThj0JvQ6wOwHo32OaAMHXJ4djCIvcmnJ1VFjTfLT8KK0UFPG5QkzF6Edf3IiiDRj0My/CqvNqahvD3eIqxsWKr+jl5B3+w2tz/20CHiepdE1jKm+FKLu2qU/qjDnuMDWyz2dRBRGbBsMUOCbWh2AfB9PXpjpUrx2sKyfTVQZb9MC0bUo2yAjEfjRYJ/Sxg1x9uOQErcBa6ENYawVib+ZqicLHj2+KITHIm3jcdL3wov54+y9hk038GxSIk8XURhw3Z6M40kZqQ3C+5OwlgaklOow4WxkYm1j0hJfzrcWLXmxVdF7/BHsNwXepvS1MhxSNAPTlRzZVKFQVwucWCKJjZ2EDOSpi/sL1DM++16DoG58zEsI2KxeHSdzFe7CkmbNoHOzrLoYrnpHP5ksc0GmRWaLi+cZzcQEs4rlMPQJJWB4FUaWqQFmuWui6z564Q+xQGmXyExAdIjwhACK9yZb6wK8G7zCvYwwDSHz+nzcM+gbilU4HcbjVESJdF6VPuMJ48dcz6c6r+knKgdYS4EmtbabZ/rEC9hqVUXXgCRocEdt2+P/wXYQdoNf1GaaFjdKziRGz+p08TNtAEZ9MiGMJmHZ9nM+lrjpv8LAYavDmkTD0oMSdCwNWsms=
-            file_glob: true
-            file: dist/smcpp-*-linux
-            provider: releases
-            skip_cleanup: true
-        language: generic
-        sudo: required
-      - os: osx
-        deploy:
-            on: 
-                repo: popgenmethods/smcpp
-                tags: true
-            skip_cleanup: true
-            provider: releases
-            api_key:
-                secure: rR8zHcZNXb8Wi2v1APgJ9088+PPncVE1bQxZABzpmvjKpzR+xjdThj0JvQ6wOwHo32OaAMHXJ4djCIvcmnJ1VFjTfLT8KK0UFPG5QkzF6Edf3IiiDRj0My/CqvNqahvD3eIqxsWKr+jl5B3+w2tz/20CHiepdE1jKm+FKLu2qU/qjDnuMDWyz2dRBRGbBsMUOCbWh2AfB9PXpjpUrx2sKyfTVQZb9MC0bUo2yAjEfjRYJ/Sxg1x9uOQErcBa6ENYawVib+ZqicLHj2+KITHIm3jcdL3wov54+y9hk038GxSIk8XURhw3Z6M40kZqQ3C+5OwlgaklOow4WxkYm1j0hJfzrcWLXmxVdF7/BHsNwXepvS1MhxSNAPTlRzZVKFQVwucWCKJjZ2EDOSpi/sL1DM++16DoG58zEsI2KxeHSdzFe7CkmbNoHOzrLoYrnpHP5ksc0GmRWaLi+cZzcQEs4rlMPQJJWB4FUaWqQFmuWui6z564Q+xQGmXyExAdIjwhACK9yZb6wK8G7zCvYwwDSHz+nzcM+gbilU4HcbjVESJdF6VPuMJ48dcz6c6r+knKgdYS4EmtbabZ/rEC9hqVUXXgCRocEdt2+P/wXYQdoNf1GaaFjdKziRGz+p08TNtAEZ9MiGMJmHZ9nM+lrjpv8LAYavDmkTD0oMSdCwNWsms=
-            file_glob: true
-            file: dist/smcpp-*-osx
-        language: generic
-script: .travis/travis.sh
+  include:
+  - os: linux
+    deploy:
+      on:
+        repo: popgenmethods/smcpp
+        tags: true
+      api_key:
+        secure: iLz4tI9Cf/frlF8o1YzgbNpairIJaRrxVEQgyqW/CvkUAfCygnxgZfMw+n/ZXe9WAkqjAJaBXKmuB2prNOkWrJao+S82dNihI4Sq7eKb9HnRdQuT7B2E6rSZi1u8oqze8qZaqbHtXsPp/IIHPTaEQUWar0DvxEWfRlksmcoH456qSMHFr132Hnrpeow3gwJH3r7ySqT9+B7vHUeg77bYF+eOHgZ0wIL3hHKkIOKBfrVVRP5a322leJyIZNUIb1LQ4mD5NfhKuVZJHZuVpSQ57u3z5vvuwoc0TLIMkC1VsOnoIzoxqjM8Hh7dFtjipRO3iN5MpO5mQRi8tDdFJAYqIoi4cJAEDr4Y02eMloZszWVpxh6zc8KapD1BFTBom9hSCbCNyt6AOLQ3DcpWu+i1GxBxCHc+cN8W0SER03932l1DehBN7UaCfSPi2qfoSY2jBvGiek6Kr5L2HZxe4hm/MW+dSi1x4rvQtFU6CMQJxUa/zyEWRJatTVShezjcoR4T96mQjrgXQYhiGpuWhByVv8bvo5mlulEpC+/r5En+3ikD2exAy//XjH8zSELjvgklX104N6vV6YvSXh1Jp9oGY5PdoGYLm6D4vH7IqlK5mamprGqmKPaF7+0hAxWLgY5DsSG4pzeZGDqc5nTzWkNT+Wr2CfS4ANmnsJ3kTiXIFnk=
+      file_glob: true
+      file: dist/smcpp-*-linux
+      provider: releases
+      skip_cleanup: true
+    language: generic
+    sudo: required
+  - os: osx
+    deploy:
+      on:
+        repo: popgenmethods/smcpp
+        tags: true
+      skip_cleanup: true
+      provider: releases
+      api_key:
+        secure: iLz4tI9Cf/frlF8o1YzgbNpairIJaRrxVEQgyqW/CvkUAfCygnxgZfMw+n/ZXe9WAkqjAJaBXKmuB2prNOkWrJao+S82dNihI4Sq7eKb9HnRdQuT7B2E6rSZi1u8oqze8qZaqbHtXsPp/IIHPTaEQUWar0DvxEWfRlksmcoH456qSMHFr132Hnrpeow3gwJH3r7ySqT9+B7vHUeg77bYF+eOHgZ0wIL3hHKkIOKBfrVVRP5a322leJyIZNUIb1LQ4mD5NfhKuVZJHZuVpSQ57u3z5vvuwoc0TLIMkC1VsOnoIzoxqjM8Hh7dFtjipRO3iN5MpO5mQRi8tDdFJAYqIoi4cJAEDr4Y02eMloZszWVpxh6zc8KapD1BFTBom9hSCbCNyt6AOLQ3DcpWu+i1GxBxCHc+cN8W0SER03932l1DehBN7UaCfSPi2qfoSY2jBvGiek6Kr5L2HZxe4hm/MW+dSi1x4rvQtFU6CMQJxUa/zyEWRJatTVShezjcoR4T96mQjrgXQYhiGpuWhByVv8bvo5mlulEpC+/r5En+3ikD2exAy//XjH8zSELjvgklX104N6vV6YvSXh1Jp9oGY5PdoGYLm6D4vH7IqlK5mamprGqmKPaF7+0hAxWLgY5DsSG4pzeZGDqc5nTzWkNT+Wr2CfS4ANmnsJ3kTiXIFnk=
+      file_glob: true
+      file: dist/smcpp-*-osx
+    language: generic
+script: ".travis/travis.sh"
