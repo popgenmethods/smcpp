@@ -1,6 +1,6 @@
 #!/bin/bash
 
-BINARY=dist/smc++-$(git describe --tags | cut -c1 --complement)-$TRAVIS_OS_NAME
+BINARY=dist/smcpp-$(git describe --tags)-$TRAVIS_OS_NAME
 
 if [[ $TRAVIS_OS_NAME == 'osx' ]]; then
     OS=MacOSX
@@ -19,7 +19,7 @@ conda env create -f .conda.yml
 source activate test-environment
 CC=gcc CXX=g++ python setup.py develop
 pip install git+https://github.com/pyinstaller/pyinstaller@483c819
-pyinstaller --clean -s -F --exclude PyQt5 --exclude PyQt4 --exclude pyside scripts/smc++
+pyinstaller --clean -s -F --exclude-module PyQt5 --exclude-module PyQt4 --exclude-module mpl_toolkits.tests --exclude-module pyside --exclude-module matplotlib.tests scripts/smc++
 dist/smc++ vcf2smc example/example.vcf.gz example/example.smc.gz 1 msp:msp_0,msp_1,msp_2
 dist/smc++ estimate --theta .00025 --em-iterations 1 example/example.smc.gz
 mv dist/smc++ $BINARY
