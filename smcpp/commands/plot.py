@@ -30,7 +30,7 @@ def init_parser(parser):
                         default=None, help="y-axis limits")
     # parser.add_argument("-l", "--labels", type=str,
     #                     help="label for each plotted function", nargs="+")
-    parser.add_argument("pdf", type=str, help="output PDF", metavar="plot.pdf")
+    parser.add_argument("out", type=str, help="output image", metavar="plot.[pdf|png|gif|jpeg]")
     parser.add_argument("model", type=str, help="SMC++ models to plot", nargs="+")
 
 def main(args):
@@ -70,7 +70,7 @@ def main(args):
     fig, series = plotting.plot_psfs(psfs, xlim=args.xlim, ylim=args.ylim,
                                      xlabel="Generations" if args.g is None else "Years",
                                      logy=args.logy)
-    plotting.save_pdf(fig, args.pdf)
+    fig.savefig(args.out, bbox_inches='tight')
     if args.csv:
         with open(os.path.splitext(args.pdf)[0] + ".csv", "wt") as out:
             csv.writer(out).writerows(series)

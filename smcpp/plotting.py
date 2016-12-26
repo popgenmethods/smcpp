@@ -18,12 +18,6 @@ def pretty_plot():
     sns.despine(fig)
     return fig, ax
 
-def save_pdf(plt, filename):
-    from matplotlib.backends.backend_pdf import PdfPages
-    pp = PdfPages(filename)
-    plt.savefig(pp, format='pdf')
-    pp.close()
-
 def plot_psfs(psfs, xlim, ylim, xlabel, logy=False):
     fig, ax = pretty_plot()
     xmax = ymax = 0.
