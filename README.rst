@@ -6,7 +6,7 @@ Quick Start Guide
 
 1. Download a pre-compiled binary for the latest version of SMC++
    from the `releases page`_. Alternatively, build the software
-   yourself by following the `Build instructions`_.
+   yourself by following the `build instructions`_.
 
 2. Convert your VCF(s) to the SMC++ input format with vcf2smc_::
 
