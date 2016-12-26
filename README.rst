@@ -1,7 +1,6 @@
 SMC++ is a program for estimating the size history of populations from
 whole genome sequence data.
 
-=================
 Quick Start Guide
 =================
 
@@ -33,7 +32,6 @@ Quick Start Guide
 
 .. _releases page: https://github.com/popgenmethods/smcpp/releases
 
-==================
 Build instructions
 ==================
 
@@ -80,8 +78,7 @@ variables, e.g.::
 .. _OpenMP: http://openmp.org
 
 Virtual Environment
-===================
-
+-------------------
 SMC++ pulls in a fair number of Python dependencies. If you prefer to
 keep this separate from your main Python installation, or do not have
 root access on your system, you may wish to install SMC++ inside of a
@@ -95,21 +92,22 @@ Then, install SMC++ as described above.
 
 .. _virtual environment: http://docs.python-guide.org/en/latest/dev/virtualenvs/
 
-=====
 Usage
 =====
 
-SMC++ comprises several subcommands which are accessed using the syntax::
-    
+SMC++ comprises several subcommands which are accessed using the
+syntax::
+
     $ smc++ <subcommand>
 
 vcf2smc
-=======
-This subcommand converts (biallelic, diploid) VCF data to the format used by
-SMC++. 
+-------
+
+This subcommand converts (biallelic, diploid) VCF data to the format
+used by SMC++.
 
 Required arguments
-------------------
+^^^^^^^^^^^^^^^^^^
 
 1. An `indexed VCF file <http://www.htslib.org/doc/tabix.html>`_.
 2. An output file. Appending the ``.gz`` extension will cause the output
@@ -129,7 +127,7 @@ For example, to convert contig ``chr1`` of ``vcf.gz`` using samples
     $ smc++ vcf2smc vcf.gz chr1.smc.gz chr1 CEU:NA12878,NA12879
 
 Optional arguments
-------------------
+^^^^^^^^^^^^^^^^^^
 - ``-d``.  SMC++ relies crucially on the notion of a pair of *distinguished lineages*
   (see paper for details on this terminology). The identity of the
   distinguished lineages is set using the ``-d`` option, which specifies
@@ -155,13 +153,13 @@ Optional arguments
       done
 
 Manual conversion
------------------
+^^^^^^^^^^^^^^^^^
 ``vcf2smc`` targets a common use-case but may not be sufficient for all
 users. Those wishing to implement their own custom conversion to the SMC
 data format should see the `input data format`_ description below.
 
 estimate
-========
+--------
 
 This command will fit a population size history to data. The basic usage
 is::
@@ -169,7 +167,7 @@ is::
     $ smc++ estimate -o out data.smc.gz
 
 Recommended arguments
----------------------
+^^^^^^^^^^^^^^^^^^^^^
 
 - ``-o`` specifies the directory to store the final estimates as well as
   all intermediate files and debugging output.
@@ -191,7 +189,7 @@ A number of other arguments concerning technical aspects of the fitting procedur
 exist. To see them, pass the ``-h`` option to ``estimate``.
 
 plot
-====
+----
 
 This command plots fitted size histories. The basic usage is::
 
@@ -200,7 +198,7 @@ This command plots fitted size histories. The basic usage is::
 where ``model*.json`` are fitted models produced by ``estimated``.
 
 Recommended arguments
----------------------
+^^^^^^^^^^^^^^^^^^^^^
 
 - ``-g`` sets the generation time (in years) used to scale the x-axis. If not
   given, the plot will be in coalescent units.
@@ -209,17 +207,16 @@ Recommended arguments
   the plot.
 
 split
-=====
+-----
 
 This command fits two-population split models using marginal estimates
 produced by estimate_.
 
-============
 File Formats
 ============
 
 Input Data Format
-=================
+-----------------
 The data files should be ASCII text and can optionally be gzipped. The
 format of each line of the data file is as follows::
 
@@ -269,7 +266,7 @@ The SMC++ format for this input file is::
 
 
 Output Data Format
-==================
+------------------
 Upon completion, SMC++ will write a `JSON-formatted
 <https://en.wikipedia.org/wiki/JSON>`_ model file into the into the
 analysis directory. The file is human-readable and contains various
