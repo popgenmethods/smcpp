@@ -5,7 +5,9 @@ whole genome sequence data.
 Quick Start Guide
 =================
 
-1. Install the software. See Installation_, below.
+1. Download a pre-compiled binary for the latest version of SMC++
+   from the `releases page`_. Alternatively, build the software
+   yourself by following the `Build instructions`_.
 
 2. Convert your VCF(s) to the SMC++ input format with vcf2smc_::
 
@@ -29,41 +31,19 @@ Quick Start Guide
 
      $ smc++ plot analysis/model.final.json plot.pdf
 
-============
-Installation
-============
+.. _releases page: https://github.com/popgenmethods/smcpp/releases
 
-SMC++ is installed using ``pip``, the Python package manager::
-
-     $ pip install -r https://github.com/popgenmethods/smcpp/raw/current/requirements.txt
-
-Depending on your platform, ``pip`` will either download a pre-compiled
-binary, or compile SMC++ from scratch.
-
-Requirements
-============
+==================
+Build instructions
+==================
 
 SMC++ requires the following libraries and executables in order to run:
 
-- Python 2.7 or greater.
+- Python 3.0 or greater.
+- A C++-11 compiler (gcc 4.8 or later, for example).
 - gmp_, for some rational field computations.
 - mpfr_, for some extended precision calculations.
 - gsl_, the GNU Scientific Library.
-
-Experimental pre-built binaries are available for Unix and Mac OS X
-systems. They will download automatically using ``pip`` (see above)
-if available for your system. Note that you will still need to have
-``libgmp``, ``libgsl`` and ``libmpfr`` accessible on your system in order 
-to run SMC++.
-
-.. _Homebrew: http://brew.sh
-.. _gmp: http://gmplib.org
-.. _mpfr: http://mpfr.org
-.. _gsl: https//www.gnu.org/software/gsl/
-
-
-Installing the Dependencies
-===========================
 
 On Ubuntu (or Debian) Linux, the library requirements may be installed
 using the commmand::
@@ -74,23 +54,28 @@ On OS X, the easiest way to install them is using Homebrew_::
 
     $ brew install mpfr gmp gsl
 
-Compilation
-===========
+After installing the requirements, SMC++ may be installed by running::
+    
+    $ python setup.py install
 
-If binaries are not available for your platform, ``pip`` will attempt
-to compile SMC++. In addition to the above Requirements_, SMC++
-nedds a compiler which supports C++11 (e.g. GCC 4.8 or later) *and*
-OpenMP_.
+in the top-level directory.
+
+.. _Homebrew: http://brew.sh
+.. _gmp: http://gmplib.org
+.. _mpfr: http://mpfr.org
+.. _gsl: https//www.gnu.org/software/gsl/
+
 
 Note for OS X users
 -------------------
 Versions of Clang shipping with Mac OS X do not currently support
-OpenMP. For this reason it is recommended that you use gcc instead.
-In order to tell ``pip`` to use gcc, set the ``CC`` and ``CXX``
-environment variables, e.g.::
+OpenMP_. SMC++ will be *much faster* if it runs in multithreaded mode
+using OpenMP. For this reason it is recommended that you use ``gcc``
+instead. In order to do so, set the ``CC`` and ``CXX`` environment
+variables, e.g.::
 
     $ export CC=gcc-5 CXX=g++-5 
-    $ pip install -r https://github.com/popgenmethods/smcpp/raw/current/requirements.txt
+    $ CC=gcc-5 CXX=g++-5 python setup.py install
 
 .. _OpenMP: http://openmp.org
 
@@ -103,10 +88,10 @@ root access on your system, you may wish to install SMC++ inside of a
 `virtual environment`_. To do so, first create and activate the virtual
 environment::
 
-    $ virtualenv -p python2.7 <desired location>
+    $ virtualenv -p python3 <desired location>
     $ source <desired location>/bin/active
 
-Then, install SMC++ using ``pip`` as described above.
+Then, install SMC++ as described above.
 
 .. _virtual environment: http://docs.python-guide.org/en/latest/dev/virtualenvs/
 
@@ -186,19 +171,42 @@ is::
 Recommended arguments
 ---------------------
 
-- ``--theta`` specifies the population-scaled mutation rate, that is
+- ``-o`` specifies the directory to store the final estimates as well as
+  all intermediate files and debugging output.
+
+- ``--theta`` sets the population-scaled mutation rate, that is
   :math:`2 N_0 \mu` where :math:`\mu` denotes the per-generation
   mutation rate, and :math:`N_0` is the baseline diploid effective
   population size (see ``--N0``, below). If ``-theta`` is not specified,
   Watterson's estimator will be used. It is recommended to set this
   using prior knowledge of :math:`\mu` if at all possible.
 
+- ``--rho`` sets the population-scaled recombination rate, that is
+  :math:`2 N_0 r` where :math:`r` denotes the per-generation
+  recombination rate. If not specified, this will be estimated from the data.
+  The estimates should be fairly accurate if the recombination rate is not large
+  compared to the mutation rate.
 
+A number of other arguments concerning technical aspects of the fitting procedure
+exist. To see them, pass the ``-h`` option to ``estimate``.
 
 plot
 ====
 
-This command plots fitted size histories.
+This command plots fitted size histories. The basic usage is::
+
+    $ smc++ plot plot.png model1.json model2.json [...] modeln.json
+
+where ``model*.json`` are fitted models produced by ``estimated``.
+
+Recommended arguments
+---------------------
+
+- ``-g`` sets the generation time (in years) used to scale the x-axis. If not
+  given, the plot will be in coalescent units.
+- ``--logy`` plots the y-axis on a log scale.
+- ``-c`` produces a CSV-formatted table containing the data used to generate
+  the plot.
 
 split
 =====
