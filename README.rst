@@ -51,6 +51,14 @@ On OS X, the easiest way to install them is using Homebrew_::
 
     $ brew install mpfr gmp gsl
 
+Installing SMC++
+----------------
+After installing the requirements, SMC++ may be built by running::
+    
+    $ git clone http://github.com/popgenmethods/smcpp
+    $ cd smcpp
+    $ python setup.py install
+
 No root
 -------
 If you do not have root access, another option is to build SMC++ using
@@ -63,20 +71,11 @@ run::
 in the ``smcpp/`` directory to install all of the necessary libraries
 and binaries, then continue to the next step.
 
-Installing SMC++
-----------------
-After installing the requirements, SMC++ may be installed by running::
-    
-    $ python setup.py install
-
-in the top-level directory.
-
 .. _Miniconda: http://conda.pydata.org/miniconda.html
 .. _Homebrew: http://brew.sh
 .. _gmp: http://gmplib.org
 .. _mpfr: http://mpfr.org
 .. _gsl: https//www.gnu.org/software/gsl/
-
 
 Note for OS X users
 -------------------
