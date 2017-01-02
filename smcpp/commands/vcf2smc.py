@@ -38,8 +38,8 @@ def init_parser(parser):
             help="treat runs of homozygosity longer than <c> base pairs as missing")
     parser.add_argument("--mask", "-m",
             help="BED-formatted mask of missing regions")
-    parser.add_argument("vcf", metavar="vcf[.gz]",
-            help="input VCF file")
+    parser.add_argument("vcf", metavar="vcf.gz",
+            help="indexed VCF file")
     parser.add_argument("out", metavar="out[.gz]",
             help="output SMC++ file")
     parser.add_argument("contig", help="contig to parse")
@@ -151,7 +151,16 @@ def main(args):
                 b = [0] * len(b)
             return list(sum(zip(a, b, nb), tuple()))
 
-        region_iterator = vcf.fetch(contig=args.contig)
+        try:
+            region_iterator = vcf.fetch(contig=args.contig)
+        except ValueError as e:
+            logger.error("VCF reader threw an error: %s", e)
+            logger.error("Make sure the VCF is indexed:")
+            logger.error("")
+            logger.error("    $ tabix %s", args.vcf)
+            logger.error("")
+            sys.exit(1)
+
         contig_length = vcf.header.contigs[args.contig].length
         if args.mask:
             mask_iterator = TabixFile(args.mask).fetch(reference=args.contig)
