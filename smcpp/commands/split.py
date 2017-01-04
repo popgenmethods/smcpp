@@ -26,8 +26,10 @@ class Split(command.Command):
     def __init__(self, parser):
         '''Configure parser and parse args.'''
         command.add_common_estimation_args(parser)
-        parser.add_argument('pop1', help="marginal fit for population 1")
-        parser.add_argument('pop2', help="marginal fit for population 2")
+        parser.add_argument('pop1', metavar="model1.final.json",
+                            help="marginal fit for population 1")
+        parser.add_argument('pop2', metavar="model2.final.json",
+                            help="marginal fit for population 2")
         parser.add_argument('data', nargs="+",
                             help="data file(s) in SMC++ format")
 

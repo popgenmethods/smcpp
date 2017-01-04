@@ -35,8 +35,7 @@ def plot_psfs(psfs, xlim, ylim, xlabel, logy=False):
     saver.plot_num = 0
     my_axplot = saver(ax.plot, "path")
     my_axstep = saver(ax.step, "step")
-    npsf = sum(label != "None" for label, _, _ in psfs)
-    for i, (label, d, off) in enumerate(psfs):
+    for i, (d, off) in enumerate(psfs):
         N0 = d['N0']
         g = d.get('g', None) or 1
         if 'b' in d:
@@ -57,7 +56,7 @@ def plot_psfs(psfs, xlim, ylim, xlabel, logy=False):
             y = np.concatenate([y, [a[-1], a[-1]]])
             # if not logy:
             #     y *= 1e-3
-            series.append((label, x, y, my_axplot, off, N0, g))
+            series.append((fn, x, y, my_axplot, off, N0, g))
         elif 'model' in d:
             cls = getattr(model, d['model']['class'])
             mb = cls.from_dict(d['model'])
@@ -87,7 +86,7 @@ def plot_psfs(psfs, xlim, ylim, xlabel, logy=False):
             x = np.cumsum(d['s'])
             x = np.insert(x, 0, 0)[:-1]
             y = d['a']
-            series.append((label, x, y, my_axstep, off, N0, g))
+            series.append((None, x, y, my_axstep, off, N0, g))
     labels = []
     for label, x, y, plotfun, off, N0, g in series:
         xp = 2 * N0 * g * x + off

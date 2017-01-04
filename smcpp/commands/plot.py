@@ -66,9 +66,8 @@ class Plot(command.Command):
                     d = {'a': m.stepwise_values(), 's': m.s, 'N0': res['N0']}
                 else:
                     d = res
-                label = res['model']['pid']
             d['g'] = args.g
-            psfs.append((label, d, off or 0))
+            psfs.append((d, off or 0))
         # if args.median:
         #     dmed = {'s': psfs[-1][1]['s'], 'N0': psfs[-1][1]['N0']}
         #     for x in "ab":
@@ -79,5 +78,5 @@ class Plot(command.Command):
                                          logy=args.logy)
         fig.savefig(args.out, bbox_inches='tight')
         if args.csv:
-            with open(os.path.splitext(args.pdf)[0] + ".csv", "wt") as out:
+            with open(os.path.splitext(args.out)[0] + ".csv", "wt") as out:
                 csv.writer(out).writerows(series)
