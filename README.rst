@@ -116,6 +116,9 @@ syntax::
 
     $ smc++ <subcommand>
 
+where ``<subcommand>`` is one of vcf2smc_, estimate_, plot_, split_, or
+cite_.
+
 vcf2smc
 -------
 
@@ -259,6 +262,14 @@ of the joint demography::
 
     $ smc++ split -o split/ pop1/model.final.json pop2/model.final.json data/*.smc.gz
     $ smc++ plot joint.pdf split/model.final.json
+
+cite
+----
+
+This command prints plain- and BibTex-formatted citation information for
+the `accompanying paper`_ to the console.
+
+.. _accompanying paper: http://www.nature.com/ng/journal/vaop/ncurrent/ng.3748/metrics
 
 File Formats
 ============
