@@ -30,6 +30,9 @@ Quick Start Guide
 
      $ smc++ plot analysis/model.final.json plot.pdf
 
+SMC++ can also estimate and plot joint demographies from pairs of
+populations; see split_.
+
 .. _releases page: https://github.com/popgenmethods/smcpp/releases
 
 Build instructions
@@ -179,6 +182,11 @@ is::
 
     $ smc++ estimate -o out data.smc.gz
 
+Required arguments
+^^^^^^^^^^^^^^^^^^
+
+None.
+
 Recommended arguments
 ^^^^^^^^^^^^^^^^^^^^^
 
@@ -194,12 +202,15 @@ Recommended arguments
 
 - ``--rho`` sets the population-scaled recombination rate, that is
   :math:`2 N_0 r` where :math:`r` denotes the per-generation
-  recombination rate. If not specified, this will be estimated from the data.
-  The estimates should be fairly accurate if the recombination rate is not large
-  compared to the mutation rate.
+  recombination rate. If not specified, this will be estimated from the
+  data. The estimates should be fairly accurate if the recombination
+  rate is not large compared to the mutation rate.
 
-A number of other arguments concerning technical aspects of the fitting procedure
-exist. To see them, pass the ``-h`` option to ``estimate``.
+Optional arguments
+^^^^^^^^^^^^^^^^^^
+
+A number of other arguments concerning technical aspects of the fitting
+procedure exist. To see them, pass the ``-h`` option to ``estimate``.
 
 plot
 ----
@@ -208,10 +219,17 @@ This command plots fitted size histories. The basic usage is::
 
     $ smc++ plot plot.png model1.json model2.json [...] modeln.json
 
-where ``model*.json`` are fitted models produced by ``estimated``.
+where ``model*.json`` are fitted models produced by ``estimate``.
 
-Recommended arguments
-^^^^^^^^^^^^^^^^^^^^^
+Required arguments
+^^^^^^^^^^^^^^^^^^
+
+1. An output file-name. The output format is determined by the extension
+   (``.pdf``, ``.png``, ``.jpeg``, etc.)
+2. One or more JSON-formatted SMC++ models (the output from estimate_).
+
+Optional arguments
+^^^^^^^^^^^^^^^^^^
 
 - ``-g`` sets the generation time (in years) used to scale the x-axis. If not
   given, the plot will be in coalescent units.
@@ -222,8 +240,25 @@ Recommended arguments
 split
 -----
 
-This command fits two-population split models using marginal estimates
-produced by estimate_.
+This command fits two-population clean split models using marginal
+estimates produced by estimate_. To use ``split``, first estimate each
+population marginally using ``estimate``::
+
+    $ smc++ vcf2smc my.vcf.gz data/pop1.smc.gz <contig> pop1:ind1_1,ind1_2
+    $ smc++ vcf2smc my.vcf.gz data/pop2.smc.gz <contig> pop2:ind2_1,ind2_2
+    $ smc++ estimate -o pop1/ <additional options> data/pop1.smc.gz
+    $ smc++ estimate -o pop2/ <additional options> data/pop2.smc.gz
+
+Next, create a dataset containing the joint frequency spectrum for both
+populations::
+
+    $ smc++ vcf2smc my.vcf.gz data/pop12.smc.gz <contig> pop1:ind1_1,ind1_2 pop2:ind2_1,ind2_2
+
+Finally, run ``split`` to refine the marginal estimates into an estimate
+of the joint demography::
+
+    $ smc++ split -o split/ pop1/model.final.json pop2/model.final.json data/*.smc.gz
+    $ smc++ plot joint.pdf split/model.final.json
 
 File Formats
 ============
