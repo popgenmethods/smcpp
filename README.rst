@@ -272,19 +272,19 @@ format of each line of the data file is as follows::
 
 Explanation of each column:
 
-  - ``span`` gives the number of contiguous bases at which this
-    observation occurred. Hence, it will generally be ``1`` for SNPs and
-    greater than one for a stretch of nonsegregating sites.
-  - ``d`` Gives the genotype (``0``, ``1``, or ``2``) of the
-    distinguished individual. If the genotype of the distinguished
-    individual is not known, this should be set to ``-1``.
-  - The next column ``u1`` is the total number of derived alleles found
-    in the remainder of the (undistinguished) sample at the site(s).
-  - The final column ``n1`` is the *haploid* sample size (number of
-    non-missing observations) in the undistinguished portion of the
-    sample.
-  - If two populations are to be analyzed, ``u2`` and ``n2`` are also 
-    specified for the second population.
+- ``span`` gives the number of contiguous bases at which this
+  observation occurred. Hence, it will generally be ``1`` for SNPs and
+  greater than one for a stretch of nonsegregating sites.
+- ``d`` Gives the genotype (``0``, ``1``, or ``2``) of the
+  distinguished individual. If the genotype of the distinguished
+  individual is not known, this should be set to ``-1``.
+- The next column ``u1`` is the total number of derived alleles found
+  in the remainder of the (undistinguished) sample at the site(s).
+- The final column ``n1`` is the *haploid* sample size (number of
+  non-missing observations) in the undistinguished portion of the
+  sample.
+- If two populations are to be analyzed, ``u2`` and ``n2`` are also 
+  specified for the second population.
 
 For example, consider the following set of genotypes at a set of 10
 contiguous bases on three diploid individuals in one population::
