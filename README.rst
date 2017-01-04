@@ -269,7 +269,7 @@ cite
 This command prints plain- and BibTex-formatted citation information for
 the `accompanying paper`_ to the console.
 
-.. _accompanying paper: http://www.nature.com/ng/journal/vaop/ncurrent/ng.3748/metrics
+.. _accompanying paper: http://www.nature.com/ng/journal/vaop/ncurrent/ng.3748
 
 File Formats
 ============
