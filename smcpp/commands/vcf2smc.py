@@ -53,7 +53,7 @@ class Vcf2Smc(command.Command):
         parser.add_argument("pop2", type=sample_list, nargs="?", default=SampleList(None, []),
                             help="List of sample ids from population 2, in same format.")
 
-    def validate(args):
+    def validate(self, args):
         opts = [args.missing_cutoff, args.mask]
         if all(opts):
             raise RuntimeError(
