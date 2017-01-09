@@ -21,4 +21,5 @@ CC=gcc CXX=g++ python setup.py develop
 pip install git+https://github.com/pyinstaller/pyinstaller@483c819
 pyinstaller --clean -s -F --exclude-module PyQt5 --exclude-module PyQt4 --exclude-module mpl_toolkits.tests --exclude-module pyside --exclude-module matplotlib.tests scripts/smc++
 test/integration/test.sh dist/smc++
+[[ $? -ne 0 ]] && exit
 mv dist/smc++ $BINARY
