@@ -1,4 +1,4 @@
-name: test-environment
+name: smcpp
 channels: !!python/tuple
 - defaults
 dependencies:
@@ -33,5 +33,5 @@ dependencies:
   - wrapt==1.10.8
   - "--editable=git+https://github.com/pyinstaller/pyinstaller@483c819#egg=pyinstaller-git"
 
-prefix: /export/home/terhorst/miniconda/envs/test-environment
+prefix: /export/home/terhorst/miniconda/envs/smcpp
 
