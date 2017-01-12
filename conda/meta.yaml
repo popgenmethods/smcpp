@@ -1,11 +1,10 @@
 package:
   name: smcpp
-  version: "1.3.8"
+  version: "1.3.9"
 
 source:
-    # git_rev: v1.3.8
-    # git_url: https://github.com/terhorst/smcpp.git
-  path: ../
+  git_rev: v1.3.9
+  git_url: https://github.com/terhorst/smcpp.git
 
 requirements:
   build:
