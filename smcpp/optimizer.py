@@ -12,13 +12,7 @@ import random
 from six.moves import zip_longest
 from abc import abstractmethod
 import pprint
-
-# some useful functions were added to shutil in Python 3.3
-try:
-    from shutil import which, get_terminal_size
-except ImportError:
-    from backports.shutil_which import which
-    from backports.shutil_get_terminal_size import get_terminal_size
+from shutil import which, get_terminal_size
 
 from . import logging, util, _smcpp
 from .observe import targets, Observable, Observer
