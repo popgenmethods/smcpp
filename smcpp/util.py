@@ -5,7 +5,7 @@ import numpy as np
 import functools
 import multiprocessing
 import os
-from future.moves.itertools import zip_longest
+from itertools import zip_longest
 
 from . import logging, _smcpp
 

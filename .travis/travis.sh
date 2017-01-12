@@ -16,7 +16,7 @@ conda config --set always_yes yes --set changeps1 no
 conda update -q conda
 conda info -a
 conda env create -f .conda.yml
-source activate test-environment
+source activate smcpp
 CC=gcc CXX=g++ python setup.py develop
 pip install git+https://github.com/pyinstaller/pyinstaller@483c819
 pyinstaller --clean -s -F --exclude-module PyQt5 --exclude-module PyQt4 --exclude-module mpl_toolkits.tests --exclude-module pyside --exclude-module matplotlib.tests scripts/smc++

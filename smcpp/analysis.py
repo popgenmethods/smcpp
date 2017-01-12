@@ -7,11 +7,7 @@ import scipy.optimize
 import ad
 import multiprocessing
 import os
-
-try:
-    import concurrent.futures as futures
-except ImportError:
-    import futures
+import concurrent.futures as futures
 
 try:
     cpu_count = os.cpu_count()

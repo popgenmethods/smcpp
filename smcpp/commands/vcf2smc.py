@@ -214,7 +214,8 @@ class Vcf2Smc(command.Command):
             abnb_miss = [-1, 0, 0] * len(nb)
             abnb_nonseg = sum([[0, 0, x] for x in nb], [])
             multiples = set()
-            with RepeatingWriter(out) as rw, tqdm.tqdm(total=contig_length) as bar:
+            with RepeatingWriter(out) as rw, tqdm.tqdm(total=contig_length, 
+                    unit='bases', unit_scale=True) as bar:
                 last_pos = 0
                 for ty, rec in interleaved():
                     if ty == "mask":
@@ -223,7 +224,7 @@ class Vcf2Smc(command.Command):
                         rw.write([rec[2] - rec[1] + 1] + abnb_miss)
                         last_pos = rec[2]
                         continue
-                    bar.update(rec.pos)
+                    bar.update(rec.pos - last_pos)
                     abnb = rec2gt(rec)
                     if rec.pos == last_pos:
                         multiples.add(rec.pos)
