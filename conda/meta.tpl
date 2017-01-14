@@ -1,6 +1,3 @@
-#!/usr/bin/env python
-
-TEMPLATE="""
 package:
   name: smcpp
   version: {version}
@@ -18,7 +15,7 @@ requirements:
     - gsl >=2.2
     - mpc >=1.0
     - mpfr >=3.1
-    - numpy >=1.10
+    - numpy 1.11.1
     - setuptools_scm >=1.15.0
     - python >=3.5
     - pysam >=0.9.1.4
@@ -41,7 +38,7 @@ requirements:
     - gsl >=2.2
     - mpc >=1.0
     - mpfr >=3.1
-    - numpy >=1.10
+    - numpy 1.11.1
     - setuptools_scm >=1.15.0
     - python >=3.5
     - pysam >=0.9.1.4
@@ -65,7 +62,3 @@ about:
   home: https://github.com/popgenmethods/smcpp
   license: BSD
   license_file: LICENSE
-"""
-
-import sys
-print(TEMPLATE.format(version=sys.argv[1][1:]))
