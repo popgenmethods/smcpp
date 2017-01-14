@@ -8,7 +8,7 @@ install:
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then export OS=MacOSX; else export OS=Linux; fi
   - wget https://repo.continuum.io/miniconda/Miniconda3-latest-$OS-x86_64.sh -O miniconda.sh
   - bash miniconda.sh -b -p $HOME/miniconda
-  - export PATH="$HOME/miniconda/bin:$PATH" VERSION=$(git describe --tags)
+  - export PATH="$HOME/miniconda/bin:$PATH" VERSION=$(git describe --tags) MACOSX_DEPLOYMENT_TARGET=10.9
   - hash -r
   - conda config --set always_yes yes --set changeps1 no
   - conda update -q conda
