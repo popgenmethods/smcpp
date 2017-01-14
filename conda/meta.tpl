@@ -3,8 +3,9 @@ package:
   version: {version}
 
 source:
-  git_rev: v{version}
-  git_url: https://github.com/terhorst/psmcpp.git
+  path: ../
+  # git_rev: v{version}
+  # git_url: https://github.com/terhorst/psmcpp.git
 
 requirements:
   build:
