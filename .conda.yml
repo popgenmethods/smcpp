@@ -21,17 +21,13 @@ dependencies:
 - pip:
   - ad==1.3.2
   - appdirs==1.4.0
-  - backports.shutil-get-terminal-size==1.0.0
-  - backports.shutil-which==3.5.1
-  - future==0.16.0
-  - futures==3.0.5
   - packaging==16.8
   - tqdm==4.9.0
   - python-utils==2.0.1
   - seaborn==0.7.1
   - setuptools-scm==1.11.1
   - wrapt==1.10.8
-  - "--editable=git+https://github.com/pyinstaller/pyinstaller@483c819#egg=pyinstaller-git"
+  - "--editable=git+https://github.com/pyinstaller/pyinstaller@483c819#egg=pyinstaller"
 
 prefix: /export/home/terhorst/miniconda/envs/smcpp
 

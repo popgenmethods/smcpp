@@ -1,6 +1,7 @@
 #!/bin/bash
 
-BINARY=dist/smcpp-$(git describe --tags)-$TRAVIS_OS_NAME
+VERSION=$(git describe --tags)
+BINARY=dist/smcpp-$VERSION-$TRAVIS_OS_NAME
 
 if [[ $TRAVIS_OS_NAME == 'osx' ]]; then
     OS=MacOSX
@@ -23,3 +24,10 @@ pyinstaller --clean -s -F --exclude-module PyQt5 --exclude-module PyQt4 --exclud
 test/integration/test.sh dist/smc++
 [[ $? -ne 0 ]] && exit
 mv dist/smc++ $BINARY
+
+# Build conda package
+conda install conda-build anaconda-client
+conda/meta.yaml.py $VERSION > conda/meta.yaml
+conda build -c bioconda -c conda-forge conda
+conda convert --platform all $HOME/miniconda2/conda-bld/**/smcpp-*.tar.bz2 --output-dir conda-bld/
+anaconda -t $ANACONDA_TOKEN upload --force conda-bld/**/smcpp-*.tar.bz2

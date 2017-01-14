@@ -1,9 +1,12 @@
+#!/usr/bin/env python
+
+TEMPLATE="""
 package:
   name: smcpp
-  version: "1.3.9"
+  version: {version}
 
 source:
-  git_rev: v1.3.9
+  git_rev: v{version}
   git_url: https://github.com/terhorst/psmcpp.git
 
 requirements:
@@ -62,3 +65,7 @@ about:
   home: https://github.com/popgenmethods/smcpp
   license: BSD
   license_file: LICENSE
+"""
+
+import sys
+print(TEMPLATE.format(version=sys.argv[1][1:]))
