@@ -5,7 +5,7 @@ os:
   - osx
 
 install:
-  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then export OS=MacOS; else export OS=Linux; fi
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then export OS=MacOSX; else export OS=Linux; fi
   - wget https://repo.continuum.io/miniconda/Miniconda3-latest-$OS-x86_64.sh -O miniconda.sh
   - bash miniconda.sh -b -p $HOME/miniconda
   - export PATH="$HOME/miniconda/bin:$PATH" VERSION=$(git describe --tags)
@@ -16,7 +16,7 @@ install:
   - conda install conda-build anaconda-client constructor
   - conda/template.py conda/meta.tpl $VERSION > conda/meta.yaml 
   - conda build -c terhorst -c conda-forge -c bioconda conda
-  - conda/template.py conda/constructor.tpl $VERSION > conda/construct.yaml 
+  - conda/template.py conda/construct.tpl $VERSION > conda/construct.yaml 
 
 deploy:
   - provider: script
