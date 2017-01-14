@@ -7,8 +7,4 @@ channels:
   - http://conda.anaconda.org/conda-forge
 specs:
   - smcpp
-exclude:
-  - qt
-  - sip
-  - pyqt
 license_file: ../LICENSE
