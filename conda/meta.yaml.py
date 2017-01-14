@@ -35,6 +35,7 @@ requirements:
     - ad >=1.3.2
   run:
     - python >=3.5
+    - cython >=0.25
     - gcc >=4.8
     - gmp >=6.1
     - gsl >=2.2
@@ -54,7 +55,6 @@ requirements:
     - seaborn >=0.7.1
     - wrapt >=1.10.8
     - ad >=1.3.2
-    - certifi >=2016.9.26
 
 test:
   imports:
