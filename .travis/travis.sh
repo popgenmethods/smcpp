@@ -26,6 +26,7 @@ test/integration/test.sh dist/smc++
 mv dist/smc++ $BINARY
 
 # Build conda package
+source activate root
 conda install conda-build anaconda-client
 conda/meta.yaml.py $VERSION > conda/meta.yaml
 conda build -c bioconda -c conda-forge conda
