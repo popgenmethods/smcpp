@@ -24,6 +24,7 @@ deploy:
     on:
       repo: terhorst/psmcpp
       tags: true
+    skip_cleanup: true
   - provider: releases
     on:
       repo: terhorst/psmcpp
