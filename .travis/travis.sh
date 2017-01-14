@@ -29,5 +29,3 @@ mv dist/smc++ $BINARY
 conda install conda-build anaconda-client
 conda/meta.yaml.py $VERSION > conda/meta.yaml
 conda build -c bioconda -c conda-forge conda
-conda convert --platform all $HOME/miniconda2/conda-bld/**/smcpp-*.tar.bz2 --output-dir conda-bld/
-anaconda -t $ANACONDA_TOKEN upload --force conda-bld/**/smcpp-*.tar.bz2
