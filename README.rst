@@ -7,10 +7,8 @@ whole genome sequence data.
 Quick Start Guide
 =================
 
-1. Download a pre-compiled binary for the latest version of SMC++
-   from the `releases page`_. Alternatively, build the software
-   yourself by following the `build instructions`_.
-
+1. Install the software using the `installation instructions`_.
+   
 2. Convert your VCF(s) to the SMC++ input format with vcf2smc_::
 
      $ smc++ vcf2smc my.data.vcf.gz out/chr1.smc.gz chr1 Pop1:S1,S2
@@ -36,16 +34,44 @@ Quick Start Guide
 SMC++ can also estimate and plot joint demographies from pairs of
 populations; see split_.
 
+
+Installation instructions
+=========================
+
+Experimental pre-compiled binaries are available from the `releases
+page`_. These should work in most cases, however some users have
+reported issues related to threading conflicts in some cluster
+environments.
+
+The recommended way to install SMC++ is using the pre-compiled package
+for the Anaconda_ scientific Python distribution::
+
+    $ conda install -c terhorst -c bioconda -c conda-forge smcpp
+
+This will automatically download all necessary dependencies and create
+an ``smc++`` executable in the ``bin/`` folder of your Anaconda
+distribution.
+
+(If Anaconda Python is not currently installed on your system, we
+recommend installing Miniconda_ as it requires less space. Note that
+this does not require root access.)
+
+If neither of these options works for you, you may build the software
+from scratch using the `build instructions`_ provided in the next
+section.
+
 .. _releases page: https://github.com/popgenmethods/smcpp/releases
+.. _Anaconda: https://www.continuum.io/downloads
+.. _Miniconda: http://conda.pydata.org/miniconda.html
 
 Build instructions
 ==================
-SMC++ requires the following libraries and executables in order to run:
+SMC++ requires the following libraries and executables in order compile and run:
 
 - Python 3.0 or greater.
 - A C++-11 compiler (gcc 4.8 or later, for example).
 - gmp_, for some rational field computations.
-- mpfr_, for some extended precision calculations.
+- mpfr_ (at least version 3.0.0), for some extended precision calculations.
 - gsl_, the GNU Scientific Library.
 
 On Ubuntu (or Debian) Linux, the library requirements may be installed
@@ -57,6 +83,11 @@ On OS X, the easiest way to install them is using Homebrew_::
 
     $ brew install mpfr gmp gsl
 
+.. _Homebrew: http://brew.sh
+.. _gmp: http://gmplib.org
+.. _mpfr: http://mpfr.org
+.. _gsl: https//www.gnu.org/software/gsl/
+
 Installing SMC++
 ----------------
 After installing the requirements, SMC++ may be built by running::
@@ -65,23 +96,6 @@ After installing the requirements, SMC++ may be built by running::
     $ cd smcpp
     $ python setup.py install
 
-No root
--------
-If you do not have root access, another option is to build SMC++ using
-Miniconda_ Python distribution. This will install all of the necessary
-prerequisites, including compilers. After installing Miniconda, simply
-run::
-
-    $ conda env create -f .conda.yml
-
-in the ``smcpp/`` directory to install all of the necessary libraries
-and binaries, then continue to the next step.
-
-.. _Miniconda: http://conda.pydata.org/miniconda.html
-.. _Homebrew: http://brew.sh
-.. _gmp: http://gmplib.org
-.. _mpfr: http://mpfr.org
-.. _gsl: https//www.gnu.org/software/gsl/
 
 Note for OS X users
 -------------------
