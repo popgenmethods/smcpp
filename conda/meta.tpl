@@ -10,7 +10,8 @@ source:
 requirements:
   build:
     - python >=3.5
-    - gcc >=4.8
+    - gcc 4.8.5
+    - libgcc 4.8.5
     - gmp >=6.1
     - cython >=0.25
     - gsl >=2.2
@@ -18,23 +19,9 @@ requirements:
     - mpfr >=3.1
     - numpy 1.11.1
     - setuptools_scm >=1.15.0
-    - python >=3.5
-    - pysam >=0.9.1.4
-    - matplotlib >=1.5.0
-    - pandas >=0.18.1
-    - python-dateutil >=2.6.0
-    - setuptools 23.0.0
-    - scipy >=0.17.1
-    - six >=1.10.0
-    - appdirs >=1.4.0
-    - tqdm >=4.10.0
-    - seaborn >=0.7.1
-    - wrapt >=1.10.8
-    - ad >=1.3.2
   run:
     - python >=3.5
-    - cython >=0.25
-    - gcc >=4.8
+    - libgcc 4.8.5
     - gmp >=6.1
     - gsl >=2.2
     - mpc >=1.0
