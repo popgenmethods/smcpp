@@ -10,8 +10,7 @@ source:
 requirements:
   build:
     - python >=3.5
-    - gcc 4.8.5
-    - isl 0.12.2
+    - gcc-5 5.4.0
     - gmp >=6.1
     - cython >=0.25
     - gsl >=2.2
@@ -35,8 +34,7 @@ requirements:
   run:
     - python >=3.5
     - cython >=0.25
-    - gcc 4.8.5
-    - isl 0.12.2
+    - gcc-5 5.4.0
     - gmp >=6.1
     - gsl >=2.2
     - mpc >=1.0

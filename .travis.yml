@@ -15,8 +15,8 @@ install:
   - conda info -a
   - conda install conda-build anaconda-client constructor
   - conda/template.py conda/meta.tpl $VERSION > conda/meta.yaml 
-  - conda build -c terhorst -c conda-forge -c bioconda conda
-  - conda/template.py conda/construct.$OS.tpl $VERSION > conda/construct.yaml 
+  - conda build -c terhorst -c conda-forge -c bioconda -c salford_systems conda
+  - conda/template.py conda/construct.tpl $VERSION > conda/construct.yaml 
 
 deploy:
   - provider: script
