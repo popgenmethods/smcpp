@@ -38,13 +38,13 @@ populations; see split_.
 Installation instructions
 =========================
 
-Experimental pre-compiled binaries are available from the `releases
-page`_. These should work in most cases, however some users have
-reported issues related to threading conflicts in some cluster
-environments.
+Installer binaries are available from the `releases page`_. Download the
+installer for your platform and then run it using ``bash``. The script
+will walk you through the installation process.
 
-The recommended way to install SMC++ is using the pre-compiled package
-for the Anaconda_ scientific Python distribution::
+The installers are based on the Anaconda_ scientific Python distribution.
+If Anaconda already exists on your machine, a more efficient way to
+install SMC++ is by using the ``conda`` command::
 
     $ conda install -c terhorst -c bioconda -c conda-forge smcpp
 
@@ -52,23 +52,18 @@ This will automatically download all necessary dependencies and create
 an ``smc++`` executable in the ``bin/`` folder of your Anaconda
 distribution.
 
-(If Anaconda Python is not currently installed on your system, we
-recommend installing Miniconda_ as it requires less space. Note that
-this does not require root access.)
-
 If neither of these options works for you, you may build the software
 from scratch using the `build instructions`_ provided in the next
 section.
 
 .. _releases page: https://github.com/popgenmethods/smcpp/releases
 .. _Anaconda: https://www.continuum.io/downloads
-.. _Miniconda: http://conda.pydata.org/miniconda.html
 
 Build instructions
 ==================
 SMC++ requires the following libraries and executables in order compile and run:
 
-- Python 3.0 or greater.
+- Python 3.3 or greater.
 - A C++-11 compiler (gcc 4.8 or later, for example).
 - gmp_, for some rational field computations.
 - mpfr_ (at least version 3.0.0), for some extended precision calculations.
@@ -83,19 +78,14 @@ On OS X, the easiest way to install them is using Homebrew_::
 
     $ brew install mpfr gmp gsl
 
+After installing the requirements, SMC++ may be built by running::
+    
+    $ pip install git+https://github.com/popgenmethods/smcpp
+
 .. _Homebrew: http://brew.sh
 .. _gmp: http://gmplib.org
 .. _mpfr: http://mpfr.org
 .. _gsl: https//www.gnu.org/software/gsl/
-
-Installing SMC++
-----------------
-After installing the requirements, SMC++ may be built by running::
-    
-    $ git clone http://github.com/popgenmethods/smcpp
-    $ cd smcpp
-    $ python setup.py install
-
 
 Note for OS X users
 -------------------
