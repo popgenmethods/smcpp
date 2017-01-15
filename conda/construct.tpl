@@ -7,5 +7,7 @@ channels:
   - http://conda.anaconda.org/conda-forge
   - http://conda.anaconda.org/salford_systems
 specs:
+  - isl  # necessary to fix a bug
+  - gcc  # ditto
   - smcpp
 license_file: ../LICENSE
