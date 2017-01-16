@@ -9,8 +9,8 @@ source:
 
 requirements:
   build:
-    - python 3.5
     - nomkl
+    - python >=3.5
     - gcc 4.8.5
     - libgcc 4.8.5
     - gmp >=6.1
@@ -22,7 +22,7 @@ requirements:
     - setuptools_scm >=1.15.0
   run:
     - nomkl
-    - python 3.5
+    - python >=3.5
     - libgcc 4.8.5
     - gmp >=6.1
     - gsl >=2.2
