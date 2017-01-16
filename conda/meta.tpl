@@ -9,8 +9,8 @@ source:
 
 requirements:
   build:
-    - nomkl
     - python 3.5.2
+    - ccache 3.3.2
     - gcc 4.8.5
     - libgcc 4.8.5
     - gmp 6.1.0
@@ -18,7 +18,7 @@ requirements:
     - mpc 1.0.3
     - mpfr 3.1.5
     - cython 0.25.2
-    - numpy 1.11.1
+    - numpy 1.10.4
     - setuptools_scm 1.15.0
   run:
     - nomkl
@@ -29,9 +29,8 @@ requirements:
     - gsl 2.2.1
     - mpc 1.0.3
     - mpfr 3.1.5
-    - numpy 1.11.1
+    - numpy 1.10.4
     - setuptools_scm 1.15.0
-    - python 3.5.2
     - pysam 0.9.1.4
     - matplotlib 1.5.0
     - pandas 0.19.2
@@ -48,9 +47,6 @@ about:
   home: https://github.com/popgenmethods/smcpp
   license: BSD
   license_file: LICENSE
-
-build:
-  script: python setup.py install --single-version-externally-managed --record=/dev/null
 
 test:
   imports:
