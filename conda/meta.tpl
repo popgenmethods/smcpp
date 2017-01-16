@@ -10,7 +10,7 @@ source:
 requirements:
   build:
     - nomkl
-    - python >=3.5
+    - python 3.5.2
     - gcc 4.8.5
     - libgcc 4.8.5
     - gmp >=6.1
@@ -22,7 +22,8 @@ requirements:
     - setuptools_scm >=1.15.0
   run:
     - nomkl
-    - python >=3.5
+    - conda
+    - python 3.5.2
     - libgcc 4.8.5
     - gmp >=6.1
     - gsl >=2.2
@@ -43,12 +44,10 @@ requirements:
     - wrapt >=1.10.8
     - ad >=1.3.2
 
-test:
-  imports:
-    - smcpp
-    - smcpp._smcpp
-
 about:
   home: https://github.com/popgenmethods/smcpp
   license: BSD
   license_file: LICENSE
+
+build:
+  script: python setup.py install --single-version-externally-managed --record=/dev/null
