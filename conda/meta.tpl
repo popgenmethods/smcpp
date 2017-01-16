@@ -17,8 +17,8 @@ requirements:
     - gsl 2.2.1
     - mpc 1.0.3
     - mpfr 3.1.5
-    - cython 0.25
-    - numpy 1.11.3
+    - cython 0.25.2
+    - numpy 1.11.1
     - setuptools_scm 1.15.0
   run:
     - nomkl
@@ -29,14 +29,14 @@ requirements:
     - gsl 2.2.1
     - mpc 1.0.3
     - mpfr 3.1.5
-    - numpy 1.11.3
+    - numpy 1.11.1
     - setuptools_scm 1.15.0
     - python 3.5.2
     - pysam 0.9.1.4
     - matplotlib 1.5.0
-    - pandas 0.18.1
+    - pandas 0.19.2
     - python-dateutil 2.6.0
-    - scipy 0.17.1
+    - scipy 0.18.1
     - six 1.10.0
     - appdirs 1.4.0
     - tqdm 4.10.0
