@@ -17,7 +17,7 @@ requirements:
     - gsl 2.2.1
     - mpc 1.0.3
     - mpfr 3.1.5
-    - cython 0.25.0
+    - cython 0.25
     - numpy 1.11.3
     - setuptools_scm 1.15.0
   run:
