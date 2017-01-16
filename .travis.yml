@@ -16,7 +16,7 @@ install:
   - conda install conda-build anaconda-client constructor
   - conda/template.py conda/meta.tpl $VERSION > conda/meta.yaml 
   - conda build -c terhorst -c conda-forge -c bioconda conda
-  - conda install --use-local smcpp
+  - conda install --use-local -c terhorst -c bioconda -c conda-forge smcpp
   - echo `which smc++`
   - test/integration/test.sh `which smc++`
   - conda/template.py conda/construct.tpl $VERSION > conda/construct.yaml 
