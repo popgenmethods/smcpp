@@ -9,7 +9,7 @@ source:
 
 requirements:
   build:
-    - python >=3.5
+    - python 3.5
     - nomkl
     - gcc 4.8.5
     - libgcc 4.8.5
@@ -18,17 +18,17 @@ requirements:
     - gsl >=2.2
     - mpc >=1.0
     - mpfr >=3.1
-    - numpy 1.11.1
+    - numpy 1.11.3
     - setuptools_scm >=1.15.0
   run:
     - nomkl
-    - python >=3.5
+    - python 3.5
     - libgcc 4.8.5
     - gmp >=6.1
     - gsl >=2.2
     - mpc >=1.0
     - mpfr >=3.1
-    - numpy 1.11.1
+    - numpy 1.11.3
     - setuptools_scm >=1.15.0
     - python >=3.5
     - pysam >=0.9.1.4
