@@ -51,3 +51,8 @@ about:
 
 build:
   script: python setup.py install --single-version-externally-managed --record=/dev/null
+
+test:
+  imports:
+    - smcpp
+    - smcpp._smcpp
