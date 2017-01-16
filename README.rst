@@ -40,7 +40,9 @@ Installation instructions
 
 Installer binaries are available from the `releases page`_. Download the
 installer for your platform and then run it using ``bash``. The script
-will walk you through the installation process.
+will walk you through the installation process. Be sure to 
+``source /path/to/smcpp/bin/activate`` before running ``/path/to/smcpp/bin/smc++`` 
+in order to prevent conflicts with your existing Python installation.
 
 The installers are based on the Anaconda_ scientific Python distribution.
 If Anaconda already exists on your machine, a more efficient way to
