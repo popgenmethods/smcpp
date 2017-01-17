@@ -1,4 +1,5 @@
 language: generic
+cache: ccache
 
 os:
   - linux
