@@ -147,13 +147,6 @@ cdef class _PyInferenceManager:
     def __dealloc__(self):
         del self._im
 
-    property folded:
-        def __get__(self):
-            return self._im.folded
-
-        def __set__(self, bint f):
-            self._im.folded = f
-
     property observations:
         def __get__(self):
             return self._observations
@@ -299,11 +292,11 @@ cdef class _PyInferenceManager:
 
 cdef class PyOnePopInferenceManager(_PyInferenceManager):
 
-    def __cinit__(self, int n, observations, hidden_states, im_id):
+    def __cinit__(self, int n, observations, hidden_states, im_id, bool fold):
         # This is needed because cinit cannot be inherited
         self.__my_cinit__(observations, hidden_states, im_id)
         with nogil:
-            self._im = new OnePopInferenceManager(n, self._Ls, self._obs_ptrs, self._hs, False)
+            self._im = new OnePopInferenceManager(n, self._Ls, self._obs_ptrs, self._hs, fold)
 
     @property
     def pid(self):
@@ -322,7 +315,7 @@ cdef class PyTwoPopInferenceManager(_PyInferenceManager):
     cdef TwoPopInferenceManager* _im2
     cdef int _a1
 
-    def __cinit__(self, int n1, int n2, int a1, int a2, observations, hidden_states, im_id):
+    def __cinit__(self, int n1, int n2, int a1, int a2, observations, hidden_states, im_id, bool fold):
         # This is needed because cinit cannot be inherited
         assert a1 + a2 == 2
         assert a1 in [1, 2]
@@ -331,7 +324,7 @@ cdef class PyTwoPopInferenceManager(_PyInferenceManager):
         self.__my_cinit__(observations, hidden_states, im_id)
         assert a1 in [1, 2], "a2=2 is not supported"
         with nogil:
-            self._im2 = new TwoPopInferenceManager(n1, n2, a1, a2, self._Ls, self._obs_ptrs, self._hs, False)
+            self._im2 = new TwoPopInferenceManager(n1, n2, a1, a2, self._Ls, self._obs_ptrs, self._hs, fold)
             self._im = self._im2
 
     @targets("model update")

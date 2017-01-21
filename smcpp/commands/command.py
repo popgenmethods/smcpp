@@ -21,9 +21,9 @@ def add_common_estimation_args(parser):
     data.add_argument('--no-filter', help="do not drop contigs with extreme heterozygosity. "
                                           "(not recommended unless data set is small)",
                       action="store_true", default=False)
-    # data.add_argument("--folded", action="store_true", default=False,
-    #                         help="use folded SFS for emission probabilites. "
-    #                              "useful if polarization is not known.")
+    data.add_argument("--fold", action="store_true", default=False,
+                            help="use folded SFS for emission probabilites. "
+                                 "(if polarization is not known.)")
 
     optimizer = parser.add_argument_group("Optimization parameters")
     optimizer.add_argument(

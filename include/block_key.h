@@ -10,6 +10,7 @@ struct block_key
     Vector<int> vals;
 
     int operator()(int k) const { return vals(k); }
+    int& operator()(int k) { return vals.coeffRef(k); }
 
     int size() const { return vals.size(); }
 

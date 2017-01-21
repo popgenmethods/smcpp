@@ -30,7 +30,7 @@ class InferenceManager
 
     void setParams(const ParameterVector &params);
 
-    bool saveGamma, folded;
+    bool saveGamma;
     std::vector<double> hidden_states;
     std::map<block_key, Vector<adouble> > emission_probs;
     std::vector<Matrix<double>*> getXisums();
@@ -87,11 +87,11 @@ class NPopInferenceManager : public InferenceManager
             const std::vector<int*> observations,
             const std::vector<double> hidden_states,
             ConditionedSFS<adouble> *csfs,
-            const bool binning) :
+            const bool fold) :
         InferenceManager(P,
                 (na.tail(na.size() - 1).array() + 1).prod() * (n.array() + 1).prod(),
                 obs_lengths, observations, hidden_states, csfs),
-                n(n), na(na), tensordims(make_tensordims()), bins(construct_bins(binning))
+                n(n), na(na), tensordims(make_tensordims()), bins(construct_bins(fold))
     {}
 
     virtual ~NPopInferenceManager() = default;
@@ -100,6 +100,8 @@ class NPopInferenceManager : public InferenceManager
     protected:
     // Virtual overrides
     void recompute_emission_probs();
+    bool is_monomorphic(const block_key&);
+    block_key folded_key(const block_key&);
     FixedVector<int, 2 * P> make_tensordims();
     block_key bk_to_map_key(const block_key &bk);
 

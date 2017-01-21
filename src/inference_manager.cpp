@@ -23,7 +23,7 @@ InferenceManager::InferenceManager(
         const std::vector<int*> observations,
         const std::vector<double> hidden_states,
         ConditionedSFS<adouble> *csfs) :
-    saveGamma(false), folded(false),
+    saveGamma(false),
     hidden_states(hidden_states),
     npop(npop),
     sfs_dim(sfs_dim),
@@ -271,7 +271,42 @@ block_key NPopInferenceManager<P>::bk_to_map_key(const block_key &bk)
 }
 
 template <size_t P>
-std::map<block_key, std::map<block_key, double> > NPopInferenceManager<P>::construct_bins(const bool binning)
+bool NPopInferenceManager<P>::is_monomorphic(const block_key &bk)
+{
+    for (unsigned int p = 0; p < P; ++p)
+    {
+        const int ind = 3 * p;
+        if (bk(ind) != na(p) or bk(ind + 1) != bk(ind + 2))
+            return false;
+    }
+    return true;
+}
+
+template <size_t P>
+block_key NPopInferenceManager<P>::folded_key(const block_key &bk)
+{
+    block_key ret = bk;
+    for (unsigned int p = 0; p < P; ++p)
+    {
+        const int ind = 3 * p;
+        ret(ind) = na(p) - bk(ind);
+        ret(ind + 1) = bk(ind + 2) - bk(ind + 1);
+        ret(ind + 2) = bk(ind + 2);
+    }
+    if (is_monomorphic(ret))
+    {
+        for (unsigned int p = 0; p < P; ++p)
+        {
+            const int ind = 3 * p;
+            ret(ind) = 0;
+            ret(ind + 1) = ret(ind + 2);
+        }
+    }
+    return ret;
+}
+
+template <size_t P>
+std::map<block_key, std::map<block_key, double> > NPopInferenceManager<P>::construct_bins(const bool fold)
 {
     std::map<block_key, std::map<block_key, double> > ret;
     for (auto ob : obs)
@@ -283,7 +318,14 @@ std::map<block_key, std::map<block_key, double> > NPopInferenceManager<P>::const
             if (ret.count(bk) == 0)
             {
                 std::map<block_key, double> m;
-                for (const block_key &kbin : bin_key<P>::run(bk, na, binning))
+                std::set<block_key> new_keys;
+                for (const block_key &k : bin_key<P>::run(bk, na))
+                {
+                    new_keys.emplace(k);
+                    if (fold) 
+                        new_keys.emplace(folded_key(k));
+                }
+                for (const block_key &kbin : new_keys)
                     for (const auto &p : marginalize_key<P>::run(kbin.vals, n, na))
                         m[bk_to_map_key(p.first)] += p.second;
                 ret[bk] = m;
@@ -341,23 +383,6 @@ void NPopInferenceManager<P>::recompute_emission_probs()
 #pragma omp parallel for
     for (auto it = bpm_keys.begin(); it < bpm_keys.end(); ++it)
     {
-        // std::set<block_key> keys;
-        // keys.insert(key);
-        /*
-        if (this->folded)
-        {
-            Vector<int> new_key(it->size());
-            for (size_t p = 0; p < P; ++p)
-            {
-                int a = key(3 * p);
-                int b = key(3 * p + 1);
-                int nb = key(3 * p + 2);
-                new_key(1 + 2 * p) = nb - b;
-                new_key(2 + 2 * p) = nb;
-            }
-            keys.emplace(new_key);
-        }
-        */
         const block_key k = *it;
         std::array<std::set<FixedVector<int, 3> >, P> s;
         Vector<adouble> tmp(M);
@@ -379,8 +404,12 @@ void NPopInferenceManager<P>::recompute_emission_probs()
                 tmp = e2.col(a.sum() % 2);
         }
         else
+        {
             for (const auto &p : bins.at(k))
+            {
                 tmp += p.second * tensorRef(p.first);
+            }
+        }
         if (tmp.maxCoeff() > 1.0 or tmp.minCoeff() <= 0.0)
         {
             std::cout << k << std::endl;
@@ -421,13 +450,13 @@ OnePopInferenceManager::OnePopInferenceManager(
             const std::vector<int> obs_lengths,
             const std::vector<int*> observations,
             const std::vector<double> hidden_states,
-            const bool binning) :
+            const bool fold) :
         NPopInferenceManager(
                 FixedVector<int, 1>::Constant(n),
                 FixedVector<int, 1>::Constant(2),
                 obs_lengths, observations, hidden_states, 
                 new OnePopConditionedSFS<adouble>(n),
-                binning) {}
+                fold) {}
 
 JointCSFS<adouble>* create_jcsfs(int n1, int n2, int a1, int a2, const std::vector<double> &hidden_states)
 {
@@ -442,13 +471,13 @@ TwoPopInferenceManager::TwoPopInferenceManager(
             const std::vector<int> obs_lengths,
             const std::vector<int*> observations,
             const std::vector<double> hidden_states,
-            const bool binning) :
+            const bool fold) :
         NPopInferenceManager(
                 (FixedVector<int, 2>() << n1, n2).finished(),
                 (FixedVector<int, 2>() << a1, a2).finished(),
                 obs_lengths, observations, hidden_states, 
                 create_jcsfs(n1, n2, a1, a2, hidden_states),
-                binning), a1(a1), a2(a2)
+                fold), a1(a1), a2(a2)
 {
     if (a1 + a2 != 2)
         throw std::runtime_error("configuration not supported");

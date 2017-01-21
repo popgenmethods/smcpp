@@ -50,7 +50,6 @@ cdef extern from "inference_manager.h":
         vector[adouble] Q() except +
         bool debug
         bool saveGamma
-        bool folded
         vector[double] hidden_states
         vector[pMatrixD] getGammas()
         vector[pMatrixD] getXisums()

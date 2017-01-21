@@ -154,7 +154,7 @@ class BaseAnalysis:
             )
         logger.debug("%d hidden states:\n%s" % (len(self._hidden_states), str(self._hidden_states)))
 
-    def _init_inference_manager(self, folded):
+    def _init_inference_manager(self, fold):
         ## Create inference object which will be used for all further calculations.
         logger.debug("Creating inference manager...")
         d = {}
@@ -166,10 +166,12 @@ class BaseAnalysis:
             k = (pid, n, a)
             data = [contig.data for contig in d[k]]
             if len(pid) == 1:
-                im = _smcpp.PyOnePopInferenceManager(n[0], data, self._hidden_states, k)
+                im = _smcpp.PyOnePopInferenceManager(n[0], data, 
+                        self._hidden_states, k, fold)
             else:
                 assert len(pid) == 2
-                im = _smcpp.PyTwoPopInferenceManager(n[0], n[1], a[0], a[1], data, self._hidden_states, k)
+                im = _smcpp.PyTwoPopInferenceManager(n[0], n[1], a[0], a[1], 
+                        data, self._hidden_states, k, fold)
             im.model = self._model
             im.theta = self._theta
             im.rho = self._rho
@@ -276,7 +278,7 @@ class Analysis(BaseAnalysis):
 
         if not args.no_initialize:
             self._hidden_states = np.array([0., np.inf])
-            self._init_inference_manager(False)
+            self._init_inference_manager(args.fold)
             self._init_optimizer(args, files, args.outdir, args.block_size,
                     args.algorithm, args.tolerance, learn_rho=False)
             self._optimizer.run(1)
@@ -286,7 +288,7 @@ class Analysis(BaseAnalysis):
 
         # Continue initializing
         self._init_hidden_states(args.prior_model, args.M)
-        self._init_inference_manager(False)
+        self._init_inference_manager(args.fold)
         self._init_optimizer(args, files, args.outdir, args.block_size,
                 args.algorithm, args.tolerance, learn_rho=True)
 
