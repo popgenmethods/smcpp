@@ -75,6 +75,14 @@ class BaseAnalysis:
                 raise RuntimeError("Error: data set contains sites where every "
                         "individual is homozygous recessive. Please encode / "
                         "fold these as non-segregating (homozygous dominant).")
+            bad = (np.any(c.data[:, 1::3] > c.a[None, :], axis=1) |
+                   np.any(c.data[:, 2::3] > c.data[:, 3::3], axis=1) |
+                   np.any(c.data[:, 3::3] > c.n[None, :], axis=1))
+            if np.any(bad):
+                logger.error("File %s has invalid observations "
+                             "(a > 2 or b > n or n > sample size): %s",
+                             c.fn, np.where(bad)[0])
+                sys.exit(1)
 
     def _recode_nonseg(self, cutoff):
         self._contigs = estimation_tools.recode_nonseg(self._contigs, cutoff)
