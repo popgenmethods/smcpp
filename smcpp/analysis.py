@@ -97,6 +97,9 @@ class BaseAnalysis:
     def _normalize_data(self, length_cutoff, no_filter):
         ## break up long spans
         self._contigs, attrs = estimation_tools.break_long_spans(self._contigs, length_cutoff)
+        if not attrs:
+            logger.error("No contigs remain after pre-processing! Check --length-cutoff.")
+            sys.exit(1)
         w, het = np.array([a[2:] for k in attrs for a in attrs[k]]).T
         self._het = avg = np.average(het, weights=w)
         if self._het == 0:
