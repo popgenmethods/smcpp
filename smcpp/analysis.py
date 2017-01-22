@@ -72,9 +72,10 @@ class BaseAnalysis:
                    np.all(c.data[:, 2::3] == c.n[None, :], axis=1))
             if np.any(bad):
                 logger.error("In file %s, observations %s:", c.fn, np.where(bad)[0])
-                raise RuntimeError("Error: data set contains sites where every "
-                        "individual is homozygous recessive. Please encode / "
-                        "fold these as non-segregating (homozygous dominant).")
+                logger.error("Data set contains sites where every "
+                        "individual is homozygous for the derived allele. "
+                        "Please recode these as non-segregating (homozygous ancestral).")
+                sys.exit(1)
             bad = (np.any(c.data[:, 1::3] > c.a[None, :], axis=1) |
                    np.any(c.data[:, 2::3] > c.data[:, 3::3], axis=1) |
                    np.any(c.data[:, 3::3] > c.n[None, :], axis=1))
