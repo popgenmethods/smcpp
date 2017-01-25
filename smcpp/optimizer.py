@@ -280,14 +280,16 @@ class AsciiPlotter(Observer):
     def update(self, message, *args, **kwargs):
         model = kwargs['model']
         two_pop = hasattr(model, 'split')
+        can_plot_2 = model.split > model.model2.s[0]
         if two_pop:
             # plot split models
             x = np.cumsum(model.model1.s)
             y = model.model1.stepwise_values()
             z = model.model2.stepwise_values()
             data = "\n".join([",".join(map(str, row)) for row in zip(x, y)])
-            data += "\n" * 3
-            data += "\n".join([",".join(map(str, row)) for row in zip(x, z) if row[0] <= model.split])
+            if can_plot_2:
+                data += "\n" * 3
+                data += "\n".join([",".join(map(str, row)) for row in zip(x, z) if row[0] <= model.split])
         else:
             x = np.cumsum(model.s)
             y = model.stepwise_values()
@@ -313,9 +315,9 @@ class AsciiPlotter(Observer):
         write("set logscale xy")
         with tempfile.NamedTemporaryFile("wt") as f:
             plot_cmd = "plot '%s' i 0 with lines title 'Pop. 1'" % f.name
-            if two_pop:
+            if two_pop and can_plot_2:
                 plot_cmd += ", '' i 1 with lines title 'Pop. 2';"
-            else:
+            elif not two_pop:
                 plot_cmd += ", '' i 1 with points notitle;"
             write(plot_cmd)
             open(f.name, "wt").write(data)
