@@ -1,5 +1,7 @@
 language: generic
-cache: ccache
+cache:
+  directories:
+    - $HOME/.ccache
 
 os:
   - linux
@@ -14,7 +16,8 @@ install:
   - conda config --set always_yes yes --set changeps1 no
   - conda update -q conda
   - conda info -a
-  - conda install conda-build anaconda-client constructor
+  - conda install conda-build anaconda-client constructor ccache
+  - ccache -s
   - conda/template.py conda/meta.tpl $VERSION > conda/meta.yaml 
   - conda build -c terhorst -c conda-forge -c bioconda conda
   - conda install --use-local -c terhorst -c bioconda -c conda-forge smcpp

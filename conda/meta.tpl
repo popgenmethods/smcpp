@@ -21,8 +21,8 @@ requirements:
     - numpy 1.10.4
     - setuptools_scm 1.15.0
   run:
-    - nomkl
     - conda
+    - gnuplot 5.0.5
     - python 3.5.2
     - libgcc 4.8.5
     - gmp 6.1.0
