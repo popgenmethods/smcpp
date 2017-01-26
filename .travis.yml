@@ -11,7 +11,7 @@ install:
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then export OS=MacOSX; else export OS=Linux; fi
   - wget https://repo.continuum.io/miniconda/Miniconda3-4.2.12-$OS-x86_64.sh -O miniconda.sh
   - bash miniconda.sh -b -p $HOME/miniconda
-  - export PATH="$HOME/miniconda/bin:$PATH" VERSION=$(git describe --tags) MACOSX_DEPLOYMENT_TARGET=10.9
+  - export OLDPATH=$PATH PATH="$HOME/miniconda/bin:$PATH" VERSION=$(git describe --tags) MACOSX_DEPLOYMENT_TARGET=10.9
   - hash -r
   - conda config --set always_yes yes --set changeps1 no
   - conda update -q conda
@@ -26,6 +26,7 @@ install:
   - test/integration/test.sh `which smc++`
   - conda/template.py conda/construct.tpl $VERSION > conda/construct.yaml 
   - source deactivate
+  - export PATH=$OLDPATH  # so it uses the correct curl binary to upload ccache
 
 deploy:
   - provider: script

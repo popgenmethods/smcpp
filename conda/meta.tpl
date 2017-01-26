@@ -23,7 +23,7 @@ requirements:
   run:
     - conda
     - nomkl
-    - gnuplot 5.0.5
+    - gnuplot 4.6.0
     - python 3.5.2
     - libgcc 4.8.5
     - gmp 6.1.0
