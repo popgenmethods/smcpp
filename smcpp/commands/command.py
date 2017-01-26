@@ -21,9 +21,6 @@ def add_common_estimation_args(parser):
     data.add_argument('--no-filter', help="do not drop contigs with extreme heterozygosity. "
                                           "(not recommended unless data set is small)",
                       action="store_true", default=False)
-    data.add_argument("--fold", action="store_true", default=False,
-                            help="use folded SFS for emission probabilites. "
-                                 "(if polarization is not known.)")
 
     optimizer = parser.add_argument_group("Optimization parameters")
     optimizer.add_argument(
@@ -36,7 +33,7 @@ def add_common_estimation_args(parser):
                            help="number of blocks to optimize at a time for coordinate ascent")
     optimizer.add_argument('--factr', type=float,
                            default=1e-9, help=argparse.SUPPRESS)
-    optimizer.add_argument('--regularization-penalty', "-p",
+    optimizer.add_argument('--regularization-penalty',
                            type=float, help="regularization penalty", default=1.)
     optimizer.add_argument("--tolerance", type=float, default=1e-4,
                            help="stopping criterion for relative improvement in loglik "
@@ -48,6 +45,15 @@ def add_common_estimation_args(parser):
     hmm = parser.add_argument_group("HMM parameters")
     hmm.add_argument(
         '--M', type=int, help="number of hidden states", default=32)
+
+    polarization = parser.add_mutually_exclusive_group(required=False)
+    polarization.add_argument("--fold", action="store_true", default=False,
+                              help="use folded SFS (alias for -p 0.5)")
+    polarization.add_argument('--polarization-error', '-p',
+                              metavar='p', type=float, default=0.,
+                              help="uncertainty parameter for polarized SFS: observation (a,b) "
+                              "has probability [(1-p)*CSFS_{a,b} + p*CSFS_{2-a,n-2-b}]. "
+                              "default: 0.0")
 
     parser.add_argument("-o", "--outdir", help="output directory", default=".")
     parser.add_argument('-v', '--verbose', action='count', default=0,

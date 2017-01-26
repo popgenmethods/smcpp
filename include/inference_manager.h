@@ -1,6 +1,11 @@
 #ifndef INFERENCE_MANAGER_H
 #define INFERENCE_MANAGER_H
 
+#include <vector>
+#include <map>
+#include <utility>
+#include <memory>
+
 #include "common.h"
 #include "transition_bundle.h"
 #include "inference_bundle.h"
@@ -87,11 +92,11 @@ class NPopInferenceManager : public InferenceManager
             const std::vector<int*> observations,
             const std::vector<double> hidden_states,
             ConditionedSFS<adouble> *csfs,
-            const bool fold) :
+            const double polarization_error) :
         InferenceManager(P,
                 (na.tail(na.size() - 1).array() + 1).prod() * (n.array() + 1).prod(),
                 obs_lengths, observations, hidden_states, csfs),
-                n(n), na(na), tensordims(make_tensordims()), bins(construct_bins(fold))
+                n(n), na(na), tensordims(make_tensordims()), bins(construct_bins(polarization_error))
     {}
 
     virtual ~NPopInferenceManager() = default;
@@ -102,6 +107,7 @@ class NPopInferenceManager : public InferenceManager
     void recompute_emission_probs();
     bool is_monomorphic(const block_key&);
     block_key folded_key(const block_key&);
+    block_key_prob_map merge_monomorphic(const block_key_prob_map&);
     FixedVector<int, 2 * P> make_tensordims();
     block_key bk_to_map_key(const block_key &bk);
 
@@ -112,7 +118,7 @@ class NPopInferenceManager : public InferenceManager
     const FixedVector<int, P> na;
     const FixedVector<int, 2 * P> tensordims;
 
-    std::map<block_key, std::map<block_key, double> > construct_bins(const bool);
+    std::map<block_key, std::map<block_key, double> > construct_bins(const double);
     std::map<block_key, std::map<block_key, double> > bins;
 };
 
@@ -124,7 +130,7 @@ class OnePopInferenceManager final : public NPopInferenceManager<1>
             const std::vector<int> obs_lengths,
             const std::vector<int*> observations,
             const std::vector<double> hidden_states,
-            const bool);
+            const double);
 };
 
 class TwoPopInferenceManager : public NPopInferenceManager<2>
@@ -136,7 +142,7 @@ class TwoPopInferenceManager : public NPopInferenceManager<2>
             const std::vector<int> obs_lengths,
             const std::vector<int*> observations,
             const std::vector<double> hidden_states,
-            const bool);
+            const double);
                 
     void setParams(const ParameterVector&, const ParameterVector&, const ParameterVector&, const double);
 

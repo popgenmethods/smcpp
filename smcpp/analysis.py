@@ -33,6 +33,10 @@ class BaseAnalysis:
         self._penalty = args.regularization_penalty
         self._niter = args.em_iterations
         args.solver_args = {}
+        if args.fold:
+            args.polarization_error = 0.5
+        if args.polarization_error > 0.:
+            logger.info("Polarization error p=%f", args.polarization_error)
         if args.factr:
             args.solver_args['factr'] = args.factr
 
@@ -155,7 +159,7 @@ class BaseAnalysis:
             )
         logger.debug("%d hidden states:\n%s" % (len(self._hidden_states), str(self._hidden_states)))
 
-    def _init_inference_manager(self, fold):
+    def _init_inference_manager(self, polarization_error):
         ## Create inference object which will be used for all further calculations.
         logger.debug("Creating inference manager...")
         d = {}
@@ -168,11 +172,11 @@ class BaseAnalysis:
             data = [contig.data for contig in d[k]]
             if len(pid) == 1:
                 im = _smcpp.PyOnePopInferenceManager(n[0], data, 
-                        self._hidden_states, k, fold)
+                        self._hidden_states, k, polarization_error)
             else:
                 assert len(pid) == 2
                 im = _smcpp.PyTwoPopInferenceManager(n[0], n[1], a[0], a[1], 
-                        data, self._hidden_states, k, fold)
+                        data, self._hidden_states, k, polarization_error)
             im.model = self._model
             im.theta = self._theta
             im.rho = self._rho
@@ -279,7 +283,7 @@ class Analysis(BaseAnalysis):
 
         if not args.no_initialize:
             self._hidden_states = np.array([0., np.inf])
-            self._init_inference_manager(args.fold)
+            self._init_inference_manager(args.polarization_error)
             self._init_optimizer(args, files, args.outdir, args.block_size,
                     args.algorithm, args.tolerance, learn_rho=False)
             self._optimizer.run(1)
@@ -289,7 +293,7 @@ class Analysis(BaseAnalysis):
 
         # Continue initializing
         self._init_hidden_states(args.prior_model, args.M)
-        self._init_inference_manager(args.fold)
+        self._init_inference_manager(args.polarization_error)
         self._init_optimizer(args, files, args.outdir, args.block_size,
                 args.algorithm, args.tolerance, learn_rho=True)
 

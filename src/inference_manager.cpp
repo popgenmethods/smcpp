@@ -1,3 +1,5 @@
+#include <vector>
+#include <utility>
 #include <map>
 
 #include "inference_manager.h"
@@ -293,22 +295,34 @@ block_key NPopInferenceManager<P>::folded_key(const block_key &bk)
         ret(ind + 1) = bk(ind + 2) - bk(ind + 1);
         ret(ind + 2) = bk(ind + 2);
     }
-    if (is_monomorphic(ret))
+    return ret;
+}
+
+template <size_t P>
+block_key_prob_map NPopInferenceManager<P>::merge_monomorphic(const block_key_prob_map &bpm)
+{
+    block_key_prob_map ret;
+    for (std::pair<block_key, double> pb : bpm)
     {
-        for (unsigned int p = 0; p < P; ++p)
+        if (is_monomorphic(pb.first))
         {
-            const int ind = 3 * p;
-            ret(ind) = 0;
-            ret(ind + 1) = ret(ind + 2);
+            for (unsigned int p = 0; p < P; ++p)
+            {
+                const int ind = 3 * p;
+                pb.first(ind) = 0;
+                pb.first(ind + 1) = 0;
+            }
         }
+        ret[pb.first] += pb.second;
     }
     return ret;
 }
 
 template <size_t P>
-std::map<block_key, std::map<block_key, double> > NPopInferenceManager<P>::construct_bins(const bool fold)
+std::map<block_key, block_key_prob_map>
+NPopInferenceManager<P>::construct_bins(const double polarization_error)
 {
-    std::map<block_key, std::map<block_key, double> > ret;
+    std::map<block_key, block_key_prob_map> ret;
     for (auto ob : obs)
     {
         const int q = ob.cols() - 1;
@@ -317,17 +331,17 @@ std::map<block_key, std::map<block_key, double> > NPopInferenceManager<P>::const
             block_key bk(ob.row(i).tail(q).transpose());
             if (ret.count(bk) == 0)
             {
-                std::map<block_key, double> m;
-                std::set<block_key> new_keys;
-                for (const block_key &k : bin_key<P>::run(bk, na))
+                block_key_prob_map m, new_keys;
+                for (const std::pair<block_key, double> &kp : bin_key<P>::run(bk, na))
                 {
-                    new_keys.emplace(k);
-                    if (fold) 
-                        new_keys.emplace(folded_key(k));
+                    new_keys[kp.first] += polarization_error * kp.second;
+                    if (polarization_error > 0)
+                        new_keys[folded_key(kp.first)] += (1. - polarization_error) * kp.second;
                 }
-                for (const block_key &kbin : new_keys)
-                    for (const auto &p : marginalize_key<P>::run(kbin.vals, n, na))
-                        m[bk_to_map_key(p.first)] += p.second;
+                new_keys = merge_monomorphic(new_keys);
+                for (const std::pair<block_key, double> &kp : new_keys)
+                    for (const auto &p : marginalize_key<P>::run(kp.first.vals, n, na))
+                        m[bk_to_map_key(p.first)] += kp.second * p.second;
                 ret[bk] = m;
             }
         }
@@ -450,13 +464,13 @@ OnePopInferenceManager::OnePopInferenceManager(
             const std::vector<int> obs_lengths,
             const std::vector<int*> observations,
             const std::vector<double> hidden_states,
-            const bool fold) :
+            const double polarization_error) :
         NPopInferenceManager(
                 FixedVector<int, 1>::Constant(n),
                 FixedVector<int, 1>::Constant(2),
                 obs_lengths, observations, hidden_states, 
                 new OnePopConditionedSFS<adouble>(n),
-                fold) {}
+                polarization_error) {}
 
 JointCSFS<adouble>* create_jcsfs(int n1, int n2, int a1, int a2, const std::vector<double> &hidden_states)
 {
@@ -471,13 +485,13 @@ TwoPopInferenceManager::TwoPopInferenceManager(
             const std::vector<int> obs_lengths,
             const std::vector<int*> observations,
             const std::vector<double> hidden_states,
-            const bool fold) :
+            const double polarization_error) :
         NPopInferenceManager(
                 (FixedVector<int, 2>() << n1, n2).finished(),
                 (FixedVector<int, 2>() << a1, a2).finished(),
                 obs_lengths, observations, hidden_states, 
                 create_jcsfs(n1, n2, a1, a2, hidden_states),
-                fold), a1(a1), a2(a2)
+                polarization_error), a1(a1), a2(a2)
 {
     if (a1 + a2 != 2)
         throw std::runtime_error("configuration not supported");

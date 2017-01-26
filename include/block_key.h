@@ -1,6 +1,8 @@
 #ifndef BLOCK_KEY_H
 #define BLOCK_KEY_H
 
+#include <map>
+
 #include "common.h"
 #include "hash.h"
 
@@ -52,5 +54,7 @@ namespace std
         }
     };
 }
+
+using block_key_prob_map = std::map<block_key, double>;
 
 #endif
