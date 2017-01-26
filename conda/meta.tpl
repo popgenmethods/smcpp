@@ -30,10 +30,10 @@ requirements:
     - gsl 2.2.1
     - mpc 1.0.3
     - mpfr 3.1.5
-    - numpy 1.10.4
+    - numpy 1.11.3
     - setuptools_scm 1.15.0
     - pysam 0.9.1.4
-    - matplotlib 1.5.0
+    - matplotlib 2.0.0
     - pandas 0.19.2
     - python-dateutil 2.6.0
     - scipy 0.18.1

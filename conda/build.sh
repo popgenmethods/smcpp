@@ -1,4 +1,6 @@
 #!/bin/bash -ex
-export PATH=$PREFIX/lib/ccache/bin:$PATH
+mkdir -p $PREFIX/.bin
+for c in gcc g++; do ln -s $(which ccache) $PREFIX/.bin/$c; done
+export PATH=$PREFIX/.bin:$PATH
 echo $(which gcc)
 python setup.py install --single-version-externally-managed --record=/dev/null
