@@ -24,8 +24,7 @@ Quick Start Guide
 
    Depending on sample size and your machine, the fitting procedure
    should take between a few minutes and a few hours. The fitted model
-   will be stored in JSON format in ``analysis/model.final.json``. For
-   details on the format, see below.
+   will be stored in JSON format in ``analysis/model.final.json``.
 
 4. Visualize the results using plot_::
 
@@ -38,11 +37,12 @@ populations; see split_.
 Installation instructions
 =========================
 
-Installer binaries are available from the `releases page`_. Download the
-installer for your platform and then run it using ``bash``. The script
-will walk you through the installation process. Be sure to 
-``source /path/to/smcpp/bin/activate`` before running ``/path/to/smcpp/bin/smc++`` 
-in order to prevent conflicts with your existing Python installation.
+Installer binaries are available from the `releases page`_. Download
+the installer for your platform and then run it using ``bash``.
+The script will walk you through the installation process. You may
+need to ``source /path/to/smcpp/bin/activate`` before running
+``/path/to/smcpp/bin/smc++`` in order to prevent conflicts with your
+existing Python installation.
 
 The installers are based on the Anaconda_ scientific Python distribution.
 If Anaconda already exists on your machine, a more efficient way to
@@ -92,13 +92,11 @@ After installing the requirements, SMC++ may be built by running::
 Note for OS X users
 -------------------
 Versions of Clang shipping with Mac OS X do not currently support
-OpenMP_. SMC++ will be *much faster* if it runs in multithreaded mode
-using OpenMP. For this reason it is recommended that you use ``gcc``
-instead. In order to do so, set the ``CC`` and ``CXX`` environment
-variables, e.g.::
+OpenMP_. In order to build SMC++ on OS X you must use a compiler that
+does, such as ``gcc``::
 
-    $ export CC=gcc-5 CXX=g++-5 
-    $ CC=gcc-5 CXX=g++-5 python setup.py install
+    $ brew install gcc
+    $ CC=gcc-6 CXX=g++-6 python setup.py install
 
 .. _OpenMP: http://openmp.org
 
@@ -111,7 +109,7 @@ root access on your system, you may wish to install SMC++ inside of a
 environment::
 
     $ virtualenv -p python3 <desired location>
-    $ source <desired location>/bin/active
+    $ source <desired location>/bin/activate
 
 Then, install SMC++ as described above.
 
@@ -132,7 +130,7 @@ vcf2smc
 -------
 
 This subcommand converts (biallelic, diploid) VCF data to the format
-used by SMC++.
+used by SMC++. 
 
 Required arguments
 ^^^^^^^^^^^^^^^^^^
@@ -156,7 +154,7 @@ For example, to convert contig ``chr1`` of ``vcf.gz`` using samples
 
 Optional arguments
 ^^^^^^^^^^^^^^^^^^
-- ``-d``.  SMC++ relies crucially on the notion of a pair of *distinguished lineages*
+- ``-d``: SMC++ relies crucially on the notion of a pair of *distinguished lineages*
   (see paper for details on this terminology). The identity of the
   distinguished lineages is set using the ``-d`` option, which specifies
   the sample(s) which will form the distinguished pair. ``-d`` accepts to
@@ -166,19 +164,64 @@ Optional arguments
   
       $ smc++ vcf2smc -d NA12878 NA12879 vcf.gz chr1.smc.gz chr1 CEU:NA12878,NA12879
   
-  Note that "first" and "second" allele have no meaning for unphased data!
+  Note that "first" and "second" allele have no meaning for unphased data; if your
+  data are not phased, it only makes sense to specify a single individual 
+  (e.g. ``-d NA12878 NA12878``).
+
+- ``--mask``, ``--m``: This specifies a BED-formatted mask file whose
+  positions will be marked as missing data (across all samples) in
+  the outputted SMC++ data set. This can be used to delineate large
+  uncalled regions (e.g. centromeres) which are often omitted in VCF
+  files; without additional information provided by ``--mask``, there
+  is no way to distinguish these missing regions from very long runs
+  of homozygosity. For finer-grained control of missing data, setting
+  individual positions and samples to the missing genotype, ``./.``,
+  also works fine. (The point of ``--mask`` is to save the user the
+  trouble of emitting millions of rows of missing observations in the
+  VCF).
+
+- ``--missing-cutoff``, ``-c``: This is an alternative to ``--mask`` which will
+  automatically treat runs of homozgosity longer than ``-c`` base pairs
+  as missing. Typically ``-c`` should be set fairly high so as not
+  to filter out legitimate long runs of homozyous bases, which are
+  informative about recent demography. This is a fairly crude approach
+  to filtering and is only recommended for use in cases where using
+  ``--mask`` is not possible.
   
-  By varying ``-d`` over the same VCF, the user can create distinct data
-  sets for estimation. This is useful for forming composite likelihoods.
-  For example, the following command will create three data sets from
-  contig ``chr1`` of ``myvcf.gz``, by varying the identity of the distinguished
-  individual and treating the remaining two samples as "undistinguished":
-  
-  .. code-block:: bash
-  
-      for i in {7..9}; 
-          do smc++ vcf2smc -d NA1287$i NA1287$i myvcf.gz out.$i.txt chr1 NA12877 NA12878 NA12890; 
-      done
+Composite Likelihood
+^^^^^^^^^^^^^^^^^^^^
+By varying ``-d`` over the same VCF, you can create distinct data
+sets for estimation. This is useful for forming composite likelihoods.
+For example, the following command will create three data sets from
+contig ``chr1`` of ``myvcf.gz``, by varying the identity of the distinguished
+individual and treating the remaining two samples as "undistinguished":
+
+.. code-block:: bash
+
+    for i in {7..9}; 
+        do smc++ vcf2smc -d NA1287$i NA1287$i myvcf.gz out.$i.txt chr1 NA12877 NA12878 NA12890; 
+    done
+
+You can then pass these data sets into estimate_::
+
+   $ smc++ estimate -o output/ out.*.txt
+
+SMC++ treats each file ``out.*.txt`` as an independently evolving
+sequence (i.e., a chromosome); the likelihood is simply the product
+of SMC++ likelihoods over each of the data sets. In the example above
+where the data sets are generated from the same chromosome but different
+distinguished individuals (different ``-d``), this independence
+assumption is violated, leading to a so-called **composite likelihood**.
+The advantage of this approach is that it incorporates genealogical
+information from additional distinguished individuals into the analysis,
+potentially leading to improved estimates. 
+
+Since (a portion of) the computational and memory requirements of SMC++
+scale linearly with the total analyzed sequence length, it is generally
+advisable to composite over a relatively small number of individuals. In
+practice we generally use 2-10 individuals, depending on genome length,
+sample size, etc., and have found that this leads to improved estimation
+without causing significant degeneracy in the likelihood.
 
 Manual conversion
 ^^^^^^^^^^^^^^^^^
@@ -193,11 +236,6 @@ This command will fit a population size history to data. The basic usage
 is::
 
     $ smc++ estimate -o out data.smc.gz
-
-Required arguments
-^^^^^^^^^^^^^^^^^^
-
-None.
 
 Recommended arguments
 ^^^^^^^^^^^^^^^^^^^^^
