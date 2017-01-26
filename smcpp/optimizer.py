@@ -280,7 +280,7 @@ class AsciiPlotter(Observer):
     def update(self, message, *args, **kwargs):
         model = kwargs['model']
         two_pop = hasattr(model, 'split')
-        can_plot_2 = model.split > model.model2.s[0]
+        can_plot_2 = two_pop and (model.split > model.model2.s[0])
         if two_pop:
             # plot split models
             x = np.cumsum(model.model1.s)
