@@ -84,7 +84,8 @@ class Vcf2Smc(command.Command):
         dist = [[], []]
         if not args.d:
             first_sid = args.pop1.samples[0]
-            args.d = [first_sid + ":0", first_sid + ":1"]
+            args.d = [first_sid] * 2
+        args.d = [args.d[0] + ":0", args.d[1] + ":1"]
         all_samples = set(args.pop1.samples) | set(args.pop2.samples)
         for sid_i in args.d:
             sid, i = sid_i.split(":")
