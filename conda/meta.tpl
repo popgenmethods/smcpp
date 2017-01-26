@@ -22,6 +22,7 @@ requirements:
     - setuptools_scm 1.15.0
   run:
     - conda
+    - nomkl
     - gnuplot 5.0.5
     - python 3.5.2
     - libgcc 4.8.5
