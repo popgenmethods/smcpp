@@ -334,9 +334,9 @@ NPopInferenceManager<P>::construct_bins(const double polarization_error)
                 block_key_prob_map m, new_keys;
                 for (const std::pair<block_key, double> &kp : bin_key<P>::run(bk, na))
                 {
-                    new_keys[kp.first] += polarization_error * kp.second;
+                    new_keys[kp.first] += (1. - polarization_error) * kp.second;
                     if (polarization_error > 0)
-                        new_keys[folded_key(kp.first)] += (1. - polarization_error) * kp.second;
+                        new_keys[folded_key(kp.first)] += polarization_error * kp.second;
                 }
                 new_keys = merge_monomorphic(new_keys);
                 for (const std::pair<block_key, double> &kp : new_keys)
