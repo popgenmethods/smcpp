@@ -43,6 +43,7 @@ requirements:
     - seaborn 0.7.1
     - wrapt 1.10.8
     - ad 1.3.2
+    - readline 6.2
 
 about:
   home: https://github.com/popgenmethods/smcpp

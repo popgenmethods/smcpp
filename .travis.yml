@@ -25,6 +25,7 @@ install:
   - echo `which smc++`
   - test/integration/test.sh `which smc++`
   - conda/template.py conda/construct.tpl $VERSION > conda/construct.yaml 
+  - source deactivate
 
 deploy:
   - provider: script
