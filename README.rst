@@ -28,7 +28,7 @@ Quick Start Guide
 
 4. Visualize the results using plot_::
 
-     $ smc++ plot analysis/model.final.json plot.pdf
+     $ smc++ plot plot.pdf analysis/model.final.json
 
 SMC++ can also estimate and plot joint demographies from pairs of
 populations; see split_.
