@@ -29,12 +29,12 @@ class AbstractOptimizer(Observable):
     '''
     Abstract representation of the execution flow of the optimizer.
     '''
-    def __init__(self, analysis, algorithm, tolerance, block_size, solver_args={}):
+    def __init__(self, analysis, algorithm, tolerance, blocks, solver_args={}):
         Observable.__init__(self)
         self._analysis = analysis
         self._algorithm = algorithm
         self._tolerance = tolerance
-        self._block_size = block_size
+        self._blocks = blocks
         self._solver_args = solver_args
 
     @abstractmethod
@@ -360,8 +360,8 @@ class AsciiPlotter(Observer):
 class SMCPPOptimizer(AbstractOptimizer):
     'Model fitting for one population.'
 
-    def __init__(self, analysis, algorithm, tolerance, block_size, solver_args):
-        AbstractOptimizer.__init__(self, analysis, algorithm, tolerance, block_size, solver_args)
+    def __init__(self, analysis, algorithm, tolerance, blocks, solver_args):
+        AbstractOptimizer.__init__(self, analysis, algorithm, tolerance, blocks, solver_args)
         observers = [
             HiddenStateOccupancyPrinter(),
             ProgressPrinter(),
@@ -380,9 +380,11 @@ class SMCPPOptimizer(AbstractOptimizer):
         model = self._analysis.model
         ret = []
         K = model.K
-        for b in range(0, K - self._block_size + 1, max(1, self._block_size - 2)):
-            ret.append(list(range(b, min(K, b + self._block_size))))
-        ret = ret[::-1]
+        if not 1 <= self._blocks <= K:
+            logger.error("blocks must be between 1 and K")
+            sys.exit(1)
+        breaks = list(range(0, K, K // self._blocks))[:self._blocks] + [K]
+        ret = [list(range(a, b)) for a, b in zip(breaks[:-1], breaks[1:])][::-1]
         return ret
 
     def _bounds(self, coords):

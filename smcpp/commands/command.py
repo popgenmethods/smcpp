@@ -29,8 +29,8 @@ def add_common_estimation_args(parser):
                            help="number of EM steps to perform", default=10)
     optimizer.add_argument('--algorithm', choices=["L-BFGS-B", "TNC"],
                            default="L-BFGS-B", help=argparse.SUPPRESS)
-    optimizer.add_argument('--block-size', type=int, default=3,
-                           help="number of blocks to optimize at a time for coordinate ascent")
+    optimizer.add_argument('--blocks', type=int, 
+                           help="number of coordinate ascent blocks")
     optimizer.add_argument('--factr', type=float,
                            default=1e-9, help=argparse.SUPPRESS)
     optimizer.add_argument('--regularization-penalty',

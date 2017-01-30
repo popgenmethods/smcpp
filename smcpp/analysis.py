@@ -39,6 +39,14 @@ class BaseAnalysis:
             logger.info("Polarization error p=%f", args.polarization_error)
         if args.factr:
             args.solver_args['factr'] = args.factr
+        try:
+            num_knots = int(args.knots)
+            knot_spans = np.ones(num_knots, dtype=int)
+            self._knots = np.cumsum(estimation_tools.construct_time_points(args.t1, args.tK, knot_spans, args.offset))
+        except ValueError:
+            self._knots = [float(x) for x in args.knots.split(",")]
+        if args.blocks is None:
+            args.blocks = len(self._knots) // 4
 
         # Data-related stuff
         self._load_data(files)
@@ -278,14 +286,15 @@ class Analysis(BaseAnalysis):
         # Initialize members
         self._init_parameters(args.theta, args.rho)
         self._init_bounds(args.Nmin)
-        self._init_model(args.pieces, args.N0, args.t1,
-                args.tK, args.offset, args.knots, args.spline)
+        self._init_model(args.pieces, args.N0, args.t1, args.tK, args.spline)
 
         if not args.no_initialize:
             self._hidden_states = np.array([0., np.inf])
             self._init_inference_manager(args.polarization_error)
-            self._init_optimizer(args, files, args.outdir, args.block_size,
-                    args.algorithm, args.tolerance, learn_rho=False)
+            self._init_optimizer(args, files, args.outdir,
+                    self.model.K,  # set block-size to knots
+                    "L-BFGS-B",  # TNC tends to overfit for initial pass
+                    args.tolerance, learn_rho=False)
             self._optimizer.run(1)
 
         # Thin the data
@@ -294,7 +303,7 @@ class Analysis(BaseAnalysis):
         # Continue initializing
         self._init_hidden_states(args.prior_model, args.M)
         self._init_inference_manager(args.polarization_error)
-        self._init_optimizer(args, files, args.outdir, args.block_size,
+        self._init_optimizer(args, files, args.outdir, args.blocks,
                 args.algorithm, args.tolerance, learn_rho=True)
 
     def _init_parameters(self, theta=None, rho=None):
@@ -324,22 +333,15 @@ class Analysis(BaseAnalysis):
         assert np.all(np.isfinite([self._rho, self._theta]))
         logger.info("rho: %f", self._rho)
 
-    def _init_model(self, pieces, N0, t1, tK, offset, knots, spline_class):
+    def _init_model(self, pieces, N0, t1, tK, spline_class):
         ## Initialize model
-        # FIXME currently disabled.
-        # exponential_pieces = args.exponential_pieces or []
         pieces = estimation_tools.extract_pieces(pieces)
         fac = 2. * N0
         t1 /= fac
         tK /= fac
         time_points = estimation_tools.construct_time_points(t1, tK, pieces, 0.)
         logger.debug("time points in coalescent scaling:\n%s", str(time_points))
-        try:
-            num_knots = int(knots)
-            knot_spans = np.ones(num_knots, dtype=int)
-            knots = np.cumsum(estimation_tools.construct_time_points(t1, tK, knot_spans, offset))
-        except ValueError:
-            knots = [float(x) for x in knots.split(",")]
+        knots = self._knots
         logger.debug("knots in coalescent scaling:\n%s", str(knots))
         spline_class = {"cubic": spline.CubicSpline,
                         "bspline" : spline.BSpline,
@@ -360,16 +362,16 @@ class Analysis(BaseAnalysis):
                 mods[-1][-1] = y0
             self._model = SMCTwoPopulationModel(mods[0], mods[1], split)
 
-    def _init_optimizer(self, args, files, outdir, block_size, algorithm, tolerance, learn_rho):
+    def _init_optimizer(self, args, files, outdir, blocks, algorithm, tolerance, learn_rho):
         if self.npop == 1:
             self._optimizer = optimizer.SMCPPOptimizer(
-                self, algorithm, tolerance, block_size, args.solver_args)
+                self, algorithm, tolerance, blocks, args.solver_args)
             # Also optimize knots in 1 pop case. Not yet implemented
             # for two pop case.
             # self._optimizer.register(optimizer.KnotOptimizer())
         elif self.npop == 2:
             self._optimizer = optimizer.TwoPopulationOptimizer(
-                self, algorithm, tolerance, block_size, args.solver_args)
+                self, algorithm, tolerance, blocks, args.solver_args)
             smax = np.sum(self._model.distinguished_model.s)
             self._optimizer.register(
                 optimizer.ParameterOptimizer("split", (0., smax), "model"))
@@ -393,7 +395,7 @@ class SplitAnalysis(BaseAnalysis):
 
         self._hidden_states = np.array([0., np.inf])
         self._init_inference_manager(False)
-        self._init_optimizer(args, files, args.outdir, args.algorithm, args.tolerance, args.block_size, False)
+        self._init_optimizer(args, files, args.outdir, args.algorithm, args.tolerance, args.blocks, False)
         # Hack to only estimate split time.
         self._optimizer.run(1)
 
@@ -403,10 +405,10 @@ class SplitAnalysis(BaseAnalysis):
 
         self._init_hidden_states(args.pop1, args.M)
         self._init_inference_manager(False)
-        self._init_optimizer(args, files, args.outdir, args.algorithm, args.tolerance, args.block_size)
+        self._init_optimizer(args, files, args.outdir, args.algorithm, args.tolerance, args.blocks)
 
-    def _init_optimizer(self, args, files, outdir, algorithm, tolerance, block_size, save=True):
-        self._optimizer = optimizer.TwoPopulationOptimizer(self, algorithm, tolerance, block_size, args.solver_args)
+    def _init_optimizer(self, args, files, outdir, algorithm, tolerance, blocks, save=True):
+        self._optimizer = optimizer.TwoPopulationOptimizer(self, algorithm, tolerance, blocks, args.solver_args)
         smax = np.sum(self._model.distinguished_model.s)
         self._optimizer.register(optimizer.ParameterOptimizer("split", (0., smax), "model"))
         if save:
