@@ -42,7 +42,10 @@ class BaseAnalysis:
         try:
             num_knots = int(args.knots)
             knot_spans = np.ones(num_knots, dtype=int)
-            self._knots = np.cumsum(estimation_tools.construct_time_points(args.t1, args.tK, knot_spans, args.offset))
+            self._knots = np.cumsum(
+                estimation_tools.construct_time_points(self.rescale(args.t1),
+                                                       self.rescale(args.tK), 
+                                                       knot_spans, args.offset))
         except ValueError:
             self._knots = [float(x) for x in args.knots.split(",")]
         if args.blocks is None:
@@ -53,6 +56,8 @@ class BaseAnalysis:
         self._validate_data()
         self._recode_nonseg(args.nonseg_cutoff)
 
+    def rescale(self, x):
+        return x / (2. * self._N0)
 
     ## PRIVATE INIT FUNCTIONS
     def _load_data(self, files):
@@ -336,26 +341,25 @@ class Analysis(BaseAnalysis):
     def _init_model(self, pieces, N0, t1, tK, spline_class):
         ## Initialize model
         pieces = estimation_tools.extract_pieces(pieces)
-        fac = 2. * N0
-        t1 /= fac
-        tK /= fac
-        time_points = estimation_tools.construct_time_points(t1, tK, pieces, 0.)
-        logger.debug("time points in coalescent scaling:\n%s", str(time_points))
+        time_points = estimation_tools.construct_time_points(
+            self.rescale(t1), self.rescale(tK), pieces, 0.)
+        logger.debug("time points in coalescent scaling:\n%s",
+                     str(time_points))
         knots = self._knots
         logger.debug("knots in coalescent scaling:\n%s", str(knots))
         spline_class = {"cubic": spline.CubicSpline,
-                        "bspline" : spline.BSpline,
-                        "akima": spline.AkimaSpline, 
+                        "bspline": spline.BSpline,
+                        "akima": spline.AkimaSpline,
                         "pchip": spline.PChipSpline}[spline_class]
         y0 = self._het / (2. * self._theta)
         logger.debug("Long term avg. effective population size: %f", y0)
         y0 = np.log(y0)
         if self.npop == 1:
-            self._model = SMCModel(time_points, knots, spline_class, self._populations[0])
+            self._model = SMCModel(
+                time_points, knots, spline_class, self._populations[0])
             self._model[-1] = y0
         else:
-            split = tK - t1  # just pick the midpoint as a starting value.
-            split /= 2. * N0
+            split = self.rescale(tK - t1)  # just pick the midpoint as a starting value.
             mods = []
             for pid in self._populations:
                 mods.append(SMCModel(time_points, knots, spline_class, pid))
