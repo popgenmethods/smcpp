@@ -181,6 +181,7 @@ void JointCSFS<T>::jcsfs_helper_tau_above_split(const int m,
     {
         for (int b2 = 0; b2 < n2 + 1; ++b2)
         {
+            const T myweight = weight;
             for (int nseg = 0; nseg < n1 + n2 + 1; ++nseg)
             {
                 for (int np1 = std::max(nseg - n2, 0); np1 < std::min(nseg, n1) + 1; ++np1)
@@ -195,7 +196,7 @@ void JointCSFS<T>::jcsfs_helper_tau_above_split(const int m,
                         x *= c_eMn1[i](np1, b1);
                         x *= c_eMn2(np2, b2);
                         x *= h;
-                        x *= weight;
+                        x *= myweight;
                         tensorRef(m, i, b1, 0, b2) += x;
                     }
                 }

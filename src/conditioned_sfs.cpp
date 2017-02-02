@@ -99,6 +99,8 @@ std::vector<Matrix<T> > OnePopConditionedSFS<T>::compute(const PiecewiseConstant
 template <typename T>
 std::vector<Matrix<T> > incorporate_theta(const std::vector<Matrix<T> > &csfs, double theta)
 {
+    if (theta <= 0)
+        throw std::runtime_error("mutation rate theta <= 0");
     std::vector<Matrix<T> > ret(csfs.size());
     for (unsigned int i = 0; i < csfs.size(); ++i)
     {
