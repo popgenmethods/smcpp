@@ -74,6 +74,8 @@ def plot_psfs(psfs, xlim, ylim, xlabel, logy=False):
                 x2, y2 = (m._knots, np.exp(m[:].astype('float')))
                 # if not logy:
                 #     y *= 1e-3
+                x = np.insert(x, 0, 0)
+                y = np.insert(y, 0, y[0])
                 series.append([l, x, y, my_axplot, off, N0, g])
                 series.append([None, x2, y2, ax.scatter, off, N0, g])
             if split:
@@ -95,7 +97,8 @@ def plot_psfs(psfs, xlim, ylim, xlabel, logy=False):
             plotfun(xp, yp, linewidth=2, label=label, color="black")
         else:
             labels += plotfun(xp, yp, label=label, linewidth=2)
-        xmin = min(xmin, xp[1] * 0.9)
+        if len(xp) > 2:
+            xmin = min(xmin, xp[1] * 0.9)
         ymax = max(ymax, np.max(yp))
         xmax = max(xmax, np.max(xp))
     if labels:
