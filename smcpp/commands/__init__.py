@@ -1,1 +1,1 @@
-from . import vcf2smc, estimate, split, cite, plot
+from . import vcf2smc, estimate, split, cite, plot, posterior
