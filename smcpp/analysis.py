@@ -178,22 +178,21 @@ class BaseAnalysis:
         d = {}
         self._ims = {}
         for c in self._contigs:
-            k = (c.pid, tuple(c.n), tuple(c.a))
-            d.setdefault(k, []).append(c)
-        for pid, n, a in d:
-            k = (pid, n, a)
-            data = [contig.data for contig in d[k]]
+            d.setdefault(c.key, []).append(c)
+        for key in d:
+            pid, n, a = key
+            data = [contig.data for contig in d[key]]
             if len(pid) == 1:
                 im = _smcpp.PyOnePopInferenceManager(n[0], data, 
-                        self._hidden_states, k, polarization_error)
+                        self._hidden_states, key, polarization_error)
             else:
                 assert len(pid) == 2
                 im = _smcpp.PyTwoPopInferenceManager(n[0], n[1], a[0], a[1], 
-                        data, self._hidden_states, k, polarization_error)
+                        data, self._hidden_states, key, polarization_error)
             im.model = self._model
             im.theta = self._theta
             im.rho = self._rho
-            self._ims[k] = im
+            self._ims[key] = im
         self._model.randomize()
 
     def _init_bounds(self, Nmin):

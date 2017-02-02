@@ -263,6 +263,7 @@ FixedVector<int, 2 * P> NPopInferenceManager<P>::make_tensordims()
 template <size_t P>
 block_key NPopInferenceManager<P>::bk_to_map_key(const block_key &bk)
 {
+    // Convert block_key to "map key" (a,b), which indexes into the CSFS
     Vector<int> ret(2 * P);
     for (size_t p = 0; p < P; ++p)
     {
@@ -331,18 +332,22 @@ NPopInferenceManager<P>::construct_bins(const double polarization_error)
             block_key bk(ob.row(i).tail(q).transpose());
             if (ret.count(bk) == 0)
             {
-                block_key_prob_map m, new_keys;
-                for (const std::pair<block_key, double> &kp : bin_key<P>::run(bk, na))
-                {
-                    new_keys[kp.first] += (1. - polarization_error) * kp.second;
-                    if (polarization_error > 0)
-                        new_keys[folded_key(kp.first)] += polarization_error * kp.second;
-                }
-                new_keys = merge_monomorphic(new_keys);
-                for (const std::pair<block_key, double> &kp : new_keys)
-                    for (const auto &p : marginalize_key<P>::run(kp.first.vals, n, na))
-                        m[bk_to_map_key(p.first)] += kp.second * p.second;
-                ret[bk] = m;
+                block_key_prob_map m, m2;
+                for (const block_key &k : bin_key<P>::run(bk, na))
+                    for (const auto &p : marginalize_key<P>::run(k.vals, n, na))
+                    {
+                        m[p.first] += (1. - polarization_error) * p.second;
+                        m[folded_key(p.first)] += polarization_error * p.second;
+                    }
+                double s = 0.0;
+                for (const auto &p : m)
+                    if (p.second > 0 and not is_monomorphic(p.first))
+                    {
+                        m2[p.first] = p.second;
+                        s += p.second;
+                    }
+                for (const auto &p : m2)
+                    ret[bk][bk_to_map_key(p.first)] += p.second / s;
             }
         }
     }
@@ -420,9 +425,7 @@ void NPopInferenceManager<P>::recompute_emission_probs()
         else
         {
             for (const auto &p : bins.at(k))
-            {
                 tmp += p.second * tensorRef(p.first);
-            }
         }
         if (tmp.maxCoeff() > 1.0 or tmp.minCoeff() <= 0.0)
         {
