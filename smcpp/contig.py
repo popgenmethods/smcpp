@@ -12,3 +12,7 @@ class Contig:
     @property
     def npop(self):
         return len(self.pid)
+
+    @property
+    def key(self):
+        return (self.pid, tuple(self.n), tuple(self.a))

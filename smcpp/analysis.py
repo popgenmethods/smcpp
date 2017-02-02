@@ -39,18 +39,6 @@ class BaseAnalysis:
             logger.info("Polarization error p=%f", args.polarization_error)
         if args.factr:
             args.solver_args['factr'] = args.factr
-        try:
-            num_knots = int(args.knots)
-            knot_spans = np.ones(num_knots, dtype=int)
-            self._knots = np.cumsum(
-                estimation_tools.construct_time_points(self.rescale(args.t1),
-                                                       self.rescale(args.tK), 
-                                                       knot_spans, args.offset))
-        except ValueError:
-            self._knots = [float(x) for x in args.knots.split(",")]
-        if args.blocks is None:
-            args.blocks = len(self._knots) // 4
-
         # Data-related stuff
         self._load_data(files)
         self._validate_data()
@@ -58,6 +46,10 @@ class BaseAnalysis:
 
     def rescale(self, x):
         return x / (2. * self._N0)
+
+    def _init_blocks(self, args, knots):
+        if args.blocks is None:
+            args.blocks = len(knots) // 4
 
     ## PRIVATE INIT FUNCTIONS
     def _load_data(self, files):
@@ -283,7 +275,16 @@ class Analysis(BaseAnalysis):
     '''A dataset, model and inference manager to be used for estimation.'''
     def __init__(self, files, args):
         BaseAnalysis.__init__(self, files, args)
-
+        if "," in args.knots:
+            self._knots = [float(x) for x in args.knots.split(",")]
+        else:
+            num_knots = int(args.knots)
+            knot_spans = np.ones(num_knots, dtype=int)
+            self._knots = np.cumsum(
+                estimation_tools.construct_time_points(self.rescale(args.t1),
+                                                       self.rescale(args.tK), 
+                                                       knot_spans, args.offset))
+        self._init_blocks(args, self._knots)
         # Perform initial filtering for weird contigs
         self._normalize_data(args.length_cutoff, args.no_filter)
 
@@ -394,6 +395,8 @@ class SplitAnalysis(BaseAnalysis):
         BaseAnalysis.__init__(self, files, args)
         assert self.npop == 2
         self._init_model(args.pop1, args.pop2)
+        self._knots = self._model.distinguished_model._knots
+        self._init_blocks(args, self._knots)
         self._init_bounds(.001)
 
         self._hidden_states = np.array([0., np.inf])

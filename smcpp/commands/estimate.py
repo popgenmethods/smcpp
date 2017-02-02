@@ -1,5 +1,3 @@
-'Fit SMC++ to data using the EM algorithm'
-from __future__ import absolute_import, division, print_function
 import argparse
 import numpy as np
 import scipy.optimize
@@ -9,9 +7,10 @@ import itertools
 import sys
 import time
 import os
+import os.path
 
 # Package imports
-from ..logging import getLogger, setup_logging
+from ..logging import getLogger, add_debug_log
 from ..analysis import Analysis
 from . import command
 
@@ -23,6 +22,7 @@ class Estimate(command.Command):
     "Estimate size history for one population"
 
     def __init__(self, parser):
+        super().__init__(parser)
         '''Configure parser and parse args.'''
         # Add in parameters which are shared with the split command
         command.add_common_estimation_args(parser)
@@ -66,15 +66,14 @@ class Estimate(command.Command):
                     "The per-generation mutation rate is calculated to be %g. Is this correct?" % pgm)
 
     def main(self, args):
+        super().main(args)
         # Create output directory
         try:
             os.makedirs(args.outdir)
         except OSError:
             pass  # directory exists
 
-        # Initialize the logger
-        setup_logging(args.verbose, os.path.join(args.outdir, ".debug.txt"))
-
+        add_debug_log(os.path.join(args.outdir, ".debug.log"))
         # Save all the command line args and stuff
         logger.debug(sys.argv)
         logger.debug(args)

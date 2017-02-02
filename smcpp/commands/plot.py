@@ -15,6 +15,7 @@ class Plot(command.Command):
     "Plot size history from fitted model"
 
     def __init__(self, parser):
+        super().__init__(parser)
         parser.add_argument("-g", type=float,
                             help="Plot x-axis in years assuming generation time(s) of g")
         parser.add_argument("-s", "--step-function", action="store_true",
@@ -36,11 +37,12 @@ class Plot(command.Command):
         # parser.add_argument("-l", "--labels", type=str,
         # help="label for each plotted function", nargs="+")
         parser.add_argument("out", type=str, help="output image",
-                            metavar="plot.[pdf|png|gif|jpeg]")
+                            metavar="plot.(pdf|png|gif|jpeg)")
         parser.add_argument("model", type=str,
                             help="SMC++ models to plot", nargs="+")
 
     def main(self, args):
+        super().main(args)
         psfs = []
         if args.offsets is None:
             args.offsets = []

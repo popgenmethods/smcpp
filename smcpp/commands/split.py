@@ -12,7 +12,7 @@ import os
 import json
 
 # Package imports
-from ..logging import getLogger, setup_logging
+from ..logging import getLogger, add_debug_log
 from ..analysis import SplitAnalysis
 from . import command
 
@@ -24,6 +24,7 @@ class Split(command.Command):
     'Estimate split time in two population model'
 
     def __init__(self, parser):
+        super().__init__(parser)
         '''Configure parser and parse args.'''
         command.add_common_estimation_args(parser)
         parser.add_argument('pop1', metavar="model1.final.json",
@@ -34,6 +35,7 @@ class Split(command.Command):
                             help="data file(s) in SMC++ format")
 
     def main(self, args):
+        super().main(args)
         # Create output directory
         try:
             os.makedirs(args.outdir)
@@ -41,7 +43,7 @@ class Split(command.Command):
             pass  # directory exists
 
         # Initialize the logger
-        setup_logging(args.verbose, os.path.join(args.outdir, ".debug.txt"))
+        add_debug_log(os.path.join(args.outdir, ".debug.txt"))
 
         # Save all the command line args and stuff
         logger.debug(sys.argv)
