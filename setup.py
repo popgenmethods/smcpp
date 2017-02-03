@@ -12,7 +12,7 @@ from Cython.Build import cythonize
 import numpy as np
 
 extra_compile_args=["-O2", "-std=c++11", "-Wno-deprecated-declarations", "-DNO_CHECK_NAN", '-fopenmp']
-extra_link_args=['-fopenmp', '-rdynamic']
+extra_link_args=['-fopenmp']
 libraries = ['mpfr', 'gmp', 'gmpxx', 'gsl', 'gslcblas']
 cpps = [f for f in glob.glob("src/*.cpp") if
         not os.path.basename(f).startswith("_")
