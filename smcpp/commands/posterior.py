@@ -42,8 +42,8 @@ class Posterior(command.Command):
 
     def main(self, args):
         super().main(args)
-        if args.colorbar and not args.plot:
-            logger.error("Can't specify --colorbar without --plot")
+        if args.colorbar and not args.heatmap:
+            logger.error("Can't specify --colorbar without --heatmap")
             sys.exit(1)
         j = json.load(open(args.model, "rt"))
         klass = getattr(model, j['model']['class'])
