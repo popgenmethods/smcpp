@@ -6,16 +6,16 @@ import wrapt
 
 from logging import INFO, ERROR, WARNING, DEBUG, NOTSET, CRITICAL
 
+from .version import version
+
 def getLogger(name):
     return logging.getLogger(name)
-    # if multiprocessing.current_process().name == "MainProcess":
-    # else:
-        # return multiprocessing.get_logger()
 
 def setup_logging(verbosity):
     root = logging.getLogger()
     sh = root.handlers[0]
     sh.setLevel([INFO, DEBUG, DEBUG - 1][verbosity])
+    getLogger(__name__).debug("SMC++ v%s", version)
 
 def add_debug_log(debug_log):
     fh = logging.FileHandler(debug_log, "wt")

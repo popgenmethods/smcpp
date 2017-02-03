@@ -1,17 +1,41 @@
 # Base class; subclasses will automatically show up as subcommands
 import argparse
+import os
+import sys
 
-from ..logging import setup_logging
+from .. import logging
+logger = logging.getLogger(__name__)
 
+class ConsoleCommand:
+    def __init__(self, parser):
+        pass
 
 class Command:
     def __init__(self, parser):
+        '''Configure parser and parse args.'''
         parser.add_argument('-v', '--verbose', action='count', default=0,
                 help="increase debugging output, specify multiply times for more")
 
     def main(self, args):
-        setup_logging(args.verbose)
+        logging.setup_logging(args.verbose)
 
+class EstimationCommand(Command):
+    def __init__(self, parser):
+        super().__init__(parser)
+        add_common_estimation_args(parser)
+
+    def main(self, args):
+        try:
+            os.makedirs(args.outdir)
+        except OSError:
+            pass  # directory exists
+        # Initialize the logger
+        # Do this before calling super().main() so that
+        # any debugging output generated there gets logged
+        logging.add_debug_log(os.path.join(args.outdir, ".debug.txt"))
+        super().main(args)
+        logger.debug(sys.argv)
+        logger.debug(args)
 
 def add_common_estimation_args(parser):
     parser.add_argument("-o", "--outdir", help="output directory", default=".")

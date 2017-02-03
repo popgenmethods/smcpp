@@ -20,11 +20,8 @@ Genetics, 49(2):303–309, 2017.
 """
 
 
-class Cite(command.Command):
+class Cite(command.ConsoleCommand):
     'Print citation information for SMC++'
-    def __init__(self, parser):
-        # don't bother with logging setup for this simple command
-        pass
 
     def main(self, args):
         print(PLAIN)

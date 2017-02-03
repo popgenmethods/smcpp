@@ -10,7 +10,7 @@ import os
 import os.path
 
 # Package imports
-from ..logging import getLogger, add_debug_log
+from ..logging import getLogger
 from ..analysis import Analysis
 from . import command
 
@@ -18,15 +18,12 @@ logger = getLogger(__name__)
 np.set_printoptions(linewidth=120, suppress=True)
 
 
-class Estimate(command.Command):
+class Estimate(command.EstimationCommand, command.ConsoleCommand):
     "Estimate size history for one population"
 
     def __init__(self, parser):
-        super().__init__(parser)
+        command.EstimationCommand.__init__(self, parser)
         '''Configure parser and parse args.'''
-        # Add in parameters which are shared with the split command
-        command.add_common_estimation_args(parser)
-
         model = parser.add_argument_group('Model parameters')
         model.add_argument('--pieces', type=str,
                            help="span of model pieces", default="32*1")
@@ -66,21 +63,9 @@ class Estimate(command.Command):
                     "The per-generation mutation rate is calculated to be %g. Is this correct?" % pgm)
 
     def main(self, args):
-        super().main(args)
-        # Create output directory
-        try:
-            os.makedirs(args.outdir)
-        except OSError:
-            pass  # directory exists
-
-        add_debug_log(os.path.join(args.outdir, ".debug.log"))
-        # Save all the command line args and stuff
-        logger.debug(sys.argv)
-        logger.debug(args)
-
+        command.EstimationCommand.main(self, args)
         # Perform some validation on the arguments
         self.validate_args(args)
-
         # Construct analysis
         analysis = Analysis(args.data, args)
         analysis.run()

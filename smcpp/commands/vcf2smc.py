@@ -29,11 +29,11 @@ def sample_list(x):
             "population identifier. See 'smc++ vcf2smc -h'." % x)
 
 
-class Vcf2Smc(command.Command):
+class Vcf2Smc(command.Command, command.ConsoleCommand):
     "Convert VCF to SMC++ format"
 
     def __init__(self, parser):
-        super().__init__(parser)
+        command.Command.__init__(self, parser)
         parser.add_argument("-d", nargs=2, metavar="sample_id",
                             help="identity of distinguished lineages. First allele from sample_id 1 and "
                             "second allele from sample_id 2 will be used.")
@@ -66,7 +66,7 @@ class Vcf2Smc(command.Command):
                         "as homozygous recessive.")
 
     def main(self, args):
-        super().main(args)
+        command.Command.main(self, args)
         self.validate(args)
         for i in [1, 2]:
             attr = "pop%d" % i

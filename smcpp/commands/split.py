@@ -20,13 +20,11 @@ logger = getLogger(__name__)
 np.set_printoptions(linewidth=120, suppress=True)
 
 
-class Split(command.Command):
+class Split(command.EstimationCommand, command.ConsoleCommand):
     'Estimate split time in two population model'
 
     def __init__(self, parser):
-        super().__init__(parser)
-        '''Configure parser and parse args.'''
-        command.add_common_estimation_args(parser)
+        command.EstimationCommand.__init__(self, parser)
         parser.add_argument('pop1', metavar="model1.final.json",
                             help="marginal fit for population 1")
         parser.add_argument('pop2', metavar="model2.final.json",
@@ -35,15 +33,17 @@ class Split(command.Command):
                             help="data file(s) in SMC++ format")
 
     def main(self, args):
-        super().main(args)
+        # Initialize the logger
+        # Do this before calling super().main() so that
+        # any debugging output generated there gets logged
+        add_debug_log(os.path.join(args.outdir, ".debug.txt"))
+
+        command.EstimationCommand.main(self, args)
         # Create output directory
         try:
             os.makedirs(args.outdir)
         except OSError:
             pass  # directory exists
-
-        # Initialize the logger
-        add_debug_log(os.path.join(args.outdir, ".debug.txt"))
 
         # Save all the command line args and stuff
         logger.debug(sys.argv)

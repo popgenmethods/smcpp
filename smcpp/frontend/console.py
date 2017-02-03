@@ -6,7 +6,7 @@ from .. import commands
 def init_subparsers(subparsers_obj):
     ret = {}
     kwds = {cls.__name__.lower(): cls
-            for cls in commands.command.Command.__subclasses__()}
+            for cls in commands.command.ConsoleCommand.__subclasses__()}
     for kwd in sorted(kwds):
         cls = kwds[kwd]
         p = subparsers_obj.add_parser(kwd, help=cls.__doc__)

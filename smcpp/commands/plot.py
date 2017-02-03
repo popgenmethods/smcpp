@@ -10,12 +10,11 @@ from .. import util, plotting, model
 
 from . import command
 
-
-class Plot(command.Command):
+class Plot(command.Command, command.ConsoleCommand):
     "Plot size history from fitted model"
 
     def __init__(self, parser):
-        super().__init__(parser)
+        command.Command.__init__(self, parser)
         parser.add_argument("-g", type=float,
                             help="Plot x-axis in years assuming generation time(s) of g")
         parser.add_argument("-s", "--step-function", action="store_true",
@@ -42,7 +41,7 @@ class Plot(command.Command):
                             help="SMC++ models to plot", nargs="+")
 
     def main(self, args):
-        super().main(args)
+        command.Command.main(self, args)
         psfs = []
         if args.offsets is None:
             args.offsets = []

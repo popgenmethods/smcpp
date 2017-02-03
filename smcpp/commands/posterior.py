@@ -17,11 +17,11 @@ from .. import _smcpp, util, model, estimation_tools
 from . import command
 
 
-class Posterior(command.Command):
+class Posterior(command.Command, command.ConsoleCommand):
     "Store/visualize posterior decoding of TMRCA"
 
     def __init__(self, parser):
-        super().__init__(parser)
+        command.Command.__init__(self, parser)
         command.add_hmm_args(parser)
         parser.add_argument("--start", type=int,
                             help="base at which to begin posterior decode")
@@ -41,7 +41,7 @@ class Posterior(command.Command):
                             help="location to save posterior decoding arrays")
 
     def main(self, args):
-        super().main(args)
+        command.Command.main(self, args)
         if args.colorbar and not args.heatmap:
             logger.error("Can't specify --colorbar without --heatmap")
             sys.exit(1)
