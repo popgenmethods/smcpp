@@ -324,7 +324,7 @@ where:
 
 - ``hs`` is a vector of length ``M + 1`` indicating the breakpoints used
   to discretize the hidden TMRCA of the distinguished pair. The
-  breakpoints are chosen such that the probability of coalescence is
+  breakpoints are chosen such that the probability of coalescence 
   within each interval is uniform with respect to the fitted model.
 - ``sites`` is the vector of length ``L`` containing positions where the
   decoding is performed. Due to the internal archtecture of SMC++,
