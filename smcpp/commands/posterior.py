@@ -88,7 +88,7 @@ class Posterior(command.Command):
         #     sp += an
         np.savez_compressed(args.output, hidden_states=hidden_states, 
                             sites=obs[:, 0], posterior=gamma)
-        if args.plot:
+        if args.heatmap:
             # Plotting code
             fig, ax = plt.subplots()
             x = np.insert(np.cumsum(obs[:, 0]), 0, 0)
@@ -113,5 +113,5 @@ class Posterior(command.Command):
             ax.set_ylabel("TMRCA")
             if args.colorbar:
                 plt.colorbar(img)
-            plt.savefig(args.plot)
+            plt.savefig(args.heatmap)
             plt.close()
