@@ -33,22 +33,7 @@ class Split(command.EstimationCommand, command.ConsoleCommand):
                             help="data file(s) in SMC++ format")
 
     def main(self, args):
-        # Initialize the logger
-        # Do this before calling super().main() so that
-        # any debugging output generated there gets logged
-        add_debug_log(os.path.join(args.outdir, ".debug.txt"))
-
         command.EstimationCommand.main(self, args)
-        # Create output directory
-        try:
-            os.makedirs(args.outdir)
-        except OSError:
-            pass  # directory exists
-
-        # Save all the command line args and stuff
-        logger.debug(sys.argv)
-        logger.debug(args)
-
         # Fill in some of the population-genetic parameters from previous model run
         # TODO ensure that these params agree in both models?
         d = json.load(open(args.pop1, "rt"))

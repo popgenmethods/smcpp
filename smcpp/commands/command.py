@@ -1,6 +1,7 @@
 # Base class; subclasses will automatically show up as subcommands
 import argparse
 import os
+import os.path
 import sys
 
 from .. import logging
@@ -25,10 +26,8 @@ class EstimationCommand(Command):
         add_common_estimation_args(parser)
 
     def main(self, args):
-        try:
+        if not os.path.isdir(args.outdir):
             os.makedirs(args.outdir)
-        except OSError:
-            pass  # directory exists
         # Initialize the logger
         # Do this before calling super().main() so that
         # any debugging output generated there gets logged
