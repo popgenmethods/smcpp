@@ -60,7 +60,7 @@ def add_common_estimation_args(parser):
     optimizer.add_argument('--algorithm', choices=["L-BFGS-B", "TNC"],
                            default="L-BFGS-B", help=argparse.SUPPRESS)
     optimizer.add_argument('--blocks', type=int, 
-                           help="number of coordinate ascent blocks")
+            help="number of coordinate ascent blocks. default: min(4, K)")
     optimizer.add_argument('--factr', type=float,
                            default=1e-9, help=argparse.SUPPRESS)
     optimizer.add_argument('--regularization-penalty',

@@ -9,6 +9,7 @@ import tempfile
 import wrapt
 import subprocess
 import random
+import sys
 from six.moves import zip_longest
 from abc import abstractmethod
 import pprint
@@ -380,10 +381,12 @@ class SMCPPOptimizer(AbstractOptimizer):
         model = self._analysis.model
         ret = []
         K = model.K
+        if self._blocks is None:
+            self._blocks = min(4, K)
         if not 1 <= self._blocks <= K:
             logger.error("blocks must be between 1 and K")
             sys.exit(1)
-        breaks = list(range(0, K, K // self._blocks))[:self._blocks] + [K]
+        breaks = list(range(0, K, int(round(K / self._blocks))))[:self._blocks] + [K]
         ret = [list(range(a, b)) for a, b in zip(breaks[:-1], breaks[1:])][::-1]
         return ret
 

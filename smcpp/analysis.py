@@ -47,10 +47,6 @@ class BaseAnalysis:
     def rescale(self, x):
         return x / (2. * self._N0)
 
-    def _init_blocks(self, args, knots):
-        if args.blocks is None:
-            args.blocks = len(knots) // 4
-
     ## PRIVATE INIT FUNCTIONS
     def _load_data(self, files):
         ## Parse each data set into an array of observations
@@ -284,7 +280,6 @@ class Analysis(BaseAnalysis):
                 estimation_tools.construct_time_points(self.rescale(args.t1),
                                                        self.rescale(args.tK), 
                                                        knot_spans, args.offset))
-        self._init_blocks(args, self._knots)
         # Perform initial filtering for weird contigs
         self._normalize_data(args.length_cutoff, args.no_filter)
 
@@ -297,7 +292,7 @@ class Analysis(BaseAnalysis):
             self._hidden_states = np.array([0., np.inf])
             self._init_inference_manager(args.polarization_error)
             self._init_optimizer(args, files, args.outdir,
-                    self.model.K,  # set block-size to knots
+                    1,  # set block-size to knots
                     "L-BFGS-B",  # TNC tends to overfit for initial pass
                     args.tolerance, learn_rho=False)
             self._optimizer.run(1)
@@ -396,7 +391,6 @@ class SplitAnalysis(BaseAnalysis):
         assert self.npop == 2
         self._init_model(args.pop1, args.pop2)
         self._knots = self._model.distinguished_model._knots
-        self._init_blocks(args, self._knots)
         self._init_bounds(.001)
 
         self._hidden_states = np.array([0., np.inf])
