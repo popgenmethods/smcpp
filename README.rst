@@ -310,6 +310,48 @@ of the joint demography::
     $ smc++ split -o split/ pop1/model.final.json pop2/model.final.json data/*.smc.gz
     $ smc++ plot joint.pdf split/model.final.json
 
+posterior
+---------
+This command will export (and optionally visualize) the posterior
+distribution of the time to most recent common ancestor (TMRCA) in the
+distinguished pair from the given data set.
+
+The output file is the result of::
+
+    >>> numpy.savez(output, posterior=gamma, hidden_states=hs, sites=sites)
+
+where:
+
+- ``hs`` is a vector of length ``M + 1`` indicating the breakpoints used
+  to discretize the hidden TMRCA of the distinguished pair. The
+  breakpoints are chosen such that the probability of coalescence is
+  within each interval is uniform with respect to the fitted model.
+- ``sites`` is the vector of length ``L`` containing positions where the
+  decoding is performed. Due to the internal archtecture of SMC++,
+  there is one entry per row in the data set.
+- ``gamma`` is an array of dimension ``M x L`` whose entry 
+  ``gamma[m, ell]`` gives the average posterior probability of coalescence in interval
+  ``[hs[m], hs[m + 1])`` for each site in the interval 
+  ``{sites[ell], ..., sites[ell + 1] - 1}``.
+
+Required arguments
+^^^^^^^^^^^^^^^^^^
+- ``model``: A fitted SMC++ model, i.e. the ``model.final.json`` outputted
+  by estimate_.
+- ``data``: An data set in SMC++ format, i.e. the output of vcf2smc_. 
+- ``output``: A file name to save the posterior decoding arrays, in the format
+  shown above.
+
+Optional arguments
+^^^^^^^^^^^^^^^^^^
+- ``--heatmap plot.(png|pdf|jpg)``: Also produce a heatmap of the posterior 
+  decoding. The output format is given by the extension.
+- ``--start s``, ``--end e``: For regions that are much longer than ~1cM, 
+  the heatmap will look pretty noisy. These options can be used to narrow
+  in on specific regions of the chromosome.
+- ``--colorbar``: Also add a colorbar showing the scale of the heatmap.
+
+
 cite
 ----
 

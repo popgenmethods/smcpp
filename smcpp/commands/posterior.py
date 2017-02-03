@@ -18,7 +18,7 @@ from . import command
 
 
 class Posterior(command.Command):
-    "Store/plot posterior decoding from fitted model."
+    "Store/visualize posterior decoding of TMRCA"
 
     def __init__(self, parser):
         super().__init__(parser)
@@ -29,15 +29,15 @@ class Posterior(command.Command):
                             help="base at which to end posterior decode")
         parser.add_argument("--thinning", type=int, default=1,
                 help="emit full SFS only every <k>th site. default: 1", metavar="k")
-        parser.add_argument("--plot",
-                            metavar="plot.(pdf|png|gif|jpeg)",
-                            help="Also produce plot of posterior. (Not recommended for long sequences).")
+        parser.add_argument("--heatmap",
+                            metavar="heatmap.(pdf|png|gif|jpeg)",
+                            help="Also draw a heatmap of the posterior TMRCA.")
         parser.add_argument("--colorbar", action="store_true", help="If plotting, add a colorbar")
         parser.add_argument("model", type=str, metavar="model.final.json",
                             help="SMC++ model to use in forward-backward algorithm")
         parser.add_argument("data", type=str, metavar="data.smc[.gz]", 
                             help="SMC++ data set to decode")
-        parser.add_argument("output", metavar="matrix.npz", 
+        parser.add_argument("output", metavar="arrays.npz", 
                             help="location to save posterior decoding arrays")
 
     def main(self, args):
