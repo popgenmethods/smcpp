@@ -28,7 +28,7 @@ Quick Start Guide
 
 4. Visualize the results using plot_::
 
-     $ smc++ plot analysis/model.final.json plot.pdf
+     $ smc++ plot plot.pdf analysis/model.final.json
 
 SMC++ can also estimate and plot joint demographies from pairs of
 populations; see split_.
@@ -168,7 +168,7 @@ Optional arguments
   data are not phased, it only makes sense to specify a single individual 
   (e.g. ``-d NA12878 NA12878``).
 
-- ``--mask``, ``--m``: This specifies a BED-formatted mask file whose
+- ``--mask``, ``-m``: This specifies a BED-formatted mask file whose
   positions will be marked as missing data (across all samples) in
   the outputted SMC++ data set. This can be used to delineate large
   uncalled regions (e.g. centromeres) which are often omitted in VCF
@@ -182,7 +182,7 @@ Optional arguments
 
 - ``--missing-cutoff``, ``-c``: This is an alternative to ``--mask`` which will
   automatically treat runs of homozgosity longer than ``-c`` base pairs
-  as missing. Typically ``-c`` should be set fairly high so as not
+  as missing. Typically ``-c`` should be set high so as not
   to filter out legitimate long runs of homozyous bases, which are
   informative about recent demography. This is a fairly crude approach
   to filtering and is only recommended for use in cases where using
