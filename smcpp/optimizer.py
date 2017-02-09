@@ -14,6 +14,7 @@ from six.moves import zip_longest
 from abc import abstractmethod
 import pprint
 from shutil import which, get_terminal_size
+from collections import namedtuple
 
 from . import logging, util, _smcpp
 from .observe import targets, Observable, Observer
@@ -73,12 +74,12 @@ class AbstractOptimizer(Observable):
                 y1, _ = self._f(x0, self._analysis, coords)
                 print("***grad", i, y1, (y1 - y) * 1e8, dy[i])
                 x0[i] -= 1e-8
-        return scipy.optimize.minimize(self._f, x0,
-                                       jac=True,
-                                       args=(self._analysis, coords),
-                                       bounds=bounds,
-                                       options=self._solver_args,
-                                       method=self._algorithm)
+        return minimize_proxy(self._f, x0, 
+                              jac=True,
+                              args=(self._analysis, coords),
+                              bounds=bounds,
+                              options=self._solver_args,
+                              method=self._algorithm)
 
     def run(self, niter):
         self.update_observers('begin')
@@ -403,3 +404,33 @@ class TwoPopulationOptimizer(SMCPPOptimizer):
 
     def _bounds(self, coords):
         return SMCPPOptimizer._bounds(self, coords[1])
+
+AdaMaxResult = namedtuple('AdaMaxResult', 'x fun')
+
+def box_constrain(x, bounds):
+    return np.maximum(np.minimum(x, bounds[:, 1]), bounds[:, 0])
+
+def AdaMax(f, x0, jac, args, bounds, alpha=0.0002, b1=0.9, b2=0.999, eps=1e-3, **kwargs):
+    assert jac == True
+    bounds = np.array(bounds)
+    obj, grad = f(x0, *args)
+    m0 = 0
+    u0 = 0
+    theta = x0.copy()
+    t = 0
+    mt = 0
+    while True:
+        t += 1
+        ft, gt = f(theta, *args)
+        mt = b1 * mt + (1. - b1) * gt
+        ut = np.maximum(b2, np.abs(gt))
+        delta = -(alpha / (1. - b1 ** t)) * mt / ut
+        if np.linalg.norm(delta) < eps:
+            break
+        theta = box_constrain(theta + delta, bounds)
+    return AdaMaxResult(x=theta, fun=ft)
+
+def minimize_proxy(f, x0, *args, **kwargs):
+    if kwargs['method'] == "AdaMax":
+        return AdaMax(f, x0, *args, **kwargs)
+    return scipy.optimize.minimize(f, x0, *args, **kwargs)

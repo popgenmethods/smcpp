@@ -56,7 +56,7 @@ def add_common_estimation_args(parser):
         "--no-initialize", action="store_true", default=False, help=argparse.SUPPRESS)
     optimizer.add_argument('--em-iterations', type=int,
                            help="number of EM steps to perform", default=10)
-    optimizer.add_argument('--algorithm', choices=["L-BFGS-B", "TNC"],
+    optimizer.add_argument('--algorithm', choices=["L-BFGS-B", "TNC", "AdaMax"],
                            default="L-BFGS-B", help=argparse.SUPPRESS)
     optimizer.add_argument('--blocks', type=int, 
             help="number of coordinate ascent blocks. default: min(4, K)")
