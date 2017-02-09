@@ -4,6 +4,8 @@
 SMC++ is a program for estimating the size history of populations from
 whole genome sequence data.
 
+.. contents:: :depth: 2
+
 Quick Start Guide
 =================
 
@@ -360,6 +362,43 @@ the `accompanying paper`_ to the console.
 
 .. _accompanying paper: http://www.nature.com/ng/journal/vaop/ncurrent/ng.3748
 
+
+Tips for using SMC++
+====================
+
+SMC++ has several regularization parameters which affect the quality of
+the fits obtained using estimate_ and split_. The default settings have
+proved useful for analyzing high coverage human sequence data from a few
+hundred individuals. For other types of data, *you will likely need to
+experiment with different values of these parameters in order to obtain
+good estimates*.
+
+- ``--regularization-penalty``: This parameter penalizes curvature in
+  the estimated size history. The default value of this parameter is
+  ``1.0``. Higher values of the penalty shrink the estimated
+  size history towards a line. If your estimates exhibit too much
+  oscillation, try increasing the value of this parameter.
+
+- ``--tolerance``: This parameter specifies a threshold for stopping the
+  EM algorithm when the relative improvement in log-likelihood becomes
+  small. The default value is ``1e-4``. If the tolerance is ``epsilon``
+  and ``x'``/``x`` are the new and old estimates, the algorithm will
+  terminate when ``[loglik(x') - loglik(x)] / loglik(x) < epsilon``.
+  Increasing values of ``epsilon`` will cause the optimizer to stop
+  earlier, potentially preventing overfitting.
+
+- ``--knots``: This parameter specifies the number of spline knots 
+  used in the underlying representation of the size history. The default
+  value is ``10``. Using fewer knots can lead to smoother fits, however
+  underspecifying this parameter may smooth out interesting features of
+  the size history.
+
+A useful diagnostic for understanding the final output of SMC++ are
+the sequence of intermediate estimates ``.model.iter<k>.json`` which
+are saved by ``--estimate`` in the ``--output`` directory. By plotting
+these, you can get a sense of whether the optimizer is overfitting and
+requires additional regularization.
+  
 File Formats
 ============
 
