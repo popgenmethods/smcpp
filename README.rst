@@ -6,7 +6,7 @@ whole genome sequence data.
 
 .. contents:: :depth: 2
 
-Quick Start Guide
+Quick start guide
 =================
 
 1. Install the software using the `installation instructions`_.
@@ -24,6 +24,8 @@ Quick Start Guide
 
      $ smc++ estimate --theta .00025 -o analysis/ out/example.chr*.smc.gz
 
+   (Here, ``--theta`` specifies the `population scaled mutation rate`_ and
+   should be set appropriately for the species you are studying.)
    Depending on sample size and your machine, the fitting procedure
    should take between a few minutes and a few hours. The fitted model
    will be stored in JSON format in ``analysis/model.final.json``.
@@ -102,7 +104,7 @@ does, such as ``gcc``::
 
 .. _OpenMP: http://openmp.org
 
-Virtual Environment
+Virtual environment
 -------------------
 SMC++ pulls in a fair number of Python dependencies. If you prefer to
 keep this separate from your main Python installation, or do not have
@@ -190,7 +192,7 @@ Optional arguments
   to filtering and is only recommended for use in cases where using
   ``--mask`` is not possible.
   
-Composite Likelihood
+Composite likelihood
 ^^^^^^^^^^^^^^^^^^^^
 By varying ``-d`` over the same VCF, you can create distinct data
 sets for estimation. This is useful for forming composite likelihoods.
@@ -242,17 +244,19 @@ is::
 Recommended arguments
 ^^^^^^^^^^^^^^^^^^^^^
 
-- ``-o`` specifies the directory to store the final estimates as well as
+- ``-o``: specifies the directory to store the final estimates as well as
   all intermediate files and debugging output.
 
-- ``--theta`` sets the population-scaled mutation rate, that is
+  .. _population scaled mutation rate: 
+
+- ``--theta``: the population scaled mutation rate, that is
   :math:`2 N_0 \mu` where :math:`\mu` denotes the per-generation
   mutation rate, and :math:`N_0` is the baseline diploid effective
-  population size (see ``--N0``, below). If ``-theta`` is not specified,
+  population size (see ``--N0``, below). If ``--theta`` is not specified,
   Watterson's estimator will be used. It is recommended to set this
   using prior knowledge of :math:`\mu` if at all possible.
 
-- ``--rho`` sets the population-scaled recombination rate, that is
+- ``--rho``: the population-scaled recombination rate, that is
   :math:`2 N_0 r` where :math:`r` denotes the per-generation
   recombination rate. If not specified, this will be estimated from the
   data. The estimates should be fairly accurate if the recombination
@@ -399,10 +403,10 @@ are saved by ``--estimate`` in the ``--output`` directory. By plotting
 these, you can get a sense of whether the optimizer is overfitting and
 requires additional regularization.
   
-File Formats
+File formats
 ============
 
-Input Data Format
+Input data format
 -----------------
 The data files should be ASCII text and can optionally be gzipped. The
 format of each line of the data file is as follows::
@@ -452,7 +456,7 @@ The SMC++ format for this input file is::
     1   2   1   4
 
 
-Output Data Format
+Output data format
 ------------------
 Upon completion, SMC++ will write a `JSON-formatted
 <https://en.wikipedia.org/wiki/JSON>`_ model file into the into the
