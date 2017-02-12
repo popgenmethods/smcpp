@@ -127,8 +127,7 @@ syntax::
 
     $ smc++ <subcommand>
 
-where ``<subcommand>`` is one of vcf2smc_, estimate_, plot_, split_, or
-cite_.
+where ``<subcommand>`` is one of the following:
 
 vcf2smc
 -------
