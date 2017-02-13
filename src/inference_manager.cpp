@@ -193,19 +193,23 @@ std::vector<Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> 
 void InferenceManager::populate_emission_probs()
 {
     Vector<adouble> tmp;
-    for (auto ob : obs)
+    std::vector<std::map<block_key, Vector<adouble> > > eps(obs.size());
+#pragma omp parallel for
+    for (unsigned int j = 0; j < obs.size(); ++j)
     {
+        const Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> ob = obs[j];
         const int q = ob.cols() - 1;
         for (int i = 0; i < ob.rows(); ++i)
         {
             block_key key(ob.row(i).tail(q).transpose());
-            if (emission_probs.count(key) == 0)
-            {
-                emission_probs.insert({key, tmp});
-                bpm_keys.push_back(key);
-            }
+            if (eps[j].count(key) == 0)
+                eps[j].insert({key, tmp});
         }
     }
+    for (const std::map<block_key, Vector<adouble> > &ep : eps)
+        emission_probs.insert(ep.begin(), ep.end());
+    for (const auto p : emission_probs)
+        bpm_keys.push_back(p.first);
 }
 
 void InferenceManager::do_dirty_work()
@@ -229,16 +233,21 @@ void InferenceManager::do_dirty_work()
 
 std::set<std::pair<int, block_key> > InferenceManager::fill_targets()
 {
-    std::set<std::pair<int, block_key> > ret;
-    for (auto ob : obs)
+    std::vector<std::set<std::pair<int, block_key> > > v(obs.size());
+#pragma omp parallel for
+    for (unsigned int j = 0; j < obs.size(); ++j)
     {
+        const Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> ob = obs[j];
         const int q = ob.cols() - 1;
         for (int i = 0; i < ob.rows(); ++i)
         {
             if (ob(i, 0) > 1)
-                ret.insert({ob(i, 0), block_key(ob.row(i).tail(q).transpose())});
+                v[j].insert({ob(i, 0), block_key(ob.row(i).tail(q).transpose())});
         }
     }
+    std::set<std::pair<int, block_key> > ret;
+    for (const std::set<std::pair<int, block_key> > s : v)
+        ret.insert(s.begin(), s.end());
     return ret;
 }
 
@@ -323,14 +332,16 @@ template <size_t P>
 std::map<block_key, block_key_prob_map>
 NPopInferenceManager<P>::construct_bins(const double polarization_error)
 {
-    std::map<block_key, block_key_prob_map> ret;
-    for (auto ob : obs)
+    std::vector<std::map<block_key, block_key_prob_map> > rets(obs.size());
+#pragma omp parallel for
+    for (unsigned int j = 0; j < obs.size(); ++j)
     {
+        const Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> ob = obs[j];
         const int q = ob.cols() - 1;
         for (int i = 0; i < ob.rows(); ++i)
         {
             block_key bk(ob.row(i).tail(q).transpose());
-            if (ret.count(bk) == 0)
+            if (rets[j].count(bk) == 0)
             {
                 block_key_prob_map m, m2;
                 for (const block_key &k : bin_key<P>::run(bk, na))
@@ -347,10 +358,13 @@ NPopInferenceManager<P>::construct_bins(const double polarization_error)
                         s += p.second;
                     }
                 for (const auto &p : m2)
-                    ret[bk][bk_to_map_key(p.first)] += p.second / s;
+                    rets[j][bk][bk_to_map_key(p.first)] += p.second / s;
             }
         }
     }
+    std::map<block_key, block_key_prob_map> ret;
+    for (const std::map<block_key, block_key_prob_map> &m : rets)
+        ret.insert(m.begin(), m.end());
     return ret;
 }
 

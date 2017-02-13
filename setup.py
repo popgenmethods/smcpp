@@ -11,9 +11,19 @@ import warnings
 from Cython.Build import cythonize
 import numpy as np
 
-extra_compile_args=["-O2", "-std=c++11", "-Wno-deprecated-declarations", "-DNO_CHECK_NAN", '-fopenmp']
+extra_compile_args = ["-O2", "-std=c++11", "-Wno-deprecated-declarations",
+                      "-DNO_CHECK_NAN", '-fopenmp',
+                      # tcmalloc
+                      '-fno-builtin-malloc', '-fno-builtin-calloc',
+                      '-fno-builtin-realloc', '-fno-builtin-free']
+
+extra_compile_args = ["-O0", "-std=c++11", "-Wno-deprecated-declarations",
+                      "-DNO_CHECK_NAN", '-fopenmp', "-D_GLIBCXX_DEBUG",
+                      '-fno-builtin-malloc', '-fno-builtin-calloc', '-fno-builtin-realloc', 
+                      '-fno-builtin-free']
+
 extra_link_args=['-fopenmp']
-libraries = ['mpfr', 'gmp', 'gmpxx', 'gsl', 'gslcblas']
+libraries = ['mpfr', 'gmp', 'gmpxx', 'gsl', 'gslcblas', 'tcmalloc']
 cpps = [f for f in glob.glob("src/*.cpp") if
         not os.path.basename(f).startswith("_")
         and not os.path.basename(f).startswith("test")]

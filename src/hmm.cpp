@@ -81,8 +81,8 @@ void HMM::Estep(bool fbOnly)
         }
         else
         {
-            if (span != 1)
-                throw std::runtime_error("span != 1");
+            // FIXME why is this here?
+            // if (span != 1) throw std::runtime_error("span != 1");
             Matrix<double> M = (B * T.transpose()).pow(span);
             alpha_hat.col(ell) = M * alpha_hat.col(ell - 1);
         }
