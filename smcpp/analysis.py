@@ -324,7 +324,8 @@ class Analysis(BaseAnalysis):
                 ss0 = sample_size > 0
                 span = c.data[ss0, 0]
                 nseg0 = nseg[ss0] > 0
-                watt.append((np.average(nseg0 / np.log(sample_size[ss0]), weights=span), len(ss0)))
+                watt.append((np.average(nseg0 / (np.euler_gamma + np.log(
+                    sample_size[ss0]) + 0.5 / sample_size[ss0]), weights=span), len(ss0)))
                 assert(np.isfinite(watt[-1][0]))
             x, w = np.array(watt).T
             self._theta = np.average(x, weights=w)
