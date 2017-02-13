@@ -17,12 +17,12 @@ extra_compile_args = ["-O2", "-std=c++11", "-Wno-deprecated-declarations",
                       '-fno-builtin-malloc', '-fno-builtin-calloc',
                       '-fno-builtin-realloc', '-fno-builtin-free']
 
-extra_compile_args = ["-O0", "-std=c++11", "-Wno-deprecated-declarations",
+extra_compile_args = ["-O2", "-g", "-std=c++11", "-Wno-deprecated-declarations",
                       "-DNO_CHECK_NAN", '-fopenmp', "-D_GLIBCXX_DEBUG",
                       '-fno-builtin-malloc', '-fno-builtin-calloc', '-fno-builtin-realloc', 
-                      '-fno-builtin-free']
+                      '-fno-builtin-free', '-fsanitize=thread']
 
-extra_link_args=['-fopenmp']
+extra_link_args=['-fopenmp', '-fsanitize=thread']
 libraries = ['mpfr', 'gmp', 'gmpxx', 'gsl', 'gslcblas', 'tcmalloc']
 cpps = [f for f in glob.glob("src/*.cpp") if
         not os.path.basename(f).startswith("_")

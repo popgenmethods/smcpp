@@ -51,7 +51,7 @@ InferenceManager::InferenceManager(
     for (unsigned int i = 0; i < obs.size(); ++i)
     {
         DEBUG << "creating HMM";
-        hmms[i].reset(new HMM(i, this->obs[i], ibp));
+        hmms.at(i).reset(new HMM(i, this->obs.at(i), ibp));
     }
 
     // Collect all the block keys for recomputation later
@@ -62,11 +62,11 @@ void InferenceManager::recompute_initial_distribution()
 {
     for (int m = 0; m < M - 1; ++m)
     {
-        pi(m) = exp(-(eta->R(hidden_states[m]))) - exp(-(eta->R(hidden_states[m + 1])));
+        pi(m) = exp(-(eta->R(hidden_states.at(m)))) - exp(-(eta->R(hidden_states.at(m + 1))));
         assert(pi(m) >= 0.0);
         assert(pi(m) <= 1.0);
     }
-    pi(M - 1) = exp(-(eta->R(hidden_states[M - 1])));
+    pi(M - 1) = exp(-(eta->R(hidden_states.at(M - 1))));
     adouble small = eta->zero() + 1e-20;
     pi = pi.unaryExpr([small] (const adouble &x) { if (x < 1e-20) return small; return x; });
     CHECK_NAN(pi);
@@ -192,18 +192,18 @@ std::vector<Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> 
 
 void InferenceManager::populate_emission_probs()
 {
-    Vector<adouble> tmp;
     std::vector<std::map<block_key, Vector<adouble> > > eps(obs.size());
 #pragma omp parallel for
     for (unsigned int j = 0; j < obs.size(); ++j)
     {
+        const Vector<adouble> tmp;
         const Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> ob = obs[j];
         const int q = ob.cols() - 1;
         for (int i = 0; i < ob.rows(); ++i)
         {
             block_key key(ob.row(i).tail(q).transpose());
-            if (eps[j].count(key) == 0)
-                eps[j].insert({key, tmp});
+            if (eps.at(j).count(key) == 0)
+                eps.at(j).insert({key, tmp});
         }
     }
     for (const std::map<block_key, Vector<adouble> > &ep : eps)
@@ -237,12 +237,12 @@ std::set<std::pair<int, block_key> > InferenceManager::fill_targets()
 #pragma omp parallel for
     for (unsigned int j = 0; j < obs.size(); ++j)
     {
-        const Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> ob = obs[j];
+        const Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> ob = obs.at(j);
         const int q = ob.cols() - 1;
         for (int i = 0; i < ob.rows(); ++i)
         {
             if (ob(i, 0) > 1)
-                v[j].insert({ob(i, 0), block_key(ob.row(i).tail(q).transpose())});
+                v.at(j).insert({ob(i, 0), block_key(ob.row(i).tail(q).transpose())});
         }
     }
     std::set<std::pair<int, block_key> > ret;
@@ -336,12 +336,12 @@ NPopInferenceManager<P>::construct_bins(const double polarization_error)
 #pragma omp parallel for
     for (unsigned int j = 0; j < obs.size(); ++j)
     {
-        const Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> ob = obs[j];
+        const Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> ob = obs.at(j);
         const int q = ob.cols() - 1;
         for (int i = 0; i < ob.rows(); ++i)
         {
             block_key bk(ob.row(i).tail(q).transpose());
-            if (rets[j].count(bk) == 0)
+            if (rets.at(j).count(bk) == 0)
             {
                 block_key_prob_map m, m2;
                 for (const block_key &k : bin_key<P>::run(bk, na))
@@ -358,7 +358,7 @@ NPopInferenceManager<P>::construct_bins(const double polarization_error)
                         s += p.second;
                     }
                 for (const auto &p : m2)
-                    rets[j][bk][bk_to_map_key(p.first)] += p.second / s;
+                    rets.at(j)[bk][bk_to_map_key(p.first)] += p.second / s;
             }
         }
     }
@@ -383,8 +383,8 @@ void NPopInferenceManager<P>::recompute_emission_probs()
     std::vector<Matrix<adouble> > new_sfss = incorporate_theta(sfss, theta);
     for (int m = 0; m < M; ++m)
     {
-        CHECK_NAN(new_sfss[m]);
-        em_tmp = new_sfss[m];
+        CHECK_NAN(new_sfss.at(m));
+        em_tmp = new_sfss.at(m);
         emission.row(m) = Matrix<adouble>::Map(em_tmp.data(), 1, (na(0) + 1) * sfs_dim);
     }
     
@@ -394,7 +394,7 @@ void NPopInferenceManager<P>::recompute_emission_probs()
     adouble small = eta->zero() + 1e-20;
     for (int m = 0; m < M; ++m)
     {
-        if (std::isnan(avg_ct[m].value()))
+        if (std::isnan(avg_ct.at(m).value()))
         {
             // if the two lineages are separated by a split, their
             // average coalescence time within each interval before
@@ -406,7 +406,7 @@ void NPopInferenceManager<P>::recompute_emission_probs()
         }
         else
         {
-            e2(m, 1) = 2. * theta * avg_ct[m];
+            e2(m, 1) = 2. * theta * avg_ct.at(m);
             e2(m, 0) = 1. - e2(m, 1);
         }
         // CHECK_NAN(e2(m, 1));
@@ -473,7 +473,7 @@ Matrix<adouble> sfs_cython(const int n, const ParameterVector p,
         v = csfs.compute_below(eta);
     else
         v = csfs.compute(eta);
-    return v[0];
+    return v.at(0);
 }
 
 OnePopInferenceManager::OnePopInferenceManager(
