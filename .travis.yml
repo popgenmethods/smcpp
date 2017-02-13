@@ -14,7 +14,6 @@ install:
   - conda update -q conda
   - conda info -a
   - conda install conda-build anaconda-client constructor 
-  - conda/template.py conda/meta.tpl $VERSION > conda/meta.yaml 
   - conda build -c terhorst -c conda-forge -c bioconda conda
   - conda install --use-local -c terhorst -c bioconda -c conda-forge smcpp
   - smc++ version
