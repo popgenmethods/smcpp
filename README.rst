@@ -171,7 +171,7 @@ Optional arguments
   data are not phased, it only makes sense to specify a single individual 
   (e.g. ``-d NA12878 NA12878``).
 
-  .. masking_:
+  .. _masking:
 
 - ``--mask``, ``-m``: This specifies a BED-formatted mask file whose
   positions will be marked as missing data (across all samples) in
