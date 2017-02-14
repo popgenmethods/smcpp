@@ -1,6 +1,6 @@
 package:
   name: smcpp
-  version: "{{ GIT_DESCRIBE_TAG }}"
+  version: {{ GIT_DESCRIBE_TAG }}
 
 source:
   git_url: ../
@@ -19,6 +19,7 @@ requirements:
     - numpy 1.10.4
     - setuptools_scm 1.15.0
     - gperftools 2.5
+    - git 2.9.3
   run:
     - conda
     - nomkl
