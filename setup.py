@@ -12,18 +12,16 @@ from Cython.Build import cythonize
 import numpy as np
 
 extra_compile_args = ["-O2", "-std=c++11", "-Wno-deprecated-declarations",
-                      "-DNO_CHECK_NAN", '-fopenmp',
-                      # tcmalloc
-                      '-fno-builtin-malloc', '-fno-builtin-calloc',
-                      '-fno-builtin-realloc', '-fno-builtin-free']
+                      "-DNO_CHECK_NAN", '-fopenmp']
 
-extra_compile_args = ["-O2", "-g", "-std=c++11", "-Wno-deprecated-declarations",
-                      "-DNO_CHECK_NAN", '-fopenmp', "-D_GLIBCXX_DEBUG",
-                      '-fno-builtin-malloc', '-fno-builtin-calloc', '-fno-builtin-realloc', 
-                      '-fno-builtin-free', '-fsanitize=thread']
-
-extra_link_args=['-fopenmp', '-fsanitize=thread']
-libraries = ['mpfr', 'gmp', 'gmpxx', 'gsl', 'gslcblas', 'tcmalloc']
+extra_link_args=['-fopenmp']
+libraries = ['mpfr', 'gmp', 'gmpxx', 'gsl', 'gslcblas']
+if "SMCPP_COMPILE_WITH_TCMALLOC" in os.environ:
+    libraries.append("tcmalloc_minimal")
+    extra_compile_args += [
+            '-fno-builtin-malloc', '-fno-builtin-calloc', 
+            '-fno-builtin-realloc', '-fno-builtin-free'
+            ]
 cpps = [f for f in glob.glob("src/*.cpp") if
         not os.path.basename(f).startswith("_")
         and not os.path.basename(f).startswith("test")]
