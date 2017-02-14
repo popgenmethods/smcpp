@@ -233,6 +233,7 @@ void InferenceManager::do_dirty_work()
 
 std::set<std::pair<int, block_key> > InferenceManager::fill_targets()
 {
+    DEBUG << "parallel filling targets";
     std::vector<std::set<std::pair<int, block_key> > > v(obs.size());
 #pragma omp parallel for
     for (unsigned int j = 0; j < obs.size(); ++j)
@@ -241,11 +242,14 @@ std::set<std::pair<int, block_key> > InferenceManager::fill_targets()
         const int q = ob.cols() - 1;
         for (int i = 0; i < ob.rows(); ++i)
         {
+            if (ob(i, 0) <= 0)
+                throw std::runtime_error("data are malformed: span <= 0");
             if (ob(i, 0) > 1)
                 v.at(j).insert({ob(i, 0), block_key(ob.row(i).tail(q).transpose())});
         }
     }
     std::set<std::pair<int, block_key> > ret;
+    DEBUG << "reducing targets";
     for (const std::set<std::pair<int, block_key> > s : v)
         ret.insert(s.begin(), s.end());
     return ret;

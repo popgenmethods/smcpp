@@ -81,12 +81,13 @@ class BaseAnalysis:
                         "individual is homozygous for the derived allele. "
                         "Please recode these as non-segregating (homozygous ancestral).")
                 sys.exit(1)
-            bad = (np.any(c.data[:, 1::3] > c.a[None, :], axis=1) |
+            bad = (c.data[:, 0] <= 0 |
+                   np.any(c.data[:, 1::3] > c.a[None, :], axis=1) |
                    np.any(c.data[:, 2::3] > c.data[:, 3::3], axis=1) |
                    np.any(c.data[:, 3::3] > c.n[None, :], axis=1))
             if np.any(bad):
                 logger.error("File %s has invalid observations "
-                             "(a > 2 or b > n or n > sample size): %s",
+                             "(span <= 0 | a > 2 | b > n | n > sample size): %s",
                              c.fn, np.where(bad)[0])
                 sys.exit(1)
 

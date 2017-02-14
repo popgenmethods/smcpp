@@ -21,7 +21,9 @@ struct eigensystem
         d_r(d.real()), d_r_scaled(d_r / scale),
         cplx(d.imag().cwiseAbs().maxCoeff() > 0)
     {
-        DEBUG << "max imag: " << d.imag().cwiseAbs().maxCoeff();
+        double im = d.imag().cwiseAbs().maxCoeff();
+        if (im > 0)
+            DEBUG << "max imag: " << im;
     }
 };
 
