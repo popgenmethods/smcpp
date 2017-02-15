@@ -409,6 +409,12 @@ class SplitAnalysis(BaseAnalysis):
         self._init_inference_manager(False)
         self._init_optimizer(args, files, args.outdir, args.algorithm, args.tolerance, args.blocks)
 
+    def _validate_data(self):
+        BaseAnalysis._validate_data(self)
+        if not any(c.npop == 2 for c in self._contigs):
+            logger.error("Data contains no joint frequency spectrum information. Split estimation is impossible.")
+            sys.exit(1)
+
     def _init_optimizer(self, args, files, outdir, algorithm, tolerance, blocks, save=True):
         self._optimizer = optimizer.TwoPopulationOptimizer(self, algorithm, tolerance, blocks, args.solver_args)
         smax = np.sum(self._model.distinguished_model.s)
