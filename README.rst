@@ -171,6 +171,8 @@ Optional arguments
   data are not phased, it only makes sense to specify a single individual 
   (e.g. ``-d NA12878 NA12878``).
 
+  .. _masking:
+
 - ``--mask``, ``-m``: This specifies a BED-formatted mask file whose
   positions will be marked as missing data (across all samples) in
   the outputted SMC++ data set. This can be used to delineate large
@@ -226,10 +228,20 @@ practice we generally use 2-10 individuals, depending on genome length,
 sample size, etc., and have found that this leads to improved estimation
 without causing significant degeneracy in the likelihood.
 
-Manual conversion
-^^^^^^^^^^^^^^^^^
+Caveats
+^^^^^^^
 ``vcf2smc`` targets a common use-case but may not be sufficient for all
-users. Those wishing to implement their own custom conversion to the SMC
+users. In particular, you should be aware that:
+
+- The ancestral allele is assumed to be the reference allele.
+- The FILTER column is ignored.
+- Indels, structural variants, and any non-SNP data are ignored.
+- For sites containing multiple entries in the VCF, all but the first
+  entry is ignored.
+- Sites which are not present in the VCF are assumed to be homoyzgous
+  ancestral across all samples. (See masking_, above.)
+
+Those wishing to implement their own custom conversion to the SMC++
 data format should see the `input data format`_ description below.
 
 estimate
@@ -263,6 +275,12 @@ Recommended arguments
 
 Optional arguments
 ^^^^^^^^^^^^^^^^^^
+- ``--fold``, ``--polarization-error``: if the identity of the ancestral
+  allele is not known, these options can be used to specify a prior over it.
+  With polarization error ``p``, emissions probabilities for entry ``CSFS(a,b)``
+  will be computed as ``(1-p) CSFS(a,b) + p CSFS(2-a, n-b)``. ``--fold``
+  is an alias for ``--polarization-error 0.5``, i.e. a uniform prior on the 
+  ancestral type.
 
 A number of other arguments concerning technical aspects of the fitting
 procedure exist. To see them, pass the ``-h`` option to ``estimate``.
