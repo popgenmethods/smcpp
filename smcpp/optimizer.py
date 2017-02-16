@@ -21,6 +21,32 @@ from .observe import targets, Observable, Observer
 
 logger = logging.getLogger(__name__)
 
+def AdaMax(f, x0, args, jac, bounds, alpha=0.1, b1=0.9, b2=0.999, eps=1e-3, **kwargs):
+    assert jac
+    bounds = np.array(bounds)
+    def _f(x0):
+        return tuple(q(x0, *args) for q in (f, jac))
+    obj, grad = _f(x0)
+    theta = x0.copy()
+    t = 0
+    mt = 0
+    ut = 0
+    while True:
+        t += 1
+        ft, gt = _f(theta)
+        mt = b1 * mt + (1. - b1) * gt
+        ut = np.maximum(b2 * ut, abs(gt))
+        delta = -(alpha / (1. - b1 ** t)) * mt / ut
+        if np.linalg.norm(delta) < eps:
+            break
+        theta = box_constrain(theta + delta, bounds)
+        if 'callback' in kwargs:
+            kwargs['callback'](theta)
+    return scipy.optimize.OptimizeResult({'x': theta, 'fun': ft})
+
+class ConvergedException(Exception):
+    "Thrown when optimizer reaches stopping criterion."
+    pass
 
 class EMTerminationException(Exception):
     "Thrown when EM algorithm reaches stopping criterion."
@@ -31,11 +57,12 @@ class AbstractOptimizer(Observable):
     '''
     Abstract representation of the execution flow of the optimizer.
     '''
-    def __init__(self, analysis, algorithm, tolerance, blocks, solver_args={}):
+    def __init__(self, analysis, algorithm, ftol, xtol, blocks, solver_args={}):
         Observable.__init__(self)
         self._analysis = analysis
         self._algorithm = algorithm
-        self._tolerance = tolerance
+        self._ftol = ftol
+        self._xtol = xtol
         self._blocks = blocks
         self._solver_args = solver_args
 
@@ -66,6 +93,7 @@ class AbstractOptimizer(Observable):
         return ret
 
     def _minimize(self, x0, coords, bounds):
+        self._xk = None
         if os.environ.get("SMCPP_GRADIENT_CHECK", False):
             print("\n\ngradient check")
             y, dy = self._f(x0, self._analysis, coords)
@@ -74,12 +102,23 @@ class AbstractOptimizer(Observable):
                 y1, _ = self._f(x0, self._analysis, coords)
                 print("***grad", i, y1, (y1 - y) * 1e8, dy[i])
                 x0[i] -= 1e-8
-        return minimize_proxy(self._f, x0, 
-                              jac=True,
-                              args=(self._analysis, coords),
-                              bounds=bounds,
-                              options=self._solver_args,
-                              method=self._algorithm)
+        try:
+            if self._algorithm == "AdaMax":
+                alg = AdaMax
+            else:
+                alg = self._algorithm
+            res = scipy.optimize.minimize(self._f, x0,
+                    jac=True,
+                    args=(self._analysis, coords),
+                    bounds=bounds,
+                    options=self._solver_args,
+                    callback=self._callback,
+                    method=alg)
+            return res
+        except ConvergedException:
+            logger.debug("Converged: |xk - xk_1| < %g", self._xtol)
+            return scipy.optimize.OptimizeResult(
+                {'x': self._xk, 'fun': self._f(self._xk, self._analysis, coords)[0]})
 
     def run(self, niter):
         self.update_observers('begin')
@@ -107,6 +146,15 @@ class AbstractOptimizer(Observable):
             pass
         # Conclude the optimization and perform any necessary callbacks.
         self.update_observers('optimization finished')
+
+    def _callback(self, xk):
+        if self._xk is None:
+            self._xk = xk
+            return
+        delta = max(abs(xk - self._xk))
+        self._xk = xk
+        if delta < self._xtol:
+            raise ConvergedException()
 
     def update_observers(self, *args, **kwargs):
         kwargs.update({
@@ -158,7 +206,7 @@ class LoglikelihoodMonitor(Observer):
             improvement = (self._old_loglik - ll) / self._old_loglik
             logger.info("New loglik: %f\t(old: %f [%f%%])",
                     ll, self._old_loglik, 100. * improvement)
-            tol = kwargs['optimizer']._tolerance
+            tol = kwargs['optimizer']._ftol
             if improvement < 0:
                 logger.warn("Loglik decreased")
             elif improvement < tol:
@@ -362,8 +410,8 @@ class AsciiPlotter(Observer):
 class SMCPPOptimizer(AbstractOptimizer):
     'Model fitting for one population.'
 
-    def __init__(self, analysis, algorithm, tolerance, blocks, solver_args):
-        AbstractOptimizer.__init__(self, analysis, algorithm, tolerance, blocks, solver_args)
+    def __init__(self, analysis, algorithm, xtol, ftol, blocks, solver_args):
+        AbstractOptimizer.__init__(self, analysis, algorithm, xtol, ftol, blocks, solver_args)
         observers = [
             HiddenStateOccupancyPrinter(),
             ProgressPrinter(),
@@ -405,32 +453,5 @@ class TwoPopulationOptimizer(SMCPPOptimizer):
     def _bounds(self, coords):
         return SMCPPOptimizer._bounds(self, coords[1])
 
-AdaMaxResult = namedtuple('AdaMaxResult', 'x fun')
-
 def box_constrain(x, bounds):
     return np.maximum(np.minimum(x, bounds[:, 1]), bounds[:, 0])
-
-def AdaMax(f, x0, jac, args, bounds, alpha=0.0002, b1=0.9, b2=0.999, eps=1e-3, **kwargs):
-    assert jac == True
-    bounds = np.array(bounds)
-    obj, grad = f(x0, *args)
-    m0 = 0
-    u0 = 0
-    theta = x0.copy()
-    t = 0
-    mt = 0
-    while True:
-        t += 1
-        ft, gt = f(theta, *args)
-        mt = b1 * mt + (1. - b1) * gt
-        ut = np.maximum(b2, np.abs(gt))
-        delta = -(alpha / (1. - b1 ** t)) * mt / ut
-        if np.linalg.norm(delta) < eps:
-            break
-        theta = box_constrain(theta + delta, bounds)
-    return AdaMaxResult(x=theta, fun=ft)
-
-def minimize_proxy(f, x0, *args, **kwargs):
-    if kwargs['method'] == "AdaMax":
-        return AdaMax(f, x0, *args, **kwargs)
-    return scipy.optimize.minimize(f, x0, *args, **kwargs)

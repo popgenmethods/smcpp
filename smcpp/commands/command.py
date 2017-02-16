@@ -47,9 +47,7 @@ def add_common_estimation_args(parser):
                       help="omit sequences < cutoff. default: 10000", default=10000, type=int)
     data.add_argument('--thinning', help="only emit full SFS every <k>th site. default: 500 * n.",
                       default=None, type=int, metavar="k")
-    data.add_argument('--no-filter', help="do not drop contigs with extreme heterozygosity. "
-                                          "(not recommended unless data set is small)",
-                      action="store_true", default=False)
+    data.add_argument('--filter', help=argparse.SUPPRESS, action="store_true", default=False)
 
     optimizer = parser.add_argument_group("Optimization parameters")
     optimizer.add_argument(
@@ -60,13 +58,16 @@ def add_common_estimation_args(parser):
                            default="L-BFGS-B", help=argparse.SUPPRESS)
     optimizer.add_argument('--blocks', type=int, 
             help="number of coordinate ascent blocks. default: min(4, K)")
-    optimizer.add_argument('--factr', type=float,
-                           default=1e-9, help=argparse.SUPPRESS)
+    optimizer.add_argument("--ftol", type=float, default=1e-3,
+                           help="stopping criterion for relative improvement in loglik "
+                           "in EM algorithm. algorithm will terminate when "
+                           "|loglik' - loglik| / loglik < ftol")
+    optimizer.add_argument('--xtol', type=float,
+                           default=.001,
+                           help=r"x tolerance for optimizer. "
+                           "optimizer will stop when |x' - x|_\infty < xtol")
     optimizer.add_argument('--regularization-penalty',
                            type=float, help="regularization penalty", default=1.)
-    optimizer.add_argument("--tolerance", type=float, default=1e-4,
-                           help="stopping criterion for relative improvement in loglik "
-                           "in EM algorithm")
     optimizer.add_argument('--Nmin', type=float,
                            help="Lower bound on effective population size (in units of N0)",
                            default=.01)

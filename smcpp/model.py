@@ -92,7 +92,7 @@ class SMCModel(BaseModel):
         return len(self.knots)
 
     def randomize(self):
-        self[:] += np.random.normal(0., .01, size=len(self[:]))
+        self[:] += np.random.normal(0., .0001, size=len(self[:]))
 
     @property
     def knots(self):
