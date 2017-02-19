@@ -16,6 +16,7 @@ cdef extern from "common.h":
         adouble(double)
         double value()
         Vector[double] derivatives()
+        adouble operator*(double)
     cdef cppclass Matrix[T]:
         int rows()
         int cols()

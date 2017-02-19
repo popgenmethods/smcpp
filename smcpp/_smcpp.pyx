@@ -67,10 +67,12 @@ cdef ParameterVector make_params(a, s, dlist) except *:
         if not isinstance(aa, ADF):
             aa = adnumber(aa)
         r.push_back(double_vec_to_adouble(aa.x, [aa.d(da) for da in dlist]))
+    r.push_back(double_vec_to_adouble(1.0, [0] * len(dlist)))
     ret.push_back(r)
     cdef vector[adouble] cs
     for ss in s:
         cs.push_back(adouble(ss))
+    cs.push_back(double_vec_to_adouble(sum(s), [0] * len(dlist)))
     ret.push_back(cs)
     return ret
 
