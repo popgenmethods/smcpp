@@ -58,7 +58,7 @@ def add_common_estimation_args(parser):
                            default="L-BFGS-B", help=argparse.SUPPRESS)
     optimizer.add_argument('--blocks', type=int, 
             help="number of coordinate ascent blocks. default: min(4, K)")
-    optimizer.add_argument("--ftol", type=float, default=1e-3,
+    optimizer.add_argument("--ftol", type=float, default=1e-4,
                            help="stopping criterion for relative improvement in loglik "
                            "in EM algorithm. algorithm will terminate when "
                            "|loglik' - loglik| / loglik < ftol")
@@ -67,7 +67,7 @@ def add_common_estimation_args(parser):
                            help=r"x tolerance for optimizer. "
                            "optimizer will stop when |x' - x|_\infty < xtol")
     optimizer.add_argument('--regularization-penalty',
-                           type=float, help="regularization penalty", default=1.)
+                           type=float, help="regularization penalty", default=10.)
     optimizer.add_argument('--Nmin', type=float,
                            help="Lower bound on effective population size (in units of N0)",
                            default=.01)
