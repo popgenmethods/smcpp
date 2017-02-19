@@ -57,7 +57,7 @@ class AbstractOptimizer(Observable):
     '''
     Abstract representation of the execution flow of the optimizer.
     '''
-    def __init__(self, analysis, algorithm, ftol, xtol, blocks, solver_args={}):
+    def __init__(self, analysis, algorithm, xtol, ftol, blocks, solver_args={}):
         Observable.__init__(self)
         self._analysis = analysis
         self._algorithm = algorithm
