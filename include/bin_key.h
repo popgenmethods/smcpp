@@ -11,40 +11,55 @@ struct bin_key
     template <typename Derived1>
     static std::set<block_key> run(
             const block_key &key, 
-            const Eigen::MatrixBase<Derived1> &na);
+            const Eigen::MatrixBase<Derived1> &na,
+            const double cutoff);
 
     template <typename Derived1, typename Derived2>
     static std::set<block_key> run(
         const Eigen::MatrixBase<Derived1> &key, 
-        const Eigen::MatrixBase<Derived2> &na);
+        const Eigen::MatrixBase<Derived2> &na,
+        const double cutoff);
 };
 
 template <size_t P>
 template <typename Derived1>
 std::set<block_key> bin_key<P>::run(
         const block_key &key, 
-        const Eigen::MatrixBase<Derived1> &na)
+        const Eigen::MatrixBase<Derived1> &na,
+        const double cutoff)
 {
-    return bin_key<P>::run(key.vals, na);
+    return bin_key<P>::run(key.vals, na, cutoff);
 }
 
 template <>
 template <typename Derived1, typename Derived2>
 std::set<block_key> bin_key<1>::run(
         const Eigen::MatrixBase<Derived1> &key, 
-        const Eigen::MatrixBase<Derived2> &na)
+        const Eigen::MatrixBase<Derived2> &na,
+        const double cutoff)
 {
     Vector<int> tmp = key;
     std::set<block_key> ret;
     const int a = tmp(0);
+    const int b = tmp(1);
+    const int nb = tmp(2);
     if (a == -1)
         for (int aa = 0; aa <= na(0); ++aa)
         {
             tmp(0) = aa;
-            ret.emplace(tmp);
+            std::set<block_key> s = bin_key<1>::run(tmp, na, cutoff);
+            ret.insert(s.begin(), s.end());
         }
     else
+    {
         ret.emplace(key);
+        if (nb > 0 and ((double)b / (double)nb > cutoff))
+            for (int bb = b; bb <= nb; ++bb)
+            {
+                tmp(1) = bb;
+                ret.emplace(tmp);
+            }
+    }
     return ret;
 }
 
@@ -52,10 +67,11 @@ template <size_t P>
 template <typename Derived1, typename Derived2>
 std::set<block_key> bin_key<P>::run(
         const Eigen::MatrixBase<Derived1> &key, 
-        const Eigen::MatrixBase<Derived2> &na)
+        const Eigen::MatrixBase<Derived2> &na,
+        const double cutoff)
 {
-    std::set<block_key> bk1 = bin_key<1>::run(key.head(3), na.head(1));
-    std::set<block_key> bk2 = bin_key<P - 1>::run(key.tail(3 * (P - 1)), na.tail(P - 1));
+    std::set<block_key> bk1 = bin_key<1>::run(key.head(3), na.head(1), cutoff);
+    std::set<block_key> bk2 = bin_key<P - 1>::run(key.tail(3 * (P - 1)), na.tail(P - 1), cutoff);
     std::set<block_key> ret;
     Vector<int> v(3 * P);
     for (const block_key b1 : bk1)

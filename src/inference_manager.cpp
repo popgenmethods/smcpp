@@ -348,7 +348,7 @@ NPopInferenceManager<P>::construct_bins(const double polarization_error)
             if (rets.at(j).count(bk) == 0)
             {
                 block_key_prob_map m, m2;
-                for (const block_key &k : bin_key<P>::run(bk, na))
+                for (const block_key &k : bin_key<P>::run(bk, na, 0.1))
                     for (const auto &p : marginalize_key<P>::run(k.vals, n, na))
                     {
                         m[p.first] += (1. - polarization_error) * p.second;
