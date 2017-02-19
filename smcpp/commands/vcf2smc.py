@@ -43,6 +43,7 @@ class Vcf2Smc(command.Command, command.ConsoleCommand):
                             help="treat runs of homozygosity longer than <c> base pairs as missing")
         parser.add_argument("--mask", "-m",
                             help="BED-formatted mask of missing regions")
+        parser.add_argument("--drop-first-last", action="store_true")
         parser.add_argument("vcf", metavar="vcf.gz",
                             help="indexed VCF file")
         parser.add_argument("out", metavar="out[.gz]",
@@ -216,14 +217,19 @@ class Vcf2Smc(command.Command, command.ConsoleCommand):
             abnb_miss = [-1, 0, 0] * len(nb)
             abnb_nonseg = sum([[0, 0, x] for x in nb], [])
             multiples = set()
-            with RepeatingWriter(out) as rw, tqdm.tqdm(total=contig_length, 
-                    unit='bases', unit_scale=True) as bar:
+            with RepeatingWriter(out) as rw, \
+                    tqdm.tqdm(total=contig_length, unit='bases', unit_scale=True) as bar:
+                def write(x):
+                    if not write.first or not args.drop_first_last:
+                        rw.write(x)
+                    write.first = False
+                write.first = True
                 last_pos = 0
                 for ty, rec in interleaved():
                     if ty == "mask":
                         span = rec[1] - last_pos
-                        rw.write([span] + abnb_nonseg)
-                        rw.write([rec[2] - rec[1] + 1] + abnb_miss)
+                        write([span] + abnb_nonseg)
+                        write([rec[2] - rec[1] + 1] + abnb_miss)
                         last_pos = rec[2]
                         continue
                     bar.update(rec.pos - last_pos)
@@ -233,12 +239,13 @@ class Vcf2Smc(command.Command, command.ConsoleCommand):
                         continue
                     span = rec.pos - last_pos - 1
                     if 1 <= span <= args.missing_cutoff:
-                        rw.write([span] + abnb_nonseg)
+                        write([span] + abnb_nonseg)
                     elif span > args.missing_cutoff:
-                        rw.write([span] + abnb_miss)
-                    rw.write([1] + abnb)
+                        write([span] + abnb_miss)
+                    write([1] + abnb)
                     last_pos = rec.pos
-                rw.write([contig_length - last_pos] + abnb_nonseg)
+                if not args.drop_first_last:
+                    write([contig_length - last_pos] + abnb_nonseg)
             if multiples:
                 # FIXME: what to do with multiple records at same site
                 logger.warn(
