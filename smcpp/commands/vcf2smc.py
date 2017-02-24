@@ -177,6 +177,12 @@ class Vcf2Smc(command.Command, command.ConsoleCommand):
                 sys.exit(1)
 
             contig_length = vcf.header.contigs[args.contig].length
+            if contig_length is None:
+                logger.error("Failed to acquire contig length from VCF header."
+                             "Your VCF should have a header that looks like "
+                             "'##contig=<ID=%s,length=[something]>'.",
+                             args.contig)
+                sys.exit(1)
             if args.mask:
                 mask_iterator = TabixFile(
                     args.mask).fetch(reference=args.contig)
