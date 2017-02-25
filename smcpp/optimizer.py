@@ -40,7 +40,7 @@ def AdaMax(f, x0, args, jac, bounds, alpha=0.1, b1=0.9, b2=0.999, eps=1e-3, **kw
         if np.linalg.norm(delta) < eps:
             break
         theta = box_constrain(theta + delta, bounds)
-        if 'callback' in kwargs:
+        if kwargs.get('callback', None):
             kwargs['callback'](theta)
     return scipy.optimize.OptimizeResult({'x': theta, 'fun': ft})
 
