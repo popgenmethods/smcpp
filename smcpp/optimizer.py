@@ -111,8 +111,7 @@ class AbstractOptimizer(Observable):
                     jac=True,
                     args=(self._analysis, coords),
                     bounds=bounds,
-                    options=self._solver_args,
-                    callback=self._callback,
+                    options={'xtol': self._xtol, 'ftol': self._ftol},
                     method=alg)
             return res
         except ConvergedException:
