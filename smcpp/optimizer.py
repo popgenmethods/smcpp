@@ -454,10 +454,16 @@ class SMCPPOptimizer(AbstractOptimizer):
             sys.exit(1)
         breaks = list(range(0, K, int(round(K / self._blocks))))[:self._blocks] + [K]
         ret = [list(range(a, b)) for a, b in zip(breaks[:-1], breaks[1:])][::-1]
+        ret.append(list(range(K)))
+        r = list(range(K))
+        ret = [r]
         return ret
+        for i in range(K - self._blocks + 1):
+            ret.append(r[i:i+self._blocks])
+        return ret[::-1]
 
     def _bounds(self, coords):
-        ret = np.log([self._analysis._bounds] * len(coords))
+        ret = [self._analysis._bounds] * len(coords)
         return ret
 
 
