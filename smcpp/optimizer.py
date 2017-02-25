@@ -309,6 +309,23 @@ class ParameterOptimizer(Observer):
         return ret
 
 
+class ScaleOptimizer(Observer):
+    def _f(self, alpha, x0, analysis):
+        analysis.model[:] = x0 * alpha
+        ret = float(analysis.Q())
+        logger.debug("scale Q(%f)=%f", alpha, ret)
+        return -ret
+
+    @targets("post M-step")
+    def update(self, message, *args, **kwargs):
+        analysis = kwargs['analysis']
+        x0 = analysis.model[:]
+        res = scipy.optimize.minimize_scalar(self._f,
+                                             args=(x0.astype('float'), analysis),
+                                             method='bounded',
+                                             bounds=(.5, 2))
+        analysis.model[:] = x0 * res.x
+
 class SplineDumper(Observer):
 
     def __init__(self, outdir):
@@ -412,6 +429,7 @@ class SMCPPOptimizer(AbstractOptimizer):
     def __init__(self, analysis, algorithm, xtol, ftol, blocks, solver_args):
         AbstractOptimizer.__init__(self, analysis, algorithm, xtol, ftol, blocks, solver_args)
         observers = [
+            ScaleOptimizer(),
             HiddenStateOccupancyPrinter(),
             ProgressPrinter(),
             ModelPrinter(),
