@@ -160,17 +160,22 @@ def balance_hidden_states(model, M):
     return np.array(ret)
 
 
-def empirical_sfs(data, n, a):
+def empirical_sfs(contigs):
     with mp_pool() as p:
-        return np.sum(list(p.map(_esfs_helper, ((d, n, a) for d in data))), axis=0)
+        esfss = list(p.map(_esfs_helper, contigs))
+    # Some contigs might be of a smaller sample size. Restrict to those
+    # that are "full dimensional"
+    shp = np.max([e.shape for e in esfss], axis=0)
+    return np.sum([e for e in esfss if np.all(e.shape == shp)], axis=0, dtype=np.float32)
 
 
-def _esfs_helper(tup):
-    ds, n, a = tup
-    shp = [x + 1 for na in zip(a, n) for x in na]
+def _esfs_helper(contig):
+    c = contig
+    shp = [x + 1 for na in zip(c.a, c.n) for x in na]
     ret = np.zeros(shp, dtype=int)
-    nmiss = np.where(np.all(ds[:, 1::3] >= 0, axis=1) & np.all(ds[:, 3::3] == n, axis=1))
-    for row in ds[nmiss]:
+    nmiss = np.where(np.all(c.data[:, 1::3] >= 0, axis=1) & 
+                     np.all(c.data[:, 3::3] == c.n, axis=1))
+    for row in c.data[nmiss]:
         coord = tuple([x for ab in zip(row[1::3], row[2::3]) for x in ab])
         ret[coord] += row[0]
     return ret

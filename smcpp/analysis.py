@@ -67,6 +67,8 @@ class BaseAnalysis:
             assert c.data.shape[1] == 1 + 3 * len(c.n)
             logger.debug("Contig(pid=%r, fn=%r, n=%r, a=%r)", c.pid, c.fn, c.n, c.a)
         logger.info("%d population%s", self.npop, "" if self.npop == 1 else "s")
+        self._esfs = estimation_tools.empirical_sfs(self._contigs)
+        logger.debug("Empirical SFS:\n%s", self._esfs)
 
     def _validate_data(self):
         for c in self._contigs:
@@ -115,6 +117,8 @@ class BaseAnalysis:
             sys.exit(1)
         w, het = np.array([a[2:] for k in attrs for a in attrs[k]]).T
         self._het = avg = np.average(het, weights=w)
+        logger.debug("Heterozygosity: %f", self._het)
+        logger.debug("1. - esfs[0,0]: %f", 1. - (self._esfs[0, 0] / self._esfs.sum()))
         if self._het == 0:
             logger.error("Data contain *no* mutations. Inference is impossible.")
             sys.exit(1)
