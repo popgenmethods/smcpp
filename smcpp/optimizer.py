@@ -378,7 +378,7 @@ class AsciiPlotter(Observer):
         write("set datafile separator \",\"")
         write("set xlabel \"Time\"")
         write("set ylabel \"N0\"")
-        write("set logscale xy")
+        # write("set logscale xy")
         with tempfile.NamedTemporaryFile("wt") as f:
             plot_cmd = "plot '%s' i 0 with lines title 'Pop. 1'" % f.name
             if two_pop and can_plot_2:
