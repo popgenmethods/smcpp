@@ -3,27 +3,24 @@ import functools
 import json
 import sys
 import os.path
-import scipy.optimize
 import ad
 import multiprocessing
 import os
 import concurrent.futures as futures
 
-try:
-    cpu_count = os.cpu_count()
-except:
-    cpu_count = multiprocessing.cpu_count()
-
-def thread_pool():
-    return futures.ThreadPoolExecutor(cpu_count)
-
-from . import estimation_tools, _smcpp, util, logging, optimizer, jcsfs, spline
+from . import estimation_tools, _smcpp, util, logging, jcsfs, spline
 from .contig import Contig
-from .model import SMCModel, SMCTwoPopulationModel
+from .model import SMCModel, SMCTwoPopulationModel, PiecewiseModel
+from smcpp.optimize.optimizers import SMCPPOptimizer, TwoPopulationOptimizer
+from smcpp.optimize.plugins import analysis_saver, parameter_optimizer
 
 logger = logging.getLogger(__name__)
 
 _model_cls_d = {cls.__name__: cls for cls in (SMCModel, SMCTwoPopulationModel)}
+
+def thread_pool():
+    cpu_count = os.cpu_count()
+    return futures.ThreadPoolExecutor(cpu_count)
 
 class BaseAnalysis:
     "Base class for analysis of population genetic data."
@@ -366,23 +363,24 @@ class Analysis(BaseAnalysis):
                 mods[-1][-1] = y0
             self._model = SMCTwoPopulationModel(mods[0], mods[1], split)
 
-    def _init_optimizer(self, args, files, outdir, blocks, algorithm, xtol, ftol, learn_rho):
+    def _init_optimizer(self, args, files, outdir, blocks,
+                        algorithm, xtol, ftol, learn_rho):
         if self.npop == 1:
-            self._optimizer = optimizer.SMCPPOptimizer(
+            self._optimizer = SMCPPOptimizer(
                 self, algorithm, xtol, ftol, blocks, args.solver_args)
             # Also optimize knots in 1 pop case. Not yet implemented
             # for two pop case.
             # self._optimizer.register(optimizer.KnotOptimizer())
         elif self.npop == 2:
-            self._optimizer = optimizer.TwoPopulationOptimizer(
+            self._optimizer = TwoPopulationOptimizer(
                 self, algorithm, xtol, ftol, blocks, args.solver_args)
             smax = np.sum(self._model.distinguished_model.s)
             self._optimizer.register(
-                optimizer.ParameterOptimizer("split", (0., smax), "model"))
-        self._optimizer.register(optimizer.AnalysisSaver(outdir))
+                    parameter_optimizer.ParameterOptimizer("split", (0., smax), "model"))
+        self._optimizer.register(analysis_saver.AnalysisSaver(outdir))
         if learn_rho:
             self._optimizer.register(
-                optimizer.ParameterOptimizer("rho", (1e-6, 1e-2)))
+                    parameter_optimizer.ParameterOptimizer("rho", (1e-6, 1e-2)))
 
     ## END OF PRIVATE FUNCTIONS
     @property
@@ -400,7 +398,8 @@ class SplitAnalysis(BaseAnalysis):
 
         self._hidden_states = np.array([0., np.inf])
         self._init_inference_manager(False)
-        self._init_optimizer(args, files, args.outdir, args.algorithm, args.xtol, args.ftol, args.blocks, False)
+        self._init_optimizer(args, files, args.outdir, args.algorithm,
+                             args.xtol, args.ftol, args.blocks, False)
         # Hack to only estimate split time.
         self._optimizer.run(1)
 
@@ -410,18 +409,23 @@ class SplitAnalysis(BaseAnalysis):
 
         self._init_hidden_states(args.pop1, args.M)
         self._init_inference_manager(False)
-        self._init_optimizer(args, files, args.outdir, args.algorithm, args.xtol, args.ftol, args.blocks)
+        self._init_optimizer(args, files, args.outdir, args.algorithm,
+                             args.xtol, args.ftol, args.blocks, K, self._blocks)
 
     def _validate_data(self):
         BaseAnalysis._validate_data(self)
         if not any(c.npop == 2 for c in self._contigs):
-            logger.error("Data contains no joint frequency spectrum information. Split estimation is impossible.")
+            logger.error("Data contains no joint frequency spectrum "
+                         "information. Split estimation is impossible.")
             sys.exit(1)
 
-    def _init_optimizer(self, args, files, outdir, algorithm, xtol, ftol, blocks, save=True):
-        self._optimizer = optimizer.TwoPopulationOptimizer(self, algorithm, xtol, ftol, blocks, args.solver_args)
+    def _init_optimizer(self, args, files, outdir, algorithm,
+                        xtol, ftol, blocks, save=True):
+        self._optimizer = TwoPopulationOptimizer(
+            self, algorithm, xtol, ftol, blocks, args.solver_args)
         smax = np.sum(self._model.distinguished_model.s)
-        self._optimizer.register(optimizer.ParameterOptimizer("split", (0., smax), "model"))
+        self._optimizer.register(
+            parameter_optimizer.ParameterOptimizer("split", (0., smax), "model"))
         if save:
             self._optimizer.register(optimizer.AnalysisSaver(outdir))
 
