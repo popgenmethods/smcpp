@@ -190,6 +190,8 @@ cdef class _PyInferenceManager:
         def __get__(self):
             return self._im.hidden_states
         def __set__(self, hs):
+            if len(hs) != self(self.hs):
+                raise RuntimeError("hidden states must be same size")
             self._im.hidden_states = hs
 
     property emission_probs:
