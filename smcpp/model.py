@@ -25,6 +25,10 @@ class PiecewiseModel(BaseModel):
         assert len(a) == len(s)
         self.s = np.array(s)
         self.a = np.array(a)
+
+    @property
+    def distinguished_model(self):
+        return self
         
     def stepwise_values(self):
         return self.a
@@ -46,7 +50,7 @@ class PiecewiseModel(BaseModel):
                 ret += [d for d in yy.d() if d.tag is not None]
             except AttributeError:
                 pass
-        return list(set(ret))
+        return sorted(set(ret), key=lambda x: x.tag)
 
 class OldStyleModel(PiecewiseModel):
     def __init__(self, a, b, s):
@@ -117,7 +121,7 @@ class SMCModel(BaseModel):
                 ret += [d for d in yy.d() if d.tag is not None]
             except AttributeError:
                 pass
-        return list(set(ret))
+        return sorted(set(ret), key=lambda x: x.tag)
 
     def regularizer(self):
         ret = self._spline.roughness()
@@ -284,10 +288,21 @@ class SMCTwoPopulationModel(Observable, Observer):
         return ret
 
     def __getitem__(self, coords):
+        if isinstance(coords, slice):
+            if coords != slice(None, None, None):
+                raise RuntimeException()
+            return np.concatenate([self.model1[:], self.model2[:]])
         a, cc = coords
         return self._models[a][cc]
 
     def __setitem__(self, coords, x):
+        if isinstance(coords, slice):
+            if coords != slice(None, None, None):
+                raise RuntimeException()
+            l = len(self.model1[:])
+            self.model1[:] = x[:l]
+            self.model2[:] = x[l:]
+            return
         a, cc = coords
         # This will generate 'model updated' messages in the submodels.
         self._models[a][cc] = x

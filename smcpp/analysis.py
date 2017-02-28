@@ -115,7 +115,7 @@ class BaseAnalysis:
         w, het = np.array([a[2:] for k in attrs for a in attrs[k]]).T
         self._het = avg = np.average(het, weights=w)
         logger.debug("Heterozygosity: %f", self._het)
-        logger.debug("1. - esfs[0,0]: %f", 1. - (self._esfs[0, 0] / self._esfs.sum()))
+        logger.debug("1. - esfs[0]: %f", 1. - (self._esfs.flat[0] / self._esfs.sum()))
         if self._het == 0:
             logger.error("Data contain *no* mutations. Inference is impossible.")
             sys.exit(1)
@@ -147,17 +147,12 @@ class BaseAnalysis:
         self._contigs = new_contigs
 
     def _init_hidden_states(self, prior_model, M):
-        if prior_model is not None:
-            d = json.load(open(prior_model, "rt"))
-            model = _model_cls_d[d['model']['class']].from_dict(d['model'])
-        else:
-            model = self._model
         ## choose hidden states based on prior model
-        dm = model.distinguished_model
-        hs = estimation_tools.balance_hidden_states(dm, M)
-        self._hidden_states = np.sort(
-                np.unique(np.concatenate([self._model.distinguished_model._knots, hs]))
-            )
+        dm = prior_model.distinguished_model
+        self._hidden_states = hs = estimation_tools.balance_hidden_states(dm, M)
+        # self._hidden_states = np.sort(
+        #         np.unique(np.concatenate([self._model.distinguished_model._knots, hs]))
+        #     )
         logger.debug("%d hidden states:\n%s" % (len(self._hidden_states), str(self._hidden_states)))
 
     def _init_inference_manager(self, polarization_error):
@@ -203,7 +198,6 @@ class BaseAnalysis:
 
     def Q(self, k=None):
         'Value of Q() function in M-step.'
-        # q1, q2, q3 = self._im.Q(True)
         qq = 0.
         with thread_pool() as executor:
             fs = []
@@ -271,40 +265,46 @@ class Analysis(BaseAnalysis):
     '''A dataset, model and inference manager to be used for estimation.'''
     def __init__(self, files, args):
         BaseAnalysis.__init__(self, files, args)
-        if "," in args.knots:
-            self._knots = [float(x) for x in args.knots.split(",")]
-        else:
-            num_knots = int(args.knots)
-            knot_spans = np.ones(num_knots, dtype=int)
-            self._knots = np.cumsum(
-                estimation_tools.construct_time_points(self.rescale(args.t1),
-                                                       self.rescale(args.tK), 
-                                                       knot_spans, args.offset))
+
         # Perform initial filtering for weird contigs
         self._normalize_data(args.length_cutoff, args.filter)
-
-        # Initialize members
-        self._init_parameters(args.theta, args.rho)
-        self._init_bounds(args.Nmin)
-        self._init_model(args.pieces, args.N0, args.t1, args.tK, args.spline)
-
-        if not args.no_initialize:
-            self._hidden_states = np.array([0., np.inf])
-            self._init_inference_manager(args.polarization_error)
-            self._init_optimizer(args, files, args.outdir,
-                    1,  # set block-size to knots
-                    "L-BFGS-B",  # TNC tends to overfit for initial pass
-                    args.xtol, args.ftol,
-                    learn_rho=False)
-            self._optimizer.run(1)
 
         # Thin the data
         self._perform_thinning(args.thinning)
 
+        # Initialize members
+        self._init_parameters(args.theta, args.rho)
+        self._init_bounds(args.Nmin)
+
+        # Try to get a rough estimate of model in order to pick good hidden states.
+        self._model = PiecewiseModel([1.], [1.])
+        if not args.no_initialize and not args.prior_model:
+            logger.info("Initializing model...")
+            self._init_model("5*1", args.N0, 5, 1e3, 1e5, args.offset, args.spline)
+            self._hidden_states = np.array([0., np.inf])
+            self._init_inference_manager(args.polarization_error)
+            self._init_optimizer(args, None,
+                    5,  # set block-size to knots
+                    "TNC",  # TNC tends to overfit for initial pass
+                    args.xtol, args.ftol,
+                    learn_rho=False)
+            self._optimizer.run(1)
+        # First construct hidden states based on (uninformative) prior
+        elif args.prior_model is not None:
+            d = json.load(open(args.prior_model, "rt"))
+            self._model = _model_cls_d[d['model']['class']].from_dict(d['model'])
+        self._init_hidden_states(self._model, args.M)
+
+        # Set t1, tk based on percentiles of prior distribution if not specified
+        kts = estimation_tools.balance_hidden_states(self._model.distinguished_model, args.knots + 1)
+        args.t1 = args.t1 or 2 * self._N0 * kts[1]
+        args.tK = args.tK or 2 * self._N0 * kts[-2]
+        self._init_model(args.pieces, args.N0, args.knots,
+                         args.t1, args.tK, args.offset, args.spline)
+
         # Continue initializing
-        self._init_hidden_states(args.prior_model, args.M)
         self._init_inference_manager(args.polarization_error)
-        self._init_optimizer(args, files, args.outdir, args.blocks,
+        self._init_optimizer(args, args.outdir, args.blocks,
                 args.algorithm, args.xtol, args.ftol, learn_rho=True)
 
     def _init_parameters(self, theta=None, rho=None):
@@ -335,15 +335,24 @@ class Analysis(BaseAnalysis):
         assert np.all(np.isfinite([self._rho, self._theta]))
         logger.info("rho: %f", self._rho)
 
-    def _init_model(self, pieces, N0, t1, tK, spline_class):
+    def _init_knots(self, num_knots, t1, tK, offset):
+        knot_spans = [1] * num_knots
+        self._knots = np.cumsum(
+            estimation_tools.construct_time_points(self.rescale(t1),
+                                                   self.rescale(tK),
+                                                   knot_spans, offset))
+        for x in [2, 3.5, 5]:
+            self._knots = np.append(self._knots, x * self._knots[-1])
+
+    def _init_model(self, pieces, N0, num_knots, t1, tK, offset, spline_class):
         ## Initialize model
+        self._init_knots(num_knots, t1, tK, offset)
         pieces = estimation_tools.extract_pieces(pieces)
         time_points = estimation_tools.construct_time_points(
-            self.rescale(t1), self.rescale(tK), pieces, 0.)
+            self._knots[0], self._knots[-1], pieces, 0.)
         logger.debug("time points in coalescent scaling:\n%s",
                      str(time_points))
-        knots = self._knots
-        logger.debug("knots in coalescent scaling:\n%s", str(knots))
+        logger.debug("knots in coalescent scaling:\n%s", str(self._knots))
         spline_class = {"cubic": spline.CubicSpline,
                         "bspline": spline.BSpline,
                         "akima": spline.AkimaSpline,
@@ -353,17 +362,17 @@ class Analysis(BaseAnalysis):
         y0 = np.log(y0)
         if self.npop == 1:
             self._model = SMCModel(
-                time_points, knots, spline_class, self._populations[0])
-            self._model[-1] = y0
+                time_points, self._knots, spline_class, self._populations[0])
+            self._model[:] = y0
         else:
             split = self.rescale(tK - t1)  # just pick the midpoint as a starting value.
             mods = []
             for pid in self._populations:
-                mods.append(SMCModel(time_points, knots, spline_class, pid))
-                mods[-1][-1] = y0
+                mods.append(SMCModel(time_points, self._knots, spline_class, pid))
+                mods[-1][:] = y0
             self._model = SMCTwoPopulationModel(mods[0], mods[1], split)
 
-    def _init_optimizer(self, args, files, outdir, blocks,
+    def _init_optimizer(self, args, outdir, blocks,
                         algorithm, xtol, ftol, learn_rho):
         if self.npop == 1:
             self._optimizer = SMCPPOptimizer(
@@ -377,7 +386,8 @@ class Analysis(BaseAnalysis):
             smax = np.sum(self._model.distinguished_model.s)
             self._optimizer.register(
                     parameter_optimizer.ParameterOptimizer("split", (0., smax), "model"))
-        self._optimizer.register(analysis_saver.AnalysisSaver(outdir))
+        if outdir:
+            self._optimizer.register(analysis_saver.AnalysisSaver(outdir))
         if learn_rho:
             self._optimizer.register(
                     parameter_optimizer.ParameterOptimizer("rho", (1e-6, 1e-2)))
@@ -398,19 +408,19 @@ class SplitAnalysis(BaseAnalysis):
 
         self._hidden_states = np.array([0., np.inf])
         self._init_inference_manager(False)
-        self._init_optimizer(args, files, args.outdir, args.algorithm,
-                             args.xtol, args.ftol, args.blocks, False)
+        self._init_optimizer(args, args.outdir, args.blocks,
+                args.algorithm, args.xtol, args.ftol, False)
         # Hack to only estimate split time.
         self._optimizer.run(1)
 
         # After inferring initial split time, thin
         self._perform_thinning(args.thinning)
         self._normalize_data(args.length_cutoff, args.filter)
-
-        self._init_hidden_states(args.pop1, args.M)
+        # Further initialization
+        self._init_hidden_states(self._model.distinguished_model, args.M)
         self._init_inference_manager(False)
-        self._init_optimizer(args, files, args.outdir, args.algorithm,
-                             args.xtol, args.ftol, args.blocks, K, self._blocks)
+        self._init_optimizer(args, args.outdir, args.blocks,
+                             args.algorithm, args.xtol, args.ftol, True)
 
     def _validate_data(self):
         BaseAnalysis._validate_data(self)
@@ -419,15 +429,15 @@ class SplitAnalysis(BaseAnalysis):
                          "information. Split estimation is impossible.")
             sys.exit(1)
 
-    def _init_optimizer(self, args, files, outdir, algorithm,
-                        xtol, ftol, blocks, save=True):
+    def _init_optimizer(self, args, outdir, blocks, algorithm,
+                        xtol, ftol, save=True):
         self._optimizer = TwoPopulationOptimizer(
             self, algorithm, xtol, ftol, blocks, args.solver_args)
         smax = np.sum(self._model.distinguished_model.s)
         self._optimizer.register(
             parameter_optimizer.ParameterOptimizer("split", (0., smax), "model"))
         if save:
-            self._optimizer.register(optimizer.AnalysisSaver(outdir))
+            self._optimizer.register(analysis_saver.AnalysisSaver(outdir))
 
     def _init_model(self, pop1, pop2):
         d = json.load(open(pop1, "rt"))

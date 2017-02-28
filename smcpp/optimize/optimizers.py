@@ -66,11 +66,12 @@ class AbstractOptimizer(Observable):
                 alg = AdaMax
             else:
                 alg = self._algorithm
+            options = {'xtol': self._xtol, 'ftol': self._ftol, 'factr': 1e-10}
             res = scipy.optimize.minimize(self._f, x0,
                     jac=True,
                     args=(self._analysis, coords),
                     bounds=bounds,
-                    options={'xtol': self._xtol, 'ftol': self._ftol},
+                    options=options,
                     method=alg)
             return res
         except ConvergedException:
@@ -94,7 +95,7 @@ class AbstractOptimizer(Observable):
                 for coords in coord_list:
                     self.update_observers('M step', coords=coords, **kwargs)
                     x0 = self._analysis.model[coords]
-                    bounds = np.transpose([x0 - .5, x0 + .5])
+                    bounds = np.transpose([x0 - .2, x0 + .2])
                     logger.debug("bounds: %s", bounds)
                     # bounds = self._bounds(coords)
                     res = self._minimize(x0, coords, bounds)
@@ -158,7 +159,6 @@ class SMCPPOptimizer(AbstractOptimizer):
         AbstractOptimizer.__init__(self, analysis, algorithm, xtol, ftol, blocks, solver_args)
         for cls in OptimizerPlugin.__subclasses__():
             try:
-                print(cls)
                 self.register(cls())
             except TypeError:
                 # Only register listeners with null constructor
@@ -175,8 +175,9 @@ class SMCPPOptimizer(AbstractOptimizer):
             sys.exit(1)
         r = list(range(K))
         ret = [r[a:a+self._blocks] for a in range(K - self._blocks + 1)][::-1]
-        ret.append(r)
-        print(ret, K, self._blocks)
+        if r not in ret:
+            ret.append(r)
+        logger.debug("block schedule: %s", str(ret))
         return ret
 
     def _bounds(self, coords):

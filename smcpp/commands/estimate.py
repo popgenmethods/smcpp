@@ -26,12 +26,11 @@ class Estimate(command.EstimationCommand, command.ConsoleCommand):
         '''Configure parser and parse args.'''
         model = parser.add_argument_group('Model parameters')
         model.add_argument('--pieces', type=str,
-                           help="span of model pieces", default="32*1")
-        model.add_argument('--t1', type=float,
-                           help="starting point of first piece, in generations", default=100)
-        model.add_argument('--tK', type=float, help="end-point of last piece, in generations",
-                           default=40000.)
-        model.add_argument('--knots', type=str, default="10",
+                           help="span of model pieces", default="4+15*3+4")
+        model.add_argument('--t1', type=float, default=2e2,
+                           help="starting point of first piece, in generations")
+        model.add_argument('--tK', type=float, help="end-point of last piece, in generations")
+        model.add_argument('--knots', type=int, default="7",
                            help="number of knots to use in internal representation")
         # model.add_argument('--exponential-pieces', type=int,
         # nargs="+", help="piece(s) which have exponential growth")

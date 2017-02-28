@@ -58,7 +58,7 @@ def add_common_estimation_args(parser):
                            default="L-BFGS-B", help=argparse.SUPPRESS)
     optimizer.add_argument('--blocks', type=int, 
             help="number of coordinate ascent blocks. default: min(4, K)")
-    optimizer.add_argument("--ftol", type=float, default=1e-4,
+    optimizer.add_argument("--ftol", type=float, default=5e-4,
                            help="stopping criterion for relative improvement in loglik "
                            "in EM algorithm. algorithm will terminate when "
                            "|loglik' - loglik| / loglik < ftol")

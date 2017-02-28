@@ -159,7 +159,6 @@ def balance_hidden_states(model, M):
     ret.append(np.inf)
     return np.array(ret)
 
-
 def empirical_sfs(contigs):
     with mp_pool() as p:
         esfss = list(p.map(_esfs_helper, contigs))

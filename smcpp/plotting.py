@@ -37,7 +37,7 @@ def plot_psfs(psfs, xlim, ylim, xlabel, logy=False):
     my_axstep = saver(ax.step, "step")
     for i, (d, off) in enumerate(psfs):
         N0 = d['N0']
-        g = d.get('g', None) or 1
+        g = d.get('g') or 1
         if 'b' in d:
             a = d['a']
             s = d['s']
@@ -69,9 +69,10 @@ def plot_psfs(psfs, xlim, ylim, xlabel, logy=False):
                 ms = [mb]
                 labels = [mb.pid]
             for m, l in zip(ms, labels):
-                x = np.logspace(np.log10(m.s[0]), np.log10(m.s.sum()), 200)
+                knots = m._knots[:-2]
+                x = np.logspace(np.log10(m.s[0]), np.log10(knots[-1]), 200)
                 y = m(x).astype('float')
-                x2, y2 = (m._knots, np.exp(m[:].astype('float')))
+                x2, y2 = (knots[:-1], np.exp(m[:-3].astype('float')))
                 # if not logy:
                 #     y *= 1e-3
                 x = np.insert(x, 0, 0)
