@@ -7,7 +7,7 @@ source:
 
 requirements:
   build:
-    - python 3.5.2
+    - python >=3.5
     - ccache 3.3.2
     - gcc 4.8.5
     - libgcc 4.8.5
@@ -24,7 +24,7 @@ requirements:
     - conda
     - nomkl
     - gnuplot 4.6.0
-    - python 3.5.2
+    - python >=3.5
     - libgcc 4.8.5
     - gmp 6.1.0
     - gsl 2.2.1
