@@ -148,15 +148,17 @@ class Vcf2Smc(command.Command, command.ConsoleCommand):
             na = list(map(len, dist))
             nb = list(map(len, undist))
 
-            # function to convert a VCF record to our format <span, dist gt,
-            # undist gt, # undist>
+            # function to convert a VCF record to our format:
+            # <span, dist gt, # undist gt, # undist, [...]>
             def rec2gt(rec):
                 ref = rec.alleles[0]
                 da = [[rec.samples[d].alleles[i]
                        for d, i in di] for di in dist]
                 a = [sum([x != ref for x in d])
                      if None not in d else -1 for d in da]
-                bs = [[rec.samples[d].alleles[i] != ref for d, i in un if rec.samples[d].alleles[i] is not None]
+                bs = [[rec.samples[d].alleles[i] != ref
+                       for d, i in un
+                       if rec.samples[d].alleles[i] is not None]
                       for un in undist]
                 b = [sum(_) for _ in bs]
                 nb = [len(_) for _ in bs]
@@ -194,8 +196,10 @@ class Vcf2Smc(command.Command, command.ConsoleCommand):
             mask_iterator = (x.split("\t") for x in mask_iterator)
             mask_iterator = ((x[0], int(x[1]), int(x[2]))
                              for x in mask_iterator)
-            snps_only = (rec for rec in region_iterator if len(
-                rec.alleles) == 2 and set(rec.alleles) <= set("ACTG01"))
+            snps_only = (
+                rec for rec in region_iterator if
+                set(rec.alleles) <= set("ACTGN")
+                )
 
             def interleaved():
                 cmask = next(mask_iterator, None)

@@ -65,7 +65,10 @@ class BaseAnalysis:
             logger.debug("Contig(pid=%r, fn=%r, n=%r, a=%r)", c.pid, c.fn, c.n, c.a)
         logger.info("%d population%s", self.npop, "" if self.npop == 1 else "s")
         self._esfs = estimation_tools.empirical_sfs(self._contigs)
-        logger.debug("Empirical SFS:\n%s", self._esfs)
+        logger.debug("Empirical CSFS:\n%s\n%s", self._esfs, 
+                     self._esfs.astype('float') / self._esfs.sum())
+        sfs = util.undistinguished_sfs(self._esfs)
+        logger.debug("Empirical SFS:\n%s", sfs.astype('float') / sfs.sum())
 
     def _validate_data(self):
         for c in self._contigs:
