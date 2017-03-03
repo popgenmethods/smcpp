@@ -91,7 +91,6 @@ class AbstractOptimizer(Observable):
                 # Perform M-step
                 self.update_observers('pre M-step', **kwargs)
                 coord_list = self._coordinates()
-                xi = self._analysis.model[:].astype('float').copy()
                 for coords in coord_list:
                     self.update_observers('M step', coords=coords, **kwargs)
                     x0 = self._analysis.model[coords]
@@ -122,14 +121,6 @@ class AbstractOptimizer(Observable):
                                           coords=coords,
                                           res=res, **kwargs)
                 self.update_observers('post M-step', **kwargs)
-                xp = self._analysis.model[:].astype('float').copy()
-                delta = max(abs(xp - xi))
-                logger.debug("max_i |x_i' - x_i| = %f", delta)
-                if delta < self._xtol:
-                    logger.debug(
-                            "Terminating because  ^^^^ < %f (= xtol)", 
-                            self._xtol)
-                    raise EMTerminationException
         except EMTerminationException:
             pass
         # Conclude the optimization and perform any necessary callbacks.
