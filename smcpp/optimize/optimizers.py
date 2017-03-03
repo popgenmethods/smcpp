@@ -85,16 +85,17 @@ class AbstractOptimizer(Observable):
             for i in range(niter):
                 # Perform E-step
                 kwargs = {'i': i, 'niter': niter}
-                self.update_observers('pre E-step', **kwargs)
-                self._analysis.E_step()
-                self.update_observers('post E-step', **kwargs)
+                if i > 0:
+                    self.update_observers('pre E-step', **kwargs)
+                    self._analysis.E_step()
+                    self.update_observers('post E-step', **kwargs)
                 # Perform M-step
                 self.update_observers('pre M-step', **kwargs)
                 coord_list = self._coordinates()
                 for coords in coord_list:
                     self.update_observers('M step', coords=coords, **kwargs)
                     x0 = self._analysis.model[coords]
-                    bounds = np.transpose([x0 - .2, x0 + .2])
+                    bounds = np.transpose([x0 - .5, x0 + .5])
                     logger.debug("bounds: %s", bounds)
                     # bounds = self._bounds(coords)
                     res = self._minimize(x0, coords, bounds)
@@ -165,9 +166,11 @@ class SMCPPOptimizer(AbstractOptimizer):
             logger.error("blocks must be between 1 and K")
             sys.exit(1)
         r = list(range(K))
-        ret = [r[a:a+self._blocks] for a in range(K - self._blocks + 1)][::-1]
+        return [r]
+        ret = [r[a:a+self._blocks] for a in range(K - self._blocks + 1)]
         if r not in ret:
             ret.append(r)
+        ret = ret[::-1]
         logger.debug("block schedule: %s", str(ret))
         return ret
 

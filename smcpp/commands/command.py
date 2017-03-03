@@ -63,7 +63,7 @@ def add_common_estimation_args(parser):
                            "in EM algorithm. algorithm will terminate when "
                            "|loglik' - loglik| / loglik < ftol")
     optimizer.add_argument('--xtol', type=float,
-                           default=.001,
+                           default=.01,
                            help=r"x tolerance for optimizer. "
                            "optimizer will stop when |x' - x|_\infty < xtol")
     optimizer.add_argument('--regularization-penalty',

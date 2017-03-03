@@ -287,7 +287,7 @@ class Analysis(BaseAnalysis):
             self._hidden_states = np.array([0., np.inf])
             self._init_inference_manager(args.polarization_error)
             self._init_optimizer(args, None,
-                    5,  # set block-size to knots
+                    8,  # set block-size to knots
                     "TNC",  # TNC tends to overfit for initial pass
                     args.xtol, args.ftol,
                     learn_rho=False)

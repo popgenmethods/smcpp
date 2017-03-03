@@ -12,7 +12,7 @@ class ScaleOptimizer(OptimizerPlugin):
         logger.debug("scale Q(%f)=%f", alpha, ret)
         return -ret
 
-    @targets("post M-step")
+    @targets("post M-step", no_first=True)
     def update(self, message, *args, **kwargs):
         analysis = kwargs['analysis']
         x0 = analysis.model[:]
