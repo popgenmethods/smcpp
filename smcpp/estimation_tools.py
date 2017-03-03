@@ -118,7 +118,7 @@ def break_long_spans(contigs, length_cutoff):
             np.all(obs[:, 3::3] == 0, axis=1))[0]
         cob = 0
         if obs[long_spans].size:
-            logger.info("Long missing spans: \n%s", (obs[long_spans]))
+            logger.debug("Long missing spans: \n%s", (obs[long_spans]))
         positions = np.insert(np.cumsum(obs[:, 0]), 0, 0)
         for x in long_spans.tolist() + [None]:
             s = obs[cob:x, 0].sum()
@@ -140,9 +140,10 @@ def break_long_spans(contigs, length_cutoff):
                      positions[x] if x is not None else positions[-1],
                      l, 1. * s2 / l))
             else:
-                logger.info("omitting sequence length < %d "
-                            "as less than length cutoff %d" %
-                            (s, length_cutoff))
+                if s > 0:
+                    logger.debug("omitting sequence of length %d "
+                                "as < length cutoff %d" %
+                                (s, length_cutoff))
             try:
                 cob = x + 1
             except TypeError:  # fails for final x=None
