@@ -368,7 +368,7 @@ class Analysis(BaseAnalysis):
                 time_points, self._knots, spline_class, self._populations[0])
             self._model[:] = y0
         else:
-            split = self.rescale(tK - t1)  # just pick the midpoint as a starting value.
+            split = self.rescale(.5 * tK)  # just pick the midpoint as a starting value.
             mods = []
             for pid in self._populations:
                 mods.append(SMCModel(time_points, self._knots, spline_class, pid))

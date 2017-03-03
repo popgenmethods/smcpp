@@ -79,19 +79,25 @@ def thin_dataset(dataset, thinning):
 
 
 def recode_nonseg(contigs, cutoff):
-    if cutoff is not None:
-        for c in contigs:
-            d = c.data
-            runs = (
-                (d[:, 0] > cutoff) &
-                np.all(d[:, 1::3] == 0, axis=1) &
-                np.all(d[:, 2::3] == 0, axis=1)
-            )
-            if np.any(runs):
-                logger.debug(
-                    "Long nonsegregating runs in contig %s: \n%s", c.fn, d[runs])
-            d[runs, 1::3] = -1
-            d[runs, 3::3] = 0
+    warn_only = False
+    if cutoff is None:
+        cutoff = 100000
+        warn_only = True
+    for c in contigs:
+        d = c.data
+        runs = (
+            (d[:, 0] > cutoff) &
+            np.all(d[:, 1::3] == 0, axis=1) &
+            np.all(d[:, 2::3] == 0, axis=1)
+        )
+        if np.any(runs):
+            if warn_only:
+                f = logger.warning
+            else:
+                f = logger.debug
+                d[runs, 1::3] = -1
+                d[runs, 3::3] = 0
+            f("Long runs of homozygosity in contig %s: \n%s", c.fn, d[runs])
     return contigs
 
 
