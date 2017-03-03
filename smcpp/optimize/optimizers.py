@@ -66,7 +66,9 @@ class AbstractOptimizer(Observable):
                 alg = AdaMax
             else:
                 alg = self._algorithm
-            options = {'xtol': self._xtol, 'ftol': self._ftol, 'factr': 1e-10}
+            options = {
+                    'xtol': self._xtol, 'ftol': self._ftol, 'factr': 1e-10,
+                    }
             res = scipy.optimize.minimize(self._f, x0,
                     jac=True,
                     args=(self._analysis, coords),

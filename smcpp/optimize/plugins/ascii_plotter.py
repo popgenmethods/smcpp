@@ -50,6 +50,8 @@ class AsciiPlotter(OptimizerPlugin):
         write("set datafile separator \",\"")
         write("set xlabel \"Time\"")
         write("set ylabel \"N0\"")
+        write("set xrange [%f:%f]" %
+              tuple([model.distinguished_model.knots[i] for i in [0, -4]]))
         write("set logscale x")
         with tempfile.NamedTemporaryFile("wt") as f:
             plot_cmd = "plot '%s' i 0 with lines title 'Pop. 1'" % f.name
