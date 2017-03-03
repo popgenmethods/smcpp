@@ -9,6 +9,7 @@ HMM::HMM(const int hmm_num, const Matrix<int> &obs, const InferenceBundle* ib) :
     // Gamma has one column because gamma.col(0) will be set to calculate
     // the initial distribution term
 {
+    gamma.setZero();
     gamma_sums.clear();
     Vector<double> uniform = ib->pi->template cast<double>();
     for (int ell = 0; ell < L; ++ell)
