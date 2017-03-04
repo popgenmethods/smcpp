@@ -30,10 +30,13 @@ class BaseAnalysis:
         self._penalty = args.regularization_penalty
         self._niter = args.em_iterations
         args.solver_args = {}
-        if args.fold:
-            args.polarization_error = 0.5
+        if args.unfold:
+            args.polarization_error = 0.
+            logger.warning("Using unfolded SFS. The user should verify "
+                           "that the ancestral allele has been correctly "
+                           "coded.")
         if args.polarization_error > 0.:
-            logger.info("Polarization error p=%f", args.polarization_error)
+            logger.debug("Polarization error p=%f", args.polarization_error)
         # Data-related stuff
         self._load_data(files)
         self._validate_data()

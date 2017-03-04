@@ -79,10 +79,10 @@ def add_hmm_args(parser):
         '--M', type=int, help="number of hidden states", default=32)
 
     polarization = parser.add_mutually_exclusive_group(required=False)
-    polarization.add_argument("--fold", action="store_true", default=False,
-                              help="use folded SFS (alias for -p 0.5)")
+    polarization.add_argument("--unfold", action="store_true", default=False,
+                              help="use unfolded SFS (alias for -p 0.0)")
     polarization.add_argument('--polarization-error', '-p',
-                              metavar='p', type=float, default=0.,
+                              metavar='p', type=float, default=0.5,
                               help="uncertainty parameter for polarized SFS: observation (a,b) "
                               "has probability [(1-p)*CSFS_{a,b} + p*CSFS_{2-a,n-2-b}]. "
-                              "default: 0.0")
+                              "default: 0.5")

@@ -275,12 +275,15 @@ Recommended arguments
 
 Optional arguments
 ^^^^^^^^^^^^^^^^^^
-- ``--fold``, ``--polarization-error``: if the identity of the ancestral
+- ``--polarization-error``: if the identity of the ancestral
   allele is not known, these options can be used to specify a prior over it.
   With polarization error ``p``, emissions probabilities for entry ``CSFS(a,b)``
-  will be computed as ``(1-p) CSFS(a,b) + p CSFS(2-a, n-b)``. ``--fold``
-  is an alias for ``--polarization-error 0.5``, i.e. a uniform prior on the 
-  ancestral type.
+  will be computed as ``(1-p) CSFS(a,b) + p CSFS(2-a, n-b)``. The default setting
+  is ``0.5``, i.e. the identity of the ancestral allele is not known.
+- ``--unfold`` is an alias for ``--polarization-error 0``. If the
+  ancestral allele is known (from an outgroup, say) then this option will
+  use the unfolded SFS for computing probabilities. Incorrect usage of
+  this feature may lead to erroneous results.
 
 A number of other arguments concerning technical aspects of the fitting
 procedure exist. To see them, pass the ``-h`` option to ``estimate``.
