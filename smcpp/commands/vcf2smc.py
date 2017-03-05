@@ -37,10 +37,14 @@ class Vcf2Smc(command.Command, command.ConsoleCommand):
         parser.add_argument("-d", nargs=2, metavar="sample_id",
                             help="identity of distinguished lineages. First allele from sample_id 1 and "
                             "second allele from sample_id 2 will be used.")
+        # override length field of chromosome
+        parser.add_argument("--length", "-l", type=int,
+                            help="Length of contig. Default: length in VCF header")
         parser.add_argument("--ignore-missing", default=False, action="store_true",
                             help="ignore samples which are missing in the data")
         parser.add_argument("--missing-cutoff", "-c", metavar="c", type=int, default=None,
-                            help="treat runs of homozygosity longer than <c> base pairs as missing")
+                            help="treat runs of homozygosity longer than <c> base "
+                                 "pairs as missing")
         parser.add_argument("--mask", "-m",
                             help="BED-formatted mask of missing regions")
         parser.add_argument("--drop-first-last", action="store_true")
@@ -178,12 +182,9 @@ class Vcf2Smc(command.Command, command.ConsoleCommand):
                 logger.error("")
                 sys.exit(1)
 
-            contig_length = vcf.header.contigs[args.contig].length
+            contig_length = args.length or vcf.header.contigs[args.contig].length
             if contig_length is None:
-                logger.error("Failed to acquire contig length from VCF header."
-                             "Your VCF should have a header that looks like "
-                             "'##contig=<ID=%s,length=[something]>'.",
-                             args.contig)
+                logger.error("Failed to acquire contig length from VCF header. See the --length option.")
                 sys.exit(1)
             if args.mask:
                 mask_iterator = TabixFile(
@@ -198,7 +199,8 @@ class Vcf2Smc(command.Command, command.ConsoleCommand):
                              for x in mask_iterator)
             snps_only = (
                 rec for rec in region_iterator if
-                set(rec.alleles) <= set("ACTGN")
+                len(rec.alleles) <= 2 and
+                all(len(a) == 1 for a in rec.alleles)
                 )
 
             def interleaved():
