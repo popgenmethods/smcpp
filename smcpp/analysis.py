@@ -290,7 +290,7 @@ class Analysis(BaseAnalysis):
             self._hidden_states = np.array([0., np.inf])
             self._init_inference_manager(args.polarization_error)
             self._init_optimizer(args, None,
-                    8,  # set block-size to knots
+                    7,  # set block-size to knots
                     "TNC",  # TNC tends to overfit for initial pass
                     args.xtol, args.ftol,
                     learn_rho=False)
@@ -347,7 +347,7 @@ class Analysis(BaseAnalysis):
             estimation_tools.construct_time_points(self.rescale(t1),
                                                    self.rescale(tK),
                                                    knot_spans, offset))
-        for x in [2, 3.5, 5]:
+        for x in [2, 2]:
             self._knots = np.append(self._knots, x * self._knots[-1])
 
     def _init_model(self, pieces, N0, num_knots, t1, tK, offset, spline_class):
@@ -452,4 +452,5 @@ class SplitAnalysis(BaseAnalysis):
         m1 = _model_cls_d[d['model']['class']].from_dict(d['model'])
         d = json.load(open(pop2, "rt"))
         m2 = _model_cls_d[d['model']['class']].from_dict(d['model'])
+        assert d['theta'] == self._theta
         self._model = SMCTwoPopulationModel(m1, m2, np.sum(m1.s) * 0.5)

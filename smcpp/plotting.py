@@ -69,10 +69,10 @@ def plot_psfs(psfs, xlim, ylim, xlabel, logy=False):
                 ms = [mb]
                 labels = [mb.pid]
             for m, l in zip(ms, labels):
-                knots = m._knots[:-2]
+                knots = m._knots[:-1]
                 x = np.logspace(np.log10(m.s[0]), np.log10(knots[-1]), 200)
                 y = m(x).astype('float')
-                x2, y2 = (knots[:-1], np.exp(m[:-3].astype('float')))
+                x2, y2 = (knots[:-1], np.exp(m[:-2].astype('float')))
                 # if not logy:
                 #     y *= 1e-3
                 x = np.insert(x, 0, 0)
