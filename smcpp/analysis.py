@@ -49,6 +49,13 @@ class BaseAnalysis:
     def _load_data(self, files):
         ## Parse each data set into an array of observations
         logger.info("Loading data...")
+        new_files = []
+        for f in files:
+            if f[0] == "@":
+                new_files += [line.strip() for line in open(f[1:], "rt") if line.strip()]
+            else:
+                new_files.append(f)
+        files = set(new_files)
         self._files = files
         self._contigs = estimation_tools.load_data(files)
         pops = set(c.pid for c in self._contigs)
