@@ -37,9 +37,8 @@ class Split(command.EstimationCommand, command.ConsoleCommand):
         # Fill in some of the population-genetic parameters from previous model run
         # TODO ensure that these params agree in both models?
         d = json.load(open(args.pop1, "rt"))
-        args.N0 = d['N0']
-        args.theta = d['theta']
-        args.rho = None
+        args.mu = d['theta'] / (2. * d['model']['N0'])
+        args.r = None
 
         # Construct analysis
         analysis = SplitAnalysis(args.data, args)

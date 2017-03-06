@@ -44,22 +44,19 @@ class Estimate(command.EstimationCommand, command.ConsoleCommand):
                            default="cubic", help="type of spline representation to use in model")
 
         pop_params = parser.add_argument_group('Population-genetic parameters')
-        pop_params.add_argument('--N0', default=1e4, type=float,
-                                help="reference effective (diploid) population size to scale output.")
-        pop_params.add_argument('--theta', '-t', type=float,
-                                help="population-scaled mutation rate. default: Watterson's estimator.")
-        pop_params.add_argument('--rho', '-r', type=float,
-                                help="fix recombination rate to this value. default: estimate from data.")
+        pop_params.add_argument('mu', type=float,
+                                help="mutation rate per base pair per generation")
+        pop_params.add_argument('-r', type=float,
+                                help="recombination rate per base pair per generation. "
+                                     "default: estimate from data.")
         parser.add_argument('data', nargs="+",
                             help="data file(s) in SMC++ format")
 
     def validate_args(self, args):
         # perform some sanity checking on the args
-        if args.theta is not None:
-            pgm = args.theta / (2. * args.N0)
-            if not (1e-12 <= pgm <= 1e-2):
-                logger.warn(
-                    "The per-generation mutation rate is calculated to be %g. Is this correct?" % pgm)
+        if not (1e-11 <= args.mu <= 1e-5):
+            logger.warn(
+                "The per-generation mutation rate is %g. Is this correct?" % args.mu)
 
     def main(self, args):
         command.EstimationCommand.main(self, args)

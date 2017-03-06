@@ -1,17 +1,21 @@
-from __future__ import absolute_import, division, print_function
+from textwrap import dedent
 import numpy as np
 import ad.admath
 
 from . import spline, logging, util
 from .observe import Observable, Observer, targets
 
-
 logger = logging.getLogger(__name__)
 
 class BaseModel(Observable):
-    def __init__(self, pid):
+    def __init__(self, N0, pid):
         Observable.__init__(self)
+        self._N0 = N0
         self._pid = pid
+
+    @property
+    def N0(self):
+        return self._N0
 
     @property
     def pid(self):
@@ -20,8 +24,8 @@ class BaseModel(Observable):
 
 # Dummy class used for JCSFS and a few other places
 class PiecewiseModel(BaseModel):
-    def __init__(self, a, s, pid=None):
-        BaseModel.__init__(self, pid)
+    def __init__(self, a, s, N0, pid=None):
+        super().__init__(N0, pid)
         assert len(a) == len(s)
         self.s = np.array(s)
         self.a = np.array(a)
@@ -53,7 +57,7 @@ class PiecewiseModel(BaseModel):
         return sorted(set(ret), key=lambda x: x.tag)
 
 class OldStyleModel(PiecewiseModel):
-    def __init__(self, a, b, s):
+    def __init__(self, a, b, s, N0):
         assert b[-1] == a[-1]
         ap = []
         sp = []
@@ -69,12 +73,12 @@ class OldStyleModel(PiecewiseModel):
                 t = np.linspace(s0, s1, 40)
                 sp += np.diff(t).tolist()
                 ap += (aa * (bb / aa) ** ((t[:-1] - s0) / (s1 - s0))).tolist()
-        PiecewiseModel.__init__(self, ap, sp)
+        super().__init__(ap, sp, N0)
 
 
 class SMCModel(BaseModel):
-    def __init__(self, s, knots, spline_class=spline.CubicSpline, pid=None):
-        BaseModel.__init__(self, pid)
+    def __init__(self, s, knots, N0, spline_class=spline.CubicSpline, pid=None):
+        super().__init__(N0, pid)
         self._spline_class = spline_class
         self._s = np.array(s)
         self._cumsum_s = np.cumsum(s)
@@ -157,9 +161,10 @@ class SMCModel(BaseModel):
             'class': self.__class__.__name__,
             's': list(self._s),
             'knots': list(self._knots),
+            'N0': self.N0,
             'spline_class': self._spline_class.__name__,
             'y': self[:].astype('float').tolist(),
-            'pid': self.pid,
+            'pid': self.pid
             })
         return d
 
@@ -167,7 +172,7 @@ class SMCModel(BaseModel):
     def from_dict(cls, d):
         assert cls.__name__ == d['class']
         spc = getattr(spline, d['spline_class'])
-        r = cls(d['s'], d['knots'], spc, d['pid'])
+        r = cls(d['s'], d['knots'], d['N0'], spc, d['pid'])
         r[:] = d['y']
         return r
 
@@ -276,7 +281,11 @@ class SMCTwoPopulationModel(Observable, Observer):
         return cls(model1, model2, d['split'])
 
     def to_s(self):
-        return "\nPop. 1:\n{}\nPop. 2:\n{}\nSplit: {:.3f}".format(
+        return dedent("""
+        Pop. 1: {}
+        Pop. 2: {}
+        Split: {:.3f}
+        """).format(
             self._models[0].to_s(), self._models[1].to_s(self.split_ind),
             self.split)
 
@@ -309,7 +318,9 @@ class SMCTwoPopulationModel(Observable, Observer):
 
 
 def _concat_models(m1, m2, t, pid):
-    # ip = np.searchsorted(m1._knots, t, side="right")
+    # ip = np.searchsorted(m1._knotsssert , t, side="right")
+    if m1.N0 != m2.N0:
+        raise RuntimeException()
     ip = np.argmin(np.abs(m1._knots - t))
     nk = m1._knots.copy()
     nk[ip] = t
@@ -317,6 +328,6 @@ def _concat_models(m1, m2, t, pid):
     ny[:ip] = m2[:ip]
     ny[ip] = ad.admath.log(m1(t).item())
     ny[ip + 1:] = m1[ip + 1:]
-    ret = SMCModel(m1.s, nk, m1._spline_class, pid)
+    ret = SMCModel(m1.s, nk, m1.N0, m1._spline_class, pid)
     ret[:] = ny
     return ret

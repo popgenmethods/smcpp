@@ -36,9 +36,9 @@ def plot_psfs(psfs, xlim, ylim, xlabel, logy=False):
     my_axplot = saver(ax.plot, "path")
     my_axstep = saver(ax.step, "step")
     for i, (d, off) in enumerate(psfs):
-        N0 = d['N0']
         g = d.get('g') or 1
         if 'b' in d:
+            N0 = d['N0']
             a = d['a']
             s = d['s']
             b = d['b']
@@ -77,8 +77,8 @@ def plot_psfs(psfs, xlim, ylim, xlabel, logy=False):
                 #     y *= 1e-3
                 x = np.insert(x, 0, 0)
                 y = np.insert(y, 0, y[0])
-                series.append([l, x, y, my_axplot, off, N0, g])
-                series.append([None, x2, y2, ax.scatter, off, N0, g])
+                series.append([l, x, y, my_axplot, off, m.N0, g])
+                series.append([None, x2, y2, ax.scatter, off, m.N0, g])
             if split:
                 for i in 1, 2:
                     x = series[-i][1]

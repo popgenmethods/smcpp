@@ -21,18 +21,20 @@ class AsciiPlotter(OptimizerPlugin):
         can_plot_2 = two_pop and (model.split > model.model2.s[0])
         if two_pop:
             # plot split models
-            x = np.cumsum(model.model1.s)
-            y = model.model1.stepwise_values()
-            z = model.model2.stepwise_values()
+            x = np.cumsum(model.model1.s) * 2 * model.model1.N0
+            y = model.model1.stepwise_values() * model.model1.N0
+            z = model.model2.stepwise_values() * model.model2.N0
             data = "\n".join([",".join(map(str, row)) for row in zip(x, y)])
             if can_plot_2:
                 data += "\n" * 3
-                data += "\n".join([",".join(map(str, row)) for row in zip(x, z) if row[0] <= model.split])
+                data += "\n".join([",".join(map(str, row)) 
+                    for row in zip(x, z) 
+                    if row[0] <= 2 * model.model1.N0 * model.split])
         else:
-            x = np.cumsum(model.s)
-            y = model.stepwise_values()
-            u = model._knots
-            v = np.exp(model[:].astype('float'))
+            x = np.cumsum(model.s) * 2 * model.N0
+            y = model.stepwise_values() * model.N0
+            u = model._knots * 2 * model.N0
+            v = np.exp(model[:].astype('float')) * model.N0
             data = "\n".join([",".join(map(str, row)) for row in zip(x, y)])
             data += "\n" * 3
             data += "\n".join([",".join(map(str, row)) for row in zip(u, v)])
@@ -48,10 +50,12 @@ class AsciiPlotter(OptimizerPlugin):
         height = 25
         write("set term dumb {} {}".format(width, height))
         write("set datafile separator \",\"")
-        write("set xlabel \"Time\"")
-        write("set ylabel \"N0\"")
-        write("set xrange [%f:%f]" %
-              tuple([model.distinguished_model.knots[i] for i in [0, -4]]))
+        write("set xlabel \"Generations\"")
+        write("set ylabel \"N_e\"")
+        xr = [model.distinguished_model.knots[i] * 
+                2 * model.distinguished_model.N0 
+              for i in [0, -3]]
+        write("set xrange [%f:%f]" % tuple(xr))
         write("set logscale x")
         with tempfile.NamedTemporaryFile("wt") as f:
             plot_cmd = "plot '%s' i 0 with lines title 'Pop. 1'" % f.name

@@ -64,7 +64,7 @@ class Plot(command.Command, command.ConsoleCommand):
                     m = klass.from_dict(mod)
                     a = m.stepwise_values().astype('float')
                     s = m.s
-                    d = {'a': m.stepwise_values(), 's': m.s, 'N0': res['N0']}
+                    d = {'a': m.stepwise_values(), 's': m.s, 'N0': mod['N0']}
                 else:
                     d = res
             d['g'] = args.g

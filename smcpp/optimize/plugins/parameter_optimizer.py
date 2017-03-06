@@ -14,7 +14,7 @@ class ParameterOptimizer(OptimizerPlugin):
     @targets("pre M-step", no_first=True)
     def update(self, message, *args, **kwargs):
         param = self._param
-        logger.info("Updating %s", param)
+        logger.info("Updating %s, bounds (%f, %f)", param, *self._bounds)
         tgt = kwargs[self._target]
         analysis = kwargs['analysis']
         if param not in ("theta", "rho", "split"):

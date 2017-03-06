@@ -152,6 +152,13 @@ def break_long_spans(contigs, length_cutoff):
 
 
 def balance_hidden_states(model, M):
+    """
+    Return break points [0, b_1, ..., b_M, oo) such that
+    the probability of coalescing in each interval under the
+    model is the same. (Breaks are returned in units of
+    generations.)
+
+    """
     M -= 1
     eta = _smcpp.PyRateFunction(model, [])
     ret = [0.0]
@@ -164,7 +171,7 @@ def balance_hidden_states(model, M):
         res = scipy.optimize.brentq(f, ret[-1], 1000.)
         ret.append(res)
     ret.append(np.inf)
-    return np.array(ret)
+    return np.array(ret) * 2 * model.N0  # return in generations
 
 def empirical_sfs(contigs):
     with mp_pool() as p:
