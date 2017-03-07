@@ -12,21 +12,21 @@ OnePopConditionedSFS<T>::OnePopConditionedSFS(int n) :
 template <typename T>
 std::vector<Matrix<T> > OnePopConditionedSFS<T>::compute_below(const PiecewiseConstantRateFunction<T> &eta) const
 {
-    DEBUG << "compute below";
+    DEBUG1 << "compute below";
     const int M = eta.getHiddenStates().size() - 1;
     std::vector<Matrix<T> > csfs_below(M, Matrix<T>::Zero(3, n + 1));
     Matrix<T> tjj_below(M, n + 1);
     tjj_below.fill(eta.zero());
-    DEBUG << "tjj_double_integral below starts";
+    DEBUG1 << "tjj_double_integral below starts";
 #pragma omp parallel for
     for (int m = 0; m < M; ++m)
             eta.tjj_double_integral_below(this->n, m, tjj_below);
-    DEBUG << "tjj_double_integral below finished";
-    DEBUG << "matrix products below (M0)";
+    DEBUG1 << "tjj_double_integral below finished";
+    DEBUG1 << "matrix products below (M0)";
     Matrix<T> M0_below = tjj_below * mcache.M0.template cast<T>();
-    DEBUG << "matrix products below (M1)";
+    DEBUG1 << "matrix products below (M1)";
     Matrix<T> M1_below = tjj_below * mcache.M1.template cast<T>();
-    DEBUG << "filling csfs_below";
+    DEBUG1 << "filling csfs_below";
     for (int m = 0; m < M; ++m) 
     {
         csfs_below[m].fill(eta.zero());
@@ -34,7 +34,7 @@ std::vector<Matrix<T> > OnePopConditionedSFS<T>::compute_below(const PiecewiseCo
         csfs_below[m].block(1, 0, 1, n + 1) = M1_below.row(m);
         CHECK_NAN(csfs_below[m]);
     }
-    DEBUG << "compute below finished";
+    DEBUG1 << "compute below finished";
     return csfs_below;
 }
 
@@ -44,7 +44,7 @@ std::vector<Matrix<T> > OnePopConditionedSFS<T>::compute_above(const PiecewiseCo
     const int M = eta.getHiddenStates().size() - 1;
     std::vector<Matrix<T> > C_above(M, Matrix<T>::Zero(n + 1, n)), 
         csfs_above(M, Matrix<T>::Zero(3, n + 1));
-    DEBUG << "compute above";
+    DEBUG1 << "compute above";
 #pragma omp parallel for
     for (int j = 2; j < n + 3; ++j)
         eta.tjj_double_integral_above(n, j, C_above);
@@ -85,14 +85,14 @@ std::vector<Matrix<T> > OnePopConditionedSFS<T>::compute_above(const PiecewiseCo
 template <typename T>
 std::vector<Matrix<T> > OnePopConditionedSFS<T>::compute(const PiecewiseConstantRateFunction<T> &eta)
 {
-    DEBUG << "compute called";
+    DEBUG1 << "compute called";
     const int M = eta.getHiddenStates().size() - 1;
     std::vector<Matrix<T> > csfs_above = compute_above(eta);
     std::vector<Matrix<T> > csfs_below = compute_below(eta);
     std::vector<Matrix<T> > csfs(M, Matrix<T>::Zero(3, n + 1));
     for (int m = 0; m < M; ++m)
         csfs[m] = csfs_above[m] + csfs_below[m];
-    DEBUG << "compute finished";
+    DEBUG1 << "compute finished";
     return csfs;
 }
 

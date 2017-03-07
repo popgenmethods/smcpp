@@ -32,8 +32,8 @@ _init_cache()
 
 abort = False
 _lvl = {s: getattr(logging, s) for s in "info debug critical warning error".upper().split()}
-_lvl['DEBUG'] = logging.DEBUG - 1
-_lvl['DEBUG1'] = logging.DEBUG
+_lvl['DEBUG1'] = logging.DEBUG - 1
+_lvl['DEBUG'] = logging.DEBUG
 cdef void logger_cb(const char* name, const char* level, const char* message) with gil:
     global abort
     name_s = "smcpp._smcpp:" + name.decode("UTF-8")

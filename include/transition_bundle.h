@@ -23,7 +23,7 @@ struct eigensystem
     {
         double im = d.imag().cwiseAbs().maxCoeff();
         if (im > 0)
-            DEBUG << "max imag: " << im;
+            DEBUG1 << "max imag: " << im;
     }
 };
 

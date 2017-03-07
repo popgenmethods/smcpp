@@ -334,9 +334,9 @@ HJTransition<T>::HJTransition(const PiecewiseConstantRateFunction<T> &eta, const
 template <typename T>
 Matrix<T> compute_transition(const PiecewiseConstantRateFunction<T> &eta, const double rho)
 {
-    DEBUG << "computing transition";
+    DEBUG1 << "computing transition";
     Matrix<T> ret = HJTransition<T>(eta, rho).matrix();
-    DEBUG << "done computing transition";
+    DEBUG1 << "done computing transition";
     return ret;
 }
 

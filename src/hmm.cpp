@@ -49,7 +49,7 @@ void HMM::Estep(bool fbOnly)
     const Vector<double> z = Vector<double>::Zero(M);
     gamma_sums.emplace(ob_key(0), z);
     Eigen::DiagonalMatrix<double, Eigen::Dynamic, Eigen::Dynamic> B;
-    DEBUG << "forward algorithm (HMM #" << hmm_num << ")";
+    DEBUG1 << "forward algorithm (HMM #" << hmm_num << ")";
     int prog = (int)((double)L * 0.1);
     ll = 0.;
     alpha_hat.col(0) = ib->pi->template cast<double>();
@@ -58,7 +58,7 @@ void HMM::Estep(bool fbOnly)
     {
         if (ell == prog)
         {
-            DEBUG << "hmm " << hmm_num << ": " << (int)(100. * (double)ell / (double)L) << "%";
+            DEBUG1 << "hmm " << hmm_num << ": " << (int)(100. * (double)ell / (double)L) << "%";
             prog += (int)((double)L * 0.1);
         }
         block_key key = ob_key(ell - 1);
@@ -95,7 +95,7 @@ void HMM::Estep(bool fbOnly)
     xisum.setZero();
     Matrix<std::complex<double> > Q(M, M);
     Matrix<double> Q_r(M, M);
-    DEBUG << "backward algorithm (HMM #" << hmm_num << ")";
+    DEBUG1 << "backward algorithm (HMM #" << hmm_num << ")";
     for (int ell = L; ell > 0; --ell)
     {
         v.setZero();
@@ -150,7 +150,7 @@ void HMM::Estep(bool fbOnly)
 
 Vector<adouble> HMM::Q(void)
 {
-    DEBUG << "HMM::Q";
+    DEBUG1 << "HMM::Q";
     Vector<adouble> ret(3);
     ret.setZero();
     Vector<adouble> pi = *(ib->pi);

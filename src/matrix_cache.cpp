@@ -51,7 +51,7 @@ void init_cache(const std::string loc)
 
 void store_cache()
 {
-    DEBUG << "storing cache: " << store_location;
+    DEBUG1 << "storing cache: " << store_location;
     std::ofstream out(store_location);
     if (out)
     {
@@ -72,7 +72,7 @@ below_coeff compute_below_coeffs(int n)
 {
     if (below_coeffs_memo.count(n) == 0)
     {
-        DEBUG << "Computing below_coeffs";
+        DEBUG1 << "Computing below_coeffs";
         below_coeff ret;
         MatrixXq mlast;
         for (int nn = 2; nn < n + 3; ++nn)
@@ -175,7 +175,7 @@ void parallel_matmul(const Eigen::DenseBase<Derived1>& A,
     // Eigen won't parallelize MatrixXq multiplication. 
     int m = A.rows();
     int n = C.cols();
-    DEBUG << m << " " << n;
+    DEBUG1 << m << " " << n;
     dst.resize(m, n);
     MatrixXq tmp(m, n);
     tmp.setZero();
@@ -194,9 +194,9 @@ MatrixCache& cached_matrices(const int n)
 {
     if (cache.count(n) == 0)
     {
-        DEBUG << "moran eigensystem";
+        DEBUG1 << "moran eigensystem";
         const MoranEigensystem mei = compute_moran_eigensystem(n);
-        DEBUG << "moran eigensystem done";
+        DEBUG1 << "moran eigensystem done";
         VectorXq D_subtend_above = VectorXq::LinSpaced(n, 1, n);
         D_subtend_above /= n + 1;
 
@@ -224,33 +224,33 @@ MatrixCache& cached_matrices(const int n)
 
         VectorXq lsp = VectorXq::LinSpaced(n + 1, 2, n + 2);
 
-        DEBUG << "Eigen uses " << Eigen::nbThreads() << " for matmul";
+        DEBUG1 << "Eigen uses " << Eigen::nbThreads() << " for matmul";
 
         below_coeff bc = compute_below_coeffs(n);
 
         // This is too slow. 
-        DEBUG << "X0";
+        DEBUG1 << "X0";
         parallel_matmul(Wnbj.transpose(), 
                 VectorXq::Ones(n) - D_subtend_above, 
                 mei.U.bottomRows(n), 
                 cache[n].X0);
         // ret.X0 = (Wnbj.transpose() * (VectorXq::Ones(n) - D_subtend_above).asDiagonal() * 
         //        mei.U.bottomRows(n)).template cast<double>();
-        DEBUG << "X2";
+        DEBUG1 << "X2";
         parallel_matmul(Wnbj.transpose(), 
                 D_subtend_above, 
                 mei.U.reverse().topRows(n),
                 cache[n].X2);
         // ret.X2 = (Wnbj.transpose() * D_subtend_above.asDiagonal() * 
         //         mei.U.reverse().topRows(n)).template cast<double>();
-        DEBUG << "M0";
+        DEBUG1 << "M0";
         parallel_matmul(bc.coeffs,
                 lsp.cwiseProduct((VectorXq::Ones(n + 1) - D_subtend_below)),
                 P_undist,
                 cache[n].M0);
         // ret.M0 = (bc.coeffs * lsp.asDiagonal() * (VectorXq::Ones(n + 1) - 
         //             D_subtend_below).asDiagonal() * P_undist).template cast<double>();
-        DEBUG << "M1";
+        DEBUG1 << "M1";
         parallel_matmul(bc.coeffs,
                 lsp.cwiseProduct(D_subtend_below),
                 P_dist,

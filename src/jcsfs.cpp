@@ -92,7 +92,7 @@ void JointCSFS<T>::jcsfs_helper_tau_below_split(const int m,
 {
     assert(t1 < t2 <= split);
     assert(a1 == 2);
-    DEBUG << "jcsfs_below t1:" << t1 << " t2:" << t2;
+    DEBUG1 << "jcsfs_below t1:" << t1 << " t2:" << t2;
     const PiecewiseConstantRateFunction<T> eta(params1, {});
 
     const ParameterVector params1_trunc = truncateParams(params1, split);
@@ -169,7 +169,7 @@ void JointCSFS<T>::jcsfs_helper_tau_above_split(const int m,
 {
     assert(split <= t1 < t2);
     assert(a1 == 2);
-    DEBUG << "jcsfs_above t1:" << t1 << " t2:" << t2;
+    DEBUG1 << "jcsfs_above t1:" << t1 << " t2:" << t2;
     // Shift eta1 back by split units in time 
     PiecewiseConstantRateFunction<T> shifted_eta1(shiftParams(params1, split), {t1 - split, t2 - split});
     const Matrix<T> rsfs = csfs.at(n1 + n2).compute(shifted_eta1)[0];
