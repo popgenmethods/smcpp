@@ -1,11 +1,22 @@
 from textwrap import dedent
 import numpy as np
 import ad.admath
+import wrapt
 
 from . import spline, logging, util
 from .observe import Observable, Observer, targets
 
 logger = logging.getLogger(__name__)
+
+def tag_sort(s):
+    return sorted(set(s), key=lambda x: x.tag)
+
+@wrapt.decorator
+def returns_ad(wrapped, instance, args, kwargs):
+    ret = wrapped(*args, **kwargs)
+    if not isinstance(ret, ad.ADF):
+        ret = ad.adnumber(ret)
+    return ret
 
 class BaseModel(Observable):
     def __init__(self, N0, pid):
@@ -38,7 +49,7 @@ class PiecewiseModel(BaseModel):
         return self.a
 
     def regularizer(self):
-        return (np.diff(self.a) ** 2).sum()
+        return (np.diff(self.a, 2) ** 2).sum()
 
     def __getitem__(self, it):
         return self.a[it]
@@ -54,7 +65,7 @@ class PiecewiseModel(BaseModel):
                 ret += [d for d in yy.d() if d.tag is not None]
             except AttributeError:
                 pass
-        return sorted(set(ret), key=lambda x: x.tag)
+        return tag_sort(ret)
 
 class OldStyleModel(PiecewiseModel):
     def __init__(self, a, b, s, N0):
@@ -62,7 +73,6 @@ class OldStyleModel(PiecewiseModel):
         ap = []
         sp = []
         for aa, bb, ss, cs in zip(a, b, s, util.cumsum0(s)[:-1]):
-            print(aa,bb,ss,cs)
             if aa == bb:
                 ap.append(aa)
                 sp.append(ss)
@@ -125,14 +135,12 @@ class SMCModel(BaseModel):
                 ret += [d for d in yy.d() if d.tag is not None]
             except AttributeError:
                 pass
-        return sorted(set(ret), key=lambda x: x.tag)
+        return tag_sort(ret)
 
+    @returns_ad
     def regularizer(self):
-        ret = self._spline.roughness()
-        ret = (np.diff(self[:], 2) ** 2).sum()
-        if not isinstance(ret, ad.ADF):
-            ret = ad.adnumber(ret)
-        return ret
+        # ret = self._spline.roughness()
+        return (np.diff(self[:], 2) ** 2).sum()
 
     def __call__(self, x):
         'Evaluate :self: at points x.'
@@ -233,7 +241,9 @@ class SMCTwoPopulationModel(Observable, Observer):
     @property
     def split_ind(self):
         'Return k such that model2.t[k] <= split < model2.t[k + 1]'
-        return np.searchsorted(self.model2.knots, self._split, side="right") - 1
+        return np.searchsorted(
+            self.model2.knots,
+            self._split, side="right") - 1
 
     @property
     def s(self):
@@ -257,7 +267,7 @@ class SMCTwoPopulationModel(Observable, Observer):
 
     @property
     def dlist(self):
-        return list(set(self._models[0].dlist + self._models[1].dlist))
+        return tag_sort(self._models[0].dlist + self._models[1].dlist)
 
     def randomize(self):
         for m in self._models:
@@ -290,11 +300,9 @@ class SMCTwoPopulationModel(Observable, Observer):
             self.split)
 
     # FIXME this counts the part before the split twice
+    @returns_ad
     def regularizer(self):
-        ret = sum([self.for_pop(pid).regularizer() for pid in self.pids])
-        if not isinstance(ret, ad.ADF):
-            ret = ad.adnumber(ret)
-        return ret
+        return sum([self.for_pop(pid).regularizer() for pid in self.pids])
 
     def __getitem__(self, coords):
         if isinstance(coords, slice):

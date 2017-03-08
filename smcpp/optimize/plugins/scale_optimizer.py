@@ -1,5 +1,6 @@
 import scipy.optimize
 
+import smcpp.model
 from .optimizer_plugin import OptimizerPlugin, targets
 from smcpp.logging import getLogger
 
@@ -16,8 +17,9 @@ class ScaleOptimizer(OptimizerPlugin):
     def update(self, message, *args, **kwargs):
         analysis = kwargs['analysis']
         x0 = analysis.model[:]
-        res = scipy.optimize.minimize_scalar(self._f,
-                                             args=(x0.astype('float'), analysis),
-                                             method='bounded',
-                                             bounds=(-1, 1))
+        res = scipy.optimize.minimize_scalar(
+            self._f,
+            args=(x0.astype('float'), analysis),
+            method='bounded',
+            bounds=(-1, 1))
         analysis.model[:] = x0 + res.x

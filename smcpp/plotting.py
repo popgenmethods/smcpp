@@ -6,6 +6,7 @@ import numpy as np
 from numpy import array
 import seaborn as sns
 
+import smcpp.config
 from . import model
 
 def pretty_plot():
@@ -69,10 +70,11 @@ def plot_psfs(psfs, xlim, ylim, xlabel, logy=False):
                 ms = [mb]
                 labels = [mb.pid]
             for m, l in zip(ms, labels):
-                knots = m._knots[:-1]
+                ak = len(smcpp.config.ADDITIONAL_KNOTS)
+                knots = m._knots[:-ak]
                 x = np.logspace(np.log10(m.s[0]), np.log10(knots[-1]), 200)
                 y = m(x).astype('float')
-                x2, y2 = (knots[:-1], np.exp(m[:-2].astype('float')))
+                x2, y2 = (knots, np.exp(m[:-ak].astype('float')))
                 # if not logy:
                 #     y *= 1e-3
                 x = np.insert(x, 0, 0)
@@ -110,10 +112,10 @@ def plot_psfs(psfs, xlim, ylim, xlabel, logy=False):
         ax.set_yscale('log')
     ax.set_xlabel(xlabel)
     if not xlim:
-        xlim = (0.9 * xmin, 1.1 * xmax)
+        xlim = (xmin, xmax)
     if not ylim:
-        ylim=(0.0, 1.1 * ymax)
+        ylim = (0.0, 1.1 * ymax)
+    print("xlim:", xlim)
     ax.set_xlim(*xlim)
-    ax.set_ylim(*ylim)
     fig.tight_layout()
     return fig, data

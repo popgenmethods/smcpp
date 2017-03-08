@@ -9,6 +9,7 @@ import os
 import concurrent.futures as futures
 
 from . import estimation_tools, _smcpp, util, logging, jcsfs, spline
+import smcpp.config
 from .contig import Contig
 from .model import SMCModel, SMCTwoPopulationModel, PiecewiseModel
 from smcpp.optimize.optimizers import SMCPPOptimizer, TwoPopulationOptimizer
@@ -162,12 +163,10 @@ class BaseAnalysis:
     def _init_hidden_states(self, prior_model, M):
         ## choose hidden states based on prior model
         dm = prior_model.distinguished_model
-        self._hidden_states = hs = self.rescale(
-                estimation_tools.balance_hidden_states(dm, M))
-        # self._hidden_states = np.sort(
-        #         np.unique(np.concatenate([self._model.distinguished_model._knots, hs]))
-        #     )
-        logger.debug("%d hidden states:\n%s" % (len(self._hidden_states), str(self._hidden_states)))
+        k = dm.pid
+        hs = self.rescale(estimation_tools.balance_hidden_states(dm, M))
+        self._hidden_states = {k: hs}
+        logger.debug("%d hidden states:\n%s" % (len(hs), str(hs)))
 
     def _init_inference_manager(self, polarization_error):
         ## Create inference object which will be used for all further calculations.
@@ -181,11 +180,12 @@ class BaseAnalysis:
             data = [contig.data for contig in d[key]]
             if len(pid) == 1:
                 im = _smcpp.PyOnePopInferenceManager(n[0], data, 
-                        self._hidden_states, key, polarization_error)
+                        self._hidden_states[pid[0]],
+                        key, polarization_error)
             else:
                 assert len(pid) == 2
                 im = _smcpp.PyTwoPopInferenceManager(n[0], n[1], a[0], a[1], 
-                        data, self._hidden_states, key, polarization_error)
+                        data, self._hidden_states[pid[0]], key, polarization_error)
             im.model = self._model
             im.theta = self._theta
             im.rho = self._rho
@@ -305,13 +305,16 @@ class Analysis(BaseAnalysis):
             self._model = _model_cls_d[d['model']['class']].from_dict(d['model'])
         self._init_hidden_states(self._model, args.M)
 
-        # Set t1, tk based on percentiles of prior distribution if not specified
+        # Set t1, tk based on percentiles of prior distribution if not
+        # specified
         kts = self.rescale(
-                estimation_tools.balance_hidden_states(
+            estimation_tools.balance_hidden_states(
                 self._model.distinguished_model,
                 args.knots + 1))
         args.t1 = args.t1 or 2 * self._model.distinguished_model.N0 * kts[1]
-        args.tK = args.tK or 2 * self._model.distinguished_model.N0 * kts[-2]
+        args.tK = args.tK or (
+            2 * self._model.distinguished_model.N0 *
+            kts[-(len(smcpp.config.ADDITIONAL_KNOTS) + 1)])
         self._init_model(args.pieces, self._N0, args.knots,
                          args.t1, args.tK, args.offset, args.spline)
 
@@ -340,7 +343,7 @@ class Analysis(BaseAnalysis):
             estimation_tools.construct_time_points(self.rescale(t1),
                                                    self.rescale(tK),
                                                    knot_spans, offset))
-        for x in [2, 2]:
+        for x in smcpp.config.ADDITIONAL_KNOTS:
             self._knots = np.append(self._knots, x * self._knots[-1])
 
     def _init_model(self, pieces, N0, num_knots, t1, tK, offset, spline_class):
@@ -374,18 +377,9 @@ class Analysis(BaseAnalysis):
 
     def _init_optimizer(self, args, outdir, blocks,
                         algorithm, xtol, ftol, learn_rho):
-        if self.npop == 1:
-            self._optimizer = SMCPPOptimizer(
-                self, algorithm, xtol, ftol, blocks, args.solver_args)
-            # Also optimize knots in 1 pop case. Not yet implemented
-            # for two pop case.
-            # self._optimizer.register(optimizer.KnotOptimizer())
-        elif self.npop == 2:
-            self._optimizer = TwoPopulationOptimizer(
-                self, algorithm, xtol, ftol, blocks, args.solver_args)
-            smax = np.sum(self._model.distinguished_model.s)
-            self._optimizer.register(
-                    parameter_optimizer.ParameterOptimizer("split", (0., smax), "model"))
+        assert self.npop == 1
+        self._optimizer = SMCPPOptimizer(
+            self, algorithm, xtol, ftol, blocks, args.solver_args)
         if outdir:
             self._optimizer.register(analysis_saver.AnalysisSaver(outdir))
         if learn_rho:
@@ -406,19 +400,20 @@ class SplitAnalysis(BaseAnalysis):
         self._knots = self._model.distinguished_model._knots
         self._init_bounds(.001)
 
-        self._hidden_states = np.array([0., np.inf])
-        self._init_inference_manager(False)
+        self._hidden_states = {k: np.array([0., np.inf]) for k in self._model.pids}
+        self._init_inference_manager(args.polarization_error)
         self._init_optimizer(args, args.outdir, args.blocks,
-                args.algorithm, args.xtol, args.ftol, False)
-        # Hack to only estimate split time.
+                args.algorithm, args.xtol, args.ftol, True)
+        # estimate split time.
         self._optimizer.run(1)
 
         # After inferring initial split time, thin
         self._perform_thinning(args.thinning)
         self._normalize_data(args.length_cutoff, args.filter)
         # Further initialization
-        self._init_hidden_states(self._model.distinguished_model, args.M)
-        self._init_inference_manager(False)
+        # keep separate hidden states for each distinguished type
+        self._init_hidden_states(args.M)
+        self._init_inference_manager(args.polarization_error)
         self._init_optimizer(args, args.outdir, args.blocks,
                              args.algorithm, args.xtol, args.ftol, True)
 
@@ -433,9 +428,10 @@ class SplitAnalysis(BaseAnalysis):
                         xtol, ftol, save=True):
         self._optimizer = TwoPopulationOptimizer(
             self, algorithm, xtol, ftol, blocks, args.solver_args)
-        smax = np.sum(self._model.distinguished_model.s)
         self._optimizer.register(
-            parameter_optimizer.ParameterOptimizer("split", (0., smax), "model"))
+            parameter_optimizer.ParameterOptimizer("split",
+                                                   (0., self._max_split),
+                                                   "model", False))
         if save:
             self._optimizer.register(analysis_saver.AnalysisSaver(outdir))
 
@@ -447,4 +443,12 @@ class SplitAnalysis(BaseAnalysis):
         d = json.load(open(pop2, "rt"))
         m2 = _model_cls_d[d['model']['class']].from_dict(d['model'])
         assert d['theta'] == self._theta
-        self._model = SMCTwoPopulationModel(m1, m2, np.sum(m1.s) * 0.5)
+        self._max_split = m2._knots[-(len(smcpp.config.ADDITIONAL_KNOTS) + 1)]
+        self._model = SMCTwoPopulationModel(m1, m2, self._max_split * 0.5)
+
+    def _init_hidden_states(self, M):
+        hs = {}
+        for m in self._model.model1, self._model.model2:
+            super()._init_hidden_states(m, M)
+            hs.update(self._hidden_states)
+        self._hidden_states = hs

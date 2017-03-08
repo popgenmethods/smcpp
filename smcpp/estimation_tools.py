@@ -201,6 +201,9 @@ def _load_data_helper(fn):
     except ImportError as e:
         logger.debug(e)
         A = np.loadtxt(fn, dtype=np.int32)
+    except:
+        logger.error("In file %s", fn)
+        raise
     if len(A) == 0:
         raise RuntimeError("empty dataset: %s" % fn)
     with util.optional_gzip(fn, "rt") as f:

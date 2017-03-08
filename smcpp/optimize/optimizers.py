@@ -185,7 +185,15 @@ class TwoPopulationOptimizer(SMCPPOptimizer):
     'Model fitting for two populations.'
 
     def _coordinates(self):
-        return [(i, x) for x in SMCPPOptimizer._coordinates(self) for i in (0, 1)]
+        coords = super()._coordinates()
+        coords2 = []
+        si = self._analysis.model.split_ind
+        for c in coords:
+            c = np.array(c)
+            c = c[c < si]
+            if c.size:
+                coords2.append(c)
+        return [(0, coords), (1, coords2)]
 
     def _bounds(self, coords):
         return SMCPPOptimizer._bounds(self, coords[1])
