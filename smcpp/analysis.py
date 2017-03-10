@@ -287,11 +287,11 @@ class Analysis(BaseAnalysis):
         self._init_bounds(args.Nmin)
 
         # Try to get a rough estimate of model in order to pick good hidden states.
-        self._model = PiecewiseModel([1.], [1.], self._N0)
+        self._model = PiecewiseModel([1.], [1.], self._N0, pid=self._populations[0])
         if not args.no_initialize and not args.prior_model:
             logger.info("Initializing model...")
             self._init_model("5*1", self._N0, 5, 1e3, 1e5, args.offset, args.spline)
-            self._hidden_states = np.array([0., np.inf])
+            self._hidden_states = {self._populations[0]: np.array([0., np.inf])}
             self._init_inference_manager(args.polarization_error)
             self._init_optimizer(args, None,
                     7,  # set block-size to knots
