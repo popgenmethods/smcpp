@@ -7,7 +7,7 @@ from abc import abstractmethod
 from smcpp.observe import Observable
 from smcpp.logging import getLogger
 from smcpp.optimize.plugins.optimizer_plugin import OptimizerPlugin
-from .algorithms import AdaMax
+import smcpp.optimize.algorithms
 from .exceptions import *
 
 logger = getLogger(__name__)
@@ -62,9 +62,9 @@ class AbstractOptimizer(Observable):
                 print("***grad", i, y1, (y1 - y) * 1e8, dy[i])
                 x0[i] -= 1e-8
         try:
-            if self._algorithm == "AdaMax":
-                alg = AdaMax
-            else:
+            try:  # Adam/AdaMax
+                alg = getattr(smcpp.optimize.algorithms, self._algorithm)
+            except AttributeError:
                 alg = self._algorithm
             options = {
                     'xtol': self._xtol, 'ftol': self._ftol, 'factr': 1e-10,
