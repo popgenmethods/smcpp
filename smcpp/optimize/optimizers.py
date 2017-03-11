@@ -12,6 +12,21 @@ from .exceptions import *
 
 logger = getLogger(__name__)
 
+
+def _sigmoid(x, bounds):
+    b, B = np.array(bounds).T
+    s = []
+    for xx in x:
+        if xx > 0:
+            z = ad.admath.exp(-xx)
+            s.append(1 / (1 + z))
+        else:
+            z = ad.admath.exp(xx)
+            s.append(z / (1 + z))
+    s = np.array(s)
+    return (B - b) * s + b
+
+
 class AbstractOptimizer(Observable):
     '''
     Abstract representation of the execution flow of the optimizer.
@@ -39,10 +54,11 @@ class AbstractOptimizer(Observable):
     def _prepare_x(self, x):
         return [ad.adnumber(xx, tag=i) for i, xx in enumerate(x)]
 
-    def _f(self, x, analysis, coords, k=None):
+    def _f(self, x, analysis, coords, bounds, k=None):
         logger.debug(x.astype('float'))
         x = self._prepare_x(x)
-        analysis.model[coords] = x
+        xs = _sigmoid(x, bounds)
+        analysis.model[coords] = xs
         q = analysis.Q(k)
         # autodiff doesn't like multiplying and dividing inf
         if np.isinf(q.x):
@@ -67,14 +83,14 @@ class AbstractOptimizer(Observable):
             except AttributeError:
                 alg = self._algorithm
             options = {
-                    'xtol': self._xtol, 'ftol': self._ftol, 'factr': 1e-10,
+                    'xtol': self._xtol, 'ftol': self._ftol, 'factr': 1e-10, 'gtol': 1.
                     }
-            res = scipy.optimize.minimize(self._f, x0,
+            res = scipy.optimize.minimize(self._f, np.zeros_like(x0),
                     jac=True,
-                    args=(self._analysis, coords),
-                    bounds=bounds,
+                    args=(self._analysis, coords, bounds),
                     options=options,
                     method=alg)
+            res.x = _sigmoid(res.x, bounds)
             return res
         except ConvergedException:
             logger.debug("Converged: |xk - xk_1| < %g", self._xtol)
