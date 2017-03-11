@@ -383,8 +383,9 @@ class Analysis(BaseAnalysis):
         if outdir:
             self._optimizer.register(analysis_saver.AnalysisSaver(outdir))
         if learn_rho:
+            rho_bounds = 2. * self._N0 * np.array([1e-10, 1e-5])
             self._optimizer.register(
-                    parameter_optimizer.ParameterOptimizer("rho", (1e-6, 1e-2)))
+                    parameter_optimizer.ParameterOptimizer("rho", tuple(rho_bounds)))
 
     ## END OF PRIVATE FUNCTIONS
     @property

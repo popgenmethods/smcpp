@@ -12,10 +12,8 @@ class ParameterOptimizer(OptimizerPlugin):
         self._target = target
         self._no_first = no_first
 
-    @targets("pre M-step")
+    @targets("pre M-step", no_first=True)
     def update(self, message, *args, **kwargs):
-        if kwargs['i'] == 1 and self._no_first:
-            return
         param = self._param
         logger.info("Updating %s, bounds (%f, %f)", param, *self._bounds)
         tgt = kwargs[self._target]
