@@ -103,17 +103,16 @@ class AbstractOptimizer(Observable):
             for i in range(niter):
                 # Perform E-step
                 kwargs = {'i': i, 'niter': niter}
-                if i > 0:
-                    self.update_observers('pre E-step', **kwargs)
-                    self._analysis.E_step()
-                    self.update_observers('post E-step', **kwargs)
+                self.update_observers('pre E-step', **kwargs)
+                self._analysis.E_step()
+                self.update_observers('post E-step', **kwargs)
                 # Perform M-step
                 self.update_observers('pre M-step', **kwargs)
                 coord_list = self._coordinates()
                 for coords in coord_list:
                     self.update_observers('M step', coords=coords, **kwargs)
                     x0 = self._analysis.model[coords]
-                    bounds = np.transpose([x0 - .5, x0 + .5])
+                    bounds = np.transpose([x0 - 5., x0 + 5.])
                     logger.debug("bounds: %s", bounds)
                     # bounds = self._bounds(coords)
                     res = self._minimize(x0, coords, bounds)
