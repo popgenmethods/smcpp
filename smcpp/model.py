@@ -222,7 +222,9 @@ class SMCTwoPopulationModel(Observable, Observer):
         i = self.pids.index(pid)
         if i == 0:
             return self.model1
-        return _concat_models(self.model1, self.model2, self.split, pid)
+        else:
+            assert i == 1
+            return _concat_models(self.model1, self.model2, self.split, pid)
 
     # Propagate changes from submodels up
     @targets('model update')
@@ -326,16 +328,12 @@ class SMCTwoPopulationModel(Observable, Observer):
 
 
 def _concat_models(m1, m2, t, pid):
-    # ip = np.searchsorted(m1._knotsssert , t, side="right")
     if m1.N0 != m2.N0:
         raise RuntimeException()
-    ip = np.argmin(np.abs(m1._knots - t))
-    nk = m1._knots.copy()
-    nk[ip] = t
-    ny = np.zeros_like(m2[:])
-    ny[:ip] = m2[:ip]
-    ny[ip] = ad.admath.log(m1(t).item())
-    ny[ip + 1:] = m1[ip + 1:]
-    ret = SMCModel(m1.s, nk, m1.N0, m1._spline_class, pid)
-    ret[:] = ny
-    return ret
+    cs1 = np.cumsum(m1.s)
+    cs2 = np.cumsum(m2.s)
+    sv1 = m1.stepwise_values()
+    sv2 = m2.stepwise_values()
+    s = np.concatenate([m2.s[cs2 <= t], m1.s[cs1 > t]])
+    a = np.concatenate([sv2[cs2 <= t], sv1[cs1 > t]])
+    return PiecewiseModel(a, s, m2.N0, m2.pid)
