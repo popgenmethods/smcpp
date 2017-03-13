@@ -6,13 +6,12 @@ from smcpp.logging import getLogger
 logger = getLogger(__name__)
 
 class ParameterOptimizer(OptimizerPlugin):
-    def __init__(self, param, bounds, target="analysis", no_first=True):
+    def __init__(self, param, bounds, target="analysis"):
         self._param = param
         self._bounds = bounds
         self._target = target
-        self._no_first = no_first
 
-    @targets("pre M-step", no_first=True)
+    @targets("pre M-step", no_first=False)
     def update(self, message, *args, **kwargs):
         param = self._param
         logger.info("Updating %s, bounds (%f, %f)", param, *self._bounds)

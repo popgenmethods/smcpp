@@ -404,7 +404,7 @@ class SplitAnalysis(BaseAnalysis):
         self._hidden_states = {k: np.array([0., np.inf]) for k in self._model.pids}
         self._init_inference_manager(args.polarization_error)
         self._init_optimizer(args, args.outdir, args.blocks,
-                args.algorithm, args.xtol, args.ftol, True)
+                'L-BFGS-B', args.xtol, args.ftol, True)
         # estimate split time.
         self._optimizer.run(1)
 
@@ -432,7 +432,7 @@ class SplitAnalysis(BaseAnalysis):
         self._optimizer.register(
             parameter_optimizer.ParameterOptimizer("split",
                                                    (0., self._max_split),
-                                                   "model", False))
+                                                   "model"))
         if save:
             self._optimizer.register(analysis_saver.AnalysisSaver(outdir))
 
