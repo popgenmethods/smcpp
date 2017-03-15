@@ -32,6 +32,11 @@ class BaseModel(Observable):
     def pid(self):
         return self._pid
 
+    @returns_ad
+    def regularizer(self):
+        # return self._spline.roughness()
+        return (np.diff(ad.admath.log(self.stepwise_values()), 2) ** 2).sum()
+
 
 # Dummy class used for JCSFS and a few other places
 class PiecewiseModel(BaseModel):
@@ -47,9 +52,6 @@ class PiecewiseModel(BaseModel):
         
     def stepwise_values(self):
         return self.a
-
-    def regularizer(self):
-        return (np.diff(self.a, 2) ** 2).sum()
 
     def __getitem__(self, it):
         return self.a[it]
@@ -136,11 +138,6 @@ class SMCModel(BaseModel):
             except AttributeError:
                 pass
         return tag_sort(ret)
-
-    @returns_ad
-    def regularizer(self):
-        # ret = self._spline.roughness()
-        return (np.diff(self[:], 2) ** 2).sum()
 
     def __call__(self, x):
         'Evaluate :self: at points x.'
