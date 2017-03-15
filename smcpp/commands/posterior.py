@@ -49,7 +49,8 @@ class Posterior(command.Command, command.ConsoleCommand):
         j = json.load(open(args.model, "rt"))
         klass = getattr(model, j['model']['class'])
         m = klass.from_dict(j['model'])
-        contigs = estimation_tools.load_data(args.data)
+        files = estimation_tools.files_from_command_line_args(args.data)
+        contigs = estimation_tools.load_data(files)
         if len(set(c.key for c in contigs)) > 1:
             logger.error("All data sets must be from same population and have same sample size")
             sys.exit(1)

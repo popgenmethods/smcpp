@@ -232,6 +232,16 @@ def _load_data_helper(fn):
     return Contig(pid=pid, data=data, n=n, a=a, fn=fn)
 
 
+def files_from_command_line_args(args):
+    ret = []
+    for f in args:
+        if f[0] == "@":
+            ret += [line.strip() for line in open(f[1:], "rt") if line.strip()]
+        else:
+            ret.append(f)
+    return set(ret)
+
+
 def load_data(files):
     with mp_pool() as p:
         obs = list(p.map(_load_data_helper, files))
