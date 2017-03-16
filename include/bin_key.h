@@ -54,7 +54,7 @@ std::set<block_key> bin_key<1>::run(
     {
         ret.emplace(key);
         if (nb > 0 and ((double)b / (double)nb > cutoff))
-            for (int bb = b; bb <= nb; ++bb)
+            for (int bb = (int)(cutoff * nb); bb <= nb; ++bb)
             {
                 tmp(1) = bb;
                 ret.emplace(tmp);
