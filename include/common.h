@@ -73,16 +73,14 @@ namespace Eigen {
 // Copied from Eigen's AutoDiffScalar.h
 #define EIGEN_AUTODIFF_DECLARE_GLOBAL_UNARY(FUNC,CODE) \
   template<typename DerType> \
-  inline const Eigen::AutoDiffScalar<Eigen::CwiseUnaryOp<Eigen::internal::scalar_multiple_op<typename Eigen::internal::traits<typename Eigen::internal::remove_all<DerType>::type>::Scalar>, const typename Eigen::internal::remove_all<DerType>::type> > \
+  inline const Eigen::AutoDiffScalar< \
+  EIGEN_EXPR_BINARYOP_SCALAR_RETURN_TYPE(typename Eigen::internal::remove_all<DerType>::type, typename Eigen::internal::traits<typename Eigen::internal::remove_all<DerType>::type>::Scalar, product) > \
   FUNC(const Eigen::AutoDiffScalar<DerType>& x) { \
     using namespace Eigen; \
-    typedef typename Eigen::internal::traits<typename Eigen::internal::remove_all<DerType>::type>::Scalar Scalar; \
-    typedef AutoDiffScalar<CwiseUnaryOp<Eigen::internal::scalar_multiple_op<Scalar>, const typename Eigen::internal::remove_all<DerType>::type> > ReturnType; \
+    EIGEN_UNUSED typedef typename Eigen::internal::traits<typename Eigen::internal::remove_all<DerType>::type>::Scalar Scalar; \
     CODE; \
   }
 
-using std::exp;
-using std::expm1;
 using std::log1p;
 using std::cosh;
 using std::sinh;
@@ -91,31 +89,17 @@ using mpfr::sinh;
 using mpfr::cosh;
 
 EIGEN_AUTODIFF_DECLARE_GLOBAL_UNARY(expm1,
+  using std::exp;
+  using std::expm1;
   Scalar expm1x = expm1(x.value());
   Scalar expx = exp(x.value());
-  return ReturnType(expm1x, x.derivatives() * expx);
-)
-
-EIGEN_AUTODIFF_DECLARE_GLOBAL_UNARY(ceil,
-  Scalar ceil = std::ceil(x.value());
-  return ReturnType(ceil, x.derivatives() * Scalar(0));
+  return Eigen::MakeAutoDiffScalar(expm1x, x.derivatives() * expx);
 )
 
 EIGEN_AUTODIFF_DECLARE_GLOBAL_UNARY(log1p,
-  Scalar log1px = std::log1p(x.value());
-  return ReturnType(log1px, x.derivatives() * (Scalar(1) / (Scalar(1) + x.value())));
-)
-
-EIGEN_AUTODIFF_DECLARE_GLOBAL_UNARY(sinh,
-  Scalar sinhx = sinh(x.value());
-  Scalar coshx = cosh(x.value());
-  return ReturnType(sinhx, x.derivatives() * coshx);
-)
-
-EIGEN_AUTODIFF_DECLARE_GLOBAL_UNARY(cosh,
-  Scalar sinhx = sinh(x.value());
-  Scalar coshx = cosh(x.value());
-  return ReturnType(coshx, x.derivatives() * sinhx);
+  using std::log1p;
+  Scalar log1px = log1p(x.value());
+  return Eigen::MakeAutoDiffScalar(log1px, x.derivatives() * (Scalar(1) / (Scalar(1) + x.value())));
 )
 
 #undef EIGEN_AUTODIFF_DECLARE_GLOBAL_UNARY

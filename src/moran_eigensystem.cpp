@@ -77,7 +77,7 @@ MoranEigensystem& compute_moran_eigensystem(int n)
         I.setIdentity();
         for (int k = 2; k < n + 3; ++k)
         {
-            int rate = -(k * (k - 1) / 2 - 1);
+            mpq_class rate = -(k * (k - 1) / 2 - 1);
             ret.D(k - 2) = rate;
             A = M - rate * I;
             ret.U.col(k - 2) = solve(A);
