@@ -96,7 +96,8 @@ class NPopInferenceManager : public InferenceManager
         InferenceManager(P,
                 (na.tail(na.size() - 1).array() + 1).prod() * (n.array() + 1).prod(),
                 obs_lengths, observations, hidden_states, csfs),
-                n(n), na(na), tensordims(make_tensordims()), bins(construct_bins(polarization_error))
+                n(n), na(na), tensordims(make_tensordims()),
+                bins(construct_bins(polarization_error))
     {}
 
     virtual ~NPopInferenceManager() = default;

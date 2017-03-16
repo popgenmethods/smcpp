@@ -33,6 +33,7 @@ std::map<block_key, double> marginalize_key<1>::run(
     Vector<int> v(3);
     v(0) = a;
     v(2) = n(0);
+    assert(n(0) >= nb);
     for (int n1 = b; n1 <= n(0) + b - nb; ++n1)
     {
         // n1: number of derived in sample of size n

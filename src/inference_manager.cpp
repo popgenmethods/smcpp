@@ -336,39 +336,51 @@ template <size_t P>
 std::map<block_key, block_key_prob_map>
 NPopInferenceManager<P>::construct_bins(const double polarization_error)
 {
-    std::vector<std::map<block_key, block_key_prob_map> > rets(obs.size());
+    std::vector<std::set<block_key> > bks(obs.size());
 #pragma omp parallel for
     for (unsigned int j = 0; j < obs.size(); ++j)
     {
         const Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> ob = obs.at(j);
         const int q = ob.cols() - 1;
         for (int i = 0; i < ob.rows(); ++i)
+            bks.at(j).emplace(ob.row(i).tail(q).transpose());
+    }
+    std::set<block_key> bksc;
+    for (const std::set<block_key> &sbk : bks)
+        bksc.insert(sbk.begin(), sbk.end());
+    const std::vector<block_key> vbk(bksc.begin(), bksc.end());
+    std::map<block_key, block_key_prob_map> ret;
+#pragma omp parallel for
+    for (auto it = vbk.begin(); it < vbk.end(); ++it)
+    {
+        block_key bk = *it;
+        block_key_prob_map m, m2;
+        const std::set<block_key> bins = bin_key<P>::run(bk, na, 0.1);
+        for (const block_key &k : bins)
         {
-            block_key bk(ob.row(i).tail(q).transpose());
-            if (rets.at(j).count(bk) == 0)
+            const std::map<block_key, double> probs =
+                marginalize_key<P>::run(k.vals, n, na);
+            for (const auto &p : probs)
             {
-                block_key_prob_map m, m2;
-                for (const block_key &k : bin_key<P>::run(bk, na, 0.1))
-                    for (const auto &p : marginalize_key<P>::run(k.vals, n, na))
-                    {
-                        m[p.first] += (1. - polarization_error) * p.second;
-                        m[folded_key(p.first)] += polarization_error * p.second;
-                    }
-                double s = 0.0;
-                for (const auto &p : m)
-                    if (p.second > 0 and not is_monomorphic(p.first))
-                    {
-                        m2[p.first] = p.second;
-                        s += p.second;
-                    }
-                for (const auto &p : m2)
-                    rets.at(j)[bk][bk_to_map_key(p.first)] += p.second / s;
+                m[p.first] += (1. - polarization_error) * p.second;
+                m[folded_key(p.first)] += polarization_error * p.second;
             }
         }
+        double s = 0.0;
+        for (const auto &p : m)
+            if (p.second > 0 and not is_monomorphic(p.first))
+            {
+                m2[p.first] = p.second;
+                s += p.second;
+            }
+        block_key_prob_map bkpm;
+        if (s <= 0)
+            throw std::runtime_error("s<=0");
+        for (const auto &p : m2)
+            bkpm[bk_to_map_key(p.first)] += p.second / s;
+#pragma omp critical(insert_ret_bkpm)
+        ret.emplace(bk, bkpm);
     }
-    std::map<block_key, block_key_prob_map> ret;
-    for (const std::map<block_key, block_key_prob_map> &m : rets)
-        ret.insert(m.begin(), m.end());
     return ret;
 }
 
