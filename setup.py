@@ -14,6 +14,9 @@ import numpy as np
 extra_compile_args = ["-O2", "-std=c++11", "-Wno-deprecated-declarations",
                       "-DNO_CHECK_NAN", '-fopenmp']
 
+# extra_compile_args = ["-O0", "-g", "-std=c++11", "-Wno-deprecated-declarations", '-fopenmp',
+#                       "-D_GLIBCXX_DEBUG"]
+
 extra_link_args=['-fopenmp']
 libraries = ['mpfr', 'gmp', 'gmpxx', 'gsl', 'gslcblas']
 if "SMCPP_COMPILE_WITH_TCMALLOC" in os.environ:
