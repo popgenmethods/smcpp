@@ -14,8 +14,7 @@ install:
   - conda update -q conda
   - conda info -a
   - conda install conda-build anaconda-client constructor git
-  - conda build -c terhorst -c conda-forge -c bioconda --python 3.5 conda
-  - conda build -c terhorst -c conda-forge -c bioconda --python 3.6 conda
+  - conda build -c terhorst -c conda-forge -c bioconda conda
   - conda install --use-local -c terhorst -c bioconda -c conda-forge smcpp
   - smc++ version
   - test/integration/test.sh `which smc++`
