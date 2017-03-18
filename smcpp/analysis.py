@@ -180,8 +180,10 @@ class BaseAnalysis:
                         key, polarization_error)
             else:
                 assert len(pid) == 2
-                im = _smcpp.PyTwoPopInferenceManager(n[0], n[1], a[0], a[1], 
-                        data, self._hidden_states[pid[0]], key, polarization_error)
+                im = _smcpp.PyTwoPopInferenceManager(*n, *a, data,
+                                                     self._hidden_states[pid[0]],
+                                                     key,
+                                                     polarization_error)
             im.model = self._model
             im.theta = self._theta
             im.rho = self._rho

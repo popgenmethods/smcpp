@@ -57,13 +57,15 @@ class Posterior(command.Command, command.ConsoleCommand):
         hidden_states = estimation_tools.balance_hidden_states(
             m.distinguished_model, args.M + 1) / (2. * m.distinguished_model.N0)
         all_obs = []
-        n = None
+        n = a = None
         for contig in contigs:
             obs = contig.data
-            if n is not None and np.any(contig.n != n):
-                logger.error("Mismatch between n from different contigs")
+            if ((n is not None and np.any(contig.n != n)) or
+                (a is not None and np.any(contig.a != a))):
+                logger.error("Mismatch between n/a from different contigs")
                 sys.exit(1)
             n = contig.n
+            a = contig.a
             npop = obs.shape[1] // 2 - 1
             assert len(n) == npop
 
@@ -73,7 +75,7 @@ class Posterior(command.Command, command.ConsoleCommand):
             ## approximately picked out.
             pos = np.cumsum(obs[:, 0])
             obs = obs[(pos >= lb) & (pos <= ub)]
-            obs = np.insert(obs, 0, [[1, -1] + [0, 0] * npop], 0)
+            obs = np.insert(obs, 0, [[1] + [-1, 0, 0] * npop], 0)
             all_obs.append(obs)
         # Perform thinning, if requested
         if args.thinning > 1:
@@ -84,7 +86,7 @@ class Posterior(command.Command, command.ConsoleCommand):
         else:
             assert npop == 2
             im = _smcpp.PyTwoPopInferenceManager(
-                n[0], n[1], all_obs, hidden_states, contig.key, args.polarization_error)
+                *n, *a, all_obs, hidden_states, contig.key, args.polarization_error)
         im.theta = j['theta']
         im.save_gamma = True
         im.model = m
