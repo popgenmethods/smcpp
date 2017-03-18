@@ -39,37 +39,43 @@ class AsciiPlotter(OptimizerPlugin):
             data = "\n".join([",".join(map(str, row)) for row in zip(x, y)])
             data += "\n" * 3
             data += "\n".join([",".join(map(str, row)) for row in zip(u, v)])
-        # Fire up the plot process and let'ter rip.
-        gnuplot = subprocess.Popen([self._gnuplot_path],
-                                   stdin=subprocess.PIPE,
-                                   stdout=subprocess.PIPE)
-        def write(x):
-            x += "\n"
-            gnuplot.stdin.write(x.encode())
-        columns, lines = np.maximum(shutil.get_terminal_size(), [80, 25])
-        width = columns * 3 // 5
-        height = 25
-        write("set term dumb {} {}".format(width, height))
-        write("set datafile separator \",\"")
-        write("set xlabel \"Generations\"")
-        write("set ylabel \"N_e\"")
-        xr = [model.distinguished_model.knots[i] * 
-                2 * model.distinguished_model.N0 
-              for i in [0, -(len(smcpp.config.ADDITIONAL_KNOTS) + 1)]]
-        write("set xrange [%f:%f]" % tuple(xr))
-        write("set logscale x")
-        with tempfile.NamedTemporaryFile("wt") as f:
-            plot_cmd = "plot '%s' i 0 with lines title 'Pop. 1'" % f.name
-            if two_pop and can_plot_2:
-                plot_cmd += ", '' i 1 with lines title 'Pop. 2';"
-            elif not two_pop:
-                plot_cmd += ", '' i 1 with points notitle;"
-            write(plot_cmd)
-            open(f.name, "wt").write(data)
-            write("unset key")
-            write("exit")
-            (stdout, stderr) = gnuplot.communicate()
-            graph = stdout.decode()
-        logfun = logger.debug if message == "post mini M-step" else logger.info
-        logfun("Plot of current model:\n%s", graph)
 
+        graphs = ""
+        for log_y in [True, False]:
+            # Fire up the plot process and let'er rip.
+            gnuplot = subprocess.Popen([self._gnuplot_path],
+                                       stdin=subprocess.PIPE,
+                                       stdout=subprocess.PIPE)
+            def write(x):
+                x += "\n"
+                gnuplot.stdin.write(x.encode())
+
+            columns, lines = np.maximum(shutil.get_terminal_size(), [80, 25])
+            width = columns * 3 // 5
+            height = 25
+            write("set term dumb {} {}".format(width, height))
+            write("set datafile separator \",\"")
+            write("set xlabel \"Generations\"")
+            write("set ylabel \"N_e\"")
+            xr = [model.distinguished_model.knots[i] * 
+                    2 * model.distinguished_model.N0 
+                  for i in [0, -(len(smcpp.config.ADDITIONAL_KNOTS) + 1)]]
+            write("set xrange [%f:%f]" % tuple(xr))
+            if log_y:
+                write("set logscale xy")
+            else:
+                write("set logscale x")
+            with tempfile.NamedTemporaryFile("wt") as f:
+                plot_cmd = "plot '%s' i 0 with lines title 'Pop. 1'" % f.name
+                if two_pop and can_plot_2:
+                    plot_cmd += ", '' i 1 with lines title 'Pop. 2';"
+                elif not two_pop:
+                    plot_cmd += ", '' i 1 with points notitle;"
+                write(plot_cmd)
+                open(f.name, "wt").write(data)
+                write("unset key")
+                write("exit")
+                (stdout, stderr) = gnuplot.communicate()
+                graphs += stdout.decode()
+        logfun = logger.debug if message == "post mini M-step" else logger.info
+        logfun("Plot of current model:\n%s", graphs)

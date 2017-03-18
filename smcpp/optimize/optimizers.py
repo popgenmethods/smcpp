@@ -168,7 +168,8 @@ class SMCPPOptimizer(AbstractOptimizer):
         AbstractOptimizer.__init__(self, analysis, algorithm, xtol, ftol, blocks, solver_args)
         for cls in OptimizerPlugin.__subclasses__():
             try:
-                self.register(cls())
+                if not cls.DISABLED:
+                    self.register(cls())
             except TypeError:
                 # Only register listeners with null constructor
                 pass
