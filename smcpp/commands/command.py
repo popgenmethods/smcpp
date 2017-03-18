@@ -5,6 +5,8 @@ import os.path
 import sys
 
 from .. import logging
+from ..config import DEFAULTS
+
 logger = logging.getLogger(__name__)
 
 class ConsoleCommand:
@@ -58,16 +60,18 @@ def add_common_estimation_args(parser):
                            default="L-BFGS-B", help=argparse.SUPPRESS)
     optimizer.add_argument('--blocks', type=int, 
             help="number of coordinate ascent blocks. default: min(4, K)")
-    optimizer.add_argument("--ftol", type=float, default=5e-4,
+    optimizer.add_argument("--ftol", type=float,
+                           default=DEFAULTS['ftol'],
                            help="stopping criterion for relative improvement in loglik "
                            "in EM algorithm. algorithm will terminate when "
                            "|loglik' - loglik| / loglik < ftol")
     optimizer.add_argument('--xtol', type=float,
-                           default=.01,
+                           default=DEFAULTS['xtol'],
                            help=r"x tolerance for optimizer. "
                            "optimizer will stop when |x' - x|_\infty < xtol")
     optimizer.add_argument('--regularization-penalty',
-                           type=float, help="regularization penalty", default=10.)
+                           type=float, help="regularization penalty",
+                           default=DEFAULTS['regularization_penalty'])
     optimizer.add_argument('--Nmin', type=float,
                            help="Lower bound on effective population size (in units of N0)",
                            default=.01)
