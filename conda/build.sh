@@ -3,7 +3,6 @@ mkdir -p $PREFIX/.bin
 for c in gcc g++; do ln -s $(which ccache) $PREFIX/.bin/$c; done
 export PATH=$PREFIX/.bin:$PATH 
 export CCACHE_BASEDIR=$PREFIX CCACHE_LOGFILE=/tmp/cache.debug CCACHE_COMPILERCHECK=content
-export SMCPP_COMPILE_WITH_TCMALLOC=1
 echo $(which gcc)
 ccache -s
 python setup.py install --single-version-externally-managed --record=/dev/null
