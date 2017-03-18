@@ -179,6 +179,7 @@ cdef class _PyInferenceManager:
         def __set__(self, m):
             self._model = m
             m.register(self)
+            self.update("model update")
 
     property save_gamma:
         def __get__(self):
