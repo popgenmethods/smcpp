@@ -71,16 +71,17 @@ def plot_psfs(psfs, xlim, ylim, xlabel, logy=False):
                 labels = [mb.pid]
             for m, l in zip(ms, labels):
                 ak = len(smcpp.config.ADDITIONAL_KNOTS)
-                knots = m._knots[:-ak]
-                x = np.logspace(np.log10(m.s[0]), np.log10(knots[-1]), 200)
-                y = m(x).astype('float')
-                x2, y2 = (knots, np.exp(m[:-ak].astype('float')))
-                # if not logy:
-                #     y *= 1e-3
+                x = np.cumsum(m.s)
+                y = m.stepwise_values().astype('float')
                 x = np.insert(x, 0, 0)
                 y = np.insert(y, 0, y[0])
                 series.append([l, x, y, my_axplot, off, m.N0, g])
-                series.append([None, x2, y2, ax.scatter, off, m.N0, g])
+                if hasattr(m, '_knots'):
+                    knots = m._knots[:-ak]
+                    x2, y2 = (knots, np.exp(m[:-ak].astype('float')))
+                    # if not logy:
+                    #     y *= 1e-3
+                    series.append([None, x2, y2, ax.scatter, off, m.N0, g])
             if split:
                 for i in 1, 2:
                     x = series[-i][1]
