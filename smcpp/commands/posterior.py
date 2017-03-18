@@ -57,9 +57,13 @@ class Posterior(command.Command, command.ConsoleCommand):
         hidden_states = estimation_tools.balance_hidden_states(
             m.distinguished_model, args.M + 1) / (2. * m.distinguished_model.N0)
         all_obs = []
+        n = None
         for contig in contigs:
             obs = contig.data
-            n = np.max(obs[:, 2::2], axis=0)
+            if n is not None and np.any(contig.n != n):
+                logger.error("Mismatch between n from different contigs")
+                sys.exit(1)
+            n = contig.n
             npop = obs.shape[1] // 2 - 1
             assert len(n) == npop
 

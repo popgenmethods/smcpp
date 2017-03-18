@@ -155,9 +155,9 @@ class BaseAnalysis:
                 ci += 1
         self._contigs = new_contigs
 
-    def _init_hidden_states(self, prior_model, M):
+    def _init_hidden_states(self, model, M):
         ## choose hidden states based on prior model
-        dm = prior_model.distinguished_model
+        dm = model.distinguished_model
         k = dm.pid
         hs = self.rescale(estimation_tools.balance_hidden_states(dm, M))
         self._hidden_states = {k: hs}
@@ -172,6 +172,7 @@ class BaseAnalysis:
             d.setdefault(c.key, []).append(c)
         for key in d:
             pid, n, a = key
+            logger.debug("Creating inference manager for %s", key)
             data = [contig.data for contig in d[key]]
             if len(pid) == 1:
                 im = _smcpp.PyOnePopInferenceManager(n[0], data, 
@@ -269,7 +270,10 @@ class BaseAnalysis:
 class Analysis(BaseAnalysis):
     '''A dataset, model and inference manager to be used for estimation.'''
     def __init__(self, files, args):
-        BaseAnalysis.__init__(self, files, args)
+        super().__init__(files, args)
+        if self.npop != 1:
+            logger.error("Please use 'smc++ split' to estimate two-population models")
+            sys.exit(1)
 
         # Perform initial filtering for weird contigs
         self._normalize_data(args.length_cutoff, args.filter)
@@ -286,7 +290,7 @@ class Analysis(BaseAnalysis):
         if not args.no_initialize and not args.prior_model:
             logger.info("Initializing model...")
             self._init_model("5*1", self._N0, 5, 1e3, 1e5, args.offset, args.spline)
-            self._hidden_states = {self._populations[0]: np.array([0., np.inf])}
+            self._hidden_states = {k: np.array([0., np.inf]) for k in self._populations}
             self._init_inference_manager(args.polarization_error)
             self._init_optimizer(args, None,
                     7,  # set block-size to knots
@@ -370,7 +374,6 @@ class Analysis(BaseAnalysis):
 
     def _init_optimizer(self, args, outdir, blocks,
                         algorithm, xtol, ftol, learn_rho):
-        assert self.npop == 1
         self._optimizer = SMCPPOptimizer(
             self, algorithm, xtol, ftol, blocks, args.solver_args)
         if outdir:
@@ -394,12 +397,12 @@ class SplitAnalysis(BaseAnalysis):
         self._knots = self._model.distinguished_model._knots
         self._init_bounds(.001)
 
-        self._hidden_states = {k: np.array([0., np.inf]) for k in self._model.pids}
-        self._init_inference_manager(args.polarization_error)
-        self._init_optimizer(args, args.outdir, args.blocks,
-                'L-BFGS-B', args.xtol, args.ftol, True)
-        # estimate split time.
-        self._optimizer.run(1)
+        # self._hidden_states = {k: np.array([0., np.inf]) for k in self._model.pids}
+        # self._init_inference_manager(args.polarization_error)
+        # self._init_optimizer(args, args.outdir, args.blocks,
+        #         'L-BFGS-B', args.xtol, args.ftol, True)
+        # # estimate split time.
+        # self._optimizer.run(1)
 
         # After inferring initial split time, thin
         self._perform_thinning(args.thinning)
