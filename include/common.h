@@ -119,17 +119,17 @@ void store_matrix(const Matrix<double> &M, double* out);
 void store_matrix(const Matrix<adouble> &M, double* out);
 void store_matrix(const Matrix<adouble> &M, double *out, double *jac);
 
-void init_logger_cb(void(*)(const char*, const char*, const char*));
-void call_logger(const char*, const char*, const char*);
+void init_logger_cb(void(*)(const std::string, const std::string, const std::string));
+void call_logger(const std::string, const std::string, const std::string);
 struct Logger
 {
-    static void(*logger_cb)(const char*, const char*, const char*);
-    Logger(const char* name, int line, const char* level);
-    const char* name;
+    static void(*logger_cb)(const std::string, const std::string, const std::string);
+    Logger(const std::string name, int line, const std::string level);
+    const std::string name;
     const int line;
-    const char* level;
-    std::stringstream stream;
-    std::ostringstream oss;
+    const std::string level;
+    const std::ostringstream prefix;
+    std::ostringstream stream;
     template <typename T>
     Logger& operator<<(const T &data)
     {

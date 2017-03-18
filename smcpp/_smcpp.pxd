@@ -23,7 +23,7 @@ cdef extern from "common.h":
         T& operator()(int, int)
     cdef double toDouble(const adouble &)
     void init_eigen()
-    void init_logger_cb(void(*)(const char*, const char*, const char*))
+    void init_logger_cb(void(*)(const string, const string, const string))
     void fill_jacobian(const adouble &, double*)
     void store_matrix(const Matrix[double]&, double*)
     void store_matrix(const Matrix[adouble]&, double*)

@@ -55,9 +55,9 @@ class AbstractOptimizer(Observable):
         return [ad.adnumber(xx, tag=i) for i, xx in enumerate(x)]
 
     def _f(self, x, analysis, coords, bounds, k=None):
-        logger.debug(x.astype('float'))
         x = self._prepare_x(x)
         xs = _sigmoid(x, bounds)
+        logger.debug("x: " + ", ".join(["%.1f" % float(xx) for xx in xs]))
         analysis.model[coords] = xs
         q = analysis.Q(k)
         # autodiff doesn't like multiplying and dividing inf

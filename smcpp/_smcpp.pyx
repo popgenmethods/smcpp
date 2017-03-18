@@ -13,7 +13,7 @@ import os.path
 from appdirs import AppDirs
 from ad import adnumber, ADF
 
-from . import logging, version
+from . import logging, version, util
 from .observe import targets
 
 logger = logging.getLogger(__name__)
@@ -34,7 +34,7 @@ abort = False
 _lvl = {s: getattr(logging, s) for s in "info debug critical warning error".upper().split()}
 _lvl['DEBUG1'] = logging.DEBUG - 1
 _lvl['DEBUG'] = logging.DEBUG
-cdef void logger_cb(const char* name, const char* level, const char* message) with gil:
+cdef void logger_cb(const string name, const string level, const string message) with gil:
     global abort
     name_s = "smcpp._smcpp:" + name.decode("UTF-8")
     level_s = level.decode("UTF-8")
@@ -277,7 +277,7 @@ cdef class _PyInferenceManager:
             z = _adouble_to_ad(ad_rets[i], self._model.dlist)
             qq.append(z)
             q += ad_rets[i]
-            logger.debug(("im(%r).q%d" % (self._im_id, i + 1), z, [z.d(x) for x in self._model.dlist]))
+            logger.debug("im(%r).q%d: %s", self._im_id, i + 1, util.format_ad(z))
         if separate:
             return qq
         r = adnumber(toDouble(q))

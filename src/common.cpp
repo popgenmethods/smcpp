@@ -32,18 +32,19 @@ void store_matrix(const Matrix<adouble> &M, double *out, double *outjac)
         }
 }
 
-void (*Logger::logger_cb)(const char*, const char*, const char*) = 0;
-void call_logger(const char* name, const char* level, const char* message)
+void (*Logger::logger_cb)(const std::string, const std::string, const std::string) = 0;
+void call_logger(const std::string name, const std::string level, const std::string message)
 {
     if (Logger::logger_cb)
         Logger::logger_cb(name, level, message);
 }
 
-Logger::Logger(const char* name, int line, const char* level) : name(name), line(line), level(level) {}
+Logger::Logger(const std::string name, int line, const std::string level) :
+    name(name), line(line), level(level), prefix(name + ":" + std::to_string(line)) {}
+
 Logger::~Logger()
 {
-    oss << name << ":" << line;
-    call_logger(oss.str().c_str(), level, stream.str().c_str());
+    call_logger(prefix.str(), level, stream.str());
 }
 
 void signal_bt(int sig)
@@ -52,7 +53,7 @@ void signal_bt(int sig)
     print_stacktrace();
 }
 
-void init_logger_cb(void(*fp)(const char*, const char*, const char*))
+void init_logger_cb(void(*fp)(const std::string, const std::string, const std::string))
 {
     Logger::logger_cb = fp;
     signal(SIGSEGV, signal_bt);

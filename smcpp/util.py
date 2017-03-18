@@ -7,8 +7,7 @@ import multiprocessing
 import os
 from itertools import zip_longest
 
-from . import logging, _smcpp
-
+from . import logging
 logger = logging.getLogger(__name__)
 
 def cumsum0(ary):
@@ -222,3 +221,12 @@ class RepeatingWriter:
         self._write_last_ob()
         self.f = None
         logger.info("Wrote %d observations" % self.i)
+
+def format_ad(ad_x):
+    'String representation of an autodiff number'
+    FMT = "%.1f"
+    if isinstance(ad_x, float):
+        return FMT % ad_x
+    dx = sorted([key for key in ad_x.d() if key.tag is not None], key=lambda x: x.tag)
+    deriv = [FMT % ad_x.d(y) for y in dx]
+    return (FMT + " [%s]") % (ad_x.x, ", ".join(deriv))

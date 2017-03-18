@@ -212,10 +212,10 @@ class BaseAnalysis:
                 fs.append(executor.submit(self._ims[na].Q))
             for x in futures.as_completed(fs):
                 qq += x.result()
-        qr = -self._penalty * self.model.regularizer()
-        logger.debug(("Q", float(qq), [qq.d(x) for x in self.model.dlist]))
-        logger.debug(("reg", float(qr), [qr.d(x) for x in self.model.dlist]))
-        return qq + qr
+        qr = self._L * self._penalty * self.model.regularizer()
+        logger.debug("Q:   %s", util.format_ad(qq))
+        logger.debug("reg: %s", util.format_ad(qr))
+        return qq - qr
 
     def E_step(self):
         'Perform E-step.'
