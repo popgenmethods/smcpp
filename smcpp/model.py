@@ -35,7 +35,9 @@ class BaseModel(Observable):
     @returns_ad
     def regularizer(self):
         # return self._spline.roughness()
-        return (np.diff(ad.admath.log(self.stepwise_values()), 2) ** 2).sum()
+        r1 = (np.diff(ad.admath.log(self.stepwise_values()), 2) ** 2).sum()
+        r2 = sum(self.stepwise_values())
+        return r1 + 1e-3 * r2
 
 
 # Dummy class used for JCSFS and a few other places

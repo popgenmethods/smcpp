@@ -83,7 +83,7 @@ class AbstractOptimizer(Observable):
             except AttributeError:
                 alg = self._algorithm
             options = {
-                    'xtol': self._xtol, 'ftol': self._ftol, 'factr': 1e-10, 'gtol': 1.
+                    'xtol': self._xtol, 'ftol': self._ftol, 'factr': 1e1, 'gtol': 10.
                     }
             res = scipy.optimize.minimize(self._f, np.zeros_like(x0),
                     jac=True,
@@ -112,7 +112,7 @@ class AbstractOptimizer(Observable):
                 for coords in coord_list:
                     self.update_observers('M step', coords=coords, **kwargs)
                     x0 = self._analysis.model[coords]
-                    bounds = np.transpose([x0 - 5., x0 + 5.])
+                    bounds = np.transpose([x0 - 2., x0 + 2.])
                     logger.debug("bounds: %s", bounds)
                     # bounds = self._bounds(coords)
                     res = self._minimize(x0, coords, bounds)

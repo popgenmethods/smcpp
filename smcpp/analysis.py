@@ -52,6 +52,8 @@ class BaseAnalysis:
         logger.info("Loading data...")
         self._files = estimation_tools.files_from_command_line_args(files)
         self._contigs = estimation_tools.load_data(self._files)
+        self._L = sum([d[:,0].sum() for d in self._data])
+        logger.info("%.2f Gb of data", self._L * 1e-9)
         pops = set(c.pid for c in self._contigs)
         unique_pops = list({x for p in pops for x in p})
         assert len(unique_pops) <= 2, (
@@ -319,8 +321,6 @@ class Analysis(BaseAnalysis):
 
     def _init_parameters(self, mu, r):
         ## Set theta and rho to their default parameters
-        self._L = sum([d[:,0].sum() for d in self._data])
-        logger.info("%.2f Gb of data", self._L * 1e-9)
         self._theta = 2. * self._N0 * mu
         logger.info("theta: %f", self._theta)
         if r is not None:
