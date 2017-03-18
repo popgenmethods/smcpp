@@ -8,7 +8,6 @@ source:
 requirements:
   build:
     - python >=3.5
-    - ccache 3.3.2
     - gcc 4.8.5
     - libgcc 4.8.5
     - gmp 6.1.0
