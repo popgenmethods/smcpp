@@ -17,7 +17,6 @@ requirements:
     - setuptools_scm >=1.15
     - git 2.9.3
   run:
-    - conda
     - nomkl
     - numpy >=1.10
     - python
