@@ -21,12 +21,12 @@ install:
   - conda info -a
   - conda install conda-build anaconda-client constructor git python=$CONDA_PY
   - conda build -c terhorst -c conda-forge -c bioconda conda --python=$CONDA_PY
-  - conda install --use-local -c terhorst -c bioconda -c conda-forge smcpp
+  - conda create -n smcpp_install --use-local -c terhorst -c bioconda -c conda-forge python=$CONDA_PY smcpp
+  - source activate smcpp_install
   - smc++ version
   - test/integration/test.sh `which smc++`
   - conda/template.py conda/construct.tpl $VERSION > conda/construct.yaml 
   - source deactivate
-  - export PATH=$OLDPATH  # so it uses the correct curl binary to upload ccache
 
 deploy:
   - provider: script
