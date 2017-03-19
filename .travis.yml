@@ -7,11 +7,11 @@ os:
 env:
   matrix:
     - CONDA_PY=3.5
-    - CONDA_PY=3.6
+    # - CONDA_PY=3.6
 
 install:
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then export OS=MacOSX; else export OS=Linux; fi
-  - wget https://repo.continuum.io/miniconda/Miniconda3-latest-$OS-x86_64.sh -O miniconda.sh
+  - wget https://repo.continuum.io/miniconda/Miniconda3-4.2.12-$OS-x86_64.sh -O miniconda.sh
   - bash miniconda.sh -b -p $HOME/miniconda
   - export OLDPATH=$PATH PATH="$HOME/miniconda/bin:$PATH" VERSION=$(git describe --tags) MACOSX_DEPLOYMENT_TARGET=10.9
   - hash -r
@@ -20,6 +20,8 @@ install:
   - conda info -a
   - conda install conda-build anaconda-client constructor git
   - conda build -c terhorst -c conda-forge -c bioconda conda --python=$CONDA_PY
+  - conda create -n py$CONDA_PY python=$CONDA_PY
+  - source activate py$CONDA_PY
   - conda install --use-local -c terhorst -c bioconda -c conda-forge smcpp
   - smc++ version
   - test/integration/test.sh `which smc++`
