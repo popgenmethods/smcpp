@@ -13,6 +13,7 @@ import os.path
 from ..logging import getLogger
 from ..analysis import Analysis
 from . import command
+import smcpp.defaults
 
 logger = getLogger(__name__)
 np.set_printoptions(linewidth=120, suppress=True)
@@ -30,7 +31,8 @@ class Estimate(command.EstimationCommand, command.ConsoleCommand):
         model.add_argument('--t1', type=float, default=1e2,
                            help="starting point of first piece, in generations")
         model.add_argument('--tK', type=float, help="end-point of last piece, in generations")
-        model.add_argument('--knots', type=int, default="7",
+        model.add_argument('--knots', type=int,
+                           default=smcpp.defaults.knots,
                            help="number of knots to use in internal representation")
         # model.add_argument('--exponential-pieces', type=int,
         # nargs="+", help="piece(s) which have exponential growth")

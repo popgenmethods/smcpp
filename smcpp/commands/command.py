@@ -5,7 +5,7 @@ import os.path
 import sys
 
 from .. import logging
-from ..config import DEFAULTS
+import smcpp.defaults
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +49,9 @@ def add_common_estimation_args(parser):
                       help="omit sequences < cutoff. default: 10000", default=10000, type=int)
     data.add_argument('--thinning', help="only emit full SFS every <k>th site. default: 500 * n.",
                       default=None, type=int, metavar="k")
-    data.add_argument('--filter', help=argparse.SUPPRESS, action="store_true", default=False)
+    data.add_argument('--filter',
+                      help=argparse.SUPPRESS,  # filter outlier contigs
+                      action="store_true", default=True)
 
     optimizer = parser.add_argument_group("Optimization parameters")
     optimizer.add_argument(
@@ -62,17 +64,17 @@ def add_common_estimation_args(parser):
     optimizer.add_argument('--blocks', type=int, 
                            help="number of coordinate ascent blocks. default: min(4, K)")
     optimizer.add_argument("--ftol", type=float,
-                           default=DEFAULTS['ftol'],
+                           default=smcpp.defaults.ftol,
                            help="stopping criterion for relative improvement in loglik "
                            "in EM algorithm. algorithm will terminate when "
                            "|loglik' - loglik| / loglik < ftol")
     optimizer.add_argument('--xtol', type=float,
-                           default=DEFAULTS['xtol'],
+                           default=smcpp.defaults.xtol,
                            help=r"x tolerance for optimizer. "
                            "optimizer will stop when |x' - x|_\infty < xtol")
     optimizer.add_argument('--regularization-penalty',
                            type=float, help="regularization penalty",
-                           default=DEFAULTS['regularization_penalty'])
+                           default=smcpp.defaults.regularization_penalty)
     optimizer.add_argument('--Nmin', type=float,
                            help="Lower bound on effective population size (in units of N0)",
                            default=.01)
@@ -81,7 +83,8 @@ def add_common_estimation_args(parser):
 def add_hmm_args(parser):
     hmm = parser.add_argument_group("HMM parameters")
     hmm.add_argument(
-        '--M', type=int, help="number of hidden states", default=32)
+        '--M', type=int, help="number of hidden states",
+        default=smcpp.defaults.M)
 
     polarization = parser.add_mutually_exclusive_group(required=False)
     polarization.add_argument("--unfold", action="store_true", default=False,

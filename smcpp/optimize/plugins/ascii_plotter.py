@@ -5,7 +5,7 @@ import tempfile
 
 from .optimizer_plugin import OptimizerPlugin, targets
 from smcpp.logging import getLogger
-import smcpp.config
+import smcpp.defaults
 
 logger = getLogger(__name__)
 
@@ -59,7 +59,7 @@ class AsciiPlotter(OptimizerPlugin):
             write("set ylabel \"N_e\"")
             xr = [model.distinguished_model.knots[i] * 
                     2 * model.distinguished_model.N0 
-                  for i in [0, -(len(smcpp.config.ADDITIONAL_KNOTS) + 1)]]
+                  for i in [0, -(len(smcpp.defaults.additional_knots) + 1)]]
             write("set xrange [%f:%f]" % tuple(xr))
             if log_y:
                 write("set logscale xy")

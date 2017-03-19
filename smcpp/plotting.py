@@ -6,7 +6,7 @@ import numpy as np
 from numpy import array
 import seaborn as sns
 
-import smcpp.config
+import smcpp.defaults
 from . import model
 
 def pretty_plot():
@@ -70,7 +70,7 @@ def plot_psfs(psfs, xlim, ylim, xlabel, logy=False):
                 ms = [mb]
                 labels = [mb.pid]
             for m, l in zip(ms, labels):
-                ak = len(smcpp.config.ADDITIONAL_KNOTS)
+                ak = len(smcpp.defaults.additional_knots)
                 x = np.cumsum(m.s)
                 y = m.stepwise_values().astype('float')
                 x = np.insert(x, 0, 0)

@@ -9,7 +9,7 @@ import os
 import concurrent.futures as futures
 
 from . import estimation_tools, _smcpp, util, logging, jcsfs, spline
-import smcpp.config
+import smcpp.defaults
 from .contig import Contig
 from .model import SMCModel, SMCTwoPopulationModel, PiecewiseModel
 from smcpp.optimize.optimizers import SMCPPOptimizer, TwoPopulationOptimizer
@@ -315,7 +315,7 @@ class Analysis(BaseAnalysis):
         args.t1 = args.t1 or 2 * self._model.distinguished_model.N0 * kts[1]
         args.tK = args.tK or (
             2 * self._model.distinguished_model.N0 *
-            kts[-(len(smcpp.config.ADDITIONAL_KNOTS) + 1)])
+            kts[-(len(smcpp.defaults.additional_knots) + 1)])
         self._init_model(args.pieces, self._N0, args.knots,
                          args.t1, args.tK, args.offset, args.spline)
 
@@ -342,7 +342,7 @@ class Analysis(BaseAnalysis):
             estimation_tools.construct_time_points(self.rescale(t1),
                                                    self.rescale(tK),
                                                    knot_spans, offset))
-        for x in smcpp.config.ADDITIONAL_KNOTS:
+        for x in smcpp.defaults.additional_knots:
             self._knots = np.append(self._knots, x * self._knots[-1])
 
     def _init_model(self, pieces, N0, num_knots, t1, tK, offset, spline_class):
@@ -442,7 +442,7 @@ class SplitAnalysis(BaseAnalysis):
         d = json.load(open(pop2, "rt"))
         m2 = _model_cls_d[d['model']['class']].from_dict(d['model'])
         assert d['theta'] == self._theta
-        self._max_split = m2._knots[-(len(smcpp.config.ADDITIONAL_KNOTS) + 1)]
+        self._max_split = m2._knots[-(len(smcpp.defaults.additional_knots) + 1)]
         self._model = SMCTwoPopulationModel(m1, m2, self._max_split * 0.5)
 
     def _init_hidden_states(self, M):
