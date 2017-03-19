@@ -16,7 +16,7 @@ install:
   - export OLDPATH=$PATH PATH="$HOME/miniconda/bin:$PATH" VERSION=$(git describe --tags) MACOSX_DEPLOYMENT_TARGET=10.9
   - hash -r
   - conda config --set always_yes yes --set changeps1 no
-  # - echo "conda 4.2.12" >> $HOME/miniconda/conda-meta/pinned
+  - echo "conda 4.2.12" >> $HOME/miniconda/conda-meta/pinned  # bugs in recent versions?
   - conda update -q conda
   - conda info -a
   - conda install conda-build anaconda-client constructor git python=$CONDA_PY
