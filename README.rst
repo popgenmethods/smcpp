@@ -451,7 +451,7 @@ individual is homozygous for the ancestral allele, while an integer
 indicates that that individual possesses ``(1,2)`` copies of the derived
 allele. An ``N`` indicates a missing genotype at that position. Finally,
 the ``+`` in column seven indicates that individual three possessed the
-dominant allele on one chromosome, and had a missing observation on the
+ancestral allele on one chromosome, and had a missing observation on the
 other chromosome (this would be coded as ``0/.`` in a VCF).
 
 The SMC++ format for this input file is::
@@ -462,7 +462,7 @@ The SMC++ format for this input file is::
     2   0   0   4
     1   -1  0   2
     1   0   0   3
-    2   0   0   0
+    2   0   0   4
     1   2   1   4
 
 
