@@ -354,9 +354,9 @@ Required arguments
 ^^^^^^^^^^^^^^^^^^
 - ``model``: A fitted SMC++ model, i.e. the ``model.final.json`` outputted
   by estimate_.
-- ``data``: An data set in SMC++ format, i.e. the output of vcf2smc_. 
 - ``output``: A file name to save the posterior decoding arrays, in the format
   shown above.
+- ``data``: One or more data sets in SMC++ format, i.e. the output of vcf2smc_. 
 
 Optional arguments
 ^^^^^^^^^^^^^^^^^^
