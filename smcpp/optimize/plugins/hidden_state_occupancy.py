@@ -2,6 +2,7 @@ import numpy as np
 
 from .optimizer_plugin import OptimizerPlugin, targets
 from smcpp.logging import getLogger
+import smcpp.estimation_tools
 
 logger = getLogger(__name__)
 
@@ -16,7 +17,7 @@ class HiddenStateOccupancyPrinter(OptimizerPlugin):
         perp = self.perplexity(hso) / len(hso)
         logger.debug("normalized perplexity: %f", perp)
         return
-        if perp < .85:
+        if kwargs['i'] == 0: # perp < .85:
             self.rebalance(analysis)
             hso = self.occupancy(analysis)
             logger.debug("new hidden state occupancy:\n%s",
@@ -36,7 +37,7 @@ class HiddenStateOccupancyPrinter(OptimizerPlugin):
         m = analysis.model.distinguished_model
         im = next(iter(analysis._ims.values()))
         M = len(im.hidden_states)
-        hs = estimation_tools.balance_hidden_states(
+        hs = smcpp.estimation_tools.balance_hidden_states(
                 analysis.model.distinguished_model, M)
         logger.debug("rebalanced hidden states: %s", str(hs))
         for im in analysis._ims.values():

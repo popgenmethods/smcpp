@@ -190,22 +190,13 @@ class BaseAnalysis:
             self._ims[key] = im
         self._model.randomize()
 
-    def _init_bounds(self, Nmin):
-        ## Construct bounds
-        # P(seg) is at most theta * 2 * N_max / H_n << 1
-        # For now, just base bounds off of population 1.
-        sample_size = 2 + max(sum(c.n) for c in self._contigs)
-        Hn = np.log(sample_size)
-        Nmax = 1 / (2 * self._theta * Hn) / 5.
-        logger.debug("Nmax calculated to be %g" % Nmax)
-        self._bounds = (Nmin, Nmax)
-
     @property
     def _data(self):
         return [c.data for c in self._contigs]
 
     def run(self):
         'Perform the analysis.'
+        # Initial pass to learn hidden states and get good initialization point
         self._optimizer.run(self._niter)
 
     def Q(self, k=None):
@@ -280,50 +271,60 @@ class Analysis(BaseAnalysis):
         # Perform initial filtering for weird contigs
         self._normalize_data(args.length_cutoff, args.filter)
 
-        # Thin the data
-        self._perform_thinning(args.thinning)
-
         # Initialize members
         self._init_parameters(args.mu, args.r)
-        self._init_bounds(args.Nmin)
 
-        # Try to get a rough estimate of model in order to pick good hidden states.
-        self._model = PiecewiseModel([1.], [1.], self._N0, pid=self._populations[0])
-        if not args.no_initialize and not args.prior_model:
-            logger.info("Initializing model...")
-            self._init_model("5*1", self._N0, 5, 1e3, 1e5, args.offset, args.spline)
-            self._hidden_states = {k: np.array([0., np.inf]) for k in self._populations}
-            self._init_inference_manager(args.polarization_error)
-            self._init_optimizer(args, None,
-                    7,  # set block-size to knots
-                    "TNC",  # TNC tends to overfit for initial pass
-                    args.xtol, args.ftol,
-                    learn_rho=False)
-            self._optimizer.run(1)
-        # First construct hidden states based on (uninformative) prior
-        elif args.prior_model is not None:
-            d = json.load(open(args.prior_model, "rt"))
-            self._model = _model_cls_d[d['model']['class']].from_dict(d['model'])
-        self._init_hidden_states(self._model, args.M)
+        # # Try to get a rough estimate of model in order to pick good hidden states.
+        # if not args.no_initialize and not args.prior_model:
+        #     logger.info("Initializing model...")
+        #     self._init_model(args.pieces, self._N0, args.knots, 1e3, 1e5, args.offset, args.spline)
+        #     self._hidden_states = {k: np.array([0., np.inf]) for k in self._populations}
+        #     self._init_inference_manager(args.polarization_error)
+        #     self._init_optimizer(args, None,
+        #             args.knots,  # set block-size to knots
+        #             "L-BFGS-B",  # TNC tends to overfit for initial pass
+        #             args.xtol,
+        #             args.ftol,
+        #             learn_rho=False)
+        #     self._optimizer.run(1)
+        # # First construct hidden states based on (uninformative) prior
+        # elif args.prior_model is not None:
+        #     d = json.load(open(args.prior_model, "rt"))
+        #     self._model = _model_cls_d[d['model']['class']].from_dict(d['model'])
+        # self._init_hidden_states(self._model, args.M)
 
-        # Set t1, tk based on percentiles of prior distribution if not
-        # specified
+        # Set t1, tk based on percentiles of prior distribution if not specified
+        self._init_model(args.pieces, self._N0, args.knots, 2e2, 1e5, args.offset, args.spline)
         kts = self.rescale(
-            estimation_tools.balance_hidden_states(
-                self._model.distinguished_model,
-                args.knots + 1))
+                estimation_tools.balance_hidden_states(
+                    self._model.distinguished_model, args.knots + 1))
         args.t1 = args.t1 or 2 * self._model.distinguished_model.N0 * kts[1]
-        args.tK = args.tK or (
-            2 * self._model.distinguished_model.N0 *
-            kts[-(len(smcpp.defaults.additional_knots) + 1)])
+        args.tK = args.tK or 2 * self._model.distinguished_model.N0 * kts[-2]
         self._init_model(args.pieces, self._N0, args.knots,
                          args.t1, args.tK, args.offset, args.spline)
 
         # Continue initializing
+        # These will be updated after first pass
+        self._hidden_states = {k: np.array([0., np.inf]) for k in self._populations}
+        self._init_inference_manager(args.polarization_error)
+        self._init_optimizer(args, None, args.blocks,
+                args.algorithm, args.xtol, args.ftol,
+                learn_rho=False)
+        self._optimizer.run(1)
+        hs = self.rescale(
+                estimation_tools.balance_hidden_states(self._model.distinguished_model,
+                                                       args.M))
+
+        # Thin the data
+        self._perform_thinning(args.thinning)
+
+        logger.debug("hidden states: %s", hs)
+        self._hidden_states = {k: hs for k in self._populations}
         self._init_inference_manager(args.polarization_error)
         self._init_optimizer(args, args.outdir, args.blocks,
                 args.algorithm, args.xtol, args.ftol,
                 learn_rho=args.r is None)
+
 
     def _init_parameters(self, mu, r):
         ## Set theta and rho to their default parameters
@@ -385,11 +386,6 @@ class Analysis(BaseAnalysis):
             self._optimizer.register(
                     parameter_optimizer.ParameterOptimizer("rho", tuple(rho_bounds)))
 
-    ## END OF PRIVATE FUNCTIONS
-    @property
-    def bounds(self):
-        return self._bounds
-
 
 class SplitAnalysis(BaseAnalysis):
     def __init__(self, files, args):
@@ -397,14 +393,6 @@ class SplitAnalysis(BaseAnalysis):
         assert self.npop == 2
         self._init_model(args.pop1, args.pop2)
         self._knots = self._model.distinguished_model._knots
-        self._init_bounds(.001)
-
-        # self._hidden_states = {k: np.array([0., np.inf]) for k in self._model.pids}
-        # self._init_inference_manager(args.polarization_error)
-        # self._init_optimizer(args, args.outdir, args.blocks,
-        #         'L-BFGS-B', args.xtol, args.ftol, True)
-        # # estimate split time.
-        # self._optimizer.run(1)
 
         # After inferring initial split time, thin
         self._perform_thinning(args.thinning)

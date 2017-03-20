@@ -50,7 +50,7 @@ def add_common_estimation_args(parser):
     data.add_argument('--thinning', help="only emit full SFS every <k>th site. default: 500 * n.",
                       default=None, type=int, metavar="k")
     data.add_argument('--filter',
-                      help=argparse.SUPPRESS,  # filter outlier contigs
+                      help="filter out contigs that are >3 s.d. away from avg. heterozygosity",
                       action="store_true", default=True)
 
     optimizer = parser.add_argument_group("Optimization parameters")
@@ -75,9 +75,6 @@ def add_common_estimation_args(parser):
     optimizer.add_argument('--regularization-penalty',
                            type=float, help="regularization penalty",
                            default=smcpp.defaults.regularization_penalty)
-    optimizer.add_argument('--Nmin', type=float,
-                           help="Lower bound on effective population size (in units of N0)",
-                           default=.01)
     add_hmm_args(parser)
 
 def add_hmm_args(parser):

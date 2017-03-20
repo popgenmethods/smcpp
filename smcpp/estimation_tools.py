@@ -93,11 +93,13 @@ def recode_nonseg(contigs, cutoff):
         if np.any(runs):
             if warn_only:
                 f = logger.warning
+                txt = ""
             else:
                 f = logger.debug
+                txt = " (converted to missing)"
                 d[runs, 1::3] = -1
                 d[runs, 3::3] = 0
-            f("Long runs of homozygosity in contig %s: \n%s", c.fn, d[runs])
+            f("Long runs of homozygosity%s in contig %s: \n%s", txt, c.fn, d[runs])
     return contigs
 
 
