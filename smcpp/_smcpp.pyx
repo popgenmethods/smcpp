@@ -191,7 +191,7 @@ cdef class _PyInferenceManager:
         def __get__(self):
             return self._im.hidden_states
         def __set__(self, hs):
-            if len(hs) != self(self.hs):
+            if len(hs) != len(self._im.hidden_states):
                 raise RuntimeError("hidden states must be same size")
             self._im.hidden_states = hs
 
