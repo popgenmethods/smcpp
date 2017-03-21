@@ -7,6 +7,6 @@ channels:
   - http://conda.anaconda.org/conda-forge
 specs:
   - smcpp
-  - conda
+  - conda 4.2.12
 post_install: post_install.sh
 license_file: ../LICENSE
