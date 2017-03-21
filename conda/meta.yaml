@@ -1,6 +1,6 @@
 package:
   name: smcpp
-  version: {{ GIT_DESCRIBE_TAG }}
+  version: {{ GIT_DESCRIBE_TAG.lstrip("v") }}
 
 source:
   git_url: ../
@@ -8,7 +8,6 @@ source:
 requirements:
   build:
     - python
-    - python {{PY_VER}}*
     - gcc >=4.8
     - gsl 2.2.1
     - mpc 1.0.3
@@ -21,7 +20,6 @@ requirements:
     - nomkl
     - numpy >=1.10
     - python
-    - python {{PY_VER}}*
     - libgcc >=4.8
     - gnuplot 4.6.0
     - gmp 6.1.0
