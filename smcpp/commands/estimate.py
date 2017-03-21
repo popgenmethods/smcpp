@@ -27,7 +27,7 @@ class Estimate(command.EstimationCommand, command.ConsoleCommand):
         '''Configure parser and parse args.'''
         model = parser.add_argument_group('Model parameters')
         model.add_argument('--pieces', type=str,
-                           help="span of model pieces", default="40*1")
+                           help="span of model pieces", default="60*1")
         model.add_argument('--t1', type=float, default=1e2,
                            help="starting point of first piece, in generations")
         model.add_argument('--tK', type=float, help="end-point of last piece, in generations")

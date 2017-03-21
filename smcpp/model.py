@@ -38,7 +38,8 @@ class BaseModel(Observable):
         y = ad.admath.log(self.stepwise_values())
         d1 = np.diff(y)[:-1]
         d2 = np.diff(y, 2)
-        r1 = (abs(d2) / ((1 + d1 ** 2) ** 1.5)).sum()
+        # r1 = (abs(d2) / ((1 + d1 ** 2) ** 1.5)).sum()
+        r1 = (d2 ** 2).sum()
         # r1 = (np.diff(ad.admath.log(self.stepwise_values()), 2) ** 2).sum()
         r2 = sum(self.stepwise_values())
         return r1 + 1e-6 * r2  # shrink raw values a tiny bit for numerical stability
