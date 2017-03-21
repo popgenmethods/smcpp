@@ -254,6 +254,7 @@ std::vector<Matrix<adouble> > HJTransition<adouble>::compute_expm_prods()
 }
 */
 
+/*
 template <typename T>
 HJTransition<T>::HJTransition(const PiecewiseConstantRateFunction<T> &eta, const double rho) : 
     Transition<T>(eta, rho) 
@@ -328,6 +329,7 @@ HJTransition<T>::HJTransition(const PiecewiseConstantRateFunction<T> &eta, const
     this->Phi = this->Phi.unaryExpr([small] (const T &x) { if (x < 1e-10) return small; return x; });
     CHECK_NAN(this->Phi);
 }
+*/
 
 template <typename T>
 Matrix<T> compute_transition(const PiecewiseConstantRateFunction<T> &eta, const double rho)
@@ -336,6 +338,58 @@ Matrix<T> compute_transition(const PiecewiseConstantRateFunction<T> &eta, const 
     Matrix<T> ret = HJTransition<T>(eta, rho).matrix();
     DEBUG1 << "done computing transition";
     return ret;
+}
+
+template <typename T>
+HJTransition<T>::HJTransition(const PiecewiseConstantRateFunction<T> &eta, const double rho) :
+    Transition<T>(eta, rho)
+{
+    const std::vector<double> ts = eta.getTs();
+    const std::vector<int> hs_indices = eta.getHsIndices();
+    const std::vector<T> Rrng = eta.getRrng();
+
+    std::vector<T> avg_coal_times = eta.average_coal_times();
+    std::vector<int> avc_ip;
+    for (T x : avg_coal_times)
+    {
+        int ip = std::distance(ts.begin(), std::upper_bound(ts.begin(), ts.end(), toDouble(x))) - 1;
+        avc_ip.push_back(ip);
+    }
+    const T one = eta.zero() + 1.;
+    this->Phi.fill(eta.zero());
+#pragma omp parallel for
+    for (int j = 1; j < this->M; ++j)
+    {
+        T p_recomb = -expm1(-rho * avg_coal_times[j - 1]);
+        double fac = 1. / (double)j;
+        for (int k0 = 1; k0 <= j; ++k0)
+        {
+            // Integrate over breakpoint origination
+            for (int k = k0; k < this->M; ++k)
+            {
+                if (k == j)
+                    continue;
+                double f = fac;
+                if (k < j)
+                    f *= .5; // beneath TMRCA, could re-coalesce onto same branch.
+                T Rk0 = Rrng[avc_ip[k0 - 1]];
+                T Rk1 = Rrng[hs_indices[k - 1]];
+                if (k == k0)
+                    Rk1 = Rk0;
+                T Rk = Rrng[hs_indices[k]];
+                T p_coal = exp(-(Rk1 - Rk0));
+                if (k < this->M - 1)
+                    p_coal *= -expm1(-(Rk - Rk1));
+                this->Phi(j - 1, k - 1) = p_coal * f * p_recomb;
+            }
+        }
+        T s = this->Phi.row(j - 1).sum();
+        this->Phi(j - 1, j - 1) = one - s;
+    }
+    T small = eta.zero() + 1e-10;
+    this->Phi = this->Phi.unaryExpr([small] (const T &x) { if (x < 1e-10) return small; return x; });
+    // std::cout << this->Phi.template cast<double>() << std::endl;
+    CHECK_NAN(this->Phi);
 }
 
 template Matrix<double> compute_transition(const PiecewiseConstantRateFunction<double> &eta, const double rho);
