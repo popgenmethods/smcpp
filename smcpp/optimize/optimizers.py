@@ -116,21 +116,6 @@ class AbstractOptimizer(Observable):
                     self.update_observers('post minimize',
                                           coords=coords,
                                           res=res, **kwargs)
-                    if os.environ.get("SMCPP_DEBUG"):
-                        y = input("Break? ")
-                        if y[0] == "y":
-                            im = list(self._analysis._ims.values())[0]
-                            gs = im.gamma_sums
-                            z = np.zeros_like(list(gs[0].values())[0])
-                            d = {}
-                            for g in gs:
-                                for k in g:
-                                    d.setdefault(k, z.copy())
-                                    d[k] += g[k]
-                            gs = d
-                            xis = np.sum(im.xisums, axis=0)
-                            import ipdb
-                            ipdb.set_trace()
                     self._analysis.model[coords] = res.x
                     self.update_observers('post mini M-step',
                                           coords=coords,
