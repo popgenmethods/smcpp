@@ -25,7 +25,7 @@ class HiddenStateOccupancyPrinter(OptimizerPlugin):
 
     def occupancy(self, analysis):
         hso = np.sum(
-                [np.sum(im.getXisums(), axis=(0, 1))
+                [np.sum(im.xisums, axis=(0, 1))
                     for im in analysis._ims.values()], axis=0)
         hso /= hso.sum()
         return hso

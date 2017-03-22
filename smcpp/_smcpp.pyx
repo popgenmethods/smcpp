@@ -241,9 +241,6 @@ cdef class _PyInferenceManager:
         def __get__(self):
             return _make_em_matrix(self._im.getGammas())
 
-    def getXisums(self):
-        return self.xisums
-
     property xisums:
         def __get__(self):
             return _make_em_matrix(self._im.getXisums())
