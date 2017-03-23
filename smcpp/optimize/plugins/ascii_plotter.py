@@ -41,7 +41,7 @@ class AsciiPlotter(OptimizerPlugin):
             data += "\n".join([",".join(map(str, row)) for row in zip(u, v)])
 
         graphs = ""
-        for log_y in [True, False]:
+        for log_y in [True]:
             # Fire up the plot process and let'er rip.
             gnuplot = subprocess.Popen([self._gnuplot_path],
                                        stdin=subprocess.PIPE,

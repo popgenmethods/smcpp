@@ -4,6 +4,7 @@ import numpy as np
 import scipy.optimize
 from abc import abstractmethod
 
+import smcpp.defaults
 from smcpp.observe import Observable
 from smcpp.logging import getLogger
 from smcpp.optimize.plugins.optimizer_plugin import OptimizerPlugin
@@ -110,7 +111,9 @@ class AbstractOptimizer(Observable):
                 for coords in coord_list:
                     self.update_observers('M step', coords=coords, **kwargs)
                     x0 = self._analysis.model[coords]
-                    self._bounds = bounds = np.transpose([x0 - 4., x0 + 4.])
+                    self._bounds = bounds = np.transpose(
+                        [np.maximum(x0 - 2., np.log(smcpp.defaults.minimum)),
+                         np.minimum(x0 + 2., np.log(smcpp.defaults.maximum))])
                     logger.debug("bounds: %s", bounds)
                     res = self._minimize(x0, coords, bounds)
                     self.update_observers('post minimize',
@@ -166,13 +169,13 @@ class SMCPPOptimizer(AbstractOptimizer):
         model = self._analysis.model
         ret = []
         K = model.K
+        r = list(range(K))
+        return [r]
         if self._blocks is None:
             self._blocks = min(4, K)
         if not 1 <= self._blocks <= K:
             logger.error("blocks must be between 1 and K")
             sys.exit(1)
-        r = list(range(K))
-        return [r]
         ret = [r[a:a+self._blocks] for a in range(K - self._blocks + 1)]
         if r not in ret:
             ret.append(r)

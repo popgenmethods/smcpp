@@ -13,7 +13,7 @@ def targets(target_messages, no_first=False):
         if message in target_messages:
             if no_first and kwargs['i'] == 0:
                 return
-            wrapped(instance, *args, **kwargs)
+            wrapped(*args, **kwargs)
     return wrapper
 
 

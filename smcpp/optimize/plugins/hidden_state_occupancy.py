@@ -7,21 +7,30 @@ import smcpp.estimation_tools
 logger = getLogger(__name__)
 
 class HiddenStateOccupancyPrinter(OptimizerPlugin):
+    def __init__(self, *args, **kwargs):
+        super(*args, **kwargs)
+        self._last_perp = None
 
-    @targets("post E-step")
+    @targets(["pre E-step", 'post E-step'])
     def update(self, message, *args, **kwargs):
         analysis = kwargs['analysis']
+        if kwargs['i'] == 0 and message == "pre E-step":
+            return
         hso = self.occupancy(analysis)
         logger.debug("hidden state occupancy:\n%s",
                      np.array_str(hso, precision=2))
         perp = self.perplexity(hso) / len(hso)
         logger.debug("normalized perplexity: %f", perp)
-        return
-        if kwargs['i'] == 0: # perp < .85:
+        if (message == "post E-step" and
+            perp < smcpp.defaults.perplexity_threshold):
+            self._last_perp = perp
             self.rebalance(analysis)
-            hso = self.occupancy(analysis)
-            logger.debug("new hidden state occupancy:\n%s",
-                         np.array_str(hso, precision=2))
+            analysis.E_step()
+        # if self._last_perp and perp < self._last_perp:
+        #     logger.debug("Perplexity decreased; rolling back")
+        #     for im in analysis._ims.values():
+        #         im.hidden_states = self._last_hs
+        #     analysis.E_step()
 
     def occupancy(self, analysis):
         hso = np.sum(
@@ -36,11 +45,13 @@ class HiddenStateOccupancyPrinter(OptimizerPlugin):
     def rebalance(self, analysis):
         m = analysis.model.distinguished_model
         im = next(iter(analysis._ims.values()))
-        M = len(im.hidden_states)
-        hs = smcpp.estimation_tools.balance_hidden_states(
+        self._last_hs = im.hidden_states.copy()
+        M = len(self._last_hs)
+        hs = analysis.rescale(
+                smcpp.estimation_tools.balance_hidden_states(
                 analysis.model.distinguished_model, M)
-        logger.debug("rebalanced hidden states: %s", str(hs))
+                )
+        logger.debug("rebalanced hidden states: %s", 
+                     np.array_str(hs, precision=2))
         for im in analysis._ims.values():
             im.hidden_states = hs
-        analysis.E_step()
-

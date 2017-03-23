@@ -5,6 +5,7 @@ import wrapt
 
 from . import spline, logging, util
 from .observe import Observable, Observer, targets
+import smcpp.defaults
 
 logger = logging.getLogger(__name__)
 
@@ -36,13 +37,10 @@ class BaseModel(Observable):
     def regularizer(self):
         # curvature
         y = ad.admath.log(self.stepwise_values())
-        d1 = np.diff(y)[:-1]
         d2 = np.diff(y, 2)
-        # r1 = (abs(d2) / ((1 + d1 ** 2) ** 1.5)).sum()
         r1 = (d2 ** 2).sum()
-        # r1 = (np.diff(ad.admath.log(self.stepwise_values()), 2) ** 2).sum()
         r2 = sum(self.stepwise_values())
-        return r1 + 1e-6 * r2  # shrink raw values a tiny bit for numerical stability
+        return r1 + 1e-2 * r2  # shrink raw values a tiny bit for numerical stability
 
 
 # Dummy class used for JCSFS and a few other places
@@ -76,6 +74,7 @@ class PiecewiseModel(BaseModel):
                 pass
         return tag_sort(ret)
 
+
 class OldStyleModel(PiecewiseModel):
     def __init__(self, a, b, s, N0):
         assert b[-1] == a[-1]
@@ -96,12 +95,18 @@ class OldStyleModel(PiecewiseModel):
 
 
 class SMCModel(BaseModel):
-    def __init__(self, s, knots, N0, spline_class=spline.CubicSpline, pid=None):
+    def __init__(self, knots, N0, spline_class=spline.CubicSpline, pid=None):
         super().__init__(N0, pid)
         self._spline_class = spline_class
-        self._s = np.array(s)
-        self._cumsum_s = np.cumsum(s)
         self._knots = np.array(knots)
+        self._s = np.r_[
+                self._knots[:1],
+                np.diff(
+                    np.logspace(np.log10(self._knots[0]),
+                                np.log10(self._knots[-1]),
+                                smcpp.defaults.pieces)
+                    )
+                ]
         self._trans = np.log
         # self._trans = lambda x: x
         self._spline = self._spline_class(self.transformed_knots)
@@ -154,7 +159,7 @@ class SMCModel(BaseModel):
         return ret
 
     def stepwise_values(self):
-        return self(np.cumsum(self._s))
+        return self(np.cumsum(self.s))
 
     def reset(self):
         self[:] = 0.
@@ -171,7 +176,6 @@ class SMCModel(BaseModel):
         d = {}
         d.update({
             'class': self.__class__.__name__,
-            's': list(self._s),
             'knots': list(self._knots),
             'N0': self.N0,
             'spline_class': self._spline_class.__name__,
@@ -184,7 +188,7 @@ class SMCModel(BaseModel):
     def from_dict(cls, d):
         assert cls.__name__ == d['class']
         spc = getattr(spline, d['spline_class'])
-        r = cls(d['s'], d['knots'], d['N0'], spc, d['pid'])
+        r = cls(d['knots'], d['N0'], spc, d['pid'])
         r[:] = d['y']
         return r
 

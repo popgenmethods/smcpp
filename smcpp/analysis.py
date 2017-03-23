@@ -277,7 +277,7 @@ class Analysis(BaseAnalysis):
         # # Try to get a rough estimate of model in order to pick good hidden states.
         # if not args.no_initialize and not args.prior_model:
         #     logger.info("Initializing model...")
-        #     self._init_model(args.pieces, self._N0, args.knots, 1e3, 1e5, args.offset, args.spline)
+        #     self._init_model(self._N0, args.knots, 1e3, 1e5, args.offset, args.spline)
         #     self._hidden_states = {k: np.array([0., np.inf]) for k in self._populations}
         #     self._init_inference_manager(args.polarization_error)
         #     self._init_optimizer(args, None,
@@ -294,14 +294,15 @@ class Analysis(BaseAnalysis):
         # self._init_hidden_states(self._model, args.M)
 
         # Set t1, tk based on percentiles of prior distribution if not specified
-        self._init_model(args.pieces, self._N0, args.knots, 2e2, 1e5, args.offset, args.spline)
+        self._init_knots(args.knots, 2e2, 1e5, args.offset)
+        self._init_model(self._N0, args.spline)
         kts = self.rescale(
                 estimation_tools.balance_hidden_states(
                     self._model.distinguished_model, args.knots + 1))
         args.t1 = args.t1 or 2 * self._model.distinguished_model.N0 * kts[1]
         args.tK = args.tK or 2 * self._model.distinguished_model.N0 * kts[-2]
-        self._init_model(args.pieces, self._N0, args.knots,
-                         args.t1, args.tK, args.offset, args.spline)
+        self._init_knots(args.knots, args.t1, args.tK, args.offset)
+        self._init_model(self._N0, args.spline)
 
         # Continue initializing
         # These will be updated after first pass
@@ -314,12 +315,14 @@ class Analysis(BaseAnalysis):
         hs = self.rescale(
                 estimation_tools.balance_hidden_states(self._model.distinguished_model,
                                                        args.M))
+        # hs = np.sort(np.r_[hs, self._knots])
 
         # Thin the data
         self._perform_thinning(args.thinning)
 
         logger.debug("hidden states: %s", hs)
         self._hidden_states = {k: hs for k in self._populations}
+        self._init_model(self._N0, args.spline)
         self._init_inference_manager(args.polarization_error)
         self._init_optimizer(args, args.outdir, args.blocks,
                 args.algorithm, args.xtol, args.ftol,
@@ -346,14 +349,8 @@ class Analysis(BaseAnalysis):
         for x in smcpp.defaults.additional_knots:
             self._knots = np.append(self._knots, x * self._knots[-1])
 
-    def _init_model(self, pieces, N0, num_knots, t1, tK, offset, spline_class):
+    def _init_model(self, N0, spline_class):
         ## Initialize model
-        self._init_knots(num_knots, t1, tK, offset)
-        pieces = estimation_tools.extract_pieces(pieces)
-        time_points = estimation_tools.construct_time_points(
-            self._knots[0], self._knots[-1], pieces, 0.)
-        logger.debug("time points in coalescent scaling:\n%s",
-                     str(time_points))
         logger.debug("knots in coalescent scaling:\n%s", str(self._knots))
         spline_class = {"cubic": spline.CubicSpline,
                         "bspline": spline.BSpline,
@@ -364,14 +361,14 @@ class Analysis(BaseAnalysis):
         y0 = np.log(y0)
         if self.npop == 1:
             self._model = SMCModel(
-                time_points, self._knots, self._N0,
+                self._knots, self._N0,
                 spline_class, self._populations[0])
             self._model[:] = y0
         else:
             split = self.rescale(.5 * tK)  # just pick the midpoint as a starting value.
             mods = []
             for pid in self._populations:
-                mods.append(SMCModel(time_points, self._knots, self._N0, spline_class, pid))
+                mods.append(SMCModel(self._knots, self._N0, spline_class, pid))
                 mods[-1][:] = y0
             self._model = SMCTwoPopulationModel(mods[0], mods[1], split)
 

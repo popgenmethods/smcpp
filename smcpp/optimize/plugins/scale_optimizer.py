@@ -7,13 +7,14 @@ from smcpp.logging import getLogger
 logger = getLogger(__name__)
 
 class ScaleOptimizer(OptimizerPlugin):
+    DISABLED = True
     def _f(self, alpha, x0, analysis):
         analysis.model[:] = x0 + alpha
         ret = float(analysis.Q())
         logger.debug("scale Q(%f)=%f", alpha, ret)
         return -ret
 
-    @targets("post M-step")
+    @targets("pre M-step")
     def update(self, message, *args, **kwargs):
         analysis = kwargs['analysis']
         x0 = analysis.model[:]
