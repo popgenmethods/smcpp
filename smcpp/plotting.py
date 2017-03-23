@@ -19,7 +19,7 @@ def pretty_plot():
     sns.despine(fig)
     return fig, ax
 
-def plot_psfs(psfs, xlim, ylim, xlabel, logy=False):
+def plot_psfs(psfs, xlim, ylim, xlabel, knots=False, logy=False):
     fig, ax = pretty_plot()
     xmax = ymax = 0.
     xmin = np.inf
@@ -76,7 +76,7 @@ def plot_psfs(psfs, xlim, ylim, xlabel, logy=False):
                 x = np.insert(x, 0, 0)
                 y = np.insert(y, 0, y[0])
                 series.append([l, x, y, my_axplot, off, m.N0, g])
-                if hasattr(m, '_knots'):
+                if knots and hasattr(m, '_knots'):
                     knots = m._knots[:-ak]
                     x2, y2 = (knots, np.exp(m[:-ak].astype('float')))
                     # if not logy:

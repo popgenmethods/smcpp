@@ -22,8 +22,9 @@ class Plot(command.Command, command.ConsoleCommand):
                                  "instead of spline itself.")
         parser.add_argument("--csv", "-c", action="store_true",
                             help="Also output <plot.csv> containing the plotted points")
-        parser.add_argument("--logy", action="store_true",
-                            help="ploy y on log axis")
+        parser.add_argument("--linear", action="store_true",
+                            help="plot y on linear axis")
+        parser.add_argument("--knots", "-k", action="store_true", help="also plot spline knots")
         parser.add_argument("-t", "--offsets", type=float, nargs="+",
                             help="list of offsets, one for each <model>, to shift x axes. "
                                  "Mainly useful for plotting aDNA")
@@ -76,7 +77,7 @@ class Plot(command.Command, command.ConsoleCommand):
         #     psfs.append((None, dmed, 0))
         fig, series = plotting.plot_psfs(psfs, xlim=args.xlim, ylim=args.ylim,
                                          xlabel="Generations" if args.g is None else "Years",
-                                         logy=args.logy)
+                                         knots=args.knots, logy=not args.linear)
         fig.savefig(args.out, bbox_inches='tight')
         if args.csv:
             with open(os.path.splitext(args.out)[0] + ".csv", "wt") as out:
