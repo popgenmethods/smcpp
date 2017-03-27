@@ -26,11 +26,12 @@ class Estimate(command.EstimationCommand, command.ConsoleCommand):
         command.EstimationCommand.__init__(self, parser)
         '''Configure parser and parse args.'''
         model = parser.add_argument_group('Model parameters')
-        model.add_argument('--t1', type=float, default=2e2,
+        model.add_argument('--t1', type=float, 
+                           default=smcpp.defaults.t1,
                            help="starting point of first piece, in generations")
         model.add_argument('--tK', type=float,
                            help="end-point of last piece, in generations",
-                           default=1e5)
+                           default=smcpp.defaults.tK)
         model.add_argument('--knots', type=int,
                            default=smcpp.defaults.knots,
                            help="number of knots to use in internal representation")

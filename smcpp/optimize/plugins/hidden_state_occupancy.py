@@ -26,11 +26,6 @@ class HiddenStateOccupancyPrinter(OptimizerPlugin):
             self._last_perp = perp
             self.rebalance(analysis)
             analysis.E_step()
-        # if self._last_perp and perp < self._last_perp:
-        #     logger.debug("Perplexity decreased; rolling back")
-        #     for im in analysis._ims.values():
-        #         im.hidden_states = self._last_hs
-        #     analysis.E_step()
 
     def occupancy(self, analysis):
         hso = np.sum(
@@ -46,11 +41,12 @@ class HiddenStateOccupancyPrinter(OptimizerPlugin):
         m = analysis.model.distinguished_model
         im = next(iter(analysis._ims.values()))
         self._last_hs = im.hidden_states.copy()
-        M = len(self._last_hs)
+        M = len(self._last_hs) - len(m._knots)
         hs = analysis.rescale(
                 smcpp.estimation_tools.balance_hidden_states(
                 analysis.model.distinguished_model, M)
                 )
+        hs = np.sort(np.r_[hs, m.knots])
         logger.debug("rebalanced hidden states: %s", 
                      np.array_str(hs, precision=2))
         for im in analysis._ims.values():

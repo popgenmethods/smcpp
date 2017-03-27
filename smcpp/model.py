@@ -1,6 +1,7 @@
 from textwrap import dedent
 import numpy as np
 import ad.admath
+import os
 import wrapt
 
 from . import spline, logging, util
@@ -37,10 +38,12 @@ class BaseModel(Observable):
     def regularizer(self):
         # curvature
         y = ad.admath.log(self.stepwise_values())
+        d1 = np.diff(y, 1)
         d2 = np.diff(y, 2)
         r1 = (d2 ** 2).sum()
-        r2 = sum(self.stepwise_values())
-        return r1 + 1e-2 * r2  # shrink raw values a tiny bit for numerical stability
+        r2 = abs(d2).sum()
+        r3 = sum(self.stepwise_values())
+        return r1 + r2 + 1e-6 * r3  # shrink raw values a tiny bit for numerical stability
 
 
 # Dummy class used for JCSFS and a few other places

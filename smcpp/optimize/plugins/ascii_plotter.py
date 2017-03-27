@@ -51,8 +51,8 @@ class AsciiPlotter(OptimizerPlugin):
                 gnuplot.stdin.write(x.encode())
 
             columns, lines = np.maximum(shutil.get_terminal_size(), [80, 25])
-            width = columns * 3 // 5
-            height = 25
+            width = columns - 2
+            height = lines * 4 // 5
             write("set term dumb {} {}".format(width, height))
             write("set datafile separator \",\"")
             write("set xlabel \"Generations\"")

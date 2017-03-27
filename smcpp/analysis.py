@@ -199,7 +199,7 @@ class BaseAnalysis:
         # Initial pass to learn hidden states and get good initialization point
         self._optimizer.run(self._niter)
 
-    def Q(self, k=None):
+    def Q(self):
         'Value of Q() function in M-step.'
         qq = 0.
         with thread_pool() as executor:
@@ -209,9 +209,10 @@ class BaseAnalysis:
             for x in futures.as_completed(fs):
                 qq += x.result()
         qr = self._L * self._penalty * self.model.regularizer()
-        logger.debug("Q:   %s", util.format_ad(qq))
+        ret = qq - qr
         logger.debug("reg: %s", util.format_ad(qr))
-        return qq - qr
+        logger.debug("Q:   %s", util.format_ad(ret))
+        return ret
 
     def E_step(self):
         'Perform E-step.'
@@ -315,14 +316,16 @@ class Analysis(BaseAnalysis):
         hs = self.rescale(
                 estimation_tools.balance_hidden_states(self._model.distinguished_model,
                                                        args.M))
-        # hs = np.sort(np.r_[hs, self._knots])
+        hs = np.sort(np.r_[hs, self._knots])
 
         # Thin the data
         self._perform_thinning(args.thinning)
 
         logger.debug("hidden states: %s", hs)
         self._hidden_states = {k: hs for k in self._populations}
+        x = self.model[:]
         self._init_model(self._N0, args.spline)
+        self.model[:] = x
         self._init_inference_manager(args.polarization_error)
         self._init_optimizer(args, args.outdir, args.blocks,
                 args.algorithm, args.xtol, args.ftol,

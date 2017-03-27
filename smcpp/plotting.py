@@ -48,7 +48,7 @@ def plot_psfs(psfs, xlim, ylim, xlabel, knots=False, logy=False):
             x = []
             y = []
             for aa, bb, ss in zip(b[:-1], slope[:-1], s[:-1]):
-                tt = np.linspace(cum, cum + ss, 100)
+                tt = np.linspace(cum, cum + ss, 200)
                 yy = aa * np.exp(bb * (cum + ss - tt))
                 x = np.concatenate([x, tt])
                 y = np.concatenate([y, yy])

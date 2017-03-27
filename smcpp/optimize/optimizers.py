@@ -14,20 +14,6 @@ from .exceptions import *
 logger = getLogger(__name__)
 
 
-def _sigmoid(x, bounds):
-    b, B = np.array(bounds).T
-    s = []
-    for xx in x:
-        if xx > 0:
-            z = ad.admath.exp(-xx)
-            s.append(1 / (1 + z))
-        else:
-            z = ad.admath.exp(xx)
-            s.append(z / (1 + z))
-    s = np.array(s)
-    return (B - b) * s + b
-
-
 class AbstractOptimizer(Observable):
     '''
     Abstract representation of the execution flow of the optimizer.
@@ -50,12 +36,27 @@ class AbstractOptimizer(Observable):
     def _prepare_x(self, x):
         return [ad.adnumber(xx, tag=i) for i, xx in enumerate(x)]
 
-    def _f(self, x, analysis, coords, bounds, k=None):
-        x = self._prepare_x(x)
-        xs = _sigmoid(x, bounds)
+    def _sigmoid(self, x):
+        x = [xx / ss for xx, ss in zip(x, self._scale)]
+        b, B = np.array(self._bounds).T
+        s = []
+        for xx in x:
+            if xx > 0:
+                z = ad.admath.exp(-xx)
+                s.append(1 / (1 + z))
+            else:
+                z = ad.admath.exp(xx)
+                s.append(z / (1 + z))
+        s = np.array(s)
+        return (B - b) * s + b
+
+
+    def _f(self, x, analysis, coords):
+        x = self._prepare_x(x)  # do not change this line
+        xs = self._sigmoid(x)
         logger.debug("x: " + ", ".join(["%.1f" % float(xx) for xx in xs]))
         analysis.model[coords] = xs
-        q = analysis.Q(k)
+        q = analysis.Q()
         # autodiff doesn't like multiplying and dividing inf
         if np.isinf(q.x):
             return [np.inf, np.zeros(len(x))]
@@ -63,37 +64,45 @@ class AbstractOptimizer(Observable):
         ret = [q.x, np.array(list(map(q.d, x)))]
         return ret
 
-    def _minimize(self, x0, coords, bounds):
-        self._xk = self._delta = None
-        if os.environ.get("SMCPP_GRADIENT_CHECK"):
-            print("\n\ngradient check")
-            y, dy = self._f(x0, self._analysis, coords)
-            for i in range(len(x0)):
-                x0[i] += 1e-8
-                y1, _ = self._f(x0, self._analysis, coords)
-                print("***grad", i, y1, (y1 - y) * 1e8, dy[i])
-                x0[i] -= 1e-8
+    def _minimize(self, x0, coords):
+        self._xk = self._k = self._delta = None
         try:
             try:  # Adam/AdaMax
                 alg = getattr(smcpp.optimize.algorithms, self._algorithm)
             except AttributeError:
                 alg = self._algorithm
             options = {
-                    'xtol': self._xtol, 'ftol': self._ftol, 'factr': 10, 'gtol': 1.
+                    'xtol': self._xtol, 'ftol': 1e-1 * self._ftol, 'gtol': 1., 'm': 100,
                     }
-            res = scipy.optimize.minimize(self._f, np.zeros_like(x0),
+            x0p = np.zeros_like(x0)
+            # preconditioner
+            # f(x) = f(D^-1 Dx) = g(Dx) for g(x) = f(D^-1 x)
+            # grad g(Dx) = D g(Dx) = 
+            self._scale = np.ones_like(coords)
+            f, dq = self._f(x0p, self._analysis, coords)
+            self._scale = np.abs(dq) / 10.
+            logger.debug("scale: %s", self._scale.round(1))
+            if os.environ.get("SMCPP_GRADIENT_CHECK"):
+                print("\n\ngradient check")
+                y, dy = self._f(x0, self._analysis, coords)
+                for i in range(len(x0)):
+                    x0[i] += 1e-8
+                    y1, _ = self._f(x0, self._analysis, coords)
+                    print("***grad", i, y1, (y1 - y) * 1e8, dy[i])
+                    x0[i] -= 1e-8
+            res = scipy.optimize.minimize(self._f, x0,
                     jac=True,
-                    args=(self._analysis, coords, bounds),
+                    args=(self._analysis, coords),
                     options=options,
                     callback=self._callback,
                     method=alg)
-            res.x = _sigmoid(res.x, bounds)
+            res.x = self._sigmoid(res.x)
             return res
-        except ConvergedException:
-            logger.debug("Converged: |xk - xk_1| < %g", self._xtol)
+        except ConvergedException as ce:
+            logger.debug("Converged: %s", str(ce))
             return scipy.optimize.OptimizeResult(
-                {'x': _sigmoid(self._xk, bounds),
-                 'fun': self._f(self._xk, self._analysis, coords, bounds)[0]}
+                {'x': self._sigmoid(self._xk),
+                 'fun': self._f(self._xk, self._analysis, coords)[0]}
                 )
 
     def run(self, niter):
@@ -111,11 +120,11 @@ class AbstractOptimizer(Observable):
                 for coords in coord_list:
                     self.update_observers('M step', coords=coords, **kwargs)
                     x0 = self._analysis.model[coords]
-                    self._bounds = bounds = np.transpose(
-                        [np.maximum(x0 - 2., np.log(smcpp.defaults.minimum)),
-                         np.minimum(x0 + 2., np.log(smcpp.defaults.maximum))])
-                    logger.debug("bounds: %s", bounds)
-                    res = self._minimize(x0, coords, bounds)
+                    self._bounds = np.transpose(
+                        [np.maximum(x0 - 1., np.log(smcpp.defaults.minimum)),
+                         np.minimum(x0 + 1., np.log(smcpp.defaults.maximum))])
+                    logger.debug("bounds: %s", self._bounds)
+                    res = self._minimize(x0, coords)
                     self.update_observers('post minimize',
                                           coords=coords,
                                           res=res, **kwargs)
@@ -130,19 +139,23 @@ class AbstractOptimizer(Observable):
         self.update_observers('optimization finished')
 
     def _callback(self, xk):
+        if self._k is None:
+            self._k = 1
+        if self._k > 10:
+            raise ConvergedException("Max_iter > %d" % 10)
         if self._xk is None:
             self._xk = xk
             return
-        xk0 = _sigmoid(self._xk, self._bounds)
+        xk0 = self._sigmoid(self._xk)
         self._xk = xk
-        xk = _sigmoid(xk, self._bounds)
+        xk = self._sigmoid(xk)
         if self._delta is None:
             self._delta = max(abs(xk - xk0))
             return
         self._delta = .2 * self._delta + .8 * max(abs(xk - xk0))
         logger.debug("delta: %f", self._delta)
         if self._delta < self._xtol:
-            raise ConvergedException()
+            raise ConvergedException("delta=%f < xtol=%f" % (self._delta, self._xtol))
 
     def update_observers(self, *args, **kwargs):
         kwargs.update({
@@ -170,13 +183,17 @@ class SMCPPOptimizer(AbstractOptimizer):
         ret = []
         K = model.K
         r = list(range(K))
-        return [r]
+        ret = [r]
+        return ret
+        self._blocks = max(1, K // 3)
+        ret += [r[a:a+self._blocks] for a in range(K - self._blocks + 1)]
+        return ret
+        # return [r]
         if self._blocks is None:
             self._blocks = min(4, K)
         if not 1 <= self._blocks <= K:
             logger.error("blocks must be between 1 and K")
             sys.exit(1)
-        ret = [r[a:a+self._blocks] for a in range(K - self._blocks + 1)]
         if r not in ret:
             ret.append(r)
         ret = ret[::-1]

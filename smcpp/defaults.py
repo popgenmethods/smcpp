@@ -1,10 +1,12 @@
 additional_knots = [2]
 regularization_penalty = 1e-6
-xtol = .05
-ftol = 1e-3
+xtol = .1
+ftol = 1e-4
+pieces = 50
 knots = 10
 M = 32
-pieces = 50
 minimum = 1e-2
 maximum = 1e3
+t1 = 100
+tK = 100000
 perplexity_threshold = .7
