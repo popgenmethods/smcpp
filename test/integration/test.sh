@@ -24,7 +24,7 @@ $SMC posterior -v \
     /tmp/out/split/model.final.json \
     /tmp/matrix.npz \
     /tmp/example.12.smc.gz
-$SMC plot -c -g 29 --logy /tmp/1.png /tmp/out/1/model.final.json
+$SMC plot -c -g 29 /tmp/1.png /tmp/out/1/model.final.json
 $SMC plot /tmp/2.pdf /tmp/out/2/model.final.json
-$SMC plot -c --logy /tmp/12.png /tmp/out/split/model.final.json
-$SMC plot -c --logy /tmp/all.pdf /tmp/out/*/model.final.json
+$SMC plot -c /tmp/12.png /tmp/out/split/model.final.json
+$SMC plot -c /tmp/all.pdf /tmp/out/*/model.final.json
