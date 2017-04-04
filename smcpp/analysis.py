@@ -155,14 +155,6 @@ class BaseAnalysis:
                 ci += 1
         self._contigs = new_contigs
 
-    def _init_hidden_states(self, model, M):
-        ## choose hidden states based on prior model
-        dm = model.distinguished_model
-        k = dm.pid
-        hs = self.rescale(estimation_tools.balance_hidden_states(dm, M))
-        self._hidden_states = {k: hs}
-        logger.debug("%d hidden states:\n%s" % (len(hs), str(hs)))
-
     def _init_inference_manager(self, polarization_error):
         ## Create inference object which will be used for all further calculations.
         logger.debug("Creating inference manager...")
@@ -370,14 +362,13 @@ class SplitAnalysis(BaseAnalysis):
         BaseAnalysis.__init__(self, files, args)
         assert self.npop == 2
         self._init_model(args.pop1, args.pop2)
-        self._knots = self._model.distinguished_model._knots
-
+        self._hidden_states = {k: np.r_[[0], self.model.distinguished_model._knots, [np.inf]]
+                                  for k in self._populations}
         # After inferring initial split time, thin
         self._perform_thinning(args.thinning)
         self._normalize_data(args.length_cutoff, args.filter)
         # Further initialization
         # keep separate hidden states for each distinguished type
-        self._init_hidden_states(args.M)
         self._init_inference_manager(args.polarization_error)
         self._init_optimizer(args, args.outdir, args.blocks,
                              args.algorithm, args.xtol, args.ftol, True)
@@ -410,10 +401,3 @@ class SplitAnalysis(BaseAnalysis):
         assert d['theta'] == self._theta
         self._max_split = m2._knots[-(len(smcpp.defaults.additional_knots) + 1)]
         self._model = SMCTwoPopulationModel(m1, m2, self._max_split * 0.5)
-
-    def _init_hidden_states(self, M):
-        hs = {}
-        for m in self._model.model1, self._model.model2:
-            super()._init_hidden_states(m, M)
-            hs.update(self._hidden_states)
-        self._hidden_states = hs
