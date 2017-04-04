@@ -2,6 +2,7 @@ import ad
 import os
 import numpy as np
 import scipy.optimize
+import itertools
 from abc import abstractmethod
 
 import smcpp.defaults
@@ -72,17 +73,18 @@ class AbstractOptimizer(Observable):
             except AttributeError:
                 alg = self._algorithm
             options = {
-                    'xtol': self._xtol, 'ftol': 1e-1 * self._ftol, 'gtol': 1., 'm': 100,
+                    'xtol': self._xtol, 'ftol': self._ftol, 'gtol': 1., 'm': 100,
                     }
-            x0p = np.zeros_like(x0)
+            x0z = np.zeros_like(x0)
             # preconditioner
             # f(x) = f(D^-1 Dx) = g(Dx) for g(x) = f(D^-1 x)
             # grad g(Dx) = D g(Dx) = 
             self._scale = np.ones_like(coords)
-            f, dq = self._f(x0p, self._analysis, coords)
-            self._scale = np.abs(dq) / 10.
-            logger.debug("scale: %s", self._scale.round(1))
+            # f, dq = self._f(x0z, self._analysis, coords)
+            # self._scale = (1 + np.abs(dq)) / 10.
+            # logger.debug("scale: %s", self._scale.round(1))
             if os.environ.get("SMCPP_GRADIENT_CHECK"):
+                # TODO move to plugin
                 print("\n\ngradient check")
                 y, dy = self._f(x0, self._analysis, coords)
                 for i in range(len(x0)):
@@ -90,13 +92,24 @@ class AbstractOptimizer(Observable):
                     y1, _ = self._f(x0, self._analysis, coords)
                     print("***grad", i, y1, (y1 - y) * 1e8, dy[i])
                     x0[i] -= 1e-8
-            res = scipy.optimize.minimize(self._f, x0,
-                    jac=True,
-                    args=(self._analysis, coords),
-                    options=options,
-                    callback=self._callback,
-                    method=alg)
-            res.x = self._sigmoid(res.x)
+            if len(coords) > 1:
+                res = scipy.optimize.minimize(self._f, x0z,
+                        jac=True,
+                        args=(self._analysis, coords),
+                        options=options,
+                        callback=self._callback,
+                        bounds=[[-3, 3]] * len(coords),
+                        method=alg)
+                res.x = self._sigmoid(res.x)
+            else:
+                def _f_scalar(x, *args, **kwargs):
+                    return self._f(np.array([x]), *args, **kwargs)[0]
+                res = scipy.optimize.minimize_scalar(_f_scalar,
+                        bounds=[-5, 5],
+                        options={'xatol': .01},
+                        args=(self._analysis, coords),
+                        method="bounded")
+                res.x = self._sigmoid(np.array([res.x]))
             return res
         except ConvergedException as ce:
             logger.debug("Converged: %s", str(ce))
@@ -121,8 +134,8 @@ class AbstractOptimizer(Observable):
                     self.update_observers('M step', coords=coords, **kwargs)
                     x0 = self._analysis.model[coords]
                     self._bounds = np.transpose(
-                        [np.maximum(x0 - 1., np.log(smcpp.defaults.minimum)),
-                         np.minimum(x0 + 1., np.log(smcpp.defaults.maximum))])
+                        [np.maximum(x0 - 2., np.log(smcpp.defaults.minimum)),
+                         np.minimum(x0 + 2., np.log(smcpp.defaults.maximum))])
                     logger.debug("bounds: %s", self._bounds)
                     res = self._minimize(x0, coords)
                     self.update_observers('post minimize',
@@ -139,6 +152,7 @@ class AbstractOptimizer(Observable):
         self.update_observers('optimization finished')
 
     def _callback(self, xk):
+        return
         if self._k is None:
             self._k = 1
         if self._k > 10:
@@ -180,25 +194,9 @@ class SMCPPOptimizer(AbstractOptimizer):
 
     def _coordinates(self):
         model = self._analysis.model
-        ret = []
-        K = model.K
-        r = list(range(K))
-        ret = [r]
-        return ret
-        self._blocks = max(1, K // 3)
-        ret += [r[a:a+self._blocks] for a in range(K - self._blocks + 1)]
-        return ret
+        K = model.K - 1
         # return [r]
-        if self._blocks is None:
-            self._blocks = min(4, K)
-        if not 1 <= self._blocks <= K:
-            logger.error("blocks must be between 1 and K")
-            sys.exit(1)
-        if r not in ret:
-            ret.append(r)
-        ret = ret[::-1]
-        logger.debug("block schedule: %s", str(ret))
-        return ret
+        return [[k] for k in range(K)][::-1] + [list(range(K // 3))]
 
 class TwoPopulationOptimizer(SMCPPOptimizer):
     'Model fitting for two populations.'

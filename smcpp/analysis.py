@@ -28,7 +28,7 @@ class BaseAnalysis:
     def __init__(self, files, args):
         # Misc. parameter initialiations
         self._N0 = .5e-4 / args.mu  # .0001 = args.mu * 2 * N0
-        self._penalty = args.regularization_penalty
+        self._penalty = 0.
         self._niter = args.em_iterations
         args.solver_args = {}
         if args.unfold:
@@ -102,11 +102,11 @@ class BaseAnalysis:
 
     def _perform_thinning(self, thinning):
         # thin each dataset
-        ns = np.array([sum(c.n) for c in self._contigs])
+        ns = self._ns = np.array([sum(c.n) for c in self._contigs])
         if isinstance(thinning, int):
             thinning = np.array([thinning] * len(self._contigs))
         if thinning is None:
-            thinning = 500 * ns
+            thinning = (1000 * np.log(2 + ns)).astype("int")   # 500  * ns
         if np.any(thinning > 1):
             logger.info("Thinning...")
             new_data = estimation_tools.thin_dataset(self._data, thinning)
@@ -208,7 +208,7 @@ class BaseAnalysis:
                 fs.append(executor.submit(self._ims[na].Q))
             for x in futures.as_completed(fs):
                 qq += x.result()
-        qr = self._L * self._penalty * self.model.regularizer()
+        qr = self._penalty * self.model.regularizer()
         ret = qq - qr
         logger.debug("reg: %s", util.format_ad(qr))
         logger.debug("Q:   %s", util.format_ad(ret))
@@ -275,34 +275,17 @@ class Analysis(BaseAnalysis):
         # Initialize members
         self._init_parameters(args.mu, args.r)
 
-        # # Try to get a rough estimate of model in order to pick good hidden states.
-        # if not args.no_initialize and not args.prior_model:
-        #     logger.info("Initializing model...")
-        #     self._init_model(self._N0, args.knots, 1e3, 1e5, args.offset, args.spline)
-        #     self._hidden_states = {k: np.array([0., np.inf]) for k in self._populations}
-        #     self._init_inference_manager(args.polarization_error)
-        #     self._init_optimizer(args, None,
-        #             args.knots,  # set block-size to knots
-        #             "L-BFGS-B",  # TNC tends to overfit for initial pass
-        #             args.xtol,
-        #             args.ftol,
-        #             learn_rho=False)
-        #     self._optimizer.run(1)
-        # # First construct hidden states based on (uninformative) prior
-        # elif args.prior_model is not None:
-        #     d = json.load(open(args.prior_model, "rt"))
-        #     self._model = _model_cls_d[d['model']['class']].from_dict(d['model'])
-        # self._init_hidden_states(self._model, args.M)
+        # Thin the data
+        self._perform_thinning(args.thinning)
 
-        # Set t1, tk based on percentiles of prior distribution if not specified
-        self._init_knots(args.knots, 2e2, 1e5, args.offset)
-        self._init_model(self._N0, args.spline)
-        kts = self.rescale(
-                estimation_tools.balance_hidden_states(
-                    self._model.distinguished_model, args.knots + 1))
-        args.t1 = args.t1 or 2 * self._model.distinguished_model.N0 * kts[1]
-        args.tK = args.tK or 2 * self._model.distinguished_model.N0 * kts[-2]
+        # Set t1, tK
+        n = min(200, max(self._ns.max(), 2))
+        args.t1 = args.t1 or np.exp(np.log(1000) * (200 - n) / 200 + np.log(100) * (n / 200))
+        logger.debug("setting t1=%f", args.t1)
         self._init_knots(args.knots, args.t1, args.tK, args.offset)
+        for x in smcpp.defaults.additional_knots:
+            self._knots = np.append(self._knots, x * self._knots[-1])
+        hs = np.r_[[0.], self._knots, [np.inf]]
         self._init_model(self._N0, args.spline)
 
         # Continue initializing
@@ -312,14 +295,9 @@ class Analysis(BaseAnalysis):
         self._init_optimizer(args, None, args.blocks,
                 args.algorithm, args.xtol, args.ftol,
                 learn_rho=False)
-        self._optimizer.run(1)
-        hs = self.rescale(
-                estimation_tools.balance_hidden_states(self._model.distinguished_model,
-                                                       args.M))
-        hs = np.sort(np.r_[hs, self._knots])
-
-        # Thin the data
-        self._perform_thinning(args.thinning)
+        self.E_step()
+        self._penalty = abs(self.Q()) * (10 ** -args.regularization_penalty)
+        logger.debug("Auto-assigning regularization penalty lambda=%g", self._penalty)
 
         logger.debug("hidden states: %s", hs)
         self._hidden_states = {k: hs for k in self._populations}
@@ -359,7 +337,7 @@ class Analysis(BaseAnalysis):
                         "bspline": spline.BSpline,
                         "akima": spline.AkimaSpline,
                         "pchip": spline.PChipSpline}[spline_class]
-        y0 = self._het / (2. * self._theta)
+        self._y0 = y0 = self._het / (2. * self._theta)
         logger.debug("Long term avg. effective population size: %f", y0)
         y0 = np.log(y0)
         if self.npop == 1:

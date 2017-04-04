@@ -35,15 +35,14 @@ class BaseModel(Observable):
         return self._pid
 
     @returns_ad
-    def regularizer(self):
+    def regularizer(self, y0=0):
         # curvature
-        y = ad.admath.log(self.stepwise_values())
-        d1 = np.diff(y, 1)
-        d2 = np.diff(y, 2)
-        r1 = (d2 ** 2).sum()
-        r2 = abs(d2).sum()
-        r3 = sum(self.stepwise_values())
-        return r1 + r2 + 1e-6 * r3  # shrink raw values a tiny bit for numerical stability
+        a = self.stepwise_values()
+        y = ad.admath.log(a)
+        cs = np.cumsum(self.s)[1:-1]
+        d1 = np.diff(y, 2) * np.exp(-cs)
+        r1 = abs(d1 ** 2).sum() ** .5
+        return r1
 
 
 # Dummy class used for JCSFS and a few other places

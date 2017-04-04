@@ -60,7 +60,7 @@ def add_common_estimation_args(parser):
                            help="number of EM steps to perform", default=20)
     optimizer.add_argument('--algorithm',
                            choices=["BFGS", "L-BFGS-B", "TNC", "AdaMax", "Adam"],
-                           default="BFGS", help=argparse.SUPPRESS)
+                           default="L-BFGS-B", help=argparse.SUPPRESS)
     optimizer.add_argument('--blocks', type=int, 
                            help="number of coordinate ascent blocks. default: min(4, K)")
     optimizer.add_argument("--ftol", type=float,
