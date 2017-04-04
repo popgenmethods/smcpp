@@ -33,12 +33,18 @@ class AbstractOptimizer(Observable):
         'Return a list of groups of coordinates to be optimized at iteration i.'
         return []
 
+    def __getitem__(self, coords):
+        return self._analysis.model[coords]
+
+    def __setitem__(self, coords, x):
+        self._analysis.model[coords] = x
+
     # In the one population case, this method adds derivative information to x
     def _prepare_x(self, x):
         return [ad.adnumber(xx, tag=i) for i, xx in enumerate(x)]
 
     def _sigmoid(self, x):
-        x = [xx / ss for xx, ss in zip(x, self._scale)]
+        # x = [xx / ss for xx, ss in zip(x, self._scale)]
         b, B = np.array(self._bounds).T
         s = []
         for xx in x:
@@ -56,7 +62,7 @@ class AbstractOptimizer(Observable):
         x = self._prepare_x(x)  # do not change this line
         xs = self._sigmoid(x)
         logger.debug("x: " + ", ".join(["%.1f" % float(xx) for xx in xs]))
-        analysis.model[coords] = xs
+        self[coords] = xs
         q = analysis.Q()
         # autodiff doesn't like multiplying and dividing inf
         if np.isinf(q.x):
@@ -77,9 +83,7 @@ class AbstractOptimizer(Observable):
                     }
             x0z = np.zeros_like(x0)
             # preconditioner
-            # f(x) = f(D^-1 Dx) = g(Dx) for g(x) = f(D^-1 x)
-            # grad g(Dx) = D g(Dx) = 
-            self._scale = np.ones_like(coords)
+            # self._scale = 1.
             # f, dq = self._f(x0z, self._analysis, coords)
             # self._scale = (1 + np.abs(dq)) / 10.
             # logger.debug("scale: %s", self._scale.round(1))
@@ -92,13 +96,14 @@ class AbstractOptimizer(Observable):
                     y1, _ = self._f(x0, self._analysis, coords)
                     print("***grad", i, y1, (y1 - y) * 1e8, dy[i])
                     x0[i] -= 1e-8
-            if len(coords) > 1:
+            y = self[coords]
+            if len(y) > 1:
                 res = scipy.optimize.minimize(self._f, x0z,
                         jac=True,
                         args=(self._analysis, coords),
                         options=options,
                         callback=self._callback,
-                        bounds=[[-3, 3]] * len(coords),
+                        bounds=[[-3, 3]] * len(y),
                         method=alg)
                 res.x = self._sigmoid(res.x)
             else:
@@ -132,7 +137,7 @@ class AbstractOptimizer(Observable):
                 coord_list = self._coordinates()
                 for coords in coord_list:
                     self.update_observers('M step', coords=coords, **kwargs)
-                    x0 = self._analysis.model[coords]
+                    x0 = self[coords]
                     self._bounds = np.transpose(
                         [np.maximum(x0 - 2., np.log(smcpp.defaults.minimum)),
                          np.minimum(x0 + 2., np.log(smcpp.defaults.maximum))])
@@ -141,7 +146,7 @@ class AbstractOptimizer(Observable):
                     self.update_observers('post minimize',
                                           coords=coords,
                                           res=res, **kwargs)
-                    self._analysis.model[coords] = res.x
+                    self[coords] = res.x
                     self.update_observers('post mini M-step',
                                           coords=coords,
                                           res=res, **kwargs)
@@ -195,7 +200,6 @@ class SMCPPOptimizer(AbstractOptimizer):
     def _coordinates(self):
         model = self._analysis.model
         K = model.K - 1
-        # return [r]
         return [[k] for k in range(K)][::-1] + [list(range(K // 3))]
 
 class TwoPopulationOptimizer(SMCPPOptimizer):
@@ -203,11 +207,12 @@ class TwoPopulationOptimizer(SMCPPOptimizer):
 
     def _coordinates(self):
         coords = super()._coordinates()
-        coords2 = []
         si = self._analysis.model.split_ind
-        for c in coords:
+        ret = []
+        for c in super()._coordinates():
+            ret.append([0, c])
             c = np.array(c)
             c = c[c < si]
             if c.size:
-                coords2.append(c)
-        return [(0, coords), (1, coords2)]
+                ret.append([1, c])
+        return ret
