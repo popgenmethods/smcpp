@@ -16,6 +16,7 @@ def setup_logging(verbosity):
     sh = root.handlers[0]
     sh.setLevel([INFO, DEBUG, DEBUG - 1][verbosity])
     getLogger(__name__).debug("SMC++ v%s", version)
+    logging.captureWarnings(True)
 
 def add_debug_log(debug_log):
     fh = logging.FileHandler(debug_log, "wt")
