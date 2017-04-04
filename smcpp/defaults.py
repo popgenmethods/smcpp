@@ -6,6 +6,7 @@ pieces = 100
 knots = 32
 minimum = 1e-4
 maximum = 1e4
+M = 40
 t1 = None
 tK = 100000
 perplexity_threshold = .5
