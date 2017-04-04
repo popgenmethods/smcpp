@@ -78,11 +78,6 @@ def add_common_estimation_args(parser):
     add_hmm_args(parser)
 
 def add_hmm_args(parser):
-    hmm = parser.add_argument_group("HMM parameters")
-    hmm.add_argument(
-        '--M', type=int, help="number of hidden states",
-        default=smcpp.defaults.M)
-
     polarization = parser.add_mutually_exclusive_group(required=False)
     polarization.add_argument("--unfold", action="store_true", default=False,
                               help="use unfolded SFS (alias for -p 0.0)")
