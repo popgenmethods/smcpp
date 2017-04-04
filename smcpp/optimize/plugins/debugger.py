@@ -3,11 +3,11 @@ import numpy as np
 
 from .optimizer_plugin import OptimizerPlugin, targets
 from smcpp.logging import getLogger
-import ipdb
 
 logger = getLogger(__name__)
 
 class Debugger(OptimizerPlugin):
+    DISABLED = True
     @targets("post minimize")
     def update(self, message, *args, **kwargs):
         if os.environ.get("SMCPP_DEBUG"):
@@ -23,4 +23,5 @@ class Debugger(OptimizerPlugin):
                         d[k] += g[k]
                 gs = d
                 xis = np.sum(im.xisums, axis=0)
+                import ipdb
                 ipdb.set_trace()
