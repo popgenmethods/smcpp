@@ -5,6 +5,7 @@ from smcpp.logging import getLogger
 logger = getLogger(__name__)
 
 class XtolMonitor(OptimizerPlugin):
+    DISABLED = True
     @targets(['pre M-step', 'post M-step'], on_first=False)
     def update(self, message, *args, **kwargs):
         if message == "pre M-step":
