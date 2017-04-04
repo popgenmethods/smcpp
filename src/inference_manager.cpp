@@ -355,7 +355,7 @@ NPopInferenceManager<P>::construct_bins(const double polarization_error)
     {
         block_key bk = *it;
         block_key_prob_map m, m2;
-        const std::set<block_key> bins = bin_key<P>::run(bk, na, 0.1);
+        const std::set<block_key> bins = bin_key<P>::run(bk, na, 1.0);
         for (const block_key &k : bins)
         {
             const std::map<block_key, double> probs =
