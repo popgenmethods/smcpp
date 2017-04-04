@@ -1,8 +1,9 @@
 import matplotlib
+import matplotlib.style
+matplotlib.style.use('seaborn-ticks')
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib.image import NonUniformImage
-import seaborn as sns
 import numpy as np
 import scipy.optimize
 import scipy.ndimage

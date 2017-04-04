@@ -47,7 +47,6 @@ setup(name='smcpp',
         setup_requires=['cython>=0.25', 'setuptools_scm'],
         use_scm_version={'write_to': "smcpp/version.py"},
         install_requires=[
-            "seaborn",
             "tqdm",
             "setuptools_scm",
             "appdirs",

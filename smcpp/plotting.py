@@ -1,10 +1,11 @@
 from __future__ import absolute_import, division, print_function
 import json
-import matplotlib, matplotlib.cm
+import matplotlib, matplotlib.style
 matplotlib.use('Agg')
+matplotlib.style.use('seaborn-ticks')
 import numpy as np
 from numpy import array
-import seaborn as sns
+from collections import defaultdict
 
 import smcpp.defaults
 from . import model
@@ -12,17 +13,15 @@ from . import model
 def pretty_plot():
     from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
     from matplotlib.figure import Figure
-    sns.set(style="ticks")
     fig = Figure()
     FigureCanvas(fig)
     ax = fig.add_subplot(111)
-    sns.despine(fig)
     return fig, ax
 
 def plot_psfs(psfs, xlim, ylim, xlabel, knots=False, logy=False):
     fig, ax = pretty_plot()
     xmax = ymax = 0.
-    xmin = np.inf
+    xmin = ymin = np.inf
     labels = []
     series = []
     data = [["label", "x", "y", "plot_type", "plot_num"]]
@@ -30,8 +29,12 @@ def plot_psfs(psfs, xlim, ylim, xlabel, knots=False, logy=False):
         def g(x, y, label, data=data, **kwargs):
             data += [(label, xx, yy, ty, saver.plot_num) for xx, yy in zip(x, y)]
             saver.plot_num += 1
-            return f(x, y, label=label, **kwargs)
+            if label not in g.seen:
+                g.seen.append(label)
+                kwargs['label'] = label
+            return f(x, y, **kwargs)
         g.i = 0
+        g.seen = []
         return g
     saver.plot_num = 0
     my_axplot = saver(ax.plot, "path")
@@ -94,15 +97,19 @@ def plot_psfs(psfs, xlim, ylim, xlabel, knots=False, logy=False):
             y = d['a']
             series.append((None, x, y, my_axstep, off, N0, g))
     labels = []
+    COLORS = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd',
+              '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
+    label_colors = defaultdict(lambda: COLORS[len(label_colors) % len(COLORS)])
     for label, x, y, plotfun, off, N0, g in series:
         xp = 2 * N0 * g * x + off
         yp = N0 * y
         if label is None:
             plotfun(xp, yp, linewidth=2, label=label, color="black")
         else:
-            labels += plotfun(xp, yp, label=label, linewidth=2)
+            labels += plotfun(xp, yp, label=label, linewidth=2, color=label_colors[label])
         if len(xp) > 2:
             xmin = min(xmin, xp[1] * 0.9)
+        ymin = min(ymin, np.min(yp))
         ymax = max(ymax, np.max(yp))
         xmax = max(xmax, np.max(xp))
     if labels:
@@ -115,8 +122,8 @@ def plot_psfs(psfs, xlim, ylim, xlabel, knots=False, logy=False):
     if not xlim:
         xlim = (xmin, xmax)
     if not ylim:
-        ylim = (0.0, 1.1 * ymax)
-    print("xlim:", xlim)
+        ylim = (.9 * ymin, 1.1 * ymax)
     ax.set_xlim(*xlim)
+    ax.set_ylim(*ylim)
     fig.tight_layout()
     return fig, data
