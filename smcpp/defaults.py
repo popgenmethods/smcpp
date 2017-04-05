@@ -1,5 +1,5 @@
 additional_knots = [2]
-regularization_penalty = 7
+regularization_penalty = 9
 xtol = .1
 ftol = 1e-4
 pieces = 100
