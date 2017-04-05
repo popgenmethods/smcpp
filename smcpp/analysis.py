@@ -368,7 +368,7 @@ class SplitAnalysis(BaseAnalysis):
                                   for k in self._populations}
         # After inferring initial split time, thin
         self._perform_thinning(args.thinning)
-        self._normalize_data(args.length_cutoff, args.filter)
+        self._normalize_data(args.length_cutoff, not args.no_filter)
         # Further initialization
         # keep separate hidden states for each distinguished type
         self._init_inference_manager(args.polarization_error)
