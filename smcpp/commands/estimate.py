@@ -35,17 +35,13 @@ class Estimate(command.EstimationCommand, command.ConsoleCommand):
         model.add_argument('--knots', type=int,
                            default=smcpp.defaults.knots,
                            help="number of knots to use in internal representation")
-        # model.add_argument('--exponential-pieces', type=int,
-        # nargs="+", help="piece(s) which have exponential growth")
-        model.add_argument(
-            "--prior-model", help="prior on model, i.e. result of previous SMC++ run")
         model.add_argument('--offset', type=float, default=0.,
                            help="offset (in coalescent units) to use "
                                 "when calculating time points")
         model.add_argument('--spline',
-                           choices=["cubic", "akima", "pchip"],
-                           default="cubic", help="type of spline representation to use in model")
-
+                           choices=["cubic", "pchip"],
+                           default=smcpp.defaults.spline,
+                           help="type of spline representation to use in model")
         pop_params = parser.add_argument_group('Population-genetic parameters')
         pop_params.add_argument('mu', type=float,
                                 help="mutation rate per base pair per generation")
