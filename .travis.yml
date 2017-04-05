@@ -7,7 +7,7 @@ os:
 env:
   matrix:
     - CONDA_PY=3.5
-    - CONDA_PY=3.6
+    # - CONDA_PY=3.6
 
 install:
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then export OS=MacOSX; else export OS=Linux; fi
