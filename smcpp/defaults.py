@@ -10,3 +10,4 @@ M = 40
 t1 = None
 tK = 100000
 perplexity_threshold = .5
+regularization_degree = 2

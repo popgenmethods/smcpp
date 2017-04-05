@@ -35,13 +35,14 @@ class BaseModel(Observable):
         return self._pid
 
     @returns_ad
-    def regularizer(self, y0=0):
+    def regularizer(self):
         # curvature
         a = self.stepwise_values()
         y = ad.admath.log(a)
-        cs = np.cumsum(self.s)[1:-1]
-        d1 = np.diff(y, 2) * np.exp(-cs)
-        r1 = abs(d1 ** 2).sum() ** .5
+        rd = smcpp.defaults.regularization_degree
+        cs = np.cumsum(self.s)[:-rd]
+        d1 = np.diff(y, rd) * np.exp(-cs)
+        r1 = abs(d1 ** rd).sum() ** (1. / rd)
         return r1
 
 

@@ -75,6 +75,9 @@ def add_common_estimation_args(parser):
     optimizer.add_argument('--regularization-penalty',
                            type=float, help="regularization penalty",
                            default=smcpp.defaults.regularization_penalty)
+    optimizer.add_argument('--regularization-degree', "-rd",
+                           type=int, help="regularization degree",
+                           default=smcpp.defaults.regularization_degree)
     add_hmm_args(parser)
 
 def add_hmm_args(parser):

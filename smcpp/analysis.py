@@ -38,6 +38,8 @@ class BaseAnalysis:
                            "coded.")
         if args.polarization_error > 0.:
             logger.debug("Polarization error p=%f", args.polarization_error)
+        smcpp.defaults.regularization_degree = args.regularization_degree
+        logger.debug("regularization degree=%d", smcpp.defaults.regularization_degree)
         # Data-related stuff
         self._load_data(files)
         self._validate_data()
