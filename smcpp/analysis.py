@@ -27,6 +27,7 @@ class BaseAnalysis:
     "Base class for analysis of population genetic data."
     def __init__(self, files, args):
         # Misc. parameter initialiations
+        self._args = args
         self._N0 = .5e-4 / args.mu  # .0001 = args.mu * 2 * N0
         self._penalty = 0.
         self._niter = args.em_iterations
@@ -44,6 +45,21 @@ class BaseAnalysis:
         self._load_data(files)
         self._validate_data()
         self._recode_nonseg(args.nonseg_cutoff)
+
+    def _init_penalty(self):
+        # Continue initializing
+        # These will be updated after first pass
+        self._hidden_states = {k: np.array([0., np.inf]) for k in self._populations}
+        self._init_inference_manager(self._args.polarization_error)
+        self._init_optimizer(None, self._args.algorithm, self._args.xtol, self._args.ftol)
+        self.E_step()
+        self._penalty = abs(self.Q()) * (10 ** -self._args.regularization_penalty)
+        logger.debug("Auto-assigning regularization penalty lambda=%g", self._penalty)
+
+    def _init_optimizer(self, outdir, algorithm, xtol, ftol):
+        self._optimizer = self._OPTIMIZER_CLS(self, algorithm, xtol, ftol)
+        if outdir:
+            self._optimizer.register(analysis_saver.AnalysisSaver(outdir))
 
     def rescale(self, x):
         return x / (2. * self._N0)
@@ -282,16 +298,8 @@ class Analysis(BaseAnalysis):
         hs = np.r_[[0.], self._knots, [np.inf]]
         self._init_model(self._N0, args.spline)
 
-        # Continue initializing
-        # These will be updated after first pass
-        self._hidden_states = {k: np.array([0., np.inf]) for k in self._populations}
-        self._init_inference_manager(args.polarization_error)
-        self._init_optimizer(args, None, args.blocks,
-                args.algorithm, args.xtol, args.ftol,
-                learn_rho=False)
-        self.E_step()
-        self._penalty = abs(self.Q()) * (10 ** -args.regularization_penalty)
-        logger.debug("Auto-assigning regularization penalty lambda=%g", self._penalty)
+        # Auto-assign regularization penalty using a heuristic
+        self._init_penalty()
 
         logger.debug("hidden states: %s", hs)
         self._hidden_states = {k: hs for k in self._populations}
@@ -299,7 +307,7 @@ class Analysis(BaseAnalysis):
         self._init_model(self._N0, args.spline)
         self.model[:] = x
         self._init_inference_manager(args.polarization_error)
-        self._init_optimizer(args, args.outdir, args.blocks,
+        self._init_optimizer(args.outdir,
                 args.algorithm, args.xtol, args.ftol,
                 learn_rho=args.r is None)
 
@@ -347,12 +355,10 @@ class Analysis(BaseAnalysis):
                 mods[-1][:] = y0
             self._model = SMCTwoPopulationModel(mods[0], mods[1], split)
 
-    def _init_optimizer(self, args, outdir, blocks,
-                        algorithm, xtol, ftol, learn_rho):
-        self._optimizer = SMCPPOptimizer(
-            self, algorithm, xtol, ftol, blocks, args.solver_args)
-        if outdir:
-            self._optimizer.register(analysis_saver.AnalysisSaver(outdir))
+    _OPTIMIZER_CLS = SMCPPOptimizer
+
+    def _init_optimizer(self, outdir, algorithm, xtol, ftol, learn_rho=False):
+        super()._init_optimizer(outdir, algorithm, xtol, ftol)
         if learn_rho:
             rho_bounds = 2. * self._N0 * np.array([1e-10, 1e-5])
             self._optimizer.register(
@@ -370,10 +376,9 @@ class SplitAnalysis(BaseAnalysis):
         self._perform_thinning(args.thinning)
         self._normalize_data(args.length_cutoff, not args.no_filter)
         # Further initialization
-        # keep separate hidden states for each distinguished type
+        self._init_penalty()
         self._init_inference_manager(args.polarization_error)
-        self._init_optimizer(args, args.outdir, args.blocks,
-                             args.algorithm, args.xtol, args.ftol, True)
+        self._init_optimizer(args.outdir, args.algorithm, args.xtol, args.ftol)
 
     def _validate_data(self):
         BaseAnalysis._validate_data(self)
@@ -382,16 +387,13 @@ class SplitAnalysis(BaseAnalysis):
                          "information. Split estimation is impossible.")
             sys.exit(1)
 
-    def _init_optimizer(self, args, outdir, blocks, algorithm,
-                        xtol, ftol, save=True):
-        self._optimizer = TwoPopulationOptimizer(
-            self, algorithm, xtol, ftol, blocks, args.solver_args)
-        self._optimizer.register(
-            parameter_optimizer.ParameterOptimizer("split",
+    _OPTIMIZER_CLS = TwoPopulationOptimizer
+
+    def _init_optimizer(self, outdir, algorithm, xtol, ftol):
+        super()._init_optimizer(outdir, algorithm, xtol, ftol)
+        self._optimizer.register(parameter_optimizer.ParameterOptimizer("split",
                                                    (0., self._max_split),
                                                    "model"))
-        if save:
-            self._optimizer.register(analysis_saver.AnalysisSaver(outdir))
 
     def _init_model(self, pop1, pop2):
         d = json.load(open(pop1, "rt"))

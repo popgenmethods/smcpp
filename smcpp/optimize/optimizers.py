@@ -19,14 +19,12 @@ class AbstractOptimizer(Observable):
     '''
     Abstract representation of the execution flow of the optimizer.
     '''
-    def __init__(self, analysis, algorithm, xtol, ftol, blocks, solver_args={}):
+    def __init__(self, analysis, algorithm, xtol, ftol):
         Observable.__init__(self)
         self._analysis = analysis
         self._algorithm = algorithm
         self._ftol = ftol
         self._xtol = xtol
-        self._blocks = blocks
-        self._solver_args = solver_args
 
     @abstractmethod
     def _coordinates(self, i):
@@ -187,8 +185,8 @@ class AbstractOptimizer(Observable):
 class SMCPPOptimizer(AbstractOptimizer):
     'Model fitting for one population.'
 
-    def __init__(self, analysis, algorithm, xtol, ftol, blocks, solver_args):
-        AbstractOptimizer.__init__(self, analysis, algorithm, xtol, ftol, blocks, solver_args)
+    def __init__(self, analysis, algorithm, xtol, ftol):
+        AbstractOptimizer.__init__(self, analysis, algorithm, xtol, ftol)
         for cls in OptimizerPlugin.__subclasses__():
             try:
                 if not cls.DISABLED:
