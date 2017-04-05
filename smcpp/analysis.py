@@ -264,7 +264,7 @@ class Analysis(BaseAnalysis):
             sys.exit(1)
 
         # Perform initial filtering for weird contigs
-        self._normalize_data(args.length_cutoff, args.filter)
+        self._normalize_data(args.length_cutoff, not args.no_filter)
 
         # Initialize members
         self._init_parameters(args.mu, args.r)

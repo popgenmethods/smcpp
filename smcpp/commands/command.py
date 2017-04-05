@@ -49,10 +49,10 @@ def add_common_estimation_args(parser):
                       help="omit sequences < cutoff. default: 10000", default=10000, type=int)
     data.add_argument('--thinning', help="only emit full SFS every <k>th site. default: 500 * n.",
                       default=None, type=int, metavar="k")
-    data.add_argument('--filter',
-                      help="filter out contigs that are >3 s.d. away from avg. heterozygosity",
-                      action="store_true", default=True)
-
+    data.add_argument('--no-filter',
+                      help="do not filter out contigs that are >3 s.d. "
+                           "from mean heterozygosity",
+                      action="store_true", default=False)
     optimizer = parser.add_argument_group("Optimization parameters")
     optimizer.add_argument(
         "--no-initialize", action="store_true", default=False, help=argparse.SUPPRESS)
