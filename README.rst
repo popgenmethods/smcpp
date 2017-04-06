@@ -391,13 +391,31 @@ hundred individuals. For other types of data, *you will likely need to
 experiment with different values of these parameters in order to obtain
 good estimates*.
 
+- ``--thinning``: This parameter controls the frequency with which the full
+  CSFS is emitted (see paper for details). Decreasing the value of this parameter will cause the likelihood
+  to depend more strongly on frequency spectrum information in the undistinguished
+  portion of the sample, potentially leading to more accurate results in the recent
+  past. However, decreasing it too much can lead to degeneracy in the likelihood since
+  correlations in the undistinguished portion of the ancestral recombination graph are
+  ignored. The default value for a sample size ``n`` is ``1000 * log(n)`` 
+  (note that this is different than in versions 1.7.0 and earlier). Empirically,
+  this has worked well for sample sizes on the order of ``20 <= n <= 200`` but you
+  may need to experiment a bit.
+
+- ``--t1``, ``--tK``: These specify the starting and ending points (in generations) for the
+  size history; outside of these intervals, the size history is assumed to be constant with
+  value equal to that of the corresponding end point. SMC++ uses a heuristic based on sample 
+  to set ``t1``; larger samples are needed to obtain accurate inferences in the recent past. You
+  may override ``t1``, but setting it too small could lead to instability.
+
 - ``--regularization-penalty``: This parameter penalizes curvature in
   the estimated size history. The default value of this parameter is
-  ``1.0``. Higher values of the penalty shrink the estimated
+  ``9.0``. Lower values of the penalty shrink the estimated
   size history towards a line. If your estimates exhibit too much
-  oscillation, try increasing the value of this parameter.
+  oscillation, try decreasing the value of this parameter. (Note that this
+  behavior is different than in versions 1.7.0 and earlier.)
 
-- ``--tolerance``: This parameter specifies a threshold for stopping the
+- ``--ftol``: This parameter specifies a threshold for stopping the
   EM algorithm when the relative improvement in log-likelihood becomes
   small. The default value is ``1e-4``. If the tolerance is ``epsilon``
   and ``x'``/``x`` are the new and old estimates, the algorithm will
@@ -407,7 +425,7 @@ good estimates*.
 
 - ``--knots``: This parameter specifies the number of spline knots 
   used in the underlying representation of the size history. The default
-  value is ``10``. Using fewer knots can lead to smoother fits, however
+  value is ``32``. Using fewer knots can lead to smoother fits, however
   underspecifying this parameter may smooth out interesting features of
   the size history.
 
