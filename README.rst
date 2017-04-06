@@ -315,10 +315,11 @@ population marginally using ``estimate``::
     $ smc++ estimate -o pop1/ <mu> data/pop1.smc.gz
     $ smc++ estimate -o pop2/ <mu> data/pop2.smc.gz
 
-Next, create a dataset containing the joint frequency spectrum for both
+Next, create datasets containing the joint frequency spectrum for both
 populations::
 
     $ smc++ vcf2smc my.vcf.gz data/pop12.smc.gz <contig> pop1:ind1_1,ind1_2 pop2:ind2_1,ind2_2
+    $ smc++ vcf2smc my.vcf.gz data/pop21.smc.gz <contig> pop2:ind2_1,ind2_2 pop1:ind1_1,ind1_2
 
 Finally, run ``split`` to refine the marginal estimates into an estimate
 of the joint demography::
