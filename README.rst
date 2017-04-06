@@ -334,7 +334,8 @@ distinguished pair from the given data set.
 
 The output file is the result of::
 
-    >>> numpy.savez(output, posterior=gamma, hidden_states=hs, sites=sites)
+    >>> numpy.savez(output, hidden_states=hs, 
+                    **{'file1'=gamma1, 'file1_sites'=sites1, ...})
 
 where:
 
@@ -342,13 +343,15 @@ where:
   to discretize the hidden TMRCA of the distinguished pair. The
   breakpoints are chosen such that the probability of coalescence 
   within each interval is uniform with respect to the fitted model.
-- ``sites`` is the vector of length ``L`` containing positions where the
-  decoding is performed. Due to the internal archtecture of SMC++,
+- ``sites1`` is the vector of length ``L`` containing positions where the
+  decoding is performed for data set ``file1``. Due to the internal archtecture of SMC++,
   there is one entry per row in the data set.
-- ``gamma`` is an array of dimension ``M x L`` whose entry 
-  ``gamma[m, ell]`` gives the average posterior probability of coalescence in interval
+- ``gamma1`` is an array of dimension ``M x L`` whose entry 
+  ``gamma1[m, ell]`` gives the average posterior probability of coalescence in interval
   ``[hs[m], hs[m + 1])`` for each site in the interval 
-  ``{sites[ell], ..., sites[ell + 1] - 1}``.
+  ``{sites1[ell], ..., sites1[ell + 1] - 1}``.
+ 
+There will be a ``gamma``/``sites`` entry for each data set decoded.
 
 Required arguments
 ^^^^^^^^^^^^^^^^^^
