@@ -370,13 +370,13 @@ class SplitAnalysis(BaseAnalysis):
         BaseAnalysis.__init__(self, files, args)
         assert self.npop == 2
         self._init_model(args.pop1, args.pop2)
+        self._init_penalty()
         self._hidden_states = {k: np.r_[[0], self.model.distinguished_model._knots, [np.inf]]
                                   for k in self._populations}
         # After inferring initial split time, thin
         self._perform_thinning(args.thinning)
         self._normalize_data(args.length_cutoff, not args.no_filter)
         # Further initialization
-        self._init_penalty()
         self._init_inference_manager(args.polarization_error)
         self._init_optimizer(args.outdir, args.algorithm, args.xtol, args.ftol)
 

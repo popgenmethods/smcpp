@@ -72,10 +72,10 @@ def add_common_estimation_args(parser):
                            default=smcpp.defaults.xtol,
                            help=r"x tolerance for optimizer. "
                            "optimizer will stop when |x' - x|_\infty < xtol")
-    optimizer.add_argument('--regularization-penalty',
+    optimizer.add_argument('--regularization-penalty', '-rp',
                            type=float, help="regularization penalty",
                            default=smcpp.defaults.regularization_penalty)
-    optimizer.add_argument('--regularization-degree', "-rd",
+    optimizer.add_argument('--regularization-degree', '-rd',
                            type=int, help="regularization degree",
                            default=smcpp.defaults.regularization_degree)
     add_hmm_args(parser)
