@@ -9,7 +9,7 @@ whole genome sequence data.
 Quick start guide
 =================
 
-1. Install the software using the `installation instructions`_.
+1. Download and install the `latest release`_.
    
 2. Convert your VCF(s) to the SMC++ input format with vcf2smc_::
 
@@ -38,6 +38,7 @@ Quick start guide
 SMC++ can also estimate and plot joint demographies from pairs of
 populations; see split_.
 
+.. _latest release: https://github.com/popgenmethods/smcpp/releases/latest
 
 Installation instructions
 =========================
@@ -63,7 +64,7 @@ If neither of these options works for you, you may build the software
 from scratch using the `build instructions`_ provided in the next
 section.
 
-.. _releases page: https://github.com/popgenmethods/smcpp/releases
+.. _releases page: https://github.com/popgenmethods/smcpp/releases/latest
 .. _Anaconda: https://www.continuum.io/downloads
 
 Build instructions
@@ -88,6 +89,10 @@ On OS X, the easiest way to install them is using Homebrew_::
 After installing the requirements, SMC++ may be built by running::
     
     $ pip install git+https://github.com/popgenmethods/smcpp
+
+(Alternatively, ``git clone`` the repository and run the usual 
+``python setup.py install``. You *must* clone. Downloading the source
+tarball will not work.)
 
 .. _Homebrew: http://brew.sh
 .. _gmp: http://gmplib.org
@@ -315,10 +320,11 @@ population marginally using ``estimate``::
     $ smc++ estimate -o pop1/ <mu> data/pop1.smc.gz
     $ smc++ estimate -o pop2/ <mu> data/pop2.smc.gz
 
-Next, create a dataset containing the joint frequency spectrum for both
+Next, create datasets containing the joint frequency spectrum for both
 populations::
 
     $ smc++ vcf2smc my.vcf.gz data/pop12.smc.gz <contig> pop1:ind1_1,ind1_2 pop2:ind2_1,ind2_2
+    $ smc++ vcf2smc my.vcf.gz data/pop21.smc.gz <contig> pop2:ind2_1,ind2_2 pop1:ind1_1,ind1_2
 
 Finally, run ``split`` to refine the marginal estimates into an estimate
 of the joint demography::
@@ -334,7 +340,8 @@ distinguished pair from the given data set.
 
 The output file is the result of::
 
-    >>> numpy.savez(output, posterior=gamma, hidden_states=hs, sites=sites)
+    >>> numpy.savez(output, hidden_states=hs, 
+                    **{'file1'=gamma1, 'file1_sites'=sites1, ...})
 
 where:
 
@@ -342,13 +349,15 @@ where:
   to discretize the hidden TMRCA of the distinguished pair. The
   breakpoints are chosen such that the probability of coalescence 
   within each interval is uniform with respect to the fitted model.
-- ``sites`` is the vector of length ``L`` containing positions where the
-  decoding is performed. Due to the internal archtecture of SMC++,
+- ``sites1`` is the vector of length ``L`` containing positions where the
+  decoding is performed for data set ``file1``. Due to the internal archtecture of SMC++,
   there is one entry per row in the data set.
-- ``gamma`` is an array of dimension ``M x L`` whose entry 
-  ``gamma[m, ell]`` gives the average posterior probability of coalescence in interval
+- ``gamma1`` is an array of dimension ``M x L`` whose entry 
+  ``gamma1[m, ell]`` gives the average posterior probability of coalescence in interval
   ``[hs[m], hs[m + 1])`` for each site in the interval 
-  ``{sites[ell], ..., sites[ell + 1] - 1}``.
+  ``{sites1[ell], ..., sites1[ell + 1] - 1}``.
+ 
+There will be a ``gamma``/``sites`` entry for each data set decoded.
 
 Required arguments
 ^^^^^^^^^^^^^^^^^^
@@ -387,13 +396,31 @@ hundred individuals. For other types of data, *you will likely need to
 experiment with different values of these parameters in order to obtain
 good estimates*.
 
+- ``--thinning``: This parameter controls the frequency with which the full
+  CSFS is emitted (see paper for details). Decreasing the value of this parameter will cause the likelihood
+  to depend more strongly on frequency spectrum information in the undistinguished
+  portion of the sample, potentially leading to more accurate results in the recent
+  past. However, decreasing it too much can lead to degeneracy in the likelihood since
+  correlations in the undistinguished portion of the ancestral recombination graph are
+  ignored. The default value for a sample size ``n`` is ``1000 * log(n)`` 
+  (note that this is different than in versions 1.7.0 and earlier). Empirically,
+  this has worked well for sample sizes on the order of ``20 <= n <= 200`` but you
+  may need to experiment a bit.
+
+- ``--t1``, ``--tK``: These specify the starting and ending points (in generations) for the
+  size history; outside of these intervals, the size history is assumed to be constant with
+  value equal to that of the corresponding end point. SMC++ uses a heuristic based on sample 
+  to set ``t1``; larger samples are needed to obtain accurate inferences in the recent past. You
+  may override ``t1``, but setting it too small could lead to instability.
+
 - ``--regularization-penalty``: This parameter penalizes curvature in
   the estimated size history. The default value of this parameter is
-  ``1.0``. Higher values of the penalty shrink the estimated
+  ``9.0``. Lower values of the penalty shrink the estimated
   size history towards a line. If your estimates exhibit too much
-  oscillation, try increasing the value of this parameter.
+  oscillation, try decreasing the value of this parameter. (Note that this
+  behavior is different than in versions 1.7.0 and earlier.)
 
-- ``--tolerance``: This parameter specifies a threshold for stopping the
+- ``--ftol``: This parameter specifies a threshold for stopping the
   EM algorithm when the relative improvement in log-likelihood becomes
   small. The default value is ``1e-4``. If the tolerance is ``epsilon``
   and ``x'``/``x`` are the new and old estimates, the algorithm will
@@ -403,7 +430,7 @@ good estimates*.
 
 - ``--knots``: This parameter specifies the number of spline knots 
   used in the underlying representation of the size history. The default
-  value is ``10``. Using fewer knots can lead to smoother fits, however
+  value is ``32``. Using fewer knots can lead to smoother fits, however
   underspecifying this parameter may smooth out interesting features of
   the size history.
 
