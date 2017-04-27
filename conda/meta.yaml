@@ -20,6 +20,7 @@ requirements:
     - nomkl
     - numpy >=1.10
     - python
+    - openblas 0.2.19
     - libgcc >=4.8
     - gnuplot 4.6.0
     - gmp 6.1.0
