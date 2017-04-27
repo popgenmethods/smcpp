@@ -9,7 +9,7 @@ whole genome sequence data.
 Quick start guide
 =================
 
-1. Install the software using the `installation instructions`_.
+1. Download and install the `latest release`_.
    
 2. Convert your VCF(s) to the SMC++ input format with vcf2smc_::
 
@@ -38,6 +38,7 @@ Quick start guide
 SMC++ can also estimate and plot joint demographies from pairs of
 populations; see split_.
 
+.. _latest release: https://github.com/popgenmethods/smcpp/releases/latest
 
 Installation instructions
 =========================
@@ -63,7 +64,7 @@ If neither of these options works for you, you may build the software
 from scratch using the `build instructions`_ provided in the next
 section.
 
-.. _releases page: https://github.com/popgenmethods/smcpp/releases
+.. _releases page: https://github.com/popgenmethods/smcpp/releases/latest
 .. _Anaconda: https://www.continuum.io/downloads
 
 Build instructions
@@ -88,6 +89,10 @@ On OS X, the easiest way to install them is using Homebrew_::
 After installing the requirements, SMC++ may be built by running::
     
     $ pip install git+https://github.com/popgenmethods/smcpp
+
+(Alternatively, ``git clone`` the repository and run the usual 
+``python setup.py install``. You *must* clone. Downloading the source
+tarball will not work.)
 
 .. _Homebrew: http://brew.sh
 .. _gmp: http://gmplib.org
