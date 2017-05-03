@@ -13,6 +13,7 @@ import sys
 from collections import Counter
 import sys
 import json
+import os
 
 from .. import _smcpp, util, model, estimation_tools
 import smcpp.defaults
@@ -62,6 +63,7 @@ class Posterior(command.Command, command.ConsoleCommand):
             sys.exit(1)
         hidden_states = estimation_tools.balance_hidden_states(
             m.distinguished_model, args.M + 1) / (2. * m.distinguished_model.N0)
+        logger.debug("hidden states (balanced w/r/t model): %s", np.array(hidden_states).round(3))
         all_obs = []
         n = a = None
         for contig in contigs:
@@ -102,6 +104,9 @@ class Posterior(command.Command, command.ConsoleCommand):
             Lr = g.sum(axis=0)
             g /= Lr
             L = Lr.sum()
+        if os.environ.get("SMCPP_DEBUG"):
+            import ipdb
+            ipdb.set_trace()
         kwargs = {path: g for path, g in zip(args.data, gammas)}
         kwargs.update({path + "_sites": obs[:, 0] for path, obs in zip(args.data, all_obs)})
         np.savez_compressed(args.output, hidden_states=hidden_states, **kwargs)
