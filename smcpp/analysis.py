@@ -130,8 +130,8 @@ class BaseAnalysis:
             new_data = estimation_tools.thin_dataset(self._data, thinning)
             self._contigs = [Contig(data=d, pid=c.pid, fn=c.fn, n=c.n, a=c.a) 
                              for c, d in zip(self._contigs, new_data)]
-        elif np.any(ns > 0):
-            logger.warn("Not thinning yet undistinguished lineages are present")
+        # elif np.any(ns > 0):
+        #     logger.warn("Not thinning yet undistinguished lineages are present")
 
     def _normalize_data(self, length_cutoff, filter):
         ## break up long spans
@@ -371,14 +371,14 @@ class SplitAnalysis(BaseAnalysis):
         assert self.npop == 2
         self._init_model(args.pop1, args.pop2)
         self._init_penalty()
-        self._hidden_states = {k: np.r_[[0], self.model.distinguished_model._knots, [np.inf]]
-                                  for k in self._populations}
-        # After inferring initial split time, thin
-        self._perform_thinning(args.thinning)
-        self._normalize_data(args.length_cutoff, not args.no_filter)
+
+        self._hidden_states = {k: np.array([0.0, np.inf]) for k in self._populations}
         # Further initialization
         self._init_inference_manager(args.polarization_error)
         self._init_optimizer(args.outdir, args.algorithm, args.xtol, args.ftol)
+        # Do not do any optimization, just fit the split
+        self._optimizer._coordinates = lambda: []
+        self._niter = 1
 
     def _validate_data(self):
         BaseAnalysis._validate_data(self)
