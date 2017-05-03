@@ -59,7 +59,7 @@ class BaseAnalysis:
     def _init_optimizer(self, outdir, algorithm, xtol, ftol):
         self._optimizer = self._OPTIMIZER_CLS(self, algorithm, xtol, ftol)
         if outdir:
-            self._optimizer.register(analysis_saver.AnalysisSaver(outdir))
+            self._optimizer.register_plugin(analysis_saver.AnalysisSaver(outdir))
 
     def rescale(self, x):
         return x / (2. * self._N0)
@@ -361,7 +361,7 @@ class Analysis(BaseAnalysis):
         super()._init_optimizer(outdir, algorithm, xtol, ftol)
         if learn_rho:
             rho_bounds = 2. * self._N0 * np.array([1e-10, 1e-5])
-            self._optimizer.register(
+            self._optimizer.register_plugin(
                     parameter_optimizer.ParameterOptimizer("rho", tuple(rho_bounds)))
 
 
@@ -391,7 +391,7 @@ class SplitAnalysis(BaseAnalysis):
 
     def _init_optimizer(self, outdir, algorithm, xtol, ftol):
         super()._init_optimizer(outdir, algorithm, xtol, ftol)
-        self._optimizer.register(parameter_optimizer.ParameterOptimizer("split",
+        self._optimizer.register_plugin(parameter_optimizer.ParameterOptimizer("split",
                                                    (0., self._max_split),
                                                    "model"))
 

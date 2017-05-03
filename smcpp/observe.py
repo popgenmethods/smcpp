@@ -1,6 +1,7 @@
 from __future__ import absolute_import
 from abc import ABCMeta, abstractmethod
 import wrapt
+import weakref
  
 
 # Decorator to target specific messages.
@@ -27,19 +28,16 @@ class Observer(object):
 
 class Observable(object):
     def __init__(self):
-        self.observers = []
+        self.observers = weakref.WeakSet()
  
     def register(self, observer):
-        if not observer in self.observers:
-            self.observers.append(observer)
+        self.observers.add(observer)
  
     def unregister(self, observer):
-        if observer in self.observers:
-            self.observers.remove(observer)
+        self.observers.discard(observer)
  
     def unregister_all(self):
-        if self.observers:
-            del self.observers[:]
+        self.observers.clear()
  
     def update_observers(self, *args, **kwargs):
         for observer in self.observers:

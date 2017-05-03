@@ -21,6 +21,7 @@ class AbstractOptimizer(Observable):
     '''
     def __init__(self, analysis, algorithm, xtol, ftol):
         Observable.__init__(self)
+        self._plugins = []
         self._analysis = analysis
         self._algorithm = algorithm
         self._ftol = ftol
@@ -174,6 +175,10 @@ class AbstractOptimizer(Observable):
         if self._delta < self._xtol:
             raise ConvergedException("delta=%f < xtol=%f" % (self._delta, self._xtol))
 
+    def register_plugin(self, p):
+        self._plugins.append(p)
+        self.register(p)
+
     def update_observers(self, *args, **kwargs):
         kwargs.update({
             'optimizer': self,
@@ -190,7 +195,7 @@ class SMCPPOptimizer(AbstractOptimizer):
         for cls in OptimizerPlugin.__subclasses__():
             try:
                 if not cls.DISABLED:
-                    self.register(cls())
+                    self.register_plugin(cls())
             except TypeError:
                 # Only register listeners with null constructor
                 pass

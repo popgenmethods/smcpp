@@ -123,6 +123,8 @@ cdef class _PyInferenceManager:
     cdef InferenceManager* _im
     cdef vector[int*] _obs_ptrs
 
+    cdef object __weakref__
+
     def __my_cinit__(self, observations, hidden_states, im_id=None):
         self._im_id = im_id
         self.seed = 1
