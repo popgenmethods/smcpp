@@ -12,12 +12,9 @@ from Cython.Build import cythonize
 import numpy as np
 
 extra_compile_args = ["-O2", "-std=c++11", "-Wno-deprecated-declarations",
-                      "-DNO_CHECK_NAN", '-fopenmp',
-                      # tcmalloc
-                      '-fno-builtin-malloc', '-fno-builtin-calloc',
-                      '-fno-builtin-realloc', '-fno-builtin-free']
+                      "-DNO_CHECK_NAN", '-fopenmp']
 
-# extra_compile_args = ["-O0", "-g", "-std=c++11", "-Wno-deprecated-declarations", '-fopenmp',
+# extra_compile_args = ["-O0", "-g", "-std=c++11", "-Wno-deprecated-declarations",
 #                       "-D_GLIBCXX_DEBUG"]
 
 extra_link_args=['-fopenmp']
