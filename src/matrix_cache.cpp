@@ -1,7 +1,8 @@
 #include <fstream>
 #include <cereal/cereal.hpp>
-#include <cereal/archives/binary.hpp>
+#include <cereal/archives/portable_binary.hpp>
 #include <cereal/types/map.hpp>
+#include <zlib.h>
 
 #include "matrix_cache.h"
 #include "moran_eigensystem.h"
@@ -41,10 +42,10 @@ static std::string store_location;
 void init_cache(const std::string loc)
 {
     store_location = loc;
-    std::ifstream in(store_location);
+    std::ifstream in(store_location, std::ios::binary);
     if (in)
     {
-        cereal::BinaryInputArchive iarchive(in);
+        cereal::PortableBinaryInputArchive iarchive(in);
         iarchive(cache);
     }
 }
@@ -52,20 +53,20 @@ void init_cache(const std::string loc)
 void store_cache()
 {
     DEBUG1 << "storing cache: " << store_location;
-    std::ofstream out(store_location);
+    std::ofstream out(store_location, std::ios::binary);
     if (out)
     {
-        cereal::BinaryOutputArchive oarchive(out);
+        cereal::PortableBinaryOutputArchive oarchive(out);
         oarchive(cache);
     }
     else
+    {
         ERROR << "could not open cache file for storage";
+        return;
+    }
 }
 
 typedef struct { MatrixXq coeffs; } below_coeff;
-
-const mpq_class mpq_1(1, 1);
-const mpq_class mpq_0(0, 1);
 
 std::map<int, below_coeff> below_coeffs_memo;
 below_coeff compute_below_coeffs(int n)
@@ -79,7 +80,7 @@ below_coeff compute_below_coeffs(int n)
         {
             MatrixXq mnew(n + 1, nn - 1);
             mnew.col(nn - 2).setZero();
-            mnew(nn - 2, nn - 2) = mpq_1;
+            mnew(nn - 2, nn - 2) = 1;
 #pragma omp parallel for
             for (int k = nn - 1; k > 1; --k)
             {
@@ -109,7 +110,7 @@ mpq_class calculate_Wnbj(int n, int b, int j)
         case 2:
             return mpq_class(6, n + 1);
         case 3:
-            if (n == 2 * b) return mpq_0;
+            if (n == 2 * b) return 0;
             return mpq_class(30 * (n - 2 * b), (n + 1) * (n + 2));
         default:
             std::array<int, 3> key = {n, b, j};
@@ -230,31 +231,33 @@ MatrixCache& cached_matrices(const int n)
 
         // This is too slow. 
         DEBUG1 << "X0";
-        parallel_matmul(Wnbj.transpose(), 
-                VectorXq::Ones(n) - D_subtend_above, 
-                mei.U.bottomRows(n), 
-                cache[n].X0);
-        // ret.X0 = (Wnbj.transpose() * (VectorXq::Ones(n) - D_subtend_above).asDiagonal() * 
-        //        mei.U.bottomRows(n)).template cast<double>();
+        // parallel_matmul(Wnbj.transpose(), 
+        //         VectorXq::Ones(n) - D_subtend_above, 
+        //         mei.U.bottomRows(n), 
+        //         cache[n].X0);
+        cache[n].X0 = (Wnbj.transpose() * (VectorXq::Ones(n) - D_subtend_above).asDiagonal() * 
+                       mei.U.bottomRows(n)).template cast<double>();
         DEBUG1 << "X2";
-        parallel_matmul(Wnbj.transpose(), 
-                D_subtend_above, 
-                mei.U.reverse().topRows(n),
-                cache[n].X2);
-        // ret.X2 = (Wnbj.transpose() * D_subtend_above.asDiagonal() * 
-        //         mei.U.reverse().topRows(n)).template cast<double>();
+        // parallel_matmul(Wnbj.transpose(), 
+        //         D_subtend_above, 
+        //         mei.U.reverse().topRows(n),
+        //         cache[n].X2);
+        cache[n].X2 = (Wnbj.transpose() * D_subtend_above.asDiagonal() * 
+                       mei.U.reverse().topRows(n)).template cast<double>();
         DEBUG1 << "M0";
-        parallel_matmul(bc.coeffs,
-                lsp.cwiseProduct((VectorXq::Ones(n + 1) - D_subtend_below)),
-                P_undist,
-                cache[n].M0);
-        // ret.M0 = (bc.coeffs * lsp.asDiagonal() * (VectorXq::Ones(n + 1) - 
-        //             D_subtend_below).asDiagonal() * P_undist).template cast<double>();
+        // parallel_matmul(bc.coeffs,
+        //         lsp.cwiseProduct((VectorXq::Ones(n + 1) - D_subtend_below)),
+        //         P_undist,
+        //         cache[n].M0);
+        cache[n].M0 = (bc.coeffs * lsp.asDiagonal() * (VectorXq::Ones(n + 1) - 
+                       D_subtend_below).asDiagonal() * P_undist).template cast<double>();
         DEBUG1 << "M1";
-        parallel_matmul(bc.coeffs,
-                lsp.cwiseProduct(D_subtend_below),
-                P_dist,
-                cache[n].M1);
+        cache[n].M1 = (bc.coeffs * lsp.asDiagonal() * D_subtend_below.asDiagonal() *
+                       P_dist).template cast<double>();
+        // parallel_matmul(bc.coeffs,
+        //         lsp.cwiseProduct(D_subtend_below),
+        //         P_dist,
+        //         cache[n].M1);
         store_cache();
     }
     return cache.at(n);
