@@ -2,7 +2,11 @@
 #include <cereal/cereal.hpp>
 #include <cereal/archives/portable_binary.hpp>
 #include <cereal/types/map.hpp>
-#include <zlib.h>
+
+#include <unistd.h>
+#include <fcntl.h> // for open()
+#include <cerrno> // for errno
+#include <cstdio> // for perror()
 
 #include "matrix_cache.h"
 #include "moran_eigensystem.h"
@@ -42,17 +46,51 @@ static std::string store_location;
 void init_cache(const std::string loc)
 {
     store_location = loc;
+    int fd;
+    const std::string lockfile = store_location + ".lock";
+    fd = open(lockfile.c_str(), O_WRONLY | O_CREAT, 0600);
+    struct flock oflock;
+    oflock.l_type = F_WRLCK;/*Write lock*/
+    oflock.l_whence = SEEK_SET;
+    oflock.l_start = 0;
+    oflock.l_len = 0;/*Lock whole file*/
+    if (fd == -1 || fcntl(fd, F_SETLK, &oflock) == -1)
+    {
+        DEBUG1 << "Couldn't acquire lock in init_cache()";
+        return;
+    }
+    DEBUG1 << "Acquired lock in init_cache()";
     std::ifstream in(store_location, std::ios::binary);
     if (in)
     {
         cereal::PortableBinaryInputArchive iarchive(in);
         iarchive(cache);
     }
+    oflock.l_type = F_UNLCK;
+    if (fcntl(fd, F_UNLCK, &oflock) == -1)
+        ERROR << "Couldn't release lock in store_cache()";
+    close(fd);
+    remove(lockfile.c_str());
+    DEBUG1 << "init_cache() successful";
 }
 
 void store_cache()
 {
     DEBUG1 << "storing cache: " << store_location;
+    int fd;
+    const std::string lockfile = store_location + ".lock";
+    fd = open(lockfile.c_str(), O_WRONLY | O_CREAT, 0600);
+    struct flock oflock;
+    oflock.l_type = F_WRLCK; /*Write lock*/
+    oflock.l_whence = SEEK_SET;
+    oflock.l_start = 0;
+    oflock.l_len = 0;/*Lock whole file*/
+    if (fd == -1 || fcntl(fd, F_SETLK, &oflock) == -1)
+    {
+        DEBUG1 << "Couldn't acquire lock in store_cache()";
+        return;
+    }
+    DEBUG1 << "Acquired lock in store_cache()";
     std::ofstream out(store_location, std::ios::binary);
     if (out)
     {
@@ -62,8 +100,13 @@ void store_cache()
     else
     {
         ERROR << "could not open cache file for storage";
-        return;
     }
+    oflock.l_type = F_UNLCK;
+    if (fcntl(fd, F_UNLCK, &oflock) == -1)
+        ERROR << "Couldn't release lock in store_cache()";
+    close(fd);
+    remove(lockfile.c_str());
+    DEBUG1 << "store_cache() successful";
 }
 
 typedef struct { MatrixXq coeffs; } below_coeff;
@@ -164,31 +207,6 @@ mpq_class pnkb_undist(int n, int m, int l3)
         pnkb_undist_memo.emplace(key, ret);
     }
     return pnkb_undist_memo[key];
-}
-
-template <typename Derived1, typename Derived2, typename Derived3>
-void parallel_matmul(const Eigen::DenseBase<Derived1>& A, 
-        const Eigen::DenseBase<Derived2>& B, 
-        const Eigen::DenseBase<Derived3>& C, 
-        Matrix<double> &dst)
-{
-    // Compute A * diag(B) * C and store in dst. 
-    // Eigen won't parallelize MatrixXq multiplication. 
-    int m = A.rows();
-    int n = C.cols();
-    DEBUG1 << m << " " << n;
-    dst.resize(m, n);
-    MatrixXq tmp(m, n);
-    tmp.setZero();
-#pragma omp parallel for collapse(2)
-    for (int i = 0; i < m; ++i)
-        for (int j = 0; j < n; ++j)
-            for (int k = 0; k < B.size(); ++k)
-                tmp(i, j) += A(i, k) * B(k) * C(k, j);
-#pragma omp parallel for collapse(2)
-    for (int i = 0; i < m; ++i)
-        for (int j = 0; j < n; ++j)
-            dst(i, j) = tmp(i, j).get_d();
 }
 
 MatrixCache& cached_matrices(const int n)

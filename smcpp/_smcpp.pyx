@@ -28,7 +28,6 @@ def _init_cache():
     except OSError:
         pass
     init_cache(os.path.join(dirs.user_cache_dir, "matrices.dat").encode("UTF-8"))
-_init_cache()
 
 abort = False
 _lvl = {s: getattr(logging, s) for s in "info debug critical warning error".upper().split()}
@@ -126,6 +125,7 @@ cdef class _PyInferenceManager:
     cdef object __weakref__
 
     def __my_cinit__(self, observations, hidden_states, im_id=None):
+        _init_cache()
         self._im_id = im_id
         self.seed = 1
         cdef int[:, ::1] vob
