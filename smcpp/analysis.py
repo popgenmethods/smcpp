@@ -290,7 +290,11 @@ class Analysis(BaseAnalysis):
 
         # Set t1, tK
         n = min(200, max(self._ns.max(), 2))
-        args.t1 = args.t1 or np.exp(np.log(1000) * (200 - n) / 200 + np.log(100) * (n / 200))
+        if args.t1 is None:
+            args.t1 = np.exp(np.log(1000) * (200 - n) / 200 + np.log(100) * (n / 200))
+        if args.t1 <= 0:
+            logger.error("--t1 should be >0")
+            sys.exit(1)
         logger.debug("setting t1=%f", args.t1)
         self._init_knots(args.knots, args.t1, args.tK, args.offset)
         for x in smcpp.defaults.additional_knots:
