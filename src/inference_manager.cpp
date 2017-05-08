@@ -422,7 +422,7 @@ void NPopInferenceManager<P>::recompute_emission_probs()
         }
         else
         {
-            e2(m, 1) = 2. * theta * avg_ct.at(m);
+            e2(m, 1) = -expm1(-2. * theta * avg_ct.at(m));
             e2(m, 0) = 1. - e2(m, 1);
         }
         // CHECK_NAN(e2(m, 1));

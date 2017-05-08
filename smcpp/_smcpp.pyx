@@ -170,6 +170,8 @@ cdef class _PyInferenceManager:
             self._im.setRho(rho)
 
     def E_step(self, forward_backward_only=False):
+        if None in (self.theta, self.rho):
+            raise RuntimeError("theta and rho must be set")
         cdef bool fbOnly = forward_backward_only
         with nogil:
             self._im.Estep(fbOnly)

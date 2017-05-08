@@ -96,6 +96,7 @@ class Posterior(command.Command, command.ConsoleCommand):
             im = _smcpp.PyTwoPopInferenceManager(
                 *n, *a, all_obs, hidden_states, contig.key, args.polarization_error)
         im.theta = j['theta']
+        im.rho = j['rho']
         im.save_gamma = True
         im.model = m
         im.E_step()
@@ -111,6 +112,7 @@ class Posterior(command.Command, command.ConsoleCommand):
         kwargs.update({path + "_sites": obs[:, 0] for path, obs in zip(args.data, all_obs)})
         np.savez_compressed(args.output, hidden_states=hidden_states, **kwargs)
         if args.heatmap:
+            obs = all_obs[0]
             if len(args.data) > 1:
                 logger.error("--heatmap is only supported for one data set")
                 sys.exit(1)
