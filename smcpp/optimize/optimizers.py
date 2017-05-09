@@ -203,7 +203,7 @@ class SMCPPOptimizer(AbstractOptimizer):
     def _coordinates(self):
         model = self._analysis.model
         K = model.K - 1
-        return [[k] for k in range(K)][::-1] + [list(range(K // 3))]
+        return [[k] for k in range(K)][::-1]  # + [list(range(K // 3))]
 
 class TwoPopulationOptimizer(SMCPPOptimizer):
     'Model fitting for two populations.'

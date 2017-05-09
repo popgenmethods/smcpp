@@ -41,7 +41,7 @@ class BaseModel(Observable):
         y = ad.admath.log(a)
         rd = smcpp.defaults.regularization_degree
         cs = np.cumsum(self.s)[:-rd]
-        d1 = np.diff(y, rd) * np.exp(-cs)
+        d1 = np.diff(y, rd)
         r1 = abs(d1 ** rd).sum() ** (1. / rd)
         return r1
 

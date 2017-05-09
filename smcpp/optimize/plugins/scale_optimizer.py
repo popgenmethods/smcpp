@@ -7,7 +7,7 @@ from smcpp.logging import getLogger
 logger = getLogger(__name__)
 
 class ScaleOptimizer(OptimizerPlugin):
-    DISABLED = True
+    DISABLED = False
     def _f(self, alpha, x0, analysis):
         analysis.model[:] = x0 + alpha
         ret = float(analysis.Q())
