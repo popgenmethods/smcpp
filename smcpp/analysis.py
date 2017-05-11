@@ -173,6 +173,27 @@ class BaseAnalysis:
                 ci += 1
         self._contigs = new_contigs
 
+    def _calculate_t1_tK(self, args):
+        n = 2 + max(self._ns)
+        p = (self._esfs.sum().astype('float') - self._esfs[0, 0]) / self._esfs.sum()
+        Ne = p / self._theta / (2. * (1. / np.arange(1, n)).sum())
+        logger.debug("Ne: %f", Ne)
+        Ne *= 2 * self._N0
+        if args.t1 is None:
+            # distribution of first coalescent in sample ~ 1 - exp(-nC2 t / (Ne / N0)) ~= .1
+            args.t1 = 200 + np.log(.9) / (-n * (n - 1) / 2) * Ne
+        if args.t1 <= 0:
+            logger.error("--t1 should be >0")
+            sys.exit(1)
+        logger.debug("setting t1=%f", args.t1)
+        if args.tK is None:
+            args.tK = (2 + 1.16 ** 0.5) * Ne
+        if args.tK <= 0:
+            logger.error("--tK should be >0")
+            sys.exit(1)
+        logger.debug("setting tK=%f", args.tK)
+
+
     def _init_inference_manager(self, polarization_error):
         ## Create inference object which will be used for all further calculations.
         logger.debug("Creating inference manager...")
@@ -288,14 +309,9 @@ class Analysis(BaseAnalysis):
         # Thin the data
         self._perform_thinning(args.thinning)
 
-        # Set t1, tK
-        n = min(200, max(self._ns.max(), 2))
-        if args.t1 is None:
-            args.t1 = np.exp(np.log(1000) * (200 - n) / 200 + np.log(100) * (n / 200))
-        if args.t1 <= 0:
-            logger.error("--t1 should be >0")
-            sys.exit(1)
-        logger.debug("setting t1=%f", args.t1)
+        # Set t1, tK if not already set
+        self._calculate_t1_tK(args)
+
         self._init_knots(args.knots, args.t1, args.tK, args.offset)
         for x in smcpp.defaults.additional_knots:
             self._knots = np.append(self._knots, x * self._knots[-1])
