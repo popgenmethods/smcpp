@@ -9,6 +9,7 @@ from collections import namedtuple
 import json
 import contextlib
 import pandas as pd
+import itertools
 
 from . import _smcpp, util
 from .contig import Contig
@@ -175,13 +176,16 @@ def balance_hidden_states(model, M):
     ret.append(np.inf)
     return np.array(ret) * 2 * model.N0  # return in generations
 
+
 def empirical_sfs(contigs):
     with mp_pool() as p:
-        esfss = list(p.map(_esfs_helper, contigs))
+        esfss = list(map(_esfs_helper, contigs))
     # Some contigs might be of a smaller sample size. Restrict to those
     # that are "full dimensional"
-    shp = np.max([e.shape for e in esfss], axis=0)
-    return np.sum([e for e in esfss if np.all(e.shape == shp)], axis=0, dtype=np.float32)
+    d = {}
+    for e in esfss:
+        d.setdefault(e.shape, []).append(e)
+    return {k: np.sum(d[k], axis=0) for k in d}
 
 
 def _esfs_helper(contig):

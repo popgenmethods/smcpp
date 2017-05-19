@@ -90,12 +90,6 @@ class BaseAnalysis:
         logger.info("%d population%s", self.npop, "" if self.npop == 1 else "s")
         self._esfs = estimation_tools.empirical_sfs(self._contigs)
         logger.debug("Empirical CSFS:\n%s", self._esfs)
-        sfs = util.undistinguished_sfs(self._esfs)
-        try:
-            logger.debug("Normalized empirical CSFS:\n%s", self._esfs.astype('float') / self._esfs.sum())
-            logger.debug("Normalized empirical SFS:\n%s", sfs.astype('float') / sfs.sum())
-        except:
-            pass
 
     def _validate_data(self):
         for c in self._contigs:
@@ -145,12 +139,6 @@ class BaseAnalysis:
         w, het = np.array([a[2:] for k in attrs for a in attrs[k]]).T
         self._het = avg = np.average(het, weights=w)
         logger.debug("Heterozygosity: %f", self._het)
-        try:
-            logger.debug("1. - esfs[0]: %f", 1. - (self._esfs.flat[0] / self._esfs.sum()))
-        except:
-            # self._esfs.sum() == 0
-            logger.warn("sum(esfs) = 0?")
-            pass
         if self._het == 0:
             logger.error("Data contain *no* mutations. Inference is impossible.")
             sys.exit(1)
@@ -183,7 +171,9 @@ class BaseAnalysis:
 
     def _calculate_t1_tK(self, args):
         n = 2 + max(self._ns)
-        p = (self._esfs.sum().astype('float') - self._esfs[0, 0]) / self._esfs.sum()
+        e_sum = np.sum([e.sum() for e in self._esfs.values()])
+        e_0 = np.sum([e[0, 0] for e in self._esfs.values()])
+        p = (e_sum.astype('float') - e_0) / e_sum
         Ne = p / self._theta / (2. * (1. / np.arange(1, n)).sum())
         logger.debug("Ne: %f", Ne)
         Ne *= 2 * self._N0
