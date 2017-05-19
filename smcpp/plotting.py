@@ -85,12 +85,6 @@ def plot_psfs(psfs, xlim, ylim, xlabel, knots=False, logy=False):
                     # if not logy:
                     #     y *= 1e-3
                     series.append([None, x2, y2, ax.scatter, off, m.N0, g])
-            if split:
-                for i in 1, 2:
-                    x = series[-i][1]
-                    coords = x <= mb.split
-                    for j in 1, 2:
-                        series[-i][j] = series[-i][j][coords]
         else:
             x = np.cumsum(d['s'])
             x = np.insert(x, 0, 0)[:-1]
