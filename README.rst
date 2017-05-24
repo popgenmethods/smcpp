@@ -443,7 +443,7 @@ requires additional regularization.
 Frequently asked questions
 ==========================
 The binary installer dies with the error message ``ImportError: /lib64/libc.so.6: version `GLIBC_2.14' not found (required by ...)``. How can I fix this?
-    This is due to a ``glibc`` version mismatch between your system and the build server I use to create the binary installers. Unfortunately, I am unable to create binaries for older versions of ``glibc``. Your options are to either a) upgrade ``glibc`` on your system (which would probably require upgrading your operating system); or b) build SMC++ yourself by following the `build instructions`_.
+    This is due to a ``glibc`` version mismatch between your system and the build server I use to create the binary installers. Unfortunately, I am unable to create binaries for older versions of ``glibc``. Your options are to either a) upgrade ``glibc`` on your system (which would probably require upgrading your operating system); or b) build SMC++ yourself by following the `build instructions`_. Please note that installing your own version of ``glibc`` different from the system version will **not** work, is not supported, and will likely result in the program randomly crashing.
   
 File formats
 ============
