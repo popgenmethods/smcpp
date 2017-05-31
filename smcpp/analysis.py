@@ -88,8 +88,8 @@ class BaseAnalysis:
             assert c.data.shape[1] == 1 + 3 * len(c.n)
             logger.debug("Contig(pid=%r, fn=%r, n=%r, a=%r)", c.pid, c.fn, c.n, c.a)
         logger.info("%d population%s", self.npop, "" if self.npop == 1 else "s")
-        self._esfs = estimation_tools.empirical_sfs(self._contigs)
-        logger.debug("Empirical CSFS:\n%s", self._esfs)
+        self._watterson = estimation_tools.watterson_estimator(self._contigs)
+        logger.debug("Watterson estimator: %f", self._watterson)
 
     def _validate_data(self):
         for c in self._contigs:
@@ -170,14 +170,11 @@ class BaseAnalysis:
         self._contigs = new_contigs
 
     def _calculate_t1_tK(self, args):
-        n = 2 + max(self._ns)
-        e_sum = np.sum([e.sum() for e in self._esfs.values()])
-        e_0 = np.sum([e[0, 0] for e in self._esfs.values()])
-        p = (e_sum.astype('float') - e_0) / e_sum
-        Ne = p / self._theta / (2. * (1. / np.arange(1, n)).sum())
+        Ne = self._watterson / self._theta
         logger.debug("Ne: %f", Ne)
         Ne *= 2 * self._N0
         if args.t1 is None:
+            n = 2 + max(self._ns)
             # distribution of first coalescent in sample ~ 1 - exp(-nC2 t / (Ne / N0)) ~= .1
             args.t1 = 200 + np.log(.9) / (-n * (n - 1) / 2) * Ne
         if args.t1 <= 0:
@@ -190,6 +187,9 @@ class BaseAnalysis:
             logger.error("--tK should be >0")
             sys.exit(1)
         logger.debug("setting tK=%f", args.tK)
+        if args.tK <= args.t1:
+            logger.error("tK <= t1? Possible weirdness in data")
+            sys.exit(1)
 
 
     def _init_inference_manager(self, polarization_error):

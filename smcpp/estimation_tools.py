@@ -177,28 +177,29 @@ def balance_hidden_states(model, M):
     return np.array(ret) * 2 * model.N0  # return in generations
 
 
-def empirical_sfs(contigs):
+def watterson_estimator(contigs):
     with mp_pool() as p:
-        esfss = list(map(_esfs_helper, contigs))
-    # Some contigs might be of a smaller sample size. Restrict to those
-    # that are "full dimensional"
-    d = {}
-    for e in esfss:
-        d.setdefault(e.shape, []).append(e)
-    return {k: np.sum(d[k], axis=0) for k in d}
+        num = denom = 0
+        for S, sample_sizes, spans in map(_watterson_helper, contigs):
+            num += S
+            non_missing = sample_sizes > 0
+            ss = sample_sizes[non_missing]
+            sp = spans[non_missing]
+            denom += (sp * (np.log(ss) + 0.5 / ss + 0.57721)).sum()
+    return num / denom
 
 
-def _esfs_helper(contig):
+def _watterson_helper(contig):
     c = contig
     shp = [x + 1 for na in zip(c.a, c.n) for x in na]
     ret = np.zeros(shp, dtype=int)
-    nmiss = np.where(np.all(c.data[:, 1::3] >= 0, axis=1) & 
-                     np.all(c.data[:, 3::3] == c.n, axis=1))
-    for row in c.data[nmiss]:
-        coord = tuple([x for ab in zip(row[1::3], row[2::3]) for x in ab])
-        ret[coord] += row[0]
-    return ret
-
+    spans = c.data[:, 0]
+    seg = (np.any(c.data[:, 1::3] >= 1, axis=1) |
+           np.any(c.data[:, 2::3] >  0, axis=1))
+    S = spans[seg].sum()
+    sample_sizes = (c.data[:, 3::3].sum(axis=1) +
+                    np.maximum(0, c.data[:, 1::3]).sum(axis=1))
+    return (S, sample_sizes, spans)
 
 def _load_data_helper(fn):
     try:
