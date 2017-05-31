@@ -124,6 +124,7 @@ class BaseAnalysis:
             thinning = (1000 * np.log(2 + ns)).astype("int")   # 500  * ns
         if np.any(thinning > 1):
             logger.info("Thinning...")
+            logger.debug("Thinning parameters: %s", thinning)
             new_data = estimation_tools.thin_dataset(self._data, thinning)
             self._contigs = [Contig(data=d, pid=c.pid, fn=c.fn, n=c.n, a=c.a) 
                              for c, d in zip(self._contigs, new_data)]
