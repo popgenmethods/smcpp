@@ -1,4 +1,5 @@
 # Base class; subclasses will automatically show up as subcommands
+import numpy as np
 import argparse
 import os
 import os.path
@@ -18,8 +19,10 @@ class Command:
         '''Configure parser and parse args.'''
         parser.add_argument('-v', '--verbose', action='count', default=0,
                 help="increase debugging output, specify multiply times for more")
+        parser.add_argument('--seed', type=int, default=0, help=argparse.SUPPRESS)
 
     def main(self, args):
+        np.random.seed(args.seed)
         logging.setup_logging(args.verbose)
 
 class EstimationCommand(Command):
