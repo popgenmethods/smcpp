@@ -118,10 +118,12 @@ class BaseAnalysis:
     def _perform_thinning(self, thinning):
         # thin each dataset
         ns = self._ns = np.array([sum(c.n) for c in self._contigs])
+        npop = np.array([c.npop for c in self._contigs])
         if isinstance(thinning, int):
             thinning = np.array([thinning] * len(self._contigs))
         if thinning is None:
             thinning = (1000 * np.log(2 + ns)).astype("int")   # 500  * ns
+        thinning[npop > 1] = 0
         if np.any(thinning > 1):
             logger.info("Thinning...")
             logger.debug("Thinning parameters: %s", thinning)
@@ -390,14 +392,13 @@ class SplitAnalysis(BaseAnalysis):
         assert self.npop == 2
         self._init_model(args.pop1, args.pop2)
         self._init_penalty()
-
-        self._hidden_states = {k: np.array([0.0, np.inf]) for k in self._populations}
+        self._hidden_states = {k: np.r_[[0], self.model.distinguished_model._knots, [np.inf]]
+                               for k in self._populations}
+        self._normalize_data(args.length_cutoff, not args.no_filter)
+        self._perform_thinning(args.thinning)
         # Further initialization
         self._init_inference_manager(args.polarization_error)
         self._init_optimizer(args.outdir, args.algorithm, args.xtol, args.ftol)
-        # Do not do any optimization, just fit the split
-        self._optimizer._coordinates = lambda: []
-        self._niter = 1
 
     def _validate_data(self):
         BaseAnalysis._validate_data(self)
