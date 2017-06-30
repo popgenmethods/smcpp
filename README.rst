@@ -449,7 +449,7 @@ What to do if you encounter trouble
 ===================================
 SMC++ is under active development and you may encounter difficulties in trying to use it.
 
-- If you believe you have encountered a **bug** in the software (unexpected crash, high memory usage, etc.) please `file an issue <https://github.com/popgenmethods/smcpp>`_ in our bug tracker.
+- If you believe you have encountered a **bug** in the software (unexpected crash, high memory usage, etc.) please `file an issue <https://github.com/popgenmethods/smcpp/issues>`_ in our bug tracker.
 - If you would like assistance in interpreting the results, please e-mail me directly. I will do my best to try and help, but please understand that I have limited time to respond to such inquiries.
   
 In both cases, you will receive a faster response if you include as much detail as possible about your data set (sample size, # of contigs, etc.), system and, where applicable, the ``.debug.txt`` log file saved by SMC++ in the output directory specified to the ``estimate`` command.
