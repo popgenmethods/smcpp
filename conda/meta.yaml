@@ -14,12 +14,14 @@ requirements:
     - mpfr 3.1.5
     - cython >=0.25
     - numpy >=1.10
+    - setuptools >=33.1
     - setuptools_scm >=1.15
     - git 2.9.3
   run:
+    - python
+    - setuptools >=33.1
     - nomkl
     - numpy >=1.10
-    - python
     - openblas 0.2.19
     - libgcc >=4.8
     - gnuplot 4.6.0

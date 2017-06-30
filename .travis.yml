@@ -7,16 +7,15 @@ os:
 env:
   matrix:
     - CONDA_PY=3.5
-    # - CONDA_PY=3.6
+    - CONDA_PY=3.6
 
 install:
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then export OS=MacOSX; else export OS=Linux; fi
-  - wget https://repo.continuum.io/miniconda/Miniconda3-4.2.12-$OS-x86_64.sh -O miniconda.sh
+  - wget https://repo.continuum.io/miniconda/Miniconda3-4.3.21-$OS-x86_64.sh -O miniconda.sh
   - bash miniconda.sh -b -p $HOME/miniconda
   - export OLDPATH=$PATH PATH="$HOME/miniconda/bin:$PATH" VERSION=$(git describe --tags) MACOSX_DEPLOYMENT_TARGET=10.9
   - hash -r
   - conda config --set always_yes yes --set changeps1 no
-  - echo "conda 4.2.12" >> $HOME/miniconda/conda-meta/pinned  # bugs in recent versions?
   - conda update -q conda
   - conda info -a
   - conda install conda-build anaconda-client constructor git python=$CONDA_PY
