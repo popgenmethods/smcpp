@@ -447,7 +447,7 @@ The binary installer dies with the error message ``ImportError: /lib64/libc.so.6
     
 What to do if you encounter trouble
 ===================================
-SMC++ is under active development and you may encounter difficulties in trying to use it.
+SMC++ is under active development and you may encounter difficulties in trying to use it. Always make sure that you have upgraded to the `latest version <https://github.com/popgenmethods/smcpp/releases/latest>`_, as the bug you have encountered may have already been fixed. If that does not work, then:
 
 - If you believe you have encountered a **bug** in the software (unexpected crash, high memory usage, etc.) please `file an issue <https://github.com/popgenmethods/smcpp/issues>`_ in our bug tracker.
 - If you would like assistance in interpreting the results, please e-mail me directly. I will do my best to try and help, but please understand that I have limited time to respond to such inquiries.
