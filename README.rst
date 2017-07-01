@@ -444,7 +444,16 @@ Frequently asked questions
 ==========================
 The binary installer dies with the error message ``ImportError: /lib64/libc.so.6: version `GLIBC_2.14' not found (required by ...)``. How can I fix this?
     This is due to a ``glibc`` version mismatch between your system and the build server I use to create the binary installers. Unfortunately, I am unable to create binaries for older versions of ``glibc``. Your options are to either a) upgrade ``glibc`` on your system (which would probably require upgrading your operating system); or b) build SMC++ yourself by following the `build instructions`_. Please note that installing your own version of ``glibc`` different from the system version will **not** work, is not supported, and will likely result in the program randomly crashing.
+    
+What to do if you encounter trouble
+===================================
+SMC++ is under active development and you may encounter difficulties in trying to use it. Always make sure that you have upgraded to the `latest version <https://github.com/popgenmethods/smcpp/releases/latest>`_, as the bug you have encountered may have already been fixed. If that does not work, then:
+
+- If you believe you have encountered a **bug** in the software (unexpected crash, high memory usage, etc.) please `file an issue <https://github.com/popgenmethods/smcpp/issues>`_ in our bug tracker.
+- If you would like assistance in interpreting the results, please e-mail me directly. I will do my best to try and help, but please understand that I have limited time to respond to such inquiries.
   
+In both cases, you will receive a faster response if you include as much detail as possible about your data set (sample size, # of contigs, etc.), system and, where applicable, the ``.debug.txt`` log file saved by SMC++ in the output directory specified to the ``estimate`` command.
+
 File formats
 ============
 
