@@ -9,37 +9,42 @@ env:
     - CONDA_PY=3.5
     - CONDA_PY=3.6
 
-install:
-  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then export OS=MacOSX; else export OS=Linux; fi
-  - wget https://repo.continuum.io/miniconda/Miniconda3-4.3.21-$OS-x86_64.sh -O miniconda.sh
-  - bash miniconda.sh -b -p $HOME/miniconda
-  - export OLDPATH=$PATH PATH="$HOME/miniconda/bin:$PATH" VERSION=$(git describe --tags) MACOSX_DEPLOYMENT_TARGET=10.9
-  - hash -r
-  - conda config --set always_yes yes --set changeps1 no
-  - conda update -q conda
-  - conda info -a
-  - conda install conda-build anaconda-client constructor git python=$CONDA_PY
-  - conda build -c terhorst -c conda-forge -c bioconda conda --python=$CONDA_PY
-  - conda create -n smcpp_install --use-local -c terhorst -c bioconda -c conda-forge python=$CONDA_PY smcpp
-  - source activate smcpp_install
-  - smc++ version
-  - test/integration/test.sh `which smc++`
-  - conda/template.py conda/construct.tpl $VERSION > conda/construct.yaml 
-  - source deactivate
-
-deploy:
-  - provider: script
-    script: conda/deploy.sh
-    on:
-      repo: popgenmethods/smcpp
-      tags: true
-    skip_cleanup: true
-  - provider: releases
-    on:
-      repo: popgenmethods/smcpp
-      tags: true
-    api_key:
-      secure: VCht3BdnhgAdjYTyJqrHk5ZWNj/6WaajxjO0nCuSJZC43XCval+3c1I7Bckfs/YD+HAALVd9bMhVSi8VonpT6gvKyFGo5ttCFAGmJXz5+dCsBvbczblHcd9qV55T3K8HCsOrsjvGDrm3pRv9TPu2eBecPl8Y9uK1auEs/JJ0ywUnFA6plzAdtybc0FqywS0RZfm9W30vQVRCbkVQgP1nN0H8X1WeOC+fIckSHv0ejJ7NkoGhhX+J7/1FLe2EpmhAV2sLja2nneIko9xIT+hv27GmJ+xfj09osRzdkrVmbaL3CLu/ToF/6lb3fxjxQ+J6tnhn87HCnulOnvrQzgmMayVnd6EZLLxGsgJq2CMkUXNkCgYbnMmOV800/VsssHgsVNDIGQ20UYCIG1PbxW+U0BHfu8Q2b8npSTyadhU0SfQ6uZNiKsKbX+sce1tLTLwtI+zNYKkcvv3ruP556bX5Rl94y/jNCt1KwVE1wriO6TqclLMHfbjaregPtH0gvV19mpRBcaFLkkq1CNMjGDwSIOpZk14+qlVcZTtykHIIBcbA+9mr80JZo9AR7C+XJYTgqRz94MA76UbxQZeqTQuEyt9fIthw/jdzTKlGVQJitkjFdlsLoSQk+zkLxlIEfLmy1iTCeT0NY34At7vM1qgkC9usCWrOPJ+z5X1DVAhcUV8=
-    file_glob: true
-    file: smcpp-*-*-x86_64.sh
-    skip_cleanup: true
+jobs:
+  include:
+    - stage: Build
+      - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then export OS=MacOSX; else export OS=Linux; fi
+      - wget https://repo.continuum.io/miniconda/Miniconda3-4.3.21-$OS-x86_64.sh -O miniconda.sh
+      - bash miniconda.sh -b -p $HOME/miniconda
+      - export OLDPATH=$PATH PATH="$HOME/miniconda/bin:$PATH" VERSION=$(git describe --tags) MACOSX_DEPLOYMENT_TARGET=10.9
+      - hash -r
+      - conda config --set always_yes yes --set changeps1 no
+      - conda update -q conda
+      - conda info -a
+      - conda install conda-build anaconda-client constructor git python=$CONDA_PY
+      - conda build -c terhorst -c conda-forge -c bioconda conda --python=$CONDA_PY
+      - conda create -n smcpp_install --use-local -c terhorst -c bioconda -c conda-forge python=$CONDA_PY smcpp
+      - source activate smcpp_install
+      - smc++ version
+      - test/integration/test.sh `which smc++`
+      - conda/template.py conda/construct.tpl $VERSION > conda/construct.yaml 
+      - source deactivate
+    - stage: Deploy (Conda)
+      deploy:
+        provider: script
+        script: conda/deploy.sh
+        on:
+          repo: popgenmethods/smcpp
+          tags: true
+        skip_cleanup: true
+     - stage: Deploy (GitHub) 
+       env: CONDA_PY=3.6
+       deploy:
+         provider: releases
+         on:
+           repo: popgenmethods/smcpp
+           tags: true
+         api_key:
+           secure: VCht3BdnhgAdjYTyJqrHk5ZWNj/6WaajxjO0nCuSJZC43XCval+3c1I7Bckfs/YD+HAALVd9bMhVSi8VonpT6gvKyFGo5ttCFAGmJXz5+dCsBvbczblHcd9qV55T3K8HCsOrsjvGDrm3pRv9TPu2eBecPl8Y9uK1auEs/JJ0ywUnFA6plzAdtybc0FqywS0RZfm9W30vQVRCbkVQgP1nN0H8X1WeOC+fIckSHv0ejJ7NkoGhhX+J7/1FLe2EpmhAV2sLja2nneIko9xIT+hv27GmJ+xfj09osRzdkrVmbaL3CLu/ToF/6lb3fxjxQ+J6tnhn87HCnulOnvrQzgmMayVnd6EZLLxGsgJq2CMkUXNkCgYbnMmOV800/VsssHgsVNDIGQ20UYCIG1PbxW+U0BHfu8Q2b8npSTyadhU0SfQ6uZNiKsKbX+sce1tLTLwtI+zNYKkcvv3ruP556bX5Rl94y/jNCt1KwVE1wriO6TqclLMHfbjaregPtH0gvV19mpRBcaFLkkq1CNMjGDwSIOpZk14+qlVcZTtykHIIBcbA+9mr80JZo9AR7C+XJYTgqRz94MA76UbxQZeqTQuEyt9fIthw/jdzTKlGVQJitkjFdlsLoSQk+zkLxlIEfLmy1iTCeT0NY34At7vM1qgkC9usCWrOPJ+z5X1DVAhcUV8=
+         file_glob: true
+         file: smcpp-*-*-x86_64.sh
+         skip_cleanup: true
