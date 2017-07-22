@@ -241,3 +241,28 @@ def load_data(files):
     with ProcessPoolExecutor() as p:
         obs = list(p.map(_load_data_helper, files))
     return obs
+
+
+def windowed_mutations(contigs, w):
+    '''Return array [[window_length, num_mutations], ...] for each contig'''
+    with ProcessPoolExecutor() as p:
+        return list(p.map(_windowed_mutations_helper, contigs, itertools.repeat(w)))
+
+
+def _windowed_mutations_helper(*args):
+    contig, w = args
+    q = contig.data[::-1].tolist()
+    c = mut = 0
+    ret = []
+    while q:
+        last = span, *abnb = q.pop()
+        mut += span * (sum(abnb[::3]) % 2)
+        if c + span > w:
+            last[0] = span - (c - w)
+            q.append(last)
+            ret.append([w, mut])
+            c = mut = 0
+        else:
+            c += span
+    ret.append([c, mut])
+    return ret

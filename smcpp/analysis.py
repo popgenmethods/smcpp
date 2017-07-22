@@ -6,6 +6,7 @@ import os.path
 import ad
 import multiprocessing
 import os
+import scipy.stats.mstats
 import concurrent.futures as futures
 
 from . import estimation_tools, _smcpp, util, logging, jcsfs, spline
@@ -114,8 +115,10 @@ class BaseAnalysis:
                              c.fn, np.where(bad)[0])
                 sys.exit(1)
 
+
     def _recode_nonseg(self, cutoff):
         self._contigs = estimation_tools.recode_nonseg(self._contigs, cutoff)
+
 
     def _perform_thinning(self, thinning):
         # thin each dataset
@@ -134,6 +137,21 @@ class BaseAnalysis:
                              for c, d in zip(self._contigs, new_data)]
         # elif np.any(ns > 0):
         #     logger.warn("Not thinning yet undistinguished lineages are present")
+
+
+    def _empirical_tmrca(self, k):
+        '''Calculate the empirical distribution of TMRCA in the
+        distinguished lineages by counting mutations'''
+        w = 100000
+        res = [x for c in estimation_tools.windowed_mutations(self._contigs, w)
+                 for ww, x in c
+                 if ww == w]
+        p = np.linspace(0., 1., k)[1:-1]
+        q = scipy.stats.mstats.mquantiles(res, p) / w
+        # 2 * E(TMRCA) * self._theta ~= q
+        self._etmrca = np.unique(q / 2 / self._theta)
+        logger.debug("empirical TMRCA distribution: %s", self._etmrca)
+
 
     def _normalize_data(self, length_cutoff, filter):
         ## break up long spans
@@ -232,7 +250,6 @@ class BaseAnalysis:
 
     def run(self):
         'Perform the analysis.'
-        # Initial pass to learn hidden states and get good initialization point
         self._optimizer.run(self._niter)
 
     def Q(self):
@@ -314,6 +331,9 @@ class Analysis(BaseAnalysis):
         # Thin the data
         self._perform_thinning(args.thinning)
 
+        # Estimate empirical TMRCA distribution for distinguished pairs
+        self._empirical_tmrca(args.knots)
+
         # Set t1, tK if not already set
         self._calculate_t1_tK(args)
 
@@ -349,11 +369,12 @@ class Analysis(BaseAnalysis):
         logger.info("rho: %f", self._rho)
 
     def _init_knots(self, num_knots, t1, tK, offset):
-        knot_spans = [1] * num_knots
-        self._knots = np.cumsum(
-            estimation_tools.construct_time_points(self.rescale(t1),
-                                                   self.rescale(tK),
-                                                   knot_spans, offset))
+        self._knots = self._etmrca
+        # knot_spans = [1] * num_knots
+        # self._knots = np.cumsum(
+        #     estimation_tools.construct_time_points(self.rescale(t1),
+        #                                            self.rescale(tK),
+        #                                            knot_spans, offset))
         for x in smcpp.defaults.additional_knots:
             self._knots = np.append(self._knots, x * self._knots[-1])
 
