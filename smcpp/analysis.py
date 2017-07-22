@@ -53,8 +53,11 @@ class BaseAnalysis:
         self._init_inference_manager(self._args.polarization_error)
         self._init_optimizer(None, self._args.algorithm, self._args.xtol, self._args.ftol)
         self.E_step()
-        self._penalty = abs(self.Q()) * (10 ** -self._args.regularization_penalty)
-        logger.debug("Auto-assigning regularization penalty lambda=%g", self._penalty)
+        if self._args.lambda_:
+            self._penalty = self._args.lambda_
+        else:
+            self._penalty = abs(self.Q()) * (10 ** -self._args.regularization_penalty)
+        logger.debug("Regularization penalty: lambda=%g", self._penalty)
 
     def _init_optimizer(self, outdir, algorithm, xtol, ftol):
         self._optimizer = self._OPTIMIZER_CLS(self, algorithm, xtol, ftol)
