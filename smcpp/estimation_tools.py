@@ -4,10 +4,9 @@ import numpy as np
 from logging import getLogger
 import scipy.optimize
 import scipy.interpolate
-import multiprocessing as mp
+from concurrent.futures import ProcessPoolExecutor
 from collections import namedtuple
 import json
-import contextlib
 import pandas as pd
 import itertools
 
@@ -16,17 +15,6 @@ from .contig import Contig
 
 
 logger = getLogger(__name__)
-
-
-@contextlib.contextmanager
-def mp_pool():
-    # Safely destroy multiprocessing pool to avoid annoying stack traces
-    # on KeyboardInterrupt
-    p = mp.Pool()
-    yield p
-    p.close()
-    p.join()
-    p.terminate()
 
 
 # Construct time intervals stuff
@@ -74,7 +62,7 @@ def _thin_helper(args):
 
 def thin_dataset(dataset, thinning):
     '''Only emit full SFS every <thinning> sites'''
-    with mp_pool() as p:
+    with ProcessPoolExecutor() as p:
         return list(p.map(_thin_helper, 
             [(chrom, th, i) for i, (chrom, th) in enumerate(zip(dataset, thinning))]))
 
@@ -178,7 +166,7 @@ def balance_hidden_states(model, M):
 
 
 def watterson_estimator(contigs):
-    with mp_pool() as p:
+    with ProcessPoolExecutor() as p:
         num = denom = 0
         for S, sample_sizes, spans in map(_watterson_helper, contigs):
             num += S
@@ -250,6 +238,6 @@ def files_from_command_line_args(args):
 
 
 def load_data(files):
-    with mp_pool() as p:
+    with ProcessPoolExecutor() as p:
         obs = list(p.map(_load_data_helper, files))
     return obs
