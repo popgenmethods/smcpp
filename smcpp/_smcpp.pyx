@@ -304,8 +304,8 @@ cdef class PyOnePopInferenceManager(_PyInferenceManager):
 
     @property
     def pid(self):
-        assert len(self._im_id[0]) == 1
-        return self._im_id[0][0]
+        assert len(self._im_id) == 1
+        return self._im_id[0]
 
     @targets("model update")
     def update(self, message, *args, **kwargs):
@@ -334,7 +334,7 @@ cdef class PyTwoPopInferenceManager(_PyInferenceManager):
     @targets("model update")
     def update(self, message, *args, **kwargs):
         m = self._model
-        pids = self._im_id[0]
+        pids = self._im_id
         if self._a1 == 1:
             dist = None
         else:

@@ -199,27 +199,29 @@ class BaseAnalysis:
         ## Create inference object which will be used for all further calculations.
         logger.debug("Creating inference manager...")
         d = {}
+        max_n = {}
         self._ims = {}
         for c in self._contigs:
-            d.setdefault(c.key, []).append(c)
-        for key in d:
-            pid, n, a = key
-            logger.debug("Creating inference manager for %s", key)
-            data = [contig.data for contig in d[key]]
+            d.setdefault(c.pid, []).append(c)
+            max_n.setdefault(c.pid, -np.inf)
+            max_n[c.pid] = np.maximum(max_n[c.pid], c.n)
+        for pid in d:
+            logger.debug("Creating inference manager for %s", pid)
+            data = [c.data for c in d[pid]]
             if len(pid) == 1:
-                im = _smcpp.PyOnePopInferenceManager(n[0], data, 
+                im = _smcpp.PyOnePopInferenceManager(max_n[pid], data,
                         self._hidden_states[pid[0]],
-                        key, polarization_error)
+                        pid, polarization_error)
             else:
                 assert len(pid) == 2
-                im = _smcpp.PyTwoPopInferenceManager(*n, *a, data,
+                im = _smcpp.PyTwoPopInferenceManager(*(max_n[pid]), *a, data,
                                                      self._hidden_states[pid[0]],
-                                                     key,
+                                                     pid,
                                                      polarization_error)
             im.model = self._model
             im.theta = self._theta
             im.rho = self._rho
-            self._ims[key] = im
+            self._ims[pid] = im
         self._model.randomize()
 
     @property
