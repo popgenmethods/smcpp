@@ -1,13 +1,14 @@
 import numpy as np
+import attr
 
 
+@attr.s
 class Contig:
-    def __init__(self, pid, data, n, a, fn=None):
-        self.pid = pid
-        self.data = data
-        self.n = np.array(n)
-        self.a = np.array(a)
-        self.fn = fn
+    pid = attr.ib()
+    data = attr.ib()
+    n = attr.ib(convert=np.array)
+    a = attr.ib(convert=np.array)
+    fn = attr.ib(default=None)
 
     @property
     def npop(self):

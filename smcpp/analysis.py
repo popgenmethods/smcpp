@@ -82,14 +82,13 @@ class BaseAnalysis:
                 "following were found in the data: %r" % unique_pops)
         assert len(unique_pops) <= 2
         self._populations = tuple(unique_pops)
-        
         for c in self._contigs:
             assert len(c.n) == len(c.a)
             assert c.a.max() <= 2
             assert c.a.min() >= 0
             assert c.a.sum() == 2
             assert c.data.shape[1] == 1 + 3 * len(c.n)
-            logger.debug("Contig(pid=%r, fn=%r, n=%r, a=%r)", c.pid, c.fn, c.n, c.a)
+            logger.debug(c)
         logger.info("%d population%s", self.npop, "" if self.npop == 1 else "s")
         self._watterson = estimation_tools.watterson_estimator(self._contigs)
         logger.debug("Watterson estimator: %f", self._watterson)
