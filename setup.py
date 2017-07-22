@@ -12,7 +12,7 @@ from Cython.Build import cythonize
 import numpy as np
 
 extra_compile_args = ["-O2", "-std=c++11", "-Wno-deprecated-declarations",
-                      "-DNO_CHECK_NAN", '-fopenmp']
+                      "-DNO_CHECK_NAN", '-fopenmp', '-mtune=generic']
 
 # extra_compile_args = ["-O0", "-g", "-std=c++11", "-Wno-deprecated-declarations",
 #                       "-D_GLIBCXX_DEBUG"]
