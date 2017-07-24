@@ -47,7 +47,7 @@ def compress_repeated_obs(dataset):
     # pad with illegal value at starting position
     nonce = np.zeros_like(dataset[0])
     nonce[:2] = [1, -999]
-    dataset = np.concatenate([[nonce], dataset, [nonce]])
+    dataset = np.r_[[nonce], dataset, [nonce]]
     nonreps = np.any(dataset[1:, 1:] != dataset[:-1, 1:], axis=1)
     newob = dataset[1:][nonreps]
     csw = np.cumsum(dataset[:, 0])[np.where(nonreps)]
@@ -251,18 +251,27 @@ def windowed_mutations(contigs, w):
 
 def _windowed_mutations_helper(*args):
     contig, w = args
-    q = contig.data[::-1].tolist()
-    c = mut = 0
+    assert w > 0
+    cd = contig.data[::-1]
+    seen = nmiss = mut = 0
     ret = []
-    while q:
-        last = span, *abnb = q.pop()
-        mut += span * (sum(abnb[::3]) % 2)
-        if c + span > w:
-            last[0] = span - (c - w)
-            q.append(last)
-            ret.append([w, mut])
-            c = mut = 0
+    i = cd.shape[0] - 1
+    last = cd[i].tolist()
+    while i >= 0:
+        span, *abnb = last
+        a = abnb[::3]
+        sp = min(w - seen, span)
+        extra = seen + span - w
+        seen += sp
+        if -1 not in a:
+            mut += sp * (sum(abnb[::3]) % 2)
+            nmiss += sp
+        if extra > 0:
+            last = [extra] + abnb
+            ret.append([nmiss, mut])
+            nmiss = mut = seen = 0
         else:
-            c += span
-    ret.append([c, mut])
+            i -= 1
+            last = cd[i].tolist()
+    ret.append([nmiss, mut])
     return ret
