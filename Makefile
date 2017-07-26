@@ -1,5 +1,5 @@
 all:
-	PATH=/usr/lib/ccache:${PATH} python setup.py develop
+	PATH=/usr/local/opt/ccache/libexec:/usr/lib/ccache:${PATH} python setup.py develop
 clean:
 	python setup.py clean --all
 current_tag:
