@@ -4,7 +4,7 @@ import numpy as np
 from logging import getLogger
 import scipy.optimize
 import scipy.interpolate
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from collections import namedtuple
 import json
 import pandas as pd
@@ -245,33 +245,5 @@ def load_data(files):
 
 def windowed_mutations(contigs, w):
     '''Return array [[window_length, num_mutations], ...] for each contig'''
-    with ProcessPoolExecutor() as p:
-        return list(p.map(_windowed_mutations_helper, contigs, itertools.repeat(w)))
-
-
-def _windowed_mutations_helper(*args):
-    contig, w = args
-    assert w > 0
-    cd = contig.data[::-1]
-    seen = nmiss = mut = 0
-    ret = []
-    i = cd.shape[0] - 1
-    last = cd[i].tolist()
-    while i >= 0:
-        span, *abnb = last
-        a = abnb[::3]
-        sp = min(w - seen, span)
-        extra = seen + span - w
-        seen += sp
-        if -1 not in a:
-            mut += sp * (sum(abnb[::3]) % 2)
-            nmiss += sp
-        if extra > 0:
-            last = [extra] + abnb
-            ret.append([nmiss, mut])
-            nmiss = mut = seen = 0
-        else:
-            i -= 1
-            last = cd[i].tolist()
-    ret.append([nmiss, mut])
-    return ret
+    with ThreadPoolExecutor() as p:
+        return list(map(_smcpp._windowed_mutations_helper, contigs, itertools.repeat(w)))

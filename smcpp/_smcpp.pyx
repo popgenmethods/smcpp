@@ -463,3 +463,50 @@ def joint_csfs(int n1, int n2, int a1, int a2, model, hidden_states, int K=10):
         mat.shape = (a1 + 1, n1 + 1, a2 + 1, n2 + 1)
         ret.append(mat)
     return ret
+
+
+# @cython.boundscheck(False)
+def _windowed_mutations_helper(contig, int w):
+    assert w > 0
+    cdef int[:, :] cd = contig.data[::-1]
+    cdef int seen, nmiss, mut, sp, span, extra, k
+    L = contig.data[:, 0].sum()
+    ret = np.zeros([L // w + 1, 2], dtype=np.int32)
+    cdef int n = (contig.data.shape[1] - 1) // 3
+    cdef int[:, :] vret = ret
+    cdef int i = cd.shape[0] - 1
+    cdef int j = 0
+    cdef int a = 0
+    cdef int[:] last = np.zeros(1 + 3 * n, dtype=np.int32)
+    last[:] = cd[i]
+    seen = nmiss = mut = 0
+    with nogil:
+        while i >= 0:
+            span = last[0]
+            sp = span
+            if w - seen < span:
+                sp = w - seen
+            extra = seen + span - w
+            seen += sp
+            a = 0
+            for k in range(n):
+                if last[1 + 3 * k] != -1:
+                    a += last[1 + 3 * k]
+                else:
+                    a = -1
+                    break
+            if a >= 0:
+                mut += sp * (a % 2)
+                nmiss += sp
+            if extra > 0:
+                last[0] = extra
+                vret[j, 0] = nmiss
+                vret[j, 1] = mut
+                j += 1
+                nmiss = mut = seen = 0
+            else:
+                i -= 1
+                for k in range(last.shape[0]):
+                    last[k] = cd[i, k]
+    ret[j] = [nmiss, mut]
+    return ret
