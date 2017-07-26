@@ -13,6 +13,16 @@ def harmonic_number(x):
     return scipy.special.digamma(1. + x) + EULER_GAMMA
 
 
+def quantile(X, h, q):
+    def g(y):
+        return scipy.stats.beta.pdf(X, 1. + y / h, 1. + (1. - y) / h).mean()
+    def F(y):
+        return scipy.integrate.quad(g, 0, y)[0]
+    c = F(1.)
+    return scipy.optimize.brentq(lambda x: F(x) / c - q, 0., 1.)
+
+
+
 def positive_part(f, a, b):
     '''For f which monotonically increases on [a, b], return 
        [l, r] \subset [a, b] such that f(x) >= 0 for all x \in [l, r].
@@ -26,11 +36,14 @@ def positive_part(f, a, b):
     return [l, b]
 
 
-
 def sample_beta_kernel(X, mu, h):
     '''
     Draw Poisson(mu) samples from Beta(X, 1 + y / h, 1 + (1 - y) / h).
     '''
+    M = np.random.poisson(mu)
+    if X in [0, 1]:
+        return np.full(M, X)
+
     def g(y):
         return scipy.stats.beta.logpdf(X, 1. + y / h, 1. + (1. - y) / h)
     def dg(y):
@@ -55,7 +68,6 @@ def sample_beta_kernel(X, mu, h):
             l1, _ = positive_part(lambda y: g(1 - y) - z, 0, 1 - mid)
             return [l, 1 - l1]
     x0 = 0.5  # initial value is discarded
-    M = np.random.poisson(mu)
     ret = np.zeros(M)
     for i in range(M):
         z = g(x0) - np.random.exponential()

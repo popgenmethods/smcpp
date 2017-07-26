@@ -8,6 +8,7 @@ import multiprocessing
 import os
 import scipy.stats
 import concurrent.futures as futures
+import itertools as it
 
 from . import estimation_tools, _smcpp, util, logging, jcsfs, spline
 import smcpp.defaults
@@ -148,23 +149,19 @@ class BaseAnalysis:
         wm = estimation_tools.windowed_mutations(self._contigs, w)
         X, w = np.transpose([[x / ww, ww] for c in wm for ww, x in c if ww > .8 * w])
         # Beta density estimation
-        N = int(1e3)
+        N = int(1e4)
         M = len(X)
-        h = M ** -0.5
-        logger.debug("Computing quantiles of TMRCA distribution")
-        with futures.ProcessPoolExecutor() as p:
-            m = p.map(smcpp.beta_de.sample_beta_kernel, X, it.repeat(N / M), it.repeat(h),
-                      chunksize=max(1, M // 10))
-            spl = [x for ret in m for x in ret]
+        h = 1 / M
+        logger.debug("Computing quantiles of TMRCA distribution from M=%d TMRCA samples", M)
+        logger.debug("Unresampled quantiles (0/10/25/50/75/100): %s",
+                     scipy.stats.mstats.mquantiles(X, [0, .1, .25, .5, .75, 1.]))
         p = np.logspace(np.log10(.01), np.log10(.99), k)
-        q = scipy.stats.mstats.mquantiles(spl, p)
+        with futures.ProcessPoolExecutor() as pool:
+            q = np.array(list(pool.map(smcpp.beta_de.quantile, it.repeat(X), it.repeat(h), list(p))))
         logger.debug("Quantiles: %s", " ".join("F(%f)=%f" % c for c in zip(q, p)))
         # 2 * E(TMRCA) * self._theta ~= q
-        e = np.unique(q)
-        e = e[e > 0]
-        if not e.size:
-            e = np.array([1.])
-        self._etmrca = e
+        q /= (2. * self._theta)
+        self._etmrca = q
         logger.debug("empirical TMRCA distribution: %s", self._etmrca)
 
 
