@@ -401,44 +401,91 @@ def thin_data(data, int thinning, int offset=0):
     cdef int i = offset
     out = []
     cdef int[:, :] vdata = data
+    bases = data[:, 0].sum()
+    R = int((2 * np.ceil(data[offset:, 0] / thinning)).sum())
+    ret = np.zeros([R, data.shape[1]], dtype=np.int32)
     cdef int j
-    cdef int k = data.shape[0]
+    cdef int k = data.shape[0], n, v
     cdef int span
     cdef int npop = (data.shape[1] - 1) / 3
     cdef int sa
     a = np.zeros(npop, dtype=np.int32)
-    b = np.zeros(npop, dtype=np.int32)
-    nb = np.zeros(npop, dtype=np.int32)
+    b = np.zeros_like(a)
+    nb = np.zeros_like(a)
     thin = np.zeros(npop * 3, dtype=np.int32)
     nonseg = np.zeros(npop * 3, dtype=np.int32)
     cdef int[:] a_view = a, b_view = b, nb_view = nb, thin_view = thin, nonseg_view = nonseg
-    for j in range(k):
-        span = vdata[j, 0]
-        a_view[:] = vdata[j, 1::3]
-        b_view[:] = vdata[j, 2::3]
-        nb_view[:] = vdata[j, 3::3]
-        sa = a.sum()
-        thin_view[::3] = a_view
-        if sa == 2:
-            thin_view[::3] = 0
-        while span > 0:
-            if i < thinning and i + span >= thinning:
-                if thinning - i > 1:
-                    out.append([thinning - i - 1] + list(thin_view))
-                if sa == 2 and np.all(b == nb):
-                    nonseg_view[2::3] = nb_view
-                    out.append([1] + list(nonseg_view))
+    cdef int[:, :] vret = ret
+    cdef int r = 0
+    with nogil:
+        for j in range(k):
+            span = vdata[j, 0]
+            # a_view[:] = vdata[j, 1::3]
+            # b_view[:] = vdata[j, 2::3]
+            # nb_view[:] = vdata[j, 3::3]
+
+            # sa = sum_memview(vdata[j, 1::3])
+            # thin_view[::3] = a_view
+            sa = 0
+            for n in range(npop):
+                v = vdata[j, 1 + 3 * n]
+                sa += v
+                thin_view[3 * n] = v
+            if sa == 2:
+                for n in range(npop):
+                    thin_view[3 * n] = v
+            while span > 0:
+                if i < thinning and i + span >= thinning:
+                    if thinning - i > 1:
+                        # out.append([thinning - i - 1] + list(thin_view))
+                        vret[r, 0] = thinning - i - 1
+                        for n in range(3 * npop):
+                            vret[r, 1 + n] = thin_view[n]
+                        r += 1
+                    if sa == 2 and all_eq_memview(b_view, nb_view):
+                        # nonseg_view[2::3] = nb_view
+                        for n in range(npop):
+                            nonseg_view[2 + 3 * n] = nb_view[n]
+                        # out.append([1] + list(nonseg_view))
+                        vret[r, 0] = 1
+                        for n in range(3 * npop):
+                            vret[r, 1 + n] = nonseg_view[n]
+                        r += 1
+                    else:
+                        # out.append([1] + list(vdata[j, 1:]))
+                        vret[r, 0] = 1
+                        for n in range(3 * npop):
+                            vret[r, 1 + n] = vdata[j, 1 + n]
+                        r += 1
+                    span -= thinning - i
+                    i = 0
                 else:
-                    out.append([1] + list(vdata[j, 1:]))
-                span -= thinning - i
-                i = 0
-            else:
-                out.append([span] + list(thin_view))
-                i += span
-                break
-    ret = np.array(out, dtype=np.int32)
+                    # out.append([span] + list(thin_view))
+                    vret[r, 0] = span
+                    for n in range(3 * npop):
+                        vret[r, 1 + n] = thin_view[n]
+                    r += 1
+                    i += span
+                    break
+    ret = ret[:r]
+    # ret = np.array(out, dtype=np.int32)
     assert ret[:, 0].sum() == data[:, 0].sum()
     return ret
+
+
+cdef bint all_eq_memview(int[:] a, int[:] b) nogil:
+    for i in range(a.shape[0]):
+        if a[i] != b[i]:
+            return False
+    return True
+
+
+cdef int sum_memview(int[:] a) nogil:
+    cdef int ret = 0
+    for i in range(a.shape[0]):
+        ret += a[i]
+    return ret
+
 
 # Used for testing purposes only
 def joint_csfs(int n1, int n2, int a1, int a2, model, hidden_states, int K=10):

@@ -62,7 +62,7 @@ def _thin_helper(args):
 
 def thin_dataset(dataset, thinning):
     '''Only emit full SFS every <thinning> sites'''
-    with ProcessPoolExecutor() as p:
+    with ThreadPoolExecutor() as p:
         return list(p.map(_thin_helper, 
             [(chrom, th, i) for i, (chrom, th) in enumerate(zip(dataset, thinning))]))
 
