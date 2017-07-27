@@ -41,7 +41,7 @@ requirements:
     - wrapt >=1.10
     - ad >=1.3.2
     - readline 6.2
-
+    - attrs >=17.2.0
 about:
   home: https://github.com/popgenmethods/smcpp
   license: BSD
