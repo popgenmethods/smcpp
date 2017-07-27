@@ -344,7 +344,7 @@ class Analysis(BaseAnalysis):
         self._perform_thinning(args.thinning)
 
         # Estimate empirical TMRCA distribution for distinguished pairs
-        self._empirical_tmrca(args.knots,
+        self._empirical_tmrca(2 * args.knots,
                               args.w or .1 * self._cM)
         hs = np.r_[[0.], self._etmrca, [np.inf]]
 
@@ -381,7 +381,7 @@ class Analysis(BaseAnalysis):
 
 
     def _init_knots(self, t1, tK):
-        self._knots = self._etmrca
+        self._knots = self._etmrca[::2]
         if t1 < self._knots[0]:
             self._knots = np.r_[t1, self._knots]
         if tK > self._knots[-1]:

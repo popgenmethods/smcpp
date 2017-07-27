@@ -60,7 +60,7 @@ class AbstractOptimizer(Observable):
     def _f(self, x, analysis, coords):
         x = self._prepare_x(x)  # do not change this line
         xs = self._sigmoid(x)
-        logger.debug("x: " + ", ".join(["%.1f" % float(xx) for xx in xs]))
+        logger.debug("x: " + ", ".join(["%.3f" % float(xx) for xx in xs]))
         self[coords] = xs
         q = analysis.Q()
         # autodiff doesn't like multiplying and dividing inf
@@ -68,6 +68,7 @@ class AbstractOptimizer(Observable):
             return [np.inf, np.zeros(len(x))]
         q = -q
         ret = [q.x, np.array(list(map(q.d, x)))]
+        self._f_dict[tuple(np.array(x).astype('float').tolist())] = q.x
         return ret
 
     def _minimize(self, x0, coords):
@@ -78,7 +79,7 @@ class AbstractOptimizer(Observable):
             except AttributeError:
                 alg = self._algorithm
             options = {
-                    'xtol': self._xtol, 'ftol': self._ftol, 'gtol': 1., 'm': 100,
+                    'xtol': self._xtol, 'ftol': self._ftol, 'disp': True
                     }
             x0z = np.zeros_like(x0)
             # preconditioner
@@ -96,30 +97,38 @@ class AbstractOptimizer(Observable):
                     print("***grad", i, y1, (y1 - y) * 1e8, dy[i])
                     x0[i] -= 1e-8
             y = self[coords]
+            self._f_dict = {}
+            self._last_f = None
+            f0 = self._f(x0z, self._analysis, coords)[0]
             if len(y) > 1:
                 res = scipy.optimize.minimize(self._f, x0z,
                         jac=True,
                         args=(self._analysis, coords),
                         options=options,
-                        callback=self._callback,
-                        bounds=[[-3, 3]] * len(y),
+                        bounds=[[-3, 3]] * len(x0z),
+                        # callback=self._callback,
                         method=alg)
-                res.x = self._sigmoid(res.x)
             else:
                 def _f_scalar(x, *args, **kwargs):
                     return self._f(np.array([x]), *args, **kwargs)[0]
                 res = scipy.optimize.minimize_scalar(_f_scalar,
-                        bounds=[-5, 5],
-                        options={'xatol': .01},
+                        bounds=[-3, 3],
+                        options={'xtol': self._xtol, 'ftol': self._ftol},
                         args=(self._analysis, coords),
-                        method="bounded")
-                res.x = self._sigmoid(np.array([res.x]))
+                        method='bounded')
+                res.x = np.array([res.x])
+            improv = (f0 - res.fun) / abs(f0)
+            logger.debug("%% improvement in f=%f", improv)
+            # if improv < self._ftol:
+            #     logger.debug("improvement < %f=ftol; keeping old x", self._ftol)
+            #     res.x = x0z
+            res.x = self._sigmoid(res.x)
             return res
         except ConvergedException as ce:
             logger.debug("Converged: %s", str(ce))
             return scipy.optimize.OptimizeResult(
                 {'x': self._sigmoid(self._xk),
-                 'fun': self._f(self._xk, self._analysis, coords)[0]}
+                 'fun': self._f_dict[self._xk]}
                 )
 
     def run(self, niter):
@@ -203,7 +212,8 @@ class SMCPPOptimizer(AbstractOptimizer):
     def _coordinates(self):
         model = self._analysis.model
         K = model.K - 1
-        return [[k] for k in range(K)][::-1]  # + [list(range(K // 3))]
+        # return [[k] for k in range(K)][::-1]
+        return [list(range(K))] # + [list(range(K // 3))]
 
 class TwoPopulationOptimizer(SMCPPOptimizer):
     'Model fitting for two populations.'
