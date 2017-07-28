@@ -156,8 +156,8 @@ class BaseAnalysis:
         logger.debug("Unresampled quantiles (0/10/25/50/75/100): %s",
                      scipy.stats.mstats.mquantiles(X, [0, .1, .25, .5, .75, 1.]))
         p = np.logspace(np.log10(.01), np.log10(.99), k)
-        with futures.ProcessPoolExecutor() as pool:
-            q = np.array(list(pool.map(smcpp.beta_de.quantile, it.repeat(X), it.repeat(h), list(p))))
+        # with futures.ProcessPoolExecutor() as pool:
+        q = smcpp.beta_de.quantile(X, h, p)
         logger.debug("Quantiles: %s", " ".join("F(%f)=%f" % c for c in zip(q, p)))
         # 2 * E(TMRCA) * self._theta ~= q
         q /= (2. * self._theta)

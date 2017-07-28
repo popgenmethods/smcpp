@@ -3,6 +3,10 @@ import numpy as np
 import scipy.stats
 import scipy.optimize
 import scipy.special
+import scipy.interpolate
+
+
+from . import _smcpp
 
 
 EULER_GAMMA = 0.577215664901532860
@@ -14,13 +18,16 @@ def harmonic_number(x):
 
 
 def quantile(X, h, q):
-    def g(y):
-        return scipy.stats.beta.pdf(X, 1. + y / h, 1. + (1. - y) / h).mean()
-    def F(y):
-        return scipy.integrate.quad(g, 0, y)[0]
-    c = F(1.)
-    return scipy.optimize.brentq(lambda x: F(x) / c - q, 0., 1.)
-
+    # def g(y):
+    #     return scipy.stats.beta.pdf(X[None, :], 1. + y / h, 1. + (1. - y) / h).mean(axis=1)
+    x = np.linspace(0, 1., 10000)[1:]
+    y = _smcpp.beta_de_avg_pdf(X, x, h)
+    x = np.r_[0, x]
+    y = np.cumsum(np.r_[0, y])
+    y /= y[-1]
+    F = scipy.interpolate.interp1d(x, y)
+    return np.array([scipy.optimize.brentq(lambda x: F(x) - qq, 0., 1., rtol=.01)
+                     for qq in q])
 
 
 def positive_part(f, a, b):
