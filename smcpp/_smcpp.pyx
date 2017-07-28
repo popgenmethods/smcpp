@@ -17,7 +17,6 @@ from . import logging, version, util
 from .observe import targets
 
 logger = logging.getLogger(__name__)
-logger.info("SMC++ " + version.version)
 
 init_eigen()
 

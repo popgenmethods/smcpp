@@ -1,7 +1,6 @@
 'Miscellaneous estimation and data-massaging functions.'
 from __future__ import absolute_import, division, print_function
 import numpy as np
-from logging import getLogger
 import scipy.optimize
 import scipy.interpolate
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
@@ -10,11 +9,11 @@ import json
 import pandas as pd
 import itertools
 
-from . import _smcpp, util
+from . import _smcpp, util, logging
 from .contig import Contig
 
 
-logger = getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 
 # Construct time intervals stuff
@@ -207,11 +206,11 @@ def _load_data_helper(fn):
             attrs = json.loads(first_line[7:])
             a = [len(a) for a in attrs['dist']]
             n = [len(u) for u in attrs['undist']]
-            if "pids" not in attrs:
-                logger.warn("%s lacks population ids. Timidly proceeding with defaults...", fn)
+            if "pids" not in attrs:  
+                # FIXME this code really only exists to analyze old data sets (before the fmt changed)
+                # it should probably be removed
                 attrs["pids"] = ["pop%d" % i for i, _ in enumerate(a, 1)]
         else:
-            logger.warn("File %s doesn't appear to be in SMC++ format", fn)
             npop = (A.shape[1] - 1) // 3
             attrs = {'pids': ['pop%d' % i for i in range(1, npop + 1)]}
             a = A[:, 1::3].max(axis=0)
