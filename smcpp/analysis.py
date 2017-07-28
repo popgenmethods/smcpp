@@ -372,7 +372,7 @@ class Analysis(BaseAnalysis):
         self._theta = 2. * self._N0 * mu
         logger.info("theta: %f", self._theta)
         if r is not None:
-            self._rho = 2 * self._N0 * args.r
+            self._rho = 2 * self._N0 * r
         else:
             self._rho = self._theta
         self._cM = 1e-2 / (self._rho / (2 * self._N0))
