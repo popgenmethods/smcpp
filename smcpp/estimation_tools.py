@@ -167,7 +167,7 @@ def balance_hidden_states(model, M):
 def watterson_estimator(contigs):
     with ProcessPoolExecutor() as p:
         num = denom = 0
-        for S, sample_sizes, spans in map(_watterson_helper, contigs):
+        for S, sample_sizes, spans in p.map(_watterson_helper, contigs):
             num += S
             non_missing = sample_sizes > 0
             ss = sample_sizes[non_missing]
