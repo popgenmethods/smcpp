@@ -56,7 +56,7 @@ def compress_repeated_obs(dataset):
 
 
 def _thin_helper(args):
-    thinned = np.array(_smcpp.thin_data(*args), dtype=np.int32)
+    thinned = _smcpp.thin_data(*args)
     return compress_repeated_obs(thinned)
 
 
