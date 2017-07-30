@@ -442,17 +442,54 @@ requires additional regularization.
 
 Frequently asked questions
 ==========================
-The binary installer dies with the error message ``ImportError: /lib64/libc.so.6: version `GLIBC_2.14' not found (required by ...)``. How can I fix this?
-    This is due to a ``glibc`` version mismatch between your system and the build server I use to create the binary installers. Unfortunately, I am unable to create binaries for older versions of ``glibc``. Your options are to either a) upgrade ``glibc`` on your system (which would probably require upgrading your operating system); or b) build SMC++ yourself by following the `build instructions`_. Please note that installing your own version of ``glibc`` different from the system version will **not** work, is not supported, and will likely result in the program randomly crashing.
+The binary installer dies with the error message:: 
+
+    ImportError: /lib64/libc.so.6: version `GLIBC_2.14' not found (required by ...).
+    
+How can I fix this?
+
+    This is due to a ``glibc`` version mismatch between your system and
+    the build server I use to create the binary installers. Unfortunately,
+    I am unable to create binaries for older versions of ``glibc``. Your
+    options are to either a) upgrade ``glibc`` on your system (which would
+    probably require upgrading your operating system); or b) build SMC++
+    yourself by following the `build instructions`_. Please note that
+    linking a different version of ``glibc`` at runtime is **not** supported, 
+    and will likely cause random crashes.
+
+SMC++ claims that my population crashed in the very recent past. What's
+going on?
+
+    Typically this is due to long runs of homozygosity (ROH) in the data, which can arise for
+    one of several reasons:
+
+    1. The population legitimately experienced a recent crash, leading to inbreeding;
+    2. One or more selective sweeps occured; or
+    3. Uncalled regions in your VCF were not marked as such before running vcf2smc_. 
+
+    #1 represents real signal, while #2 and #3 should be filtered out using the ``-m`` 
+    option of vcf2smc_ and/or the ``-c`` option of estimate_.
+
     
 What to do if you encounter trouble
 ===================================
-SMC++ is under active development and you may encounter difficulties in trying to use it. Always make sure that you have upgraded to the `latest version <https://github.com/popgenmethods/smcpp/releases/latest>`_, as the bug you have encountered may have already been fixed. If that does not work, then:
+SMC++ is under active development and you may encounter difficulties in
+trying to use it. Always make sure that you have upgraded to the `latest
+version <https://github.com/popgenmethods/smcpp/releases/latest>`_, as
+the bug you have encountered may have already been fixed. If that does
+not work, then:
 
-- If you believe you have encountered a **bug** in the software (unexpected crash, high memory usage, etc.) please `file an issue <https://github.com/popgenmethods/smcpp/issues>`_ in our bug tracker.
-- If you would like assistance in interpreting the results, please e-mail me directly. I will do my best to try and help, but please understand that I have limited time to respond to such inquiries.
+- If you believe you have encountered a **bug** in the software
+(unexpected crash, high memory usage, etc.) please `file an issue
+<https://github.com/popgenmethods/smcpp/issues>`_ in our bug tracker.
+- If you would like assistance in interpreting the results, please
+e-mail me directly. I will do my best to try and help, but please
+understand that I have limited time to respond to such inquiries.
   
-In both cases, you will receive a faster response if you include as much detail as possible about your data set (sample size, # of contigs, etc.), system and, where applicable, the ``.debug.txt`` log file saved by SMC++ in the output directory specified to the ``estimate`` command.
+In both cases, you will receive a faster response if you include as
+much detail as possible about your data set (sample size, # of contigs,
+etc.), system and, where applicable, the ``.debug.txt`` log file saved
+by SMC++ in the output directory specified to the ``estimate`` command.
 
 File formats
 ============
@@ -462,23 +499,22 @@ Input data format
 The data files should be ASCII text and can optionally be gzipped. The
 format of each line of the data file is as follows::
 
-    <span> <d> <u1> <n1> [<u2> <n2>]
+    <span> <d1> <u1> <n1> [<d1> <u2> <n2>]
 
 Explanation of each column:
 
 - ``span`` gives the number of contiguous bases at which this
   observation occurred. Hence, it will generally be ``1`` for SNPs and
   greater than one for a stretch of nonsegregating sites.
-- ``d`` Gives the genotype (``0``, ``1``, or ``2``) of the
-  distinguished individual. If the genotype of the distinguished
-  individual is not known, this should be set to ``-1``.
-- The next column ``u1`` is the total number of derived alleles found
-  in the remainder of the (undistinguished) sample at the site(s).
-- The final column ``n1`` is the *haploid* sample size (number of
-  non-missing observations) in the undistinguished portion of the
-  sample.
-- If two populations are to be analyzed, ``u2`` and ``n2`` are also 
-  specified for the second population.
+- Then, there are three columns ``d``/``u``/``n`` for each population:
+    o ``d`` Gives the genotype (``0``, ``1``, or ``2``) of the
+      distinguished individual. If the genotype of the distinguished
+      individual is not known, this should be set to ``-1``.
+    o The next column ``u`` is the total number of derived alleles found
+      in the remainder of the (undistinguished) sample at the site(s).
+    o The final column ``n`` is the *haploid* sample size (number of
+      non-missing observations) in the undistinguished portion of the
+      sample.
 
 For example, consider the following set of genotypes at a set of 10
 contiguous bases on three diploid individuals in one population::
@@ -506,6 +542,11 @@ The SMC++ format for this input file is::
     2   0   0   4
     1   2   1   4
 
+
+The data files also include a custom metadata header with some
+additional information about the populations. For this reason, it is
+advised to please use the included vcf2smc_ tool in order to translate
+from the ``VCF`` to ``SMC`` format.
 
 Output data format
 ------------------
