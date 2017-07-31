@@ -396,8 +396,10 @@ def raw_sfs(model, int n, double t1, double t2, below_only=False):
 
 
 def thin_data(data, int thinning, int offset=0):
-    '''Implement the thinning procedure needed to break up correlation
-    among the full SFS emissions.'''
+    '''
+    Implement the thinning procedure needed to break up correlation
+    among the full SFS emissions.
+    '''
     # Thinning
     cdef int i = offset
     out = []
@@ -405,11 +407,9 @@ def thin_data(data, int thinning, int offset=0):
     bases = data[:, 0].sum()
     R = int((2 * np.ceil(data[offset:, 0] / thinning)).sum())
     ret = np.zeros([R, data.shape[1]], dtype=np.int32)
-    cdef int j
-    cdef int k = data.shape[0], n, v
-    cdef int span
+    cdef int j, n, v, span, sa
+    cdef int K = data.shape[0]
     cdef int npop = (data.shape[1] - 1) / 3
-    cdef int sa
     a = np.zeros(npop, dtype=np.int32)
     b = np.zeros_like(a)
     nb = np.zeros_like(a)
@@ -419,7 +419,7 @@ def thin_data(data, int thinning, int offset=0):
     cdef int[:, :] vret = ret
     cdef int r = 0
     with nogil:
-        for j in range(k):
+        for j in range(K):
             span = vdata[j, 0]
             # a_view[:] = vdata[j, 1::3]
             # b_view[:] = vdata[j, 2::3]
@@ -434,7 +434,7 @@ def thin_data(data, int thinning, int offset=0):
                 thin_view[3 * n] = v
             if sa == 2:
                 for n in range(npop):
-                    thin_view[3 * n] = v
+                    thin_view[3 * n] = 0
             while span > 0:
                 if i < thinning and i + span >= thinning:
                     if thinning - i > 1:

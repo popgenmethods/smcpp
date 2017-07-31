@@ -55,15 +55,18 @@ def compress_repeated_obs(dataset):
 
 
 def _thin_helper(args):
-    thinned = _smcpp.thin_data(*args)
+    try:
+        thinned = _smcpp.thin_data(*args)
+    except Exception as e:
+        logger.error(args)
+        raise
     return compress_repeated_obs(thinned)
 
 
 def thin_dataset(dataset, thinning):
     '''Only emit full SFS every <thinning> sites'''
     with ThreadPoolExecutor() as p:
-        return list(p.map(_thin_helper, 
-            [(chrom, th, i) for i, (chrom, th) in enumerate(zip(dataset, thinning))]))
+        return list(p.map(_thin_helper, zip(dataset, thinning)))
 
 
 def recode_nonseg(contigs, cutoff):
