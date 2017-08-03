@@ -1,4 +1,4 @@
-additional_knots = [2]
+additional_knots = []
 regularization_penalty = 7
 xtol = .1
 ftol = 1e-4

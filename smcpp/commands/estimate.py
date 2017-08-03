@@ -35,9 +35,6 @@ class Estimate(command.EstimationCommand, command.ConsoleCommand):
         model.add_argument('--knots', type=int,
                            default=smcpp.defaults.knots,
                            help="number of knots to use in internal representation")
-        model.add_argument('--offset', type=float, default=0.,
-                           help="offset (in coalescent units) to use "
-                                "when calculating time points")
         model.add_argument('--spline',
                            choices=["cubic", "pchip"],
                            default=smcpp.defaults.spline,

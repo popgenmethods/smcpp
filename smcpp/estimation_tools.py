@@ -55,11 +55,14 @@ def compress_repeated_obs(dataset):
 
 
 def _thin_helper(args):
-    try:
-        thinned = _smcpp.thin_data(*args)
-    except Exception as e:
-        logger.error(args)
-        raise
+    ds, th = args
+    thinned = ds
+    if th > 0:
+        try:
+            thinned = _smcpp.thin_data(ds, th)
+        except Exception as e:
+            logger.error(args)
+            raise
     return compress_repeated_obs(thinned)
 
 
