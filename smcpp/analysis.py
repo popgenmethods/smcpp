@@ -235,11 +235,13 @@ class BaseAnalysis:
         logger.debug("Creating inference manager...")
         d = {}
         max_n = {}
+        a = {}
         self._ims = {}
         for c in self._contigs:
             d.setdefault(c.pid, []).append(c)
-            max_n.setdefault(c.pid, -np.inf)
+            max_n.setdefault(c.pid, -1)
             max_n[c.pid] = np.maximum(max_n[c.pid], c.n)
+            a.setdefault(c.pid, []).append(tuple(c.a))
         for pid in d:
             logger.debug("Creating inference manager for %s", pid)
             data = [c.data for c in d[pid]]
@@ -249,7 +251,9 @@ class BaseAnalysis:
                         pid, polarization_error)
             else:
                 assert len(pid) == 2
-                im = _smcpp.PyTwoPopInferenceManager(*(max_n[pid]), *a, data,
+                s = set(a[pid])
+                assert len(s) == 1
+                im = _smcpp.PyTwoPopInferenceManager(*(max_n[pid]), *s.pop(), data,
                                                      self._hidden_states[pid[0]],
                                                      pid,
                                                      polarization_error)
@@ -326,6 +330,7 @@ class BaseAnalysis:
         'Dump result of this analysis to :filename:.'
         d = {'theta': self._theta, 'rho': self._rho}
         d['model'] = self.model.to_dict()
+        d['hidden_states'] = list(self._hidden_states)
         json.dump(d, open(filename + ".json", "wt"), sort_keys=True, indent=4)
 
 
@@ -432,8 +437,6 @@ class SplitAnalysis(BaseAnalysis):
         assert self.npop == 2
         self._init_model(args.pop1, args.pop2)
         self._init_penalty()
-        self._hidden_states = {k: np.r_[[0], self.model.distinguished_model._knots, [np.inf]]
-                               for k in self._populations}
         self._normalize_data(args.length_cutoff, not args.no_filter)
         self._perform_thinning(args.thinning)
         # Further initialization
@@ -459,6 +462,7 @@ class SplitAnalysis(BaseAnalysis):
         d = json.load(open(pop1, "rt"))
         self._theta = d['theta']
         self._rho = d['rho']
+        self._hidden_states = d['hidden_states']
         m1 = _model_cls_d[d['model']['class']].from_dict(d['model'])
         d = json.load(open(pop2, "rt"))
         m2 = _model_cls_d[d['model']['class']].from_dict(d['model'])
