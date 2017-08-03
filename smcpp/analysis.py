@@ -147,7 +147,10 @@ class BaseAnalysis:
         distinguished lineages by counting mutations'''
         logger.debug("EMTRCA with w=%d", w)
         wm = estimation_tools.windowed_mutations(self._contigs, w)
-        X, w = np.transpose([[x / ww, ww] for c in wm for ww, x in c if ww > .8 * w])
+        Xw = [[x / ww, ww] for c in wm for ww, x in c if ww > .8 * w]
+        if not Xw:
+            Xw = [[2 * self._theta, w]] * 100
+        X, w = np.transpose(Xw)
         # Beta density estimation
         N = int(1e4)
         M = len(X)
