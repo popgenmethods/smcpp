@@ -114,15 +114,15 @@ Matrix<T> matrix_exp(T c_rho, T c_eta)
 {
     // return hj_matrix_exp::transition_exp(c_rho, c_eta);
     T sq = sqrt(4 * c_eta * c_eta + c_rho * c_rho);
-    T s = sinh(0.5 * sq);
+    T s = sinh(0.5 * sq) / sq;
     T c = cosh(0.5 * sq);
     T e = exp(-c_eta - c_rho / 2.);
     Matrix<T> Q(3, 3);
-    Q(0, 0) = e * (c + (2 * c_eta - c_rho) * s / sq);
-    Q(0, 1) = 2 * e * c_rho * s / sq;
+    Q(0, 0) = e * (c + (2 * c_eta - c_rho) * s);
+    Q(0, 1) = 2 * e * c_rho * s;
     Q(0, 2) = 1. - Q(0, 0) - Q(0, 1);
-    Q(1, 0) = 2 * e * c_eta * s / sq;
-    Q(1, 1) = e * (c - (2 * c_eta - c_rho) * s / sq);
+    Q(1, 0) = 2 * e * c_eta * s;
+    Q(1, 1) = e * (c - (2 * c_eta - c_rho) * s);
     Q(1, 2) = 1. - Q(1, 0) - Q(1, 1);
     Q.row(2).setZero();
     Q(2, 2) = T(1.);
@@ -165,13 +165,13 @@ void HJTransition<T>::compute_expms()
 {
     typedef typename mpfr_promote<T>::type U;
     mpfr::mpreal::set_default_prec(256);
-    std::vector<Matrix<U> > expm_U, expm_prods_U;
-    expm_U.push_back(Matrix<U>::Identity(3, 3));
-    expm_prods_U.push_back(Matrix<U>::Identity(3, 3));
     const std::vector<double> ts = this->eta.getTs();
     const std::vector<int> hs_indices = this->eta.getHsIndices();
     const std::vector<T> Rrng = this->eta.getRrng();
-    for (int i = 1; i < (int)ts.size(); ++i)
+    const std::vector<T> ada = this->eta.getAda();
+    std::vector<Matrix<U> > expm_U(ts.size(), Matrix<U>::Identity(3, 3));
+    std::vector<Matrix<U> > expm_prods_U(ts.size(), Matrix<U>::Identity(3, 3));
+    for (int i = hs_indices[0] + 1; i < (int)ts.size(); ++i)
     {
         if (std::isinf(ts[i]))
         {
@@ -182,15 +182,14 @@ void HJTransition<T>::compute_expms()
         }
         else
         {
-            U c_eta = mpfr_promote<T>::cast(Rrng[i]);
-            c_eta -= mpfr_promote<T>::cast(Rrng[i - 1]);
+            double delta = ts[i] - ts[i - 1];
+            U c_eta = mpfr_promote<T>::cast(ada[i - 1] * delta);
             U c_rho = 0. * c_eta;
-            c_rho += ts[i];
-            c_rho -= ts[i - 1];
+            c_rho += delta;
             c_rho *= this->rho;
-            expm_U.push_back(matrix_exp(c_rho, c_eta));
+            expm_U.at(i) = matrix_exp(c_rho, c_eta);
         }
-        expm_prods_U.push_back(expm_prods_U.back() * expm_U.back());
+        expm_prods_U.at(i) = expm_prods_U.at(i - 1) * expm_U.at(i);
     }
     for (int i = 0; i < (int)ts.size(); ++i)
     {
@@ -199,61 +198,6 @@ void HJTransition<T>::compute_expms()
     }
 }
 
-/*
-template <typename T>
-std::vector<Matrix<T> > HJTransition<T>::compute_expm_prods()
-{
-    std::vector<Matrix<T> > ret;
-    ret.push_back(Matrix<T>::Identity(3, 3));
-    for (int i = 1; i < this->eta.getTs().size(); ++i)
-        ret.push_back(expm_prods.back() * expms.at(i));
-    return ret;
-}
-
-template <>
-std::vector<Matrix<adouble> > HJTransition<adouble>::compute_expm_prods()
-{
-    std::vector<Matrix<adouble> > ret;
-    const std::vector<double> ts = this->eta.getTs();
-    const std::vector<adouble> Rrng = this->eta.getRrng();
-    ret.push_back(Matrix<adouble>::Identity(3, 3));
-    Matrix<double> jac(ts.size(), eta.getNder());
-    jac.setZero();
-    for (int i = 1; i < (int)ts.size() - 1; ++i)
-    {
-        adouble c_eta = Rrng[i] - Rrng[i - 1];
-        jac.row(i) = c_eta.derivatives().transpose();
-        for (int j = 0; j < 3; ++j)
-            for (int k = 0; k < 3; ++k)
-            {
-                Vector<double> &d = expms.at(i)(j, k).derivatives();
-                double dx = d(1);
-                d.resize(ts.size());
-                d.setZero();
-                d(i) = dx;
-            }
-        ret.push_back(ret.back() * expms.at(i));
-    }
-    ret.push_back(ret.back() * expms.back());
-    // Now clean up all derivatives
-    jac.transposeInPlace();
-    std::array<std::reference_wrapper<std::vector<Matrix<adouble> > >, 2> v{ret, expms};
-    for (int a = 0; a < 2; ++a)
-        for (int t = 1; t < (int)ts.size(); ++t)
-            for (int i = 0; i < 3; ++i)
-                for (int j = 0; j < 3; ++j)
-                {
-                    if (t < (int)ts.size() - a)
-                    {
-                        Matrix<double> d = v[a].get().at(t)(i, j).derivatives();
-                        Matrix<double> d2 = stable_matmul(jac, d);
-                        v[a].get().at(t)(i, j).derivatives() = d2;
-                    }
-                }
-    return ret;
-}
-*/
-
 template <typename T>
 HJTransition<T>::HJTransition(const PiecewiseConstantRateFunction<T> &eta, const double rho) : 
     Transition<T>(eta, rho) 
@@ -261,14 +205,15 @@ HJTransition<T>::HJTransition(const PiecewiseConstantRateFunction<T> &eta, const
     const std::vector<double> ts = eta.getTs();
     const std::vector<int> hs_indices = eta.getHsIndices();
     const std::vector<T> Rrng = eta.getRrng();
+    const std::vector<T> ada = eta.getAda();
+    const std::vector<T> avg_coal_times = eta.average_coal_times();
 
     // Compute expm matrices in higher precision.
     compute_expms();
     // Prevent issues with mulithreaded access to members causing
-    // changes in derivativen coherence.
+    // changes in derivative coherence.
     std::vector<Matrix<T> > const& expm_prods_const = expm_prods;
 
-    std::vector<T> avg_coal_times = eta.average_coal_times();
     std::vector<int> avc_ip;
     for (T x : avg_coal_times)
     {
@@ -290,42 +235,45 @@ HJTransition<T>::HJTransition(const PiecewiseConstantRateFunction<T> &eta, const
         // This means that different threads must make copies of any variable
         // which is indexed by k.
         this->Phi.row(j - 1).head(j - 1) = expm_diff.head(j - 1);
-        // subdiagonal
-        // for (int k = 1; k < j; ++k)
-        //     this->Phi(j - 1, k - 1) = expm_prods.at(hs_indices.at(k))(0, 2) - 
-        //         expm_prods.at(hs_indices.at(k - 1))(0, 2);
-        // diagonal element
-        // this is an approximation
-        // Matrix<T> A = Matrix<T>::Identity(3, 3);
-        // for (int ell = hs_indices.at(j - 1); ell < avc_ip.at(j - 1); ++ell)
-        //     A = A * expms.at(ell);
-        // T delta = avg_coal_times[j - 1] - ts[avc_ip[j - 1]];
-        // T c_eta = eta.R(avg_coal_times[j - 1]) - Rrng[avc_ip[j - 1]];
-        // T c_rho = 0. * c_eta;
-        // c_rho += delta * this->rho;
-        // A = A * matrix_exp(c_rho, c_eta);
-        // Matrix<T> B = expm_prods[hs_indices[j - 1]] * A;
-        // this->Phi(j - 1, j - 1) = B(0, 0);
-        // this->Phi(j - 1, j - 1) += expm_prods[hs_indices[j - 1]](0, 0) * A(0, 2);
-        // this->Phi(j - 1, j - 1) += expm_prods[hs_indices[j - 1]](0, 1) * A(1, 2);
-        // superdiagonal
-        for (int k = j + 1; k < this->M; ++k)
+        const int S = 1;
+        for (int s = 0; s < S; ++s)
         {
-            T Rk1 = Rrng[hs_indices[k - 1]];
-            T Rk = Rrng[hs_indices[k]];
-            T Rj = Rrng[hs_indices[j]];
-            T p_coal = exp(-(Rk1 - Rj));
-            if (k < this->M - 1)
-                p_coal *= -expm1(-(Rk - Rk1));
-            this->Phi(j - 1, k - 1) = expm_prods_const[hs_indices[j]](0, 1) * p_coal;
+            // sample a random coalescence time
+            T rct = avg_coal_times[j - 1]; // eta.random_time(1.0, hidden_states[j - 1], hidden_states[j], gen);
+            int rct_ip = avc_ip[j - 1]; // std::distance(ts.begin(), std::upper_bound(ts.begin(), ts.end(), toDouble(rct))) - 1;
+            Matrix<T> A = Matrix<T>::Identity(3, 3);
+            for (int ell = hs_indices.at(j - 1); ell < rct_ip; ++ell)
+            {
+                A = A * expms.at(ell);
+            }
+            T delta = rct - ts[rct_ip];
+            T c_eta = ada[rct_ip] * delta;
+            T c_rho = 0. * c_eta;
+            c_rho += delta * this->rho;
+            A = A * matrix_exp(c_rho, c_eta);
+            Matrix<T> B = expm_prods[hs_indices[j - 1]] * A; // this gets us up to avg_coal_time
+            T Rj = c_eta;
+            for (int jj = rct_ip + 1; jj < j; ++jj)
+                Rj += ada[jj] * (ts[jj + 1] - ts[jj]);
+            T p_float = B(0, 1) * exp(-Rj);
+            // superdiagonal
+            for (int k = j + 1; k < this->M; ++k)
+            {
+                T Rk1 = Rrng[hs_indices[k - 1]];
+                T Rk = Rrng[hs_indices[k]];
+                T p_coal = exp(-(Rk1 - Rj));
+                if (k < this->M - 1)
+                    p_coal *= -expm1(-(Rk - Rk1));
+                this->Phi(j - 1, k - 1) += p_float * p_coal / S;
+            }
         }
         this->Phi(j - 1, j - 1) = 0.;
         T s = this->Phi.row(j - 1).sum();
         this->Phi(j - 1, j - 1) = 1. - s;
 
     }
-    T small = eta.zero() + 1e-10;
-    this->Phi = this->Phi.unaryExpr([small] (const T &x) { if (x < 1e-10) return small; return x; });
+    T small = eta.zero() + 1e-20;
+    this->Phi = this->Phi.unaryExpr([small] (const T &x) { if (x < 1e-20) return small; return x; });
     CHECK_NAN(this->Phi);
 }
 
