@@ -3,6 +3,7 @@ import numpy as np
 import ad.admath
 import os
 import wrapt
+import scipy.optimize
 
 from . import spline, logging, util
 from .observe import Observable, Observer, targets
@@ -43,7 +44,9 @@ class BaseModel(Observable):
         cs = np.cumsum(self.s)[:-rd]
         d1 = np.diff(y, rd)
         r1 = abs(d1 ** rd).sum() ** (1. / rd)
-        return r1
+        r2 = self._spline.roughness() ** .5
+        logger.debug("r1:%f r2:%f", float(r1), float(r2))
+        return r2
 
 
 # Dummy class used for JCSFS and a few other places
@@ -127,7 +130,9 @@ class SMCModel(BaseModel):
         return len(self.knots)
 
     def randomize(self):
+        logger.debug("model before randomization: %s", self[:].astype('float'))
         self[:] += np.random.normal(0., .0001, size=len(self[:]))
+        logger.debug("model after randomization: %s", self[:].astype('float'))
 
     @property
     def knots(self):
@@ -160,6 +165,15 @@ class SMCModel(BaseModel):
             ad.admath.exp(self._spline(self._trans(x)))
         )
         return ret
+
+    def match(self, other_model):
+        a = np.cumsum(self.s)
+        def f(x):
+            self[:] = x
+            return ((self(a).astype('float') - other_model(a).astype('float')) ** 2).sum()
+        res = scipy.optimize.minimize(f, self[:].astype('float'))
+        # logger.debug(res)
+        self[:] = res.x
 
     def stepwise_values(self):
         return self(np.cumsum(self.s))
