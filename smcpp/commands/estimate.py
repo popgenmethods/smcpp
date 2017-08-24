@@ -22,10 +22,12 @@ np.set_printoptions(linewidth=120, suppress=True)
 class Estimate(command.EstimationCommand, command.ConsoleCommand):
     "Estimate size history for one population"
 
+
     def __init__(self, parser):
         command.EstimationCommand.__init__(self, parser)
         '''Configure parser and parse args.'''
         model = parser.add_argument_group('Model parameters')
+        model.add_argument("--initial-model", help=argparse.SUPPRESS)
         model.add_argument('--t1', type=float, 
                            default=smcpp.defaults.t1,
                            help="starting point of first piece, in generations")
@@ -48,11 +50,13 @@ class Estimate(command.EstimationCommand, command.ConsoleCommand):
         parser.add_argument('data', nargs="+",
                             help="data file(s) in SMC++ format")
 
+
     def validate_args(self, args):
         # perform some sanity checking on the args
         if not (1e-11 <= args.mu <= 1e-5):
             logger.warn(
                 "The per-generation mutation rate is %g. Is this correct?" % args.mu)
+
 
     def main(self, args):
         command.EstimationCommand.main(self, args)

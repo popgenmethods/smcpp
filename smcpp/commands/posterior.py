@@ -16,7 +16,6 @@ import json
 import os
 
 from .. import _smcpp, util, model, estimation_tools
-import smcpp.defaults
 from . import command
 from smcpp.logging import getLogger
 logger = getLogger(__name__)
@@ -46,7 +45,7 @@ class Posterior(command.Command, command.ConsoleCommand):
         hmm = parser.add_argument_group("HMM parameters")
         hmm.add_argument(
             '--M', type=int, help="number of hidden states",
-            default=smcpp.defaults.M)
+            default=32)
 
     def main(self, args):
         command.Command.main(self, args)

@@ -135,9 +135,8 @@ cdef class _PyInferenceManager:
         self._observations = observations
         Ls = []
         ## Validate hidden states
-        if any([not np.all(np.sort(hidden_states) == hidden_states),
-            hidden_states[0] != 0., hidden_states[-1] != np.inf]):
-            raise RuntimeError("Hidden states must be in ascending order with hs[0]=0 and hs[-1] = infinity")
+        if not np.all(np.sort(hidden_states) == hidden_states):
+            raise RuntimeError("Hidden states must be in ascending order")
         for ob in observations:
             vob = ob
             self._obs_ptrs.push_back(&vob[0, 0])
@@ -375,7 +374,7 @@ cdef class PyRateFunction:
 
     def average_coal_times(self):
         cdef vector[adouble] v = self._eta.get().average_coal_times()
-        return [toDouble(vv) for vv in v]
+        return [_adouble_to_ad(vv, self._model.dlist) for vv in v]
 
     def random_coal_times(self, t1, t2, K):
         cdef adouble t
@@ -522,50 +521,40 @@ def joint_csfs(int n1, int n2, int a1, int a2, model, hidden_states, int K=10):
 
 
 # @cython.boundscheck(False)
-def _windowed_mutations_helper(contig, int w):
+def realign(contig, int w):
+    'Realign contig data to have a split every w bps'
     assert w > 0
-    cdef int[:, :] cd = contig.data[::-1]
-    cdef int seen, nmiss, mut, sp, span, extra, k
-    L = contig.data[:, 0].sum()
-    ret = np.zeros([L // w + 1, 2], dtype=np.int32)
-    cdef int n = (contig.data.shape[1] - 1) // 3
+    cdef int[:, :] cd = contig.data
+    cdef int n = cd.shape[0], m = cd.shape[1]
+    L = np.ceil(1 + contig.data[:, 0] / w).sum().astype("int")
+    ret = np.zeros([L + 1, m], dtype=np.int32)
     cdef int[:, :] vret = ret
-    cdef int i = cd.shape[0] - 1
-    cdef int j = 0
-    cdef int a = 0
-    cdef int[:] last = np.zeros(1 + 3 * n, dtype=np.int32)
-    last[:] = cd[i]
-    seen = nmiss = mut = 0
+    cdef int[:] last = np.zeros(m, dtype=np.int32)
+    cdef int i = 0, j = 0, k, seen = 0, r
+    last[:] = cd[0]
     with nogil:
-        while i >= 0:
-            span = last[0]
-            sp = span
-            if w - seen < span:
-                sp = w - seen
-            extra = seen + span - w
-            seen += sp
-            a = 0
-            for k in range(n):
-                if last[1 + 3 * k] != -1:
-                    a += last[1 + 3 * k]
-                else:
-                    a = -1
-                    break
-            if a >= 0:
-                mut += sp * (a % 2)
-                nmiss += sp
-            if extra > 0:
-                last[0] = extra
-                vret[j, 0] = nmiss
-                vret[j, 1] = mut
-                j += 1
-                nmiss = mut = seen = 0
+        while True:
+            j += 1
+            for k in range(m):
+                vret[j - 1, k] = last[k]
+            if seen + last[0] > w:
+                r = w - seen
+                vret[j - 1, 0] = r
+                last[0] -= r
+                seen = 0
             else:
-                i -= 1
-                for k in range(last.shape[0]):
+                seen += last[0]
+                i += 1
+                if i == n:
+                    break
+                for k in range(m):
                     last[k] = cd[i, k]
-    ret[j] = [nmiss, mut]
-    return ret
+    ret[j] = last
+    ret = ret[:j]
+    ret = ret[ret[:, 0] > 0]
+    assert np.all(ret[:, 0].sum(axis=0) == contig.data[:, 0].sum(axis=0))
+    assert np.all(ret[:, 0] > 0)
+    contig.data = ret
 
 
 def beta_de_avg_pdf(double[:] X, double[:] y, double h):

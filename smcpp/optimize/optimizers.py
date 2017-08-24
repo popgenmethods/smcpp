@@ -19,13 +19,14 @@ class AbstractOptimizer(Observable):
     '''
     Abstract representation of the execution flow of the optimizer.
     '''
-    def __init__(self, analysis, algorithm, xtol, ftol):
+    def __init__(self, analysis, algorithm, xtol, ftol, single):
         Observable.__init__(self)
         self._plugins = []
         self._analysis = analysis
         self._algorithm = algorithm
         self._ftol = ftol
         self._xtol = xtol
+        self._single = single
 
     @abstractmethod
     def _coordinates(self, i):
@@ -43,6 +44,7 @@ class AbstractOptimizer(Observable):
         return [ad.adnumber(xx, tag=i) for i, xx in enumerate(x)]
 
     def _sigmoid(self, x):
+        return x
         # x = [xx / ss for xx, ss in zip(x, self._scale)]
         b, B = np.array(self._bounds).T
         s = []
@@ -68,6 +70,8 @@ class AbstractOptimizer(Observable):
             return [np.inf, np.zeros(len(x))]
         q = -q
         ret = [q.x, np.array(list(map(q.d, x)))]
+        if not hasattr(self, '_f_dict'):
+            self._f_dict = {}
         self._f_dict[tuple(np.array(x).astype('float').tolist())] = q.x
         return ret
 
@@ -79,9 +83,9 @@ class AbstractOptimizer(Observable):
             except AttributeError:
                 alg = self._algorithm
             options = {
-                    'xtol': self._xtol, 'ftol': self._ftol, 'disp': True
+                    # 'xtol': self._xtol, 'ftol': self._ftol, 'disp': True
                     }
-            x0z = np.zeros_like(x0)
+            x0z = x0 
             # preconditioner
             # self._scale = 1.
             # f, dq = self._f(x0z, self._analysis, coords)
@@ -105,14 +109,14 @@ class AbstractOptimizer(Observable):
                         jac=True,
                         args=(self._analysis, coords),
                         options=options,
-                        bounds=[[-3, 3]] * len(x0z),
+                        bounds=self._bounds,
                         # callback=self._callback,
                         method=alg)
             else:
                 def _f_scalar(x, *args, **kwargs):
                     return self._f(np.array([x]), *args, **kwargs)[0]
                 res = scipy.optimize.minimize_scalar(_f_scalar,
-                        bounds=[-3, 3],
+                        bounds=self._bounds[0],
                         options={'xtol': self._xtol, 'ftol': self._ftol},
                         args=(self._analysis, coords),
                         method='bounded')
@@ -147,8 +151,8 @@ class AbstractOptimizer(Observable):
                     self.update_observers('M step', coords=coords, **kwargs)
                     x0 = self[coords]
                     self._bounds = np.transpose(
-                        [np.maximum(x0 - 2., np.log(smcpp.defaults.minimum)),
-                         np.minimum(x0 + 2., np.log(smcpp.defaults.maximum))])
+                        [np.maximum(x0 - 3., np.log(smcpp.defaults.minimum)),
+                         np.minimum(x0 + 3., np.log(smcpp.defaults.maximum))])
                     logger.debug("bounds: %s", self._bounds)
                     res = self._minimize(x0, coords)
                     self.update_observers('post minimize',
@@ -199,8 +203,8 @@ class AbstractOptimizer(Observable):
 class SMCPPOptimizer(AbstractOptimizer):
     'Model fitting for one population.'
 
-    def __init__(self, analysis, algorithm, xtol, ftol):
-        AbstractOptimizer.__init__(self, analysis, algorithm, xtol, ftol)
+    def __init__(self, analysis, algorithm, xtol, ftol, single):
+        AbstractOptimizer.__init__(self, analysis, algorithm, xtol, ftol, single)
         for cls in OptimizerPlugin.__subclasses__():
             try:
                 if not cls.DISABLED:
@@ -211,7 +215,9 @@ class SMCPPOptimizer(AbstractOptimizer):
 
     def _coordinates(self):
         model = self._analysis.model
-        return [list(range(model.K))] # + [list(range(K // 3))]
+        if self._single:
+            return [[k] for k in range(model.K)][::-1] # + [list(range(K // 3))]
+        return [range(model.K)]
 
 class TwoPopulationOptimizer(SMCPPOptimizer):
     'Model fitting for two populations.'

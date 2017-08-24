@@ -9,7 +9,7 @@ import json
 import pandas as pd
 import itertools
 
-from . import _smcpp, util, logging
+from . import _smcpp, util, logging, model
 from .contig import Contig
 
 
@@ -168,6 +168,38 @@ def balance_hidden_states(model, M):
         ret.append(res)
     ret.append(np.inf)
     return np.array(ret) * 2 * model.N0  # return in generations
+
+
+def model_from_coal_probs(t, p, N0, pid):
+    '''
+    Returns a piecewise constant model such that 
+
+        P(Coal \in [t[i], t[i + 1])) = p[i]
+
+    '''
+    Rt = 0
+    t0 = t[0]
+    a = []
+    s = []
+    for tt, pp in zip(t[1:-1], p[:-1]):
+        # Rt1 = -np.log(np.exp(-Rt) - pp)
+        # Rt1 = -np.log(np.exp(-Rt) * (1 - np.exp(Rt + np.log(pp))))
+        Rt1 = Rt - np.log1p(-np.exp(Rt + np.log(pp)))
+        s.append(tt - t0)
+        a.append((Rt1 - Rt) / s[-1])
+        Rt = Rt1
+        t0 = tt
+    s.append(1.)
+    a.append(1.)
+    return model.PiecewiseModel(a, s, N0, pid)
+
+
+def calculate_t1(model, n, q):
+    eta = _smcpp.PyRateFunction(model, [0., np.inf])
+    c = n * (n - 1) / 2
+    def f(t):
+        return np.expm1(-c * eta.R(t)) + q
+    return scipy.optimize.brentq(f, 0., model.knots[-1])
 
 
 def watterson_estimator(contigs):
