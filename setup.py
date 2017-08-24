@@ -11,11 +11,12 @@ import warnings
 from Cython.Build import cythonize
 import numpy as np
 
-extra_compile_args = ["-O2", "-std=c++11", "-Wno-deprecated-declarations",
-                      "-DNO_CHECK_NAN", '-fopenmp']
-
-# extra_compile_args = ["-O0", "-g", "-std=c++11", "-Wno-deprecated-declarations",
-#                       "-D_GLIBCXX_DEBUG"]
+if True:
+    extra_compile_args = ["-O2", "-std=c++11", "-Wno-deprecated-declarations", "-DNO_CHECK_NAN", 
+                          '-fopenmp']
+else:
+    extra_compile_args = ["-O0", "-g", "-std=c++11", "-Wno-deprecated-declarations",
+                          "-D_GLIBCXX_DEBUG", "-Wfatal-errors"]
 
 extra_link_args=['-fopenmp']
 libraries = ['mpfr', 'gmp', 'gmpxx', 'gsl', 'gslcblas']
