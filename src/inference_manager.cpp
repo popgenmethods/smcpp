@@ -76,6 +76,12 @@ void InferenceManager::setRho(const double rho)
     dirty.rho = true;
 }
 
+void InferenceManager::setAlpha(const double alpha)
+{
+    this->alpha = alpha;
+    dirty.theta = true;
+}
+
 void InferenceManager::setTheta(const double theta)
 {
     this->theta = theta;
@@ -414,10 +420,9 @@ void NPopInferenceManager<P>::recompute_emission_probs()
         }
         else
         {
-            e2(m, 1) = -expm1(-2. * theta * avg_ct.at(m));
-            e2(m, 0) = 1. - e2(m, 1);
+            e2(m, 0) = alpha + (1 - alpha) * exp(-2. * theta * avg_ct.at(m));
+            e2(m, 1) = 1. - e2(m, 0);
         }
-        // CHECK_NAN(e2(m, 1));
     }
     const adouble zero = eta->zero();
     const adouble one = zero + 1.;

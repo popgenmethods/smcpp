@@ -28,6 +28,7 @@ class InferenceManager
 
     void setRho(const double);
     void setTheta(const double);
+    void setAlpha(const double);
 
     void Estep(bool);
     std::vector<adouble> Q();
@@ -66,7 +67,7 @@ class InferenceManager
     const int npop, sfs_dim, M;
     std::vector<Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> > obs;
     std::unique_ptr<ConditionedSFS<adouble> > csfs;
-    double theta, rho;
+    double theta, rho, alpha;
     std::vector<hmmptr> hmms;
     Vector<adouble> pi;
     Matrix<adouble> transition, emission;

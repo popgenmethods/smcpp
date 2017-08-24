@@ -29,6 +29,7 @@ class PiecewiseConstantRateFunction
     const std::vector<double>& getTs() const { return ts; }
     const std::vector<int>& getHsIndices() const { return hs_indices; }
     const std::vector<T>& getRrng() const { return Rrng; }
+    const std::vector<T>& getAda() const { return ada; }
 
     friend std::ostream& operator<<(std::ostream& os, const PiecewiseConstantRateFunction& pexp)
     {

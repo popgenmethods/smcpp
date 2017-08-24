@@ -116,7 +116,7 @@ cdef _store_admatrix_helper(Matrix[adouble] &mat, dlist):
 
 cdef class _PyInferenceManager:
     cdef int _num_hmms
-    cdef object _model, _observations, _theta, _rho, _im_id
+    cdef object _model, _observations, _theta, _rho, _alpha, _im_id
     cdef public long long seed
     cdef vector[double] _hs
     cdef vector[int] _Ls
@@ -170,9 +170,17 @@ cdef class _PyInferenceManager:
             self._rho = rho
             self._im.setRho(rho)
 
+    property alpha:
+        def __get__(self):
+            return self._alpha
+
+        def __set__(self, alpha):
+            self._alpha = alpha
+            self._im.setAlpha(alpha)
+
     def E_step(self, forward_backward_only=False):
-        if None in (self.theta, self.rho):
-            raise RuntimeError("theta and rho must be set")
+        if None in (self.theta, self.rho, self.alpha):
+            raise RuntimeError("theta / rho / alpha must be set")
         cdef bool fbOnly = forward_backward_only
         with nogil:
             self._im.Estep(fbOnly)

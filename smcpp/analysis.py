@@ -260,6 +260,7 @@ class BaseAnalysis:
             im.model = self._model
             im.theta = self._theta
             im.rho = self._rho
+            im.alpha = self._alpha = .01
             self._ims[pid] = im
         self._model.randomize()
 
@@ -311,6 +312,16 @@ class BaseAnalysis:
     @property
     def model(self):
         return self._model
+
+    @property
+    def alpha(self):
+        return self._alpha
+
+    @alpha.setter
+    def alpha(self, a):
+        self._alpha = a
+        for im in self._ims.values():
+            im.alpha = a
 
     @property
     def rho(self):

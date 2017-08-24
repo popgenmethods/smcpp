@@ -48,6 +48,7 @@ cdef extern from "inference_manager.h":
                 const vector[double]) except +
         void setTheta(const double)
         void setRho(const double)
+        void setAlpha(const double)
         void Estep(bool)
         void setParams(const ParameterVector &) except +
         vector[double] loglik()
