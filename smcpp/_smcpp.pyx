@@ -276,7 +276,7 @@ cdef class _PyInferenceManager:
         cdef int i
         cdef adouble q = adouble(0)
         qq = []
-        for i in range(3):
+        for i in range(ad_rets.size()):
             z = _adouble_to_ad(ad_rets[i], self._model.dlist)
             qq.append(z)
             q += ad_rets[i]

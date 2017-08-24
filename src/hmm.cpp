@@ -146,19 +146,21 @@ void HMM::Estep(bool fbOnly)
     }
     gamma.col(0) = alpha_hat.col(0).cwiseProduct(beta);
     xisum = xisum.cwiseProduct(T);
+    xisum = xisum.unaryExpr([] (const double &x) { if (x < 1e-20) return 1e-20; return x; });
 }
 
 Vector<adouble> HMM::Q(void)
 {
     DEBUG1 << "HMM::Q";
-    Vector<adouble> ret(3);
+    Vector<adouble> ret(4);
     ret.setZero();
     Vector<adouble> pi = *(ib->pi);
     ret(0) = (pi.array().log() * gamma.col(0).array().template cast<adouble_base_type>()).sum();
-
-    std::vector<adouble> gs;
+    std::vector<adouble> gss[2];
     for (auto &p : gamma_sums)
     {
+        int i = (int)(p.first.nb() > 0);
+        std::vector<adouble> &gs = gss[i];
         Vector<adouble> ep = ib->emission_probs->at(p.first);
         Vector<adouble> c = ep.array().log().matrix().cwiseProduct(p.second);
         if (ep.minCoeff() <= 0.0)
@@ -170,14 +172,15 @@ Vector<adouble> HMM::Q(void)
         }
         gs.insert(std::end(gs), c.data(), c.data() + M);
     }
-    ret(1) = doubly_compensated_summation(gs);
+    ret(1) = doubly_compensated_summation(gss[0]);
+    ret(2) = doubly_compensated_summation(gss[1]);
 
     Matrix<adouble> T = ib->tb->T;
     Matrix<adouble> log_T = T.array().log().matrix();
     CHECK_NAN(log_T);
     Matrix<adouble> prod = log_T.cwiseProduct(xisum.template cast<adouble_base_type>());
     std::vector<adouble> es(prod.data(), prod.data() + M * M);
-    ret(2) = doubly_compensated_summation(es);
+    ret(3) = doubly_compensated_summation(es);
 
     CHECK_NAN(ret);
     return ret;

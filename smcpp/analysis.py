@@ -273,14 +273,15 @@ class BaseAnalysis:
 
     def Q(self):
         'Value of Q() function in M-step.'
-        qq = 0.
+        qq = []
         with thread_pool() as executor:
             fs = []
             for na in self._ims:
-                fs.append(executor.submit(self._ims[na].Q))
+                fs.append(executor.submit(self._ims[na].Q, separate=True))
             for x in futures.as_completed(fs):
-                qq += x.result()
+                qq.append(x.result())
         qr = self._penalty * self.model.regularizer()
+        qq = np.sum(qq)
         ret = qq - qr
         logger.debug("reg: %s", util.format_ad(qr))
         logger.debug("Q:   %s", util.format_ad(ret))

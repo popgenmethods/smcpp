@@ -115,17 +115,11 @@ std::vector<adouble> InferenceManager::Q(void)
     DEBUG1 << "InferenceManager::Q";
     do_dirty_work();
     std::vector<Vector<adouble> > ps = parallel_select<Vector<adouble> >([] (hmmptr &hmm) { return hmm->Q(); });
-    adouble q1 = 0, q2 = 0, q3 = 0;
-    for (unsigned int i = 0; i < ps.size(); ++i)
-    {
-        q1 += ps[i][0];
-        q2 += ps[i][1];
-        q3 += ps[i][2];
-    }
-    DEBUG1 << "\nq1:" << q1.value() << " [" << q1.derivatives().transpose() << "]\nq2:"
-        << q2.value() << " [" << q2.derivatives().transpose() << "]\nq3:" << q3.value()
-        << " [" << q3.derivatives().transpose() << "]\n";
-    return {q1, q2, q3};
+    std::vector<adouble> q(4, 0);
+    for (unsigned int j = 0; j < 4; ++j)
+        for (unsigned int i = 0; i < ps.size(); ++i)
+            q[j] += ps[i][j];
+    return q;
 }
 
 std::vector<std::map<block_key, Vector<double> >*> InferenceManager::getGammaSums()

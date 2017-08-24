@@ -15,6 +15,12 @@ struct block_key
     int& operator()(int k) { return vals.coeffRef(k); }
 
     int size() const { return vals.size(); }
+    int nb() const  // Number of undistinguished lineages for this key
+    {
+        int i = 2, ret = 0;
+        while (i < vals.size()) { ret += vals(i); i += 3; }
+        return ret;
+    }
 
     friend std::ostream & operator<<(std::ostream& stream, const block_key &bk)
     {
