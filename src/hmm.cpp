@@ -87,6 +87,7 @@ void HMM::Estep(bool fbOnly)
             alpha_hat.col(ell) = M * alpha_hat.col(ell - 1);
         }
         CHECK_NAN(alpha_hat.col(ell));
+        alpha_hat.col(ell) = alpha_hat.col(ell).unaryExpr([] (const double &x) { if (x < 1e-20) return 1e-20; return x; });
         c(ell) = alpha_hat.col(ell).sum();
         alpha_hat.col(ell) /= c(ell);
         ll += log(c(ell));

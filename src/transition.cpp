@@ -130,36 +130,6 @@ Matrix<T> matrix_exp(T c_rho, T c_eta)
 }
 
 
-/*
-template <>
-Matrix<adouble> matrix_exp_correct_derivatives(adouble c_rho, adouble c_eta)
-{
-    Matrix<adouble> M = matrix_exp(c_rho, c_eta);
-    for (int i = 0; i < 3; ++i)
-        for (int j = 0; j < 3; ++j)
-            M(i, j).derivatives() = 
-                (M(i, j).derivatives()(1) * c_eta.derivatives()).eval();
-    return M;
-}
-
-
-template <typename T>
-Matrix<T> stable_matmul(const Matrix<T> &A, const Matrix<T> &B)
-{
-    assert(A.cols() == B.rows());
-    Matrix<T> ret(A.rows(), B.cols());
-    std::vector<T> gs(A.cols());
-    for (int i = 0; i < A.rows(); ++i)
-        for (int j = 0; j < B.cols(); ++j)
-        {
-            for (int k = 0; k < A.cols(); ++k)
-                gs[k] = A(i, k) * B(k, j);
-            ret(i, j) = doubly_compensated_summation(gs);
-        }
-    return ret;
-}
-*/
-
 template <typename T>
 void HJTransition<T>::compute_expms()
 {
@@ -220,7 +190,6 @@ HJTransition<T>::HJTransition(const PiecewiseConstantRateFunction<T> &eta, const
         int ip = std::distance(ts.begin(), std::upper_bound(ts.begin(), ts.end(), toDouble(x))) - 1;
         avc_ip.push_back(ip);
     }
-
     Vector<T> expm_diff(this->M - 2);
     for (int k = 1; k < this->M - 1; ++k)
         expm_diff(k - 1) = expm_prods.at(hs_indices.at(k))(0, 2) - 
@@ -275,6 +244,12 @@ HJTransition<T>::HJTransition(const PiecewiseConstantRateFunction<T> &eta, const
     T small = eta.zero() + 1e-20;
     this->Phi = this->Phi.unaryExpr([small] (const T &x) { if (x < 1e-20) return small; return x; });
     CHECK_NAN(this->Phi);
+    const double beta = 1e-5;
+    T p2 = eta.zero() + beta / this->M;
+    Matrix<T> Phi2(this->M, this->M);
+    Phi2.fill(p2);
+    this->Phi *= (1 - beta);
+    this->Phi += Phi2;
 }
 
 template <typename T>

@@ -40,9 +40,6 @@ InferenceManager::InferenceManager(
     dirty({true, true, true}),
     eta(defaultEta(hidden_states))
 {
-    if (*std::min_element(hidden_states.begin(), hidden_states.end()) != 0.)
-        throw std::runtime_error("first hidden interval should be [0, <something>)");
-    // pi = Vector<adouble>::Zero(M);
     recompute_initial_distribution();
     transition = Matrix<adouble>::Zero(M, M);
     transition.setZero();
@@ -69,6 +66,7 @@ void InferenceManager::recompute_initial_distribution()
     pi(M - 1) = exp(-(eta->R(hidden_states.at(M - 1))));
     adouble small = eta->zero() + 1e-20;
     pi = pi.unaryExpr([small] (const adouble &x) { if (x < 1e-20) return small; return x; });
+    pi /= pi.sum();
     CHECK_NAN(pi);
 }
 
