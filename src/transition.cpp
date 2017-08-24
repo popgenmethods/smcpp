@@ -219,20 +219,24 @@ HJTransition<T>::HJTransition(const PiecewiseConstantRateFunction<T> &eta, const
             T c_eta = ada[rct_ip] * delta;
             T c_rho = 0. * c_eta;
             c_rho += delta * this->rho;
-            A = A * matrix_exp(c_rho, c_eta);
+            A = A * matrix_exp(c_rho, c_eta); 
             Matrix<T> B = expm_prods[hs_indices[j - 1]] * A; // this gets us up to avg_coal_time
             T Rj = c_eta;
-            for (int jj = rct_ip + 1; jj < j; ++jj)
+            Rj += ada[rct_ip] * (ts[rct_ip + 1] - rct);
+            for (int jj = rct_ip + 2; jj < hs_indices[j]; ++jj)
                 Rj += ada[jj] * (ts[jj + 1] - ts[jj]);
             T p_float = B(0, 1) * exp(-Rj);
             // superdiagonal
+            T Rjk1 = 0 * Rj;
             for (int k = j + 1; k < this->M; ++k)
             {
-                T Rk1 = Rrng[hs_indices[k - 1]];
-                T Rk = Rrng[hs_indices[k]];
-                T p_coal = exp(-(Rk1 - Rj));
+                T inc = 0 * Rj;
+                for (int jj = hs_indices[k - 1]; jj < hs_indices[k]; ++jj)
+                    inc += ada[jj] * (ts[jj + 1] - ts[jj]);
+                T p_coal = exp(-Rjk1);
+                Rjk1 += inc;
                 if (k < this->M - 1)
-                    p_coal *= -expm1(-(Rk - Rk1));
+                    p_coal *= -expm1(-inc);
                 this->Phi(j - 1, k - 1) += p_float * p_coal / S;
             }
         }
