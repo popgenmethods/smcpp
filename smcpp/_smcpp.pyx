@@ -62,6 +62,7 @@ aca = np.ascontiguousarray
 cdef ParameterVector make_params(a, s, dlist) except *:
     cdef ParameterVector ret
     cdef vector[adouble] r
+    assert np.all(a > 0)
     assert len(a) > 0
     for aa in a:
         if not isinstance(aa, ADF):

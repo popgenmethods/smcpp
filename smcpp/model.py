@@ -168,11 +168,16 @@ class SMCModel(BaseModel):
 
     def match(self, other_model):
         a = np.cumsum(self.s)
+        a0 = np.cumsum(other_model.s)
         def f(x):
             self[:] = x
-            return ((self(a).astype('float') - other_model(a).astype('float')) ** 2).sum()
-        res = scipy.optimize.minimize(f, self[:].astype('float'))
-        # logger.debug(res)
+            r1 = ((self(a).astype('float') - other_model(a).astype('float')) ** 2).sum()
+            r2 = ((self(a0).astype('float') - other_model(a0).astype('float')) ** 2).sum()
+            return r1 + r2
+        m = other_model[:].astype('float').min()
+        M = other_model[:].astype('float').max()
+        bounds = ((m, M),) * len(self[:])
+        res = scipy.optimize.minimize(f, self[:].astype('float'), bounds=bounds)
         self[:] = res.x
 
     def stepwise_values(self):
