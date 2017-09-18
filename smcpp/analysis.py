@@ -52,6 +52,11 @@ class BaseAnalysis:
         self._recode_nonseg(args.nonseg_cutoff)
 
 
+    @property
+    def ns(self):
+        return np.array([sum(c.n) for c in self._contigs])
+
+
     def _init_optimizer(self, outdir, algorithm, xtol, ftol, single):
         self._optimizer = self._OPTIMIZER_CLS(self, algorithm, xtol, ftol, single)
         if outdir:
@@ -88,7 +93,6 @@ class BaseAnalysis:
             assert c.data.shape[1] == 1 + 3 * len(c.n)
             logger.debug(c)
         logger.info("%d population%s", self.npop, "" if self.npop == 1 else "s")
-        ns = self._ns = np.array([sum(c.n) for c in self._contigs])
 
     def _validate_data(self):
         for c in self._contigs:
@@ -147,7 +151,7 @@ class BaseAnalysis:
         if isinstance(thinning, int):
             thinning = np.array([thinning] * len(self._contigs))
         if thinning is None:
-            thinning = (1000 * np.log(2 + self._ns)).astype("int")   # 500  * ns
+            thinning = (1000 * np.log(2 + self.ns)).astype("int")   # 500  * ns
         thinning[npop > 1] = 0
         if np.any(thinning > 1):
             logger.info("Thinning...")
@@ -237,7 +241,7 @@ class BaseAnalysis:
         Ne = self._watterson / self._theta
         logger.debug("Ne: %f", Ne)
         Ne *= 2 * self._N0
-        n = 2 + max(self._ns)
+        n = 2 + max(self.ns)
         t1 = args.t1 or 200 + np.log(.9) / (-n * (n - 1) / 2) * Ne
         if t1 <= 0:
             logger.error("--t1 should be >0")
@@ -287,7 +291,7 @@ class BaseAnalysis:
             im.rho = self._rho
             im.alpha = self._alpha = .01
             self._ims[pid] = im
-        self._max_n = np.max(list(max_n.values()), axis=0)
+        self._max_n = np.max(list(map(sum, max_n.values())), axis=0)
         self._model.randomize()
 
     @property
@@ -366,9 +370,9 @@ class BaseAnalysis:
 
     def dump(self, filename):
         'Dump result of this analysis to :filename:.'
-        d = {'theta': self._theta, 'rho': self._rho}
+        d = {'theta': self._theta, 'rho': self._rho, 'alpha': self._alpha}
         d['model'] = self.model.to_dict()
-        d['hidden_states'] = {k: v.tolist() for k, v in self._hidden_states.items()}
+        d['hidden_states'] = {k: list(v) for k, v in self._hidden_states.items()}
         json.dump(d, open(filename + ".json", "wt"), sort_keys=True, indent=4)
 
 
@@ -456,18 +460,11 @@ class Analysis(BaseAnalysis):
         self._y0 = y0 = self._het / (2. * self._theta)
         logger.debug("Long term avg. effective population size: %f", y0)
         y0 = np.log(y0)
-        if self.npop == 1:
-            self._model = SMCModel(
-                self._knots, self._N0,
-                spline_class, self._populations[0])
-            self._model[:] = y0
-        else:
-            split = self.rescale(.5 * tK)  # just pick the midpoint as a starting value.
-            mods = []
-            for pid in self._populations:
-                mods.append(SMCModel(self._knots, self._N0, spline_class, pid))
-                mods[-1][:] = y0
-            self._model = SMCTwoPopulationModel(mods[0], mods[1], split)
+        assert self.npop == 1
+        self._model = SMCModel(
+            self._knots, self._N0,
+            spline_class, self._populations[0])
+        self._model[:] = y0
 
     def _preinitialize(self):
         args = self._args
@@ -530,7 +527,7 @@ class SplitAnalysis(BaseAnalysis):
         self._perform_thinning(args.thinning)
         # Further initialization
         self._init_inference_manager(args.polarization_error)
-        self._init_optimizer(args.outdir, args.algorithm, args.xtol, args.ftol)
+        self._init_optimizer(args.outdir, args.algorithm, args.xtol, args.ftol, True)
         self._niter = 1
 
     def _validate_data(self):
@@ -556,6 +553,7 @@ class SplitAnalysis(BaseAnalysis):
         m1 = _model_cls_d[d['model']['class']].from_dict(d['model'])
         d = json.load(open(pop2, "rt"))
         m2 = _model_cls_d[d['model']['class']].from_dict(d['model'])
+        self._hidden_states.update(d['hidden_states'])
         assert d['theta'] == self._theta
         self._max_split = m2._knots[-(len(smcpp.defaults.additional_knots) + 1)]
         self._model = SMCTwoPopulationModel(m1, m2, self._max_split * 0.5)

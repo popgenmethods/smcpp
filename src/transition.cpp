@@ -248,6 +248,7 @@ HJTransition<T>::HJTransition(const PiecewiseConstantRateFunction<T> &eta, const
     T small = eta.zero() + 1e-20;
     this->Phi = this->Phi.unaryExpr([small] (const T &x) { if (x < 1e-20) return small; return x; });
     CHECK_NAN(this->Phi);
+    return;
     const double beta = 1e-5;
     T p2 = eta.zero() + beta / this->M;
     Matrix<T> Phi2(this->M, this->M);
