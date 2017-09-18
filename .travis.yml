@@ -1,4 +1,6 @@
 language: generic
+dist: precise
+sudo: false
 
 os:
   - linux
@@ -19,7 +21,7 @@ install:
   - conda update -q conda
   - conda info -a
   - conda install conda-build anaconda-client constructor git python=$CONDA_PY
-  - conda build -c terhorst -c conda-forge -c bioconda conda --python=$CONDA_PY
+  - conda build --debug -c terhorst -c conda-forge -c bioconda conda --python=$CONDA_PY
   - conda create -n smcpp_install --use-local -c terhorst -c bioconda -c conda-forge python=$CONDA_PY smcpp
   - source activate smcpp_install
   - smc++ version
