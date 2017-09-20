@@ -418,7 +418,7 @@ class Analysis(BaseAnalysis):
         self._init_inference_manager(args.polarization_error)
         self._init_optimizer(args.outdir,
                              args.algorithm, args.xtol, args.ftol,
-                             learn_rho=args.r is None, single=False)
+                             learn_rho=args.r is None, single=not args.multi)
 
 
     def _init_parameters(self, mu, r):
@@ -527,7 +527,7 @@ class SplitAnalysis(BaseAnalysis):
         self._perform_thinning(args.thinning)
         # Further initialization
         self._init_inference_manager(args.polarization_error)
-        self._init_optimizer(args.outdir, args.algorithm, args.xtol, args.ftol, True)
+        self._init_optimizer(args.outdir, args.algorithm, args.xtol, args.ftol, single=True)
         self._niter = 1
 
     def _validate_data(self):
