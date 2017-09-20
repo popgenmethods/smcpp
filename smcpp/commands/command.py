@@ -58,15 +58,14 @@ def add_common_estimation_args(parser):
                            "from mean heterozygosity",
                       action="store_true", default=False)
     optimizer = parser.add_argument_group("Optimization parameters")
-    optimizer.add_argument(
-        "--no-initialize", action="store_true", default=False, help=argparse.SUPPRESS)
+    optimizer.add_argument("--no-initialize", action="store_true", default=False, help=argparse.SUPPRESS)
     optimizer.add_argument('--em-iterations', type=int,
                            help="number of EM steps to perform", default=20)
     optimizer.add_argument('--algorithm',
                            choices=["BFGS", "L-BFGS-B", "TNC", "AdaMax", "Adam"],
                            default="L-BFGS-B", help=argparse.SUPPRESS)
-    optimizer.add_argument('--blocks', type=int, 
-                           help="number of coordinate ascent blocks. default: min(4, K)")
+    optimizer.add_argument('--multi', default=False, action="store_true",
+                           help="update multiple blocks of coordinates at once")
     optimizer.add_argument("--ftol", type=float,
                            default=smcpp.defaults.ftol,
                            help="stopping criterion for relative improvement in loglik "
