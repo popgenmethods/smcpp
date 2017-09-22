@@ -1,5 +1,5 @@
 #!/bin/bash -x
-SMC=$1
+SMC=$(which smc++)
 set -e
 $SMC vcf2smc -v example/example.vcf.gz /tmp/example.1.smc.gz 1 msp1:msp_0,msp_1,msp_2
 $SMC vcf2smc -d msp_0 msp_0 example/example.vcf.gz /tmp/example.2.smc.gz 1 msp2:msp_0,msp_3,msp_4
