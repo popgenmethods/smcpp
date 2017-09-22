@@ -60,10 +60,5 @@ test:
         - smcpp
         - smcpp._smcpp
     source_files:
-        - test/integration/test.sh
         - example/example.vcf.gz
         - example/example.vcf.gz.csi
-    commands:
-        - mkdir example
-        - mv example.* example
-        - ./test.sh smc++
