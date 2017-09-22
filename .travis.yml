@@ -17,13 +17,10 @@ install:
   - conda info -a
   - conda install conda-build anaconda-client constructor git
   - conda build -c terhorst -c conda-forge -c bioconda conda
-  - conda create -n smcpp_install --use-local -c terhorst -c bioconda -c conda-forge smcpp
-  - source activate smcpp_install
-  - smc++ version
-  - test/integration/test.sh `which smc++`
   - conda/template.py conda/construct.tpl $VERSION > conda/construct.yaml
-  - source deactivate
 
+before_deploy:
+  - constructor conda
 deploy:
   - provider: script
     script: conda/deploy.sh
