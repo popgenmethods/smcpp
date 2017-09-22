@@ -6,6 +6,7 @@ channels:
   - http://conda.anaconda.org/terhorst
   - http://conda.anaconda.org/conda-forge
 specs:
+  - python 3.6
   - smcpp
   - conda 4.3.21
 post_install: post_install.sh
