@@ -96,10 +96,11 @@ class BaseAnalysis:
     def _validate_data(self):
         for c in self._contigs:
             assert c.data.flags.c_contiguous
-            bad = (np.all(c.data[:, 1::3] == c.a[None, :], axis=1) &
-                   np.all(c.data[:, 2::3] == c.n[None, :], axis=1))
-            if np.any(bad):
-                logger.error("In file %s, observations %s:", c.fn, np.where(bad)[0])
+            nonseg = ((np.all(c.data[:, 1::3] == c.a[None, :], axis=1) |
+                       np.all(c.data[:, 1::3] == -1, axis=1)) &
+                      np.all(c.data[:, 2::3] == c.data[:, 3::3], axis=1))
+            if np.any(nonseg):
+                logger.error("In file %s, observations %s:", c.fn, np.where(nonseg)[0])
                 logger.error("Data set contains sites where every "
                         "individual is homozygous for the derived allele. "
                         "Please recode these as non-segregating (homozygous ancestral).")
