@@ -24,4 +24,7 @@ smcpp.egg-info
 .cache
 smcpp/version.py
 smcpp/_estimation_tools.c
+<<<<<<< HEAD
 src/.release_time
+=======
+>>>>>>> 7bb56d8... [core] refactor estimation_tools to a different cython module. prevent loading _smcpp/openmp until necessary. add --cores open to control core usage. reduce memory consumption by eliminating unnecessary copies of the observations matrix. reduce thread overhead. fixes #46
