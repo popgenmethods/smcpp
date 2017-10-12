@@ -5,6 +5,7 @@
 #include <map>
 #include <utility>
 #include <memory>
+#include "sparsepp/spp.h"
 
 #include "common.h"
 #include "transition_bundle.h"
@@ -54,9 +55,8 @@ class InferenceManager
     void parallel_do(std::function<void(hmmptr &)>);
     template <typename T> std::vector<T> parallel_select(std::function<T(hmmptr &)>);
     void recompute_initial_distribution();
-    std::vector<Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> > 
-        map_obs(const std::vector<int*>&, const std::vector<int>&);
-    std::set<std::pair<int, block_key> > fill_targets();
+    std::vector<Eigen::Map<Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> > > map_obs(const std::vector<int*>&, const std::vector<int>&);
+    spp::sparse_hash_set<std::pair<int, block_key> > fill_targets();
     void populate_emission_probs();
     void do_dirty_work();
 
@@ -65,14 +65,14 @@ class InferenceManager
 
     // Other members
     const int npop, sfs_dim, M;
-    std::vector<Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> > obs;
+    std::vector<Eigen::Map<Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> > > obs;
     std::unique_ptr<ConditionedSFS<adouble> > csfs;
     double theta, rho, alpha;
     std::vector<hmmptr> hmms;
     Vector<adouble> pi;
     Matrix<adouble> transition, emission;
     std::vector<block_key> bpm_keys;
-    const std::set<std::pair<int, block_key> > targets;
+    const spp::sparse_hash_set<std::pair<int, block_key> > targets;
     TransitionBundle tb;
     std::vector<Matrix<adouble> > sfss;
 

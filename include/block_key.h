@@ -28,6 +28,11 @@ struct block_key
         return stream;
     }
 
+    bool operator==(const block_key &other) const
+    {
+        return (vals - other.vals).norm() == 0;
+    }
+
     bool operator<(const block_key &other) const
     {
         assert(vals.size() == other.vals.size());

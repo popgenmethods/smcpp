@@ -178,10 +178,10 @@ std::vector<double> InferenceManager::loglik(void)
 }
 
 // Begin stuff for NPop inference manager
-std::vector<Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> > 
+std::vector<Eigen::Map<Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> > >
     InferenceManager::map_obs(const std::vector<int*> &observations, const std::vector<int> &obs_lengths)
 {
-    std::vector<Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> > ret;
+    std::vector<Eigen::Map<Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> > > ret;
     for (unsigned int i = 0; i < observations.size(); ++i)
         ret.push_back(Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>::Map(
                     observations[i], obs_lengths[i], 1 + 3 * npop));
@@ -195,7 +195,7 @@ void InferenceManager::populate_emission_probs()
     for (unsigned int j = 0; j < obs.size(); ++j)
     {
         const Vector<adouble> tmp;
-        const Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> ob = obs[j];
+        const Eigen::Map<Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> > ob = obs[j];
         const int q = ob.cols() - 1;
         for (int i = 0; i < ob.rows(); ++i)
         {
@@ -229,14 +229,14 @@ void InferenceManager::do_dirty_work()
 }
 
 
-std::set<std::pair<int, block_key> > InferenceManager::fill_targets()
+spp::sparse_hash_set<std::pair<int, block_key> > InferenceManager::fill_targets()
 {
     DEBUG1 << "parallel filling targets";
-    std::vector<std::set<std::pair<int, block_key> > > v(obs.size());
+    std::vector<spp::sparse_hash_set<std::pair<int, block_key> > > v(obs.size());
 #pragma omp parallel for
     for (unsigned int j = 0; j < obs.size(); ++j)
     {
-        const Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> ob = obs.at(j);
+        const Eigen::Map<Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> > ob = obs.at(j);
         const int q = ob.cols() - 1;
         for (int i = 0; i < ob.rows(); ++i)
         {
@@ -246,9 +246,9 @@ std::set<std::pair<int, block_key> > InferenceManager::fill_targets()
                 v.at(j).insert({ob(i, 0), block_key(ob.row(i).tail(q).transpose())});
         }
     }
-    std::set<std::pair<int, block_key> > ret;
+    spp::sparse_hash_set<std::pair<int, block_key> > ret;
     DEBUG1 << "reducing targets";
-    for (const std::set<std::pair<int, block_key> > s : v)
+    for (const spp::sparse_hash_set<std::pair<int, block_key> > &s : v)
         ret.insert(s.begin(), s.end());
     return ret;
 }
@@ -353,7 +353,7 @@ NPopInferenceManager<P>::construct_bins(const double polarization_error)
     {
         block_key bk = *it;
         block_key_prob_map m, m2;
-        const std::set<block_key> bins = bin_key<P>::run(bk, na, 1.0);
+        const std::set<block_key> bins = bin_key<P>::run(bk, na, .5);
         for (const block_key &k : bins)
         {
             const std::map<block_key, double> probs =

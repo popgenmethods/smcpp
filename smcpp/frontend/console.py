@@ -1,7 +1,7 @@
 import multiprocessing as mp
 from argparse import ArgumentParser
 
-from .. import commands, logging, version
+from .. import commands, logging, version, defaults, _smcpp
 
 def init_subparsers(subparsers_obj):
     from .. import commands

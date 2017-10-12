@@ -13,7 +13,7 @@ import numpy as np
 
 if True:
     extra_compile_args = ["-O2", "-std=c++11", "-Wno-deprecated-declarations", "-DNO_CHECK_NAN", 
-                          '-fopenmp']
+                          '-fopenmp', '-g', '-DEIGEN_DONT_PARALLELIZE']
 else:
     extra_compile_args = ["-O0", "-g", "-std=c++11", "-Wno-deprecated-declarations",
                           "-D_GLIBCXX_DEBUG", "-Wfatal-errors"]
@@ -33,7 +33,13 @@ extensions = [
             libraries=libraries,
             extra_compile_args=extra_compile_args,
             extra_link_args=extra_link_args
-            )]
+            ),
+        Extension(
+            "smcpp._estimation_tools",
+            sources=["smcpp/_estimation_tools.pyx"],
+            include_dirs=[np.get_include()],
+            )
+        ]
 
 setup(name='smcpp',
         description='SMC++',

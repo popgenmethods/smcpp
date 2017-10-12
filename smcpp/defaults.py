@@ -10,3 +10,4 @@ t1 = None
 tK = None
 regularization_degree = 2
 spline = "pchip"
+cores = None

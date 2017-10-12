@@ -22,10 +22,6 @@ logger = logging.getLogger(__name__)
 
 _model_cls_d = {cls.__name__: cls for cls in (SMCModel, SMCTwoPopulationModel)}
 
-def thread_pool():
-    cpu_count = os.cpu_count()
-    return futures.ThreadPoolExecutor(cpu_count)
-
 class BaseAnalysis:
     "Base class for analysis of population genetic data."
     def __init__(self, files, args):
@@ -47,9 +43,12 @@ class BaseAnalysis:
         # Data-related stuff
         self._load_data(files)
         self._validate_data()
-        self._filter_data()
+        if not args.no_filter:
+            self._filter_data()
         self._watterson()
         self._recode_nonseg(args.nonseg_cutoff)
+        if args.cores is not None:
+            _smcpp.set_num_threads(args.cores)
 
 
     @property
@@ -120,8 +119,8 @@ class BaseAnalysis:
         self._contigs = estimation_tools.recode_nonseg(self._contigs, cutoff)
 
     def _realign(self, w):
-        with thread_pool() as p:
-            f = [p.submit(smcpp._smcpp.realign, c, w) for c in self._contigs]
+        with futures.ThreadPoolExecutor(smcpp.defaults.cores) as p:
+            f = [p.submit(estimation_tools.realign, c, w) for c in self._contigs]
             futures.wait(f, return_when=futures.FIRST_EXCEPTION)
 
     def _filter_data(self):
@@ -304,13 +303,7 @@ class BaseAnalysis:
 
     def Q(self):
         'Value of Q() function in M-step.'
-        qq = []
-        with thread_pool() as executor:
-            fs = []
-            for na in self._ims:
-                fs.append(executor.submit(self._ims[na].Q, separate=True))
-            for x in futures.as_completed(fs):
-                qq.append(x.result())
+        qq = [self._ims[pop].Q(separate=True) for pop in self._ims]
         qr = self._penalty * self.model.regularizer()
         qq = np.sum(qq)
         ret = qq - qr
@@ -321,22 +314,15 @@ class BaseAnalysis:
     def E_step(self):
         'Perform E-step.'
         logger.info('Running E-step')
-        with thread_pool() as executor:
-            fs = []
-            for na in self._ims:
-                fs.append(executor.submit(self._ims[na].E_step))
-            futures.wait(fs)
+        for pop in self._ims:
+            self._ims[pop].E_step()
         logger.info('E-step completed')
 
     def loglik(self):
         'Log-likelihood of data after most recent E-step.'
         ll = 0
-        with thread_pool() as executor:
-            fs = []
-            for na in self._ims:
-                fs.append(executor.submit(self._ims[na].loglik))
-            for x in futures.as_completed(fs):
-                ll += x.result()
+        for pop in self._ims:
+            ll += self._ims[pop].loglik()
         return ll - self._penalty * float(self.model.regularizer())
 
     @property
@@ -436,16 +422,16 @@ class Analysis(BaseAnalysis):
 
     def _init_knots(self):
         self._knots = self._hidden_states[1:-1:2]
-        mult = np.mean(self._knots[1:] / self._knots[:-1])
-        t = self._t1
-        k0 = self._knots[0]
-        a = []
-        while t < k0:
-            a = np.r_[a, t]
-            t *= mult
-        self._knots = np.r_[a, self._knots]
-        if self._tK > self._knots[-1]:
-            self._knots = np.r_[self._knots, self._tK]
+        # mult = np.mean(self._knots[1:] / self._knots[:-1])
+        # t = self._t1
+        # k0 = self._knots[0]
+        # a = []
+        # while t < k0:
+        #     a = np.r_[a, t]
+        #     t *= mult
+        # self._knots = np.r_[a, self._knots]
+        # if self._tK > self._knots[-1]:
+        #     self._knots = np.r_[self._knots, self._tK]
         for x in smcpp.defaults.additional_knots:
             self._knots = np.r_[self._knots, x * self._knots[-1]]
 

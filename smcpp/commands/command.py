@@ -5,7 +5,7 @@ import os
 import os.path
 import sys
 
-from .. import logging
+from .. import logging, _smcpp
 import smcpp.defaults
 
 logger = logging.getLogger(__name__)
@@ -20,10 +20,14 @@ class Command:
         parser.add_argument('-v', '--verbose', action='count', default=0,
                 help="increase debugging output, specify multiply times for more")
         parser.add_argument('--seed', type=int, default=0, help=argparse.SUPPRESS)
+        parser.add_argument('--cores', type=int, default=None, 
+                help="Number of worker processes / threads "
+                     "to use in parallel calculations")
 
     def main(self, args):
         np.random.seed(args.seed)
         logging.setup_logging(args.verbose)
+        smcpp.defaults.cores = args.cores
 
 class EstimationCommand(Command):
     def __init__(self, parser):

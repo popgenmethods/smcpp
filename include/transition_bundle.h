@@ -1,6 +1,8 @@
 #ifndef TRANSITION_BUNDLE_H
 #define TRANSITION_BUNDLE_H
 
+#include "sparsepp/spp.h"
+
 #include "common.h"
 #include "block_key.h"
 
@@ -31,9 +33,9 @@ class TransitionBundle
 {
     public:
     TransitionBundle(
-            const std::set<std::pair<int, block_key> > &targets_s,
+            const spp::sparse_hash_set<std::pair<int, block_key> > &targets,
             const std::map<block_key, Vector<adouble> >* emission_probs) : 
-        targets(targets_s.begin(), targets_s.end()),
+        targets(targets),
         emission_probs(emission_probs) {}
 
     void update(const Matrix<adouble> &new_T);
@@ -45,7 +47,7 @@ class TransitionBundle
     std::map<block_key, eigensystem> eigensystems;
 
     private:
-    const std::vector<std::pair<int, block_key> > targets;
+    const spp::sparse_hash_set<std::pair<int, block_key> > &targets;
     const std::map<block_key, Vector<adouble> >* emission_probs;
 };
 

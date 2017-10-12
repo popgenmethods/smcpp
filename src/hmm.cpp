@@ -3,7 +3,8 @@
 #include "inference_bundle.h"
 #include "hmm.h"
 
-HMM::HMM(const int hmm_num, const Matrix<int> &obs, const InferenceBundle* ib) : 
+HMM::HMM(const int hmm_num,
+         const Eigen::Map<Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> > &obs,         const InferenceBundle* ib) :
     hmm_num(hmm_num), obs(obs), ib(ib), M(ib->pi->rows()), L(obs.rows()), ll(0.),
     alpha_hat(M, L + 1), xisum(M, M), gamma(M, 1), c(L + 1)
     // Gamma has one column because gamma.col(0) will be set to calculate

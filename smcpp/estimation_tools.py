@@ -9,8 +9,9 @@ import json
 import pandas as pd
 import itertools
 
-from . import _smcpp, util, logging, model
+from . import util, logging, model, defaults
 from .contig import Contig
+from ._estimation_tools import realign, thin_data
 
 
 logger = logging.getLogger(__name__)
@@ -59,7 +60,7 @@ def _thin_helper(args):
     thinned = ds
     if th > 0:
         try:
-            thinned = _smcpp.thin_data(ds, th)
+            thinned = thin_data(ds, th)
         except Exception as e:
             logger.error(args)
             raise
@@ -68,7 +69,7 @@ def _thin_helper(args):
 
 def thin_dataset(dataset, thinning):
     '''Only emit full SFS every <thinning> sites'''
-    with ThreadPoolExecutor() as p:
+    with ThreadPoolExecutor(defaults.cores) as p:
         return list(p.map(_thin_helper, zip(dataset, thinning)))
 
 
@@ -155,8 +156,9 @@ def balance_hidden_states(model, M):
     generations.)
 
     """
+    import smcpp._smcpp
     M -= 1
-    eta = _smcpp.PyRateFunction(model, [])
+    eta = smcpp._smcpp.PyRateFunction(model, [])
     ret = [0.0]
     # ms = np.arange(0.1, 2.1, .1).tolist() + list(range(3, M))
     ms = range(1, M)
@@ -195,7 +197,8 @@ def model_from_coal_probs(t, p, N0, pid):
 
 
 def calculate_t1(model, n, q):
-    eta = _smcpp.PyRateFunction(model, [0., np.inf])
+    import smcpp._smcpp
+    eta = smcpp._smcpp.PyRateFunction(model, [0., np.inf])
     c = n * (n - 1) / 2
     def f(t):
         return np.expm1(-c * eta.R(t)) + q
@@ -203,7 +206,7 @@ def calculate_t1(model, n, q):
 
 
 def watterson_estimator(contigs):
-    with ProcessPoolExecutor() as p:
+    with ProcessPoolExecutor(defaults.cores) as p:
         num = denom = 0
         for S, sample_sizes, spans in p.map(_watterson_helper, contigs):
             num += S
@@ -275,12 +278,12 @@ def files_from_command_line_args(args):
 
 
 def load_data(files):
-    with ProcessPoolExecutor() as p:
+    with ProcessPoolExecutor(defaults.cores) as p:
         obs = list(p.map(_load_data_helper, files))
     return obs
 
 
 def windowed_mutations(contigs, w):
     '''Return array [[window_length, num_mutations], ...] for each contig'''
-    with ThreadPoolExecutor() as p:
-        return list(map(_smcpp._windowed_mutations_helper, contigs, itertools.repeat(w)))
+    with ThreadPoolExecutor(defaults.cores) as p:
+        return list(map(_estimation_tools._windowed_mutations_helper, contigs, itertools.repeat(w)))
