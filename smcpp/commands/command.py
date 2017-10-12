@@ -68,8 +68,8 @@ def add_common_estimation_args(parser):
     optimizer.add_argument('--algorithm',
                            choices=["BFGS", "L-BFGS-B", "TNC", "AdaMax", "Adam"],
                            default="L-BFGS-B", help=argparse.SUPPRESS)
-    optimizer.add_argument('--multi', default=False, action="store_true",
-                           help="update multiple blocks of coordinates at once")
+    optimizer.add_argument('--no-multi', default=False, action="store_true",
+                           help="do not update multiple blocks of coordinates at once")
     optimizer.add_argument("--ftol", type=float,
                            default=smcpp.defaults.ftol,
                            help="stopping criterion for relative improvement in loglik "

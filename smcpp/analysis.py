@@ -182,14 +182,14 @@ class BaseAnalysis:
         logger.debug("Computing quantiles of TMRCA distribution from M=%d TMRCA samples", M)
         logger.debug("Unresampled quantiles (0/10/25/50/75/100): %s",
                      scipy.stats.mstats.mquantiles(X, [0, .1, .25, .5, .75, 1.]))
-        p = np.logspace(np.log10(.01), np.log10(.99), k)
+        p = np.logspace(np.log10(.01), np.log10(.999), k)
         # with futures.ProcessPoolExecutor() as pool:
         q = smcpp.beta_de.quantile(X, h, p)
         logger.debug("Quantiles: %s", " ".join("F(%f)=%f" % c for c in zip(q, p)))
         # 2 * E(TMRCA) * self._theta ~= q
         q /= (2. * self._theta)
         logger.debug("empirical TMRCA distribution: %s", q)
-        self._etmrca_quantiles = q
+        self._etmrca_quantiles = {pp: qq for pp, qq in zip(p, q)}
 
 
     def _compress(self):
@@ -236,29 +236,7 @@ class BaseAnalysis:
                 ci += 1
         self._contigs = new_contigs
 
-    def _calculate_t1_tK(self, args):
-        Ne = self._watterson / self._theta
-        logger.debug("Ne: %f", Ne)
-        Ne *= 2 * self._N0
-        n = 2 + max(self.ns)
-        t1 = args.t1 or 200 + np.log(.9) / (-n * (n - 1) / 2) * Ne
-        if t1 <= 0:
-            logger.error("--t1 should be >0")
-            sys.exit(1)
-        logger.debug("setting t1=%f", t1)
-        tK = args.tK or (2 + 1.16 ** 0.5) * Ne
-        if tK <= 0:
-            logger.error("--tK should be >0")
-            sys.exit(1)
-        logger.debug("setting tK=%f", tK)
-        if tK <= t1:
-            logger.error("tK <= t1? Possible weirdness in data")
-            sys.exit(1)
-        self._t1 = self.rescale(t1)
-        self._tK = self.rescale(tK)
-
-
-    def _init_inference_manager(self, polarization_error):
+    def _init_inference_manager(self, polarization_error, hs):
         ## Create inference object which will be used for all further calculations.
         logger.debug("Creating inference manager...")
         d = {}
@@ -275,16 +253,16 @@ class BaseAnalysis:
             data = [c.data for c in d[pid]]
             if len(pid) == 1:
                 im = _smcpp.PyOnePopInferenceManager(max_n[pid], data,
-                        self._hidden_states[pid[0]],
+                        hs[pid[0]],
                         pid, polarization_error)
             else:
                 assert len(pid) == 2
                 s = set(a[pid])
                 assert len(s) == 1
                 im = _smcpp.PyTwoPopInferenceManager(*(max_n[pid]), *s.pop(), data,
-                                                     self._hidden_states[pid[0]],
-                                                     pid,
-                                                     polarization_error)
+                        hs[pid[0]],
+                        pid,
+                        polarization_error)
             im.model = self._model
             im.theta = self._theta
             im.rho = self._rho
@@ -379,12 +357,23 @@ class Analysis(BaseAnalysis):
         # Estimate empirical TMRCA distribution for distinguished pairs
         self._empirical_tmrca(2 * args.knots,
                               args.w or .1 * self._cM)
-        self._hidden_states = np.r_[0, self._etmrca_quantiles, np.inf]
-        self._M = len(self._hidden_states)
-
         # Figure out knot placement.
-        self._calculate_t1_tK(args)
-        self._init_knots()
+        hidden_states = [b for a, b in sorted(self._etmrca_quantiles.items())]
+        self._knots = hidden_states[::2]
+        for c in smcpp.defaults.additional_knots:
+            hidden_states = np.r_[hidden_states, c * hidden_states[-1]]
+        if args.t1 is None:
+            q0 = min(self._etmrca_quantiles)
+            t0 = self._etmrca_quantiles[q0]
+            lam = -np.log(1 - q0) / t0
+            n = max(self.ns)
+            args.t1 = 2. * self._N0 * -np.log(.001) / lam / (n * (n - 1) / 2)
+            logger.debug("calculated t1: %f gens", args.t1)
+        rt1 = self.rescale(args.t1)
+        if rt1 < self._knots[0]:
+            self._knots = np.r_[rt1, self._knots]
+        logger.debug("hidden states: %s", hidden_states)
+        self._hidden_states = {k: hidden_states for k in self._populations}
         self._init_model(self._N0, args.spline)
 
         # Optionally initialize from pre-specified model
@@ -392,19 +381,32 @@ class Analysis(BaseAnalysis):
             d = json.load(open(args.initial_model, "rt"))
             self._theta = d['theta']
             self._rho = d['rho']
-            self._hidden_states = {k: np.array(v) for k, v in d['hidden_states'].items()}
             self._model = _model_cls_d[d['model']['class']].from_dict(d['model'])
+            self._hidden_states = {k: self.rescale(
+                smcpp.estimation_tools.balance_hidden_states(
+                        self._model, len(self._hidden_states[k])))[:-1]
+                for k in self._hidden_states}
+            logger.debug("rebalanced hidden states: %s", self._hidden_states)
         else:
             self._preinitialize()
+
+        # Keep a copy of unthinned data
+        self._init_inference_manager(args.polarization_error, 
+                {k: np.array([0.0, np.inf]) for k in self._populations})
+        self._ims0 = self._ims
+        for im in self._ims0.values():
+            im.E_step()
 
         # Thin the data
         self._perform_thinning(args.thinning)
         self._compress()
 
-        self._init_inference_manager(args.polarization_error)
+        self._hidden_states = {k: v[5:] for k, v in self._hidden_states.items()}
+        self._init_inference_manager(args.polarization_error, self._hidden_states)
         self._init_optimizer(args.outdir,
                              args.algorithm, args.xtol, args.ftol,
-                             learn_rho=args.r is None, single=not args.multi)
+                             learn_rho=args.r is None, single=args.no_multi)
+        self._init_regularization(args)
 
 
     def _init_parameters(self, mu, r):
@@ -422,16 +424,6 @@ class Analysis(BaseAnalysis):
 
     def _init_knots(self):
         self._knots = self._hidden_states[1:-1:2]
-        # mult = np.mean(self._knots[1:] / self._knots[:-1])
-        # t = self._t1
-        # k0 = self._knots[0]
-        # a = []
-        # while t < k0:
-        #     a = np.r_[a, t]
-        #     t *= mult
-        # self._knots = np.r_[a, self._knots]
-        # if self._tK > self._knots[-1]:
-        #     self._knots = np.r_[self._knots, self._tK]
         for x in smcpp.defaults.additional_knots:
             self._knots = np.r_[self._knots, x * self._knots[-1]]
 
@@ -457,39 +449,20 @@ class Analysis(BaseAnalysis):
         x = self.model[:]
         self._init_model(self._N0, args.spline)
         self.model[:] = x
-
         # Do a first pass to initialize regularizer and hidden states
-        self._hidden_states = {k: [0.0, np.inf] for k in self._populations}
-        self._init_inference_manager(args.polarization_error)
+        hs = {k: [0.0, np.inf] for k in self._populations}
+        self._init_inference_manager(args.polarization_error, hs)
         self._init_optimizer(None, args.algorithm, args.xtol,
                              args.ftol, learn_rho=False, single=False)
         self.E_step()
+
+
+    def _init_regularization(self, args):
         if self._args.lambda_:
             self._penalty = args.lambda_
         else:
             self._penalty = abs(self.Q()) * (10 ** -args.regularization_penalty)
-        self._optimizer.run(1)
         logger.debug("Regularization penalty: lambda=%g", self._penalty)
-        self._hidden_states = self.rescale(smcpp.estimation_tools.balance_hidden_states(
-            self._model, 
-            self._M
-            ))[:-1]
-        if args.t1 is None:  # set initial knot based on density of coalescence in rough demography
-            self._t1 = max(self.rescale(50), smcpp.estimation_tools.calculate_t1(self._model, self._max_n, q=.5))
-            logger.debug("Recomputed t1: %f", self._t1)
-        if args.tK is None:
-            self._tK = self._hidden_states[-2]
-        self._init_knots()
-        m0 = self._model
-        self._init_model(self._N0, args.spline)
-        self._model.match(m0)
-        t12 = smcpp.estimation_tools.calculate_t1(self._model, 2, q=0.01)
-        if t12 < self._hidden_states[1]:
-            self._hidden_states[0] = t12
-        else:
-            self._hidden_states = self._hidden_states[1:]
-        logger.debug("hidden states: %s", self._hidden_states)
-        self._hidden_states = {k: self._hidden_states for k in self._populations}
 
     _OPTIMIZER_CLS = SMCPPOptimizer
 
@@ -512,7 +485,7 @@ class SplitAnalysis(BaseAnalysis):
         self._normalize_data(args.length_cutoff, not args.no_filter)
         self._perform_thinning(args.thinning)
         # Further initialization
-        self._init_inference_manager(args.polarization_error)
+        self._init_inference_manager(args.polarization_error, self._hidden_states)
         self._init_optimizer(args.outdir, args.algorithm, args.xtol, args.ftol, single=True)
         self._niter = 1
 
