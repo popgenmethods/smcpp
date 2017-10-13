@@ -42,4 +42,5 @@ void TransitionBundle::update(const Matrix<adouble> &new_T)
             }
         }
     }
+#pragma omp taskwait
 }

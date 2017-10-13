@@ -255,19 +255,19 @@ class BaseAnalysis:
             if len(pid) == 1:
                 im = _smcpp.PyOnePopInferenceManager(max_n[pid], data,
                         hs[pid[0]],
-                        pid, polarization_error)
+                        pid)
             else:
                 assert len(pid) == 2
                 s = set(a[pid])
                 assert len(s) == 1
                 im = _smcpp.PyTwoPopInferenceManager(*(max_n[pid]), *s.pop(), data,
                         hs[pid[0]],
-                        pid,
-                        polarization_error)
+                        pid)
             im.model = self._model
             im.theta = self._theta
             im.rho = self._rho
             im.alpha = self._alpha = .01
+            im.polarization_error = polarization_error
             self._ims[pid] = im
         self._max_n = np.max(list(map(sum, max_n.values())), axis=0)
         self._model.randomize()

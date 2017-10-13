@@ -123,7 +123,7 @@ cdef _store_admatrix_helper(Matrix[adouble] &mat, dlist):
 
 cdef class _PyInferenceManager:
     cdef int _num_hmms
-    cdef object _model, _observations, _theta, _rho, _alpha, _im_id
+    cdef object _model, _observations, _theta, _rho, _alpha, _polarization_error, _im_id
     cdef public long long seed
     cdef vector[double] _hs
     cdef vector[int] _Ls
@@ -183,6 +183,15 @@ cdef class _PyInferenceManager:
         def __set__(self, alpha):
             self._alpha = alpha
             self._im.setAlpha(alpha)
+
+    property polarization_error:
+        def __get__(self):
+            return self._polarization_error
+
+        def __set__(self, pe):
+            self._polarization_error = pe
+            self._im.setPolarizationError(pe)
+
 
     def E_step(self, forward_backward_only=False):
         if None in (self.theta, self.rho, self.alpha):
@@ -311,11 +320,11 @@ cdef class _PyInferenceManager:
 
 cdef class PyOnePopInferenceManager(_PyInferenceManager):
 
-    def __cinit__(self, int n, observations, hidden_states, im_id, double polarization_error):
+    def __cinit__(self, int n, observations, hidden_states, im_id):
         # This is needed because cinit cannot be inherited
         self.__my_cinit__(observations, hidden_states, im_id)
         with nogil:
-            self._im = new OnePopInferenceManager(n, self._Ls, self._obs_ptrs, self._hs, polarization_error)
+            self._im = new OnePopInferenceManager(n, self._Ls, self._obs_ptrs, self._hs)
 
     @property
     def pid(self):
@@ -334,7 +343,7 @@ cdef class PyTwoPopInferenceManager(_PyInferenceManager):
     cdef TwoPopInferenceManager* _im2
     cdef int _a1
 
-    def __cinit__(self, int n1, int n2, int a1, int a2, observations, hidden_states, im_id, double polarization_error):
+    def __cinit__(self, int n1, int n2, int a1, int a2, observations, hidden_states, im_id):
         # This is needed because cinit cannot be inherited
         assert a1 + a2 == 2
         assert a1 in [1, 2]
@@ -343,7 +352,8 @@ cdef class PyTwoPopInferenceManager(_PyInferenceManager):
         self.__my_cinit__(observations, hidden_states, im_id)
         assert a1 in [1, 2], "a2=2 is not supported"
         with nogil:
-            self._im2 = new TwoPopInferenceManager(n1, n2, a1, a2, self._Ls, self._obs_ptrs, self._hs, polarization_error)
+            self._im2 = new TwoPopInferenceManager(n1, n2, a1, a2, self._Ls,
+                    self._obs_ptrs, self._hs)
             self._im = self._im2
 
     @targets("model update")
