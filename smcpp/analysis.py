@@ -182,7 +182,7 @@ class BaseAnalysis:
         M = len(X)
         h = 1 / M
         logger.debug("Computing quantiles of TMRCA distribution from M=%d TMRCA samples", M)
-        logger.debug("Unresampled quantiles (0/10/25/50/75/100): %s",
+        logger.debug("Empirical quantiles (0/10/25/50/75/100): %s",
                      scipy.stats.mstats.mquantiles(X, [0, .1, .25, .5, .75, 1.]))
         p = np.logspace(np.log10(.01), np.log10(.999), k)
         # with futures.ProcessPoolExecutor() as pool:
@@ -277,9 +277,9 @@ class BaseAnalysis:
     def _data(self):
         return [c.data for c in self._contigs]
 
-    def run(self):
+    def run(self, niter=None):
         'Perform the analysis.'
-        self._optimizer.run(self._niter)
+        self._optimizer.run(niter or self._niter)
 
     def Q(self):
         'Value of Q() function in M-step.'
