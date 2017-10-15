@@ -98,7 +98,8 @@ class BaseAnalysis:
             assert c.data.flags.c_contiguous
             nonseg = ((np.all(c.data[:, 1::3] == c.a[None, :], axis=1) |
                        np.all(c.data[:, 1::3] == -1, axis=1)) &
-                      np.all(c.data[:, 2::3] == c.data[:, 3::3], axis=1))
+                       np.all(c.data[:, 2::3] == c.data[:, 3::3], axis=1) &
+                       np.any(c.data[:, 3::3] > 0, axis=1))
             if np.any(nonseg):
                 logger.error("In file %s, observations %s:", c.fn, np.where(nonseg)[0])
                 logger.error("Data set contains sites where every "
