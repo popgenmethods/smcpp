@@ -1,10 +1,13 @@
+#include <unsupported/Eigen/MatrixFunctions>
+
 #include "common.h"
 #include "inference_manager.h"
 #include "inference_bundle.h"
 #include "hmm.h"
 
 HMM::HMM(const int hmm_num,
-         const Eigen::Map<Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> > &obs,         const InferenceBundle* ib) :
+         const Eigen::Map<Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> > &obs,
+         const InferenceBundle* ib) :
     hmm_num(hmm_num), obs(obs), ib(ib), M(ib->pi->rows()), L(obs.rows()), ll(0.),
     alpha_hat(M, L + 1), xisum(M, M), gamma(M, 1), c(L + 1)
     // Gamma has one column because gamma.col(0) will be set to calculate
@@ -66,29 +69,28 @@ void HMM::Estep(bool fbOnly)
         gamma_sums.emplace(key, z);
         B = ib->emission_probs->at(key).template cast<double>().asDiagonal();
         int span = obs(ell - 1, 0);
-        if (span > 1 and tb->eigensystems.count(key) > 0)
+        if (false) // span > 1 and tb->eigensystems.count(key) > 0)
         {
-            eigensystem es = tb->eigensystems.at(key);
+            const eigensystem es = tb->eigensystems.at(key);
             // alpha_hat.col(ell) = (es.P * (es.d.array().pow(span).matrix().asDiagonal() * 
             //             (es.Pinv * alpha_hat.col(ell - 1).template cast<std::complex<double> >()))).real();
             if (es.cplx)
-                alpha_hat.col(ell) = (es.P * (es.d_scaled.array().pow(span).matrix().asDiagonal() * 
+                alpha_hat.col(ell) = (es.P * (es.d.array().pow(span).matrix().asDiagonal() *
                             (es.Pinv * alpha_hat.col(ell - 1).template cast<std::complex<double> >()))).real();
             else
-                alpha_hat.col(ell) = (es.P_r * (es.d_r_scaled.array().pow(span).matrix().asDiagonal() * 
+                alpha_hat.col(ell) = (es.P_r * (es.d_r.array().pow(span).matrix().asDiagonal() *
                             (es.Pinv_r * alpha_hat.col(ell - 1))));
-
-            // c(ell) = c_true(ell) * scale**(-span)
-            ll += span * log(es.scale);
         }
         else
         {
-            if (span != 1) throw std::runtime_error("span != 1");
+            // if (span != 1) throw std::runtime_error("span != 1");
             Matrix<double> M = (B * T.transpose()).pow(span);
             alpha_hat.col(ell) = M * alpha_hat.col(ell - 1);
         }
         CHECK_NAN(alpha_hat.col(ell));
-        alpha_hat.col(ell) = alpha_hat.col(ell).unaryExpr([] (const double &x) { if (x < 1e-20) return 1e-20; return x; });
+        alpha_hat.col(ell) = alpha_hat.col(ell).unaryExpr(
+                [] (const double &x) { if (x < 1e-20) return 1e-20; return x; }
+            );
         c(ell) = alpha_hat.col(ell).sum();
         alpha_hat.col(ell) /= c(ell);
         ll += log(c(ell));
@@ -96,7 +98,8 @@ void HMM::Estep(bool fbOnly)
     Vector<double> beta = Vector<double>::Ones(M), v(M), alpha(M);
     xisum.setZero();
     Matrix<std::complex<double> > Q(M, M);
-    Matrix<double> Q_r(M, M);
+    Matrix<double> Q_r(M, M), sq(M, M), xis(M, M);
+    double p;
     DEBUG1 << "backward algorithm (HMM #" << hmm_num << ")";
     for (int ell = L; ell > 0; --ell)
     {
@@ -106,28 +109,30 @@ void HMM::Estep(bool fbOnly)
         B = ib->emission_probs->at(key).template cast<double>().asDiagonal();
         if (span > 1 and tb->eigensystems.count(key) > 0)
         {
-            eigensystem es = tb->eigensystems.at(key);
+            const eigensystem es = tb->eigensystems.at(key);
+            p = std::pow(es.scale, span - 1);
             if (es.cplx)
             {
                 Q = es.Pinv * 
                     (alpha_hat.col(ell - 1) * beta.transpose()).template cast<std::complex<double> >() * 
                     es.P;
                 Q = Q.cwiseProduct(tb->span_Qs.at({span, key}));
-                v = (es.P * es.d_scaled.asDiagonal() * Q * es.Pinv).diagonal().real() / c(ell);
-                xisum += ((es.P * Q * es.Pinv).real() * B) / (c(ell) * es.scale);
+                v = (es.P * es.d.asDiagonal() * Q * es.Pinv).diagonal().real() / c(ell) * p;
+                CHECK_NAN_OR_NEGATIVE(v);
+                xis = ((es.P * Q * es.Pinv).real() * B) / c(ell) * p;
+                CHECK_NAN_OR_NEGATIVE(xisum);
                 beta = (es.Pinv.transpose() * (es.d_scaled.array().pow(span).matrix().asDiagonal() * 
-                            (es.P.transpose() * beta.template cast<std::complex<double> >()))).real();
+                            (es.P.transpose() * beta.template cast<std::complex<double> >()))).real() * p * es.scale;
             }
             else
             {
-                Q_r = es.Pinv_r * 
-                    (alpha_hat.col(ell - 1) * beta.transpose()) * 
-                    es.P_r;
-                Q_r = Q_r.cwiseProduct(tb->span_Qs.at({span, key}).real());
-                v = (es.P_r * es.d_r_scaled.asDiagonal() * Q_r * es.Pinv_r).diagonal() / c(ell);
-                xisum += ((es.P_r * Q_r * es.Pinv_r) * B) / (c(ell) * es.scale);
+                Q_r = es.Pinv_r * (alpha_hat.col(ell - 1) * beta.transpose()) * es.P_r;
+                sq = tb->span_Qs.at({span,key}).real();
+                Q_r = Q_r.cwiseProduct(sq);
+                v = (es.P_r * es.d_r.asDiagonal() * Q_r * es.Pinv_r).diagonal() / c(ell) * p;
+                xis = ((es.P_r * Q_r * es.Pinv_r) * B) / c(ell) * p;
                 beta = (es.Pinv_r.transpose() * (es.d_r_scaled.array().pow(span).matrix().asDiagonal() * 
-                            (es.P_r.transpose() * beta)));
+                            (es.P_r.transpose() * beta))) * p * es.scale;
             }
         }
         else
@@ -135,9 +140,10 @@ void HMM::Estep(bool fbOnly)
             if (span != 1)
                 throw std::runtime_error("span");
             v = alpha_hat.col(ell).cwiseProduct(beta);
-            xisum += alpha_hat.col(ell - 1) * beta.transpose() * B / c(ell);
+            xis = alpha_hat.col(ell - 1) * beta.transpose() * B / c(ell);
             beta = T * (B * beta);
         }
+        xisum += xis;
         beta /= c(ell);
         CHECK_NAN(xisum);
         CHECK_NAN(v);
@@ -148,6 +154,8 @@ void HMM::Estep(bool fbOnly)
     }
     gamma.col(0) = alpha_hat.col(0).cwiseProduct(beta);
     xisum = xisum.cwiseProduct(T);
+    if (std::abs(xisum.sum() - obs.col(0).sum()) > 1e-4)
+        throw std::runtime_error("corruption in xisum");
     xisum = xisum.unaryExpr([] (const double &x) { if (x < 1e-20) return 1e-20; return x; });
 }
 
@@ -176,14 +184,17 @@ Vector<adouble> HMM::Q(void)
     }
     ret(1) = doubly_compensated_summation(gss[0]);
     ret(2) = doubly_compensated_summation(gss[1]);
-
     Matrix<adouble> T = ib->tb->T;
     Matrix<adouble> log_T = T.array().log().matrix();
     CHECK_NAN(log_T);
     Matrix<adouble> prod = log_T.cwiseProduct(xisum.template cast<adouble_base_type>());
     std::vector<adouble> es(prod.data(), prod.data() + M * M);
     ret(3) = doubly_compensated_summation(es);
-
     CHECK_NAN(ret);
+    DEBUG1
+        << "ret0:" << toDouble(ret(0))
+        << " ret1:" << toDouble(ret(1))
+        << " ret2:" << toDouble(ret(2))
+        << " ret3:" << toDouble(ret(3));
     return ret;
 }

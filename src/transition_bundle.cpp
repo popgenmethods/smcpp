@@ -13,7 +13,7 @@ void TransitionBundle::update(const Matrix<adouble> &new_T)
         block_key key = it->second;
         if (this->eigensystems.count(key) == 0)
         {
-            tmp = this->emission_probs->at(key).template cast<double>().asDiagonal() * this->Td.transpose();
+            Vector<double> ep = this->emission_probs->at(key).template cast<double>();
             Eigen::EigenSolver<Matrix<double> > es(tmp);
             this->eigensystems.emplace(key, es);
         }
@@ -24,9 +24,9 @@ void TransitionBundle::update(const Matrix<adouble> &new_T)
     {
 #pragma omp task firstprivate(it)
         {
-            int span = it->first;
-            block_key key = it->second;
-            eigensystem eig = this->eigensystems.at(key);
+            const int span = it->first;
+            const block_key key = it->second;
+            const eigensystem eig = this->eigensystems.at(key);
             Matrix<std::complex<double> > Q(M, M);
             for (int a = 0; a < M; ++a)
                 for (int b = 0; b < M; ++b)

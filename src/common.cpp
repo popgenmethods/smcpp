@@ -121,3 +121,23 @@ void check_nan(const adouble &x, const char* file, const int line)
     check_nan(x.value(), file, line);
     check_nan(x.derivatives(), file, line);
 }
+
+void check_negative(const adouble x, const char* file, const int line) {
+    check_negative(x.value(), file, line);
+}
+
+void check_negative(const double x, const char* file, const int line)
+{
+    if (x > -1e-16)
+        return;
+    std::string s = "negative value detected at ";
+    s += file;
+    s += ":";
+    s += std::to_string(line);
+#pragma omp critical(stacktrace)
+    {
+        CRITICAL << s;
+        print_stacktrace();
+    }
+    throw std::runtime_error(s);
+}
