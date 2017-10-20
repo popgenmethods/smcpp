@@ -69,7 +69,7 @@ void HMM::Estep(bool fbOnly)
         gamma_sums.emplace(key, z);
         B = ib->emission_probs->at(key).template cast<double>().asDiagonal();
         int span = obs(ell - 1, 0);
-        if (false) // span > 1 and tb->eigensystems.count(key) > 0)
+        if (span > 1 and tb->eigensystems.count(key) > 0)
         {
             const eigensystem es = tb->eigensystems.at(key);
             // alpha_hat.col(ell) = (es.P * (es.d.array().pow(span).matrix().asDiagonal() * 
@@ -89,7 +89,7 @@ void HMM::Estep(bool fbOnly)
         }
         CHECK_NAN(alpha_hat.col(ell));
         alpha_hat.col(ell) = alpha_hat.col(ell).unaryExpr(
-                [] (const double &x) { if (x < 1e-20) return 1e-20; return x; }
+                [] (const double &x) { if (x < 1e-10) return 1e-10; return x; }
             );
         c(ell) = alpha_hat.col(ell).sum();
         alpha_hat.col(ell) /= c(ell);
@@ -134,6 +134,10 @@ void HMM::Estep(bool fbOnly)
                 beta = (es.Pinv_r.transpose() * (es.d_r_scaled.array().pow(span).matrix().asDiagonal() * 
                             (es.P_r.transpose() * beta))) * p * es.scale;
             }
+            double cf = span / v.cwiseAbs().sum();
+            v *= cf;
+            xis *= cf;
+            beta *= cf; // correction factor?
         }
         else
         {
@@ -154,8 +158,6 @@ void HMM::Estep(bool fbOnly)
     }
     gamma.col(0) = alpha_hat.col(0).cwiseProduct(beta);
     xisum = xisum.cwiseProduct(T);
-    if (std::abs(xisum.sum() - obs.col(0).sum()) > 1e-4)
-        throw std::runtime_error("corruption in xisum");
     xisum = xisum.unaryExpr([] (const double &x) { if (x < 1e-20) return 1e-20; return x; });
 }
 
