@@ -24,9 +24,9 @@ requirements:
   run:
     - python
     - nomkl
-    - gcc >=4.8.5
     - libgcc
     - openblas
+    - isl
     - git >=2.9.3
     - cython >=0.25
     - setuptools >=33.1
