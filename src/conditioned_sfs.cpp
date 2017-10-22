@@ -107,8 +107,13 @@ std::vector<Matrix<T> > incorporate_theta(const std::vector<Matrix<T> > &csfs, d
         assert(csfs[i](0, 0) == 0.);
         assert(csfs[i](2, n) == 0.);
         T tauh = csfs[i].sum();
-        if (toDouble(tauh) > 1.0 / theta)
-            throw improper_sfs_exception();
+        // if (toDouble(tauh) > 1.0 / theta)
+        // {
+        //     DEBUG1 << "i:" << i << " csfs:\n" << csfs[i].template cast<double>();
+        //     DEBUG1 << "tauh: " << toDouble(tauh);
+        //     DEBUG1 << "theta: " << theta;
+        //     throw improper_sfs_exception();
+        // }
         try
         {
             CHECK_NAN(tauh);
