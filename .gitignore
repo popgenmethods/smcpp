@@ -24,3 +24,4 @@ smcpp.egg-info
 .cache
 smcpp/version.py
 smcpp/_estimation_tools.c
+src/.release_time
