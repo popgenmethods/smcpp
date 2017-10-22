@@ -219,7 +219,7 @@ void PiecewiseConstantRateFunction<T>::tjj_double_integral_above(
     // Now calculate with hidden state integration limits
     for (unsigned int h = 0; h < hs_indices.size() - 1; ++h)
     {
-        C[h].row(jj - 2).fill(zero());
+        C[h].row(jj - 2).setZero();
         T Rh = Rrng[hs_indices[h]];
         T Rh1 = Rrng[hs_indices[h + 1]];
         T log_denom = -Rh;
