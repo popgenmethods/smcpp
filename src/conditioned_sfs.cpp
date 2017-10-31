@@ -128,10 +128,10 @@ std::vector<Matrix<T> > incorporate_theta(const std::vector<Matrix<T> > &csfs, d
             throw;
         }
         T tiny = tauh - tauh + 1e-10;
-        ret[i] = ret[i].unaryExpr([=](const T x) { if (x < 1e-10) return tiny; if (x < -1e-8) throw std::domain_error("very negative sfs"); return x; });
         CHECK_NAN(ret[i]);
         tauh = ret[i].sum();
         ret[i](0, 0) = 1. - tauh;
+        ret[i] = ret[i].unaryExpr([=](const T x) { if (x < 1e-10) return tiny; if (x < -1e-8) throw std::domain_error("very negative sfs"); return x; });
         try { CHECK_NAN(ret[i]); }
         catch (std::runtime_error)
         {
@@ -140,7 +140,7 @@ std::vector<Matrix<T> > incorporate_theta(const std::vector<Matrix<T> > &csfs, d
         }
         if (ret[i].template cast<double>().minCoeff() < 0 or ret[i].template cast<double>().maxCoeff() > 1)
         {
-            std::cout << i << std::endl << csfs[i].template cast<double>() << std::endl;
+            std::cout << i << std::endl << ret[i].template cast<double>() << std::endl;
             throw std::runtime_error("csfs is not a probability distribution");
         }
     }

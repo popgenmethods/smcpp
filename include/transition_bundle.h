@@ -8,14 +8,14 @@
 
 struct eigensystem
 {
-    Eigen::MatrixXcd P, Pinv;
-    Eigen::VectorXcd d;
-    Matrix<double> P_r, Pinv_r;
-    double scale;
-    Eigen::VectorXcd d_scaled;
-    Vector<double> d_r;
-    Vector<double> d_r_scaled;
-    bool cplx;
+    const Eigen::MatrixXcd P, Pinv;
+    const Eigen::VectorXcd d;
+    const Matrix<double> P_r, Pinv_r;
+    const double scale;
+    const Eigen::VectorXcd d_scaled;
+    const Vector<double> d_r;
+    const Vector<double> d_r_scaled;
+    const bool cplx;
     eigensystem(const Eigen::EigenSolver<Matrix<double> > &es) :
         P(es.eigenvectors()), Pinv(P.inverse()), d(es.eigenvalues()),
         P_r(P.real()), Pinv_r(Pinv.real()), 

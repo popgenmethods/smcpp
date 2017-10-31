@@ -14,15 +14,18 @@ void TransitionBundle::update(const Matrix<adouble> &new_T)
         if (this->eigensystems.count(key) == 0)
         {
             Vector<double> ep = this->emission_probs->at(key).template cast<double>();
+            tmp = ep.template cast<double>().asDiagonal() * this->Td.transpose();
+            DEBUG1 << key << "\n" << ep.transpose();
             Eigen::EigenSolver<Matrix<double> > es(tmp);
             this->eigensystems.emplace(key, es);
         }
     }
-#pragma omp parallel
-#pragma omp single
+
+//#pragma omp parallel
+//#pragma omp single
     for (auto it = targets.begin(); it != targets.end(); ++it)
     {
-#pragma omp task firstprivate(it)
+// #pragma omp task firstprivate(it)
         {
             const int span = it->first;
             const block_key key = it->second;
@@ -36,11 +39,11 @@ void TransitionBundle::update(const Matrix<adouble> &new_T)
                         Q(a, b) = (std::pow(eig.d_scaled(a), span) - 
                                 std::pow(eig.d_scaled(b), span)) / 
                             (eig.d_scaled(a) - eig.d_scaled(b));
-#pragma omp critical(emplace_Q)
+//#pragma omp critical(emplace_Q)
             {
                 this->span_Qs.emplace(*it, Q);
             }
         }
     }
-#pragma omp taskwait
+//#pragma omp taskwait
 }

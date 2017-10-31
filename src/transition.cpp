@@ -244,8 +244,13 @@ HJTransition<T>::HJTransition(const PiecewiseConstantRateFunction<T> &eta, const
         T s = this->Phi.row(j - 1).sum();
         this->Phi(j - 1, j - 1) = 1. - s;
     }
-    T small = eta.zero() + 1e-20;
-    this->Phi = this->Phi.unaryExpr([small] (const T &x) { if (x < 1e-20) return small; return x; });
+    // T small = eta.zero() + 1e-10;
+    // this->Phi = this->Phi.unaryExpr([small] (const T &x) { if (x < 1e-10) return small; return x; });
+    Matrix<double> unif = Matrix<double>::Ones(this->M, this->M);
+    unif /= (double)(this->M);
+    const double s = 1e-8;
+    this->Phi *= (1. - s);
+    this->Phi += s * unif;
     CHECK_NAN(this->Phi);
     return;
 }

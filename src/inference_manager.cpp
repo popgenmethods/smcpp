@@ -47,7 +47,8 @@ InferenceManager::InferenceManager(
 #pragma omp parallel for
     for (unsigned int i = 0; i < obs.size(); ++i)
     {
-        DEBUG1 << "creating HMM";
+        DEBUG1 << "creating HMM i: " << i << " L:" <<
+                  this->obs.at(i).rows() << " M:" << ibp->pi->rows();
         hmms.at(i).reset(new HMM(i, this->obs.at(i), ibp));
     }
 }
@@ -195,7 +196,7 @@ template <size_t P>
 void NPopInferenceManager<P>::populate_emission_probs()
 {
     std::vector<std::map<block_key, Vector<adouble> > > eps(obs.size());
-#pragma omp parallel for
+// #pragma omp parallel for
     for (unsigned int j = 0; j < obs.size(); ++j)
     {
         const Vector<adouble> tmp;
@@ -328,7 +329,6 @@ std::map<block_key, block_key_prob_map>
 NPopInferenceManager<P>::construct_bins()
 {
     std::vector<std::set<block_key> > bks(obs.size());
-#pragma omp parallel for
     for (unsigned int j = 0; j < obs.size(); ++j)
     {
         const Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> ob = obs.at(j);
@@ -345,7 +345,6 @@ NPopInferenceManager<P>::construct_bins()
         bksc.insert(sbk.begin(), sbk.end());
     const std::vector<block_key> vbk(bksc.begin(), bksc.end());
     std::map<block_key, block_key_prob_map> ret;
-#pragma omp parallel for
     for (auto it = vbk.begin(); it < vbk.end(); ++it)
     {
         block_key bk = *it;
@@ -359,7 +358,6 @@ NPopInferenceManager<P>::construct_bins()
             for (const auto &p : probs)
                 bkpm[bk_to_map_key(p.first)] += p.second;
         }
-#pragma omp critical(insert_ret_bkpm)
         ret.emplace(bk, bkpm);
     }
     return ret;
@@ -403,13 +401,14 @@ void NPopInferenceManager<P>::recompute_emission_probs()
         }
         else
         {
-            e2(m, 0) = alpha + (1 - alpha) * exp(-2. * theta * avg_ct.at(m));
+            e2(m, 0) = exp(-2. * alpha * theta * avg_ct.at(m));
             e2(m, 1) = 1. - e2(m, 0);
         }
     }
     const adouble zero = eta->zero();
     const adouble one = zero + 1.;
-#pragma omp parallel for
+    DEBUG1 << "bpm_keys";
+// #pragma omp parallel for
     for (auto it = bpm_keys.begin(); it < bpm_keys.end(); ++it)
     {
         const block_key k = *it;
@@ -443,7 +442,7 @@ void NPopInferenceManager<P>::recompute_emission_probs()
             throw std::runtime_error("probability vector not in [0, 1]");
         }
         CHECK_NAN(tmp);
-#pragma omp critical(write_ep)
+// #pragma omp critical(write_ep)
         this->emission_probs.at(k) = tmp;
     }
     DEBUG1 << "recompute done";
