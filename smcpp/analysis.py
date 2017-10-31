@@ -62,9 +62,7 @@ class BaseAnalysis:
         pipe.add_filter(mutation_counts=data_filter.CountMutations(w=args.w ** 2))
         pipe.add_filter(data_filter.Thin(thinning=args.thinning))
         pipe.add_filter(data_filter.Compress())
-        pipe.add_filter(data_filter.BinObservations(w=args.w))
         pipe.add_filter(data_filter.RecodeMonomorphic())
-        pipe.add_filter(data_filter.Compress())
         pipe.add_filter(data_filter.Validate())
 
 
@@ -195,6 +193,11 @@ class Analysis(BaseAnalysis):
     '''A dataset, model and inference manager to be used for estimation.'''
     def __init__(self, files, args):
         super().__init__(files, args)
+
+        pipe.add_filter(data_filter.BinObservations(w=args.w))
+        pipe.add_filter(data_filter.RecodeMonomorphic())
+        pipe.add_filter(data_filter.Compress())
+        pipe.add_filter(data_filter.Validate())
 
         if self.npop != 1:
             logger.error("Please use 'smc++ split' to estimate two-population models")
