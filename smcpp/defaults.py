@@ -1,4 +1,4 @@
-additional_knots = [2,2]
+additional_knots = []
 regularization_penalty = 7
 xtol = .1
 ftol = 1e-4
@@ -11,3 +11,4 @@ tK = None
 regularization_degree = 2
 spline = "pchip"
 cores = None
+perplexity_threshold = .5

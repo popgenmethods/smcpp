@@ -3,8 +3,11 @@ import functools
 import numpy as np
 import sys
 import wrapt
-from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
+from concurrent.futures import ThreadPoolExecutor
+import multiprocessing
+import multiprocessing.dummy
 from collections import OrderedDict
+import contextlib
 
 from . import logging, estimation_tools, defaults
 
@@ -34,32 +37,46 @@ class DataPipeline:
     def run(self):
         if self._results is not None:
             return self._results
-        def comp(f, g):
-            return lambda x: f(g(x))
-        h = functools.reduce(comp, reversed(self._filters.values()), lambda x: x)
-        self._results = h(self._files)
+        self._results = self._files
+        for f in self._filters.values():
+            self._results = f(self._results)
         return self._results
 
     def results(self):
         yield from iter(self.run())
 
-
-def parallel(threaded):
-    @wrapt.decorator
-    def wrapper(wrapped, instance, args, kwargs):
-        return list(map(wrapped, args[0]))
-        Pool = ThreadPoolExecutor if threaded else ProcessPoolExecutor
-        with Pool(defaults.cores) as p:
-            ret = list(p.map(wrapped, args[0]))
-    return wrapper
-
 @attr.s
 class Filter:
-    pass
+    def __call__(self, contigs):
+        logger.debug(self)
+        return self.run(contigs)
+
+@contextlib.contextmanager
+def DummyPool(*args):
+    def f():
+        pass
+    f.map = map
+    yield f
+
+@attr.s
+class ParallelFilter:
+    Pool = DummyPool
+    def __call__(self, contigs):
+        logger.debug(self)
+        with self.Pool() as p:
+            return list(p.map(self.run, contigs))
+
+@attr.s
+class ProcessParallelFilter(ParallelFilter):
+    Pool = multiprocessing.Pool
+
+@attr.s
+class ThreadParallelFilter(ParallelFilter):
+    Pool = ThreadPoolExecutor
 
 @attr.s
 class LoadData(Filter):
-    def __call__(self, files):
+    def run(self, files):
         ## Parse each data set into an array of observations
         logger.info("Loading data...")
         files = estimation_tools.files_from_command_line_args(files)
@@ -75,9 +92,9 @@ class LoadData(Filter):
         self.populations = tuple(unique_pops)
         for c in contigs:
             assert len(c.n) == len(c.a)
-            assert c.a.max() <= 2
-            assert c.a.min() >= 0
-            assert c.a.sum() == 2
+            assert np.max(c.a) <= 2
+            assert np.min(c.a) >= 0
+            assert np.sum(c.a) == 2
             assert c.data.shape[1] == 1 + 3 * len(c.n)
             logger.debug(c)
         logger.info(
@@ -87,10 +104,8 @@ class LoadData(Filter):
 
 
 @attr.s
-class Validator(Filter):
-
-    @parallel(False)
-    def __call__(self, c):
+class Validate(ProcessParallelFilter):
+    def run(self, c):
         assert c.data.flags.c_contiguous
         nonseg = ((np.all(c.data[:, 1::3] == c.a[None, :], axis=1) |
                    np.all(c.data[:, 1::3] == -1, axis=1)) &
@@ -114,37 +129,32 @@ class Validator(Filter):
         return c
 
 @attr.s
-class BinObservations(Filter):
-    w = attr.ib()
+class Thin(ThreadParallelFilter):
     thinning = attr.ib(default=None)
-
-    def __call__(self, contigs):
-        contigs = Realign(w=self.w)(contigs)
-        return self._run_individual(contigs)
-
-    @parallel(True)
-    def _run_individual(self, c):
-        bins, muts, nmiss = estimation_tools.windowed_mutation_counts(c.data, self.w)
-        new_data = np.zeros([muts.shape[0], c.data.shape[1]], dtype=np.int32)
-        assert c.npop == 1
-        new_data[muts == 1, 1] = 1
-        new_data[nmiss == 0, 1] = -1
+    def run(self, c):
         thinning = self.thinning
         if thinning is None:
             thinning = (1000 * np.log(2 + c.n[0])).astype("int")   # 500  * ns
-        th = thinning // self.w
-        for i in range(1, new_data.shape[0], th):
-            new_data[i] = -np.sort(-c.data[bins == i, ::-1], axis=0)[0, ::-1]
-        new_data[:, 0] = 1
+        if thinning > 1:
+            logger.debug("Thinning interval: %d", thinning)
+            new_data = estimation_tools.thin_data(c.data, thinning)
+            c.data = new_data
+        return c
+
+@attr.s
+class BinObservations(ThreadParallelFilter):
+    w = attr.ib()
+
+    def run(self, c):
+        new_data = estimation_tools.bin_observations(c, self.w)
         c.data = new_data
         return c
 
 @attr.s
-class Realign(Filter):
+class Realign(ThreadParallelFilter):
     w = attr.ib()
 
-    @parallel(True)
-    def __call__(self, c):
+    def run(self, c):
         real = estimation_tools.realign(c.data, self.w)
         c.data = real
         return c
@@ -153,34 +163,33 @@ class Realign(Filter):
 class CountMutations(Filter):
     w = attr.ib()
 
-    def __call__(self, contigs):
+    def run(self, contigs):
         import scipy.stats.mstats
-        with ProcessPoolExecutor() as pool:
-            bincounts = map(
+        with ThreadPoolExecutor() as pool:
+            bincounts = pool.map(
                     estimation_tools.windowed_mutation_counts, 
-                    (c.data for c in contigs),
+                    contigs,
                     (self.w for _ in iter(int, 1)))
-            mc = [m for _, muts, nmiss in bincounts 
+            mc = np.array([m for nmiss, muts in bincounts 
                     for m, nm in zip(muts, nmiss)
-                    if nm > .5 * self.w]
+                    if nm > .5 * self.w])
         res = scipy.stats.mstats.mquantiles(mc, [0, .05, .95, 1])
-        logger.debug("mutation counts: min=%d .05=%d .95=%d max=%d", *res)
+        logger.debug("mutation counts in %dbp windows: min=%d .05=%d .95=%d max=%d", self.w, *res)
         self.counts = mc
-        return contigs
+        return Compress()(contigs)
 
 @attr.s
 class RecodeNonseg(Filter):
     cutoff = attr.ib()
 
-    @parallel(False)
-    def __call__(self, c):
-        return estimation_tools.recode_nonseg(c, self.cutoff)
+    def run(self, contigs):
+        return [estimation_tools.recode_nonseg(c, self.cutoff)
+                for c in contigs]
 
 
 @attr.s
-class Compress(Filter):
-    @parallel(False)
-    def __call__(self, c):
+class Compress(ProcessParallelFilter):
+    def run(self, c):
         c.data = estimation_tools.compress_repeated_obs(c.data)
         return c
 
@@ -189,24 +198,56 @@ class Compress(Filter):
 class BreakLongSpans(Filter):
     cutoff = attr.ib()
 
-    @parallel(False)
-    def __call__(self, c):
-        return estimation_tools.break_long_spans(c, self.cutoff)
-
-
-@attr.s
-class Combiner(Filter):
-    def __call__(self, contigs):
-        return [c for x in contigs for c in x]
+    def run(self, contigs):
+        return [cc for c in contigs
+                for cc in estimation_tools.break_long_spans(c, self.cutoff)]
 
 
 @attr.s
 class DropSmallContigs(Filter):
     cutoff = attr.ib()
 
-    def __call__(self, contigs):
+    def run(self, contigs):
         ret = [c for c in contigs if len(c) > self.cutoff]
         if len(ret) == 0:
             logger.error("All contigs are <.01cM (estimated). Please double check your data")
             raise RuntimeError()
         return ret
+
+@attr.s
+class Watterson(Filter):
+    def run(self, contigs):
+        num = denom = 0
+        for S, sample_sizes, spans in map(self._helper, contigs):
+            num += S
+            non_missing = sample_sizes > 0
+            ss = sample_sizes[non_missing]
+            sp = spans[non_missing]
+            denom += (sp * (np.log(ss) + 0.5 / ss + 0.57721)).sum()
+        self.theta_hat = num / denom
+        logger.debug("sites: %d/%d\twatterson:%f", num, denom, self.theta_hat)
+        return contigs
+
+    def _helper(self, c):
+        shp = [x + 1 for na in zip(c.a, c.n) for x in na]
+        ret = np.zeros(shp, dtype=int)
+        spans = c.data[:, 0]
+        seg = (np.any(c.data[:, 1::3] >= 1, axis=1) |
+               np.any(c.data[:, 2::3] >  0, axis=1))
+        S = spans[seg].sum()
+        sample_sizes = (c.data[:, 3::3].sum(axis=1) +
+                        (c.data[:, 1::3] >= 0).sum(axis=1))
+        return (S, sample_sizes, spans)
+
+
+class RecodeMonomorphic(Filter):
+    def run(self, contigs):
+        return [self._recode(c) for c in contigs]
+
+    def _recode(self, c):
+        w = (
+                np.all(c.data[:, 1::3] == c.a, axis=1) & 
+                np.all(c.data[:, 2::3] == c.data[:, 3::3], axis=1)
+            )
+        c.data[w, 1::3] = c.data[w, 2::3] = 0
+        return c
