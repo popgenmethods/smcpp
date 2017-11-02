@@ -178,12 +178,7 @@ HJTransition<T>::HJTransition(const PiecewiseConstantRateFunction<T> &eta, const
     const std::vector<T> ada = eta.getAda();
     const std::vector<T> avg_coal_times = eta.average_coal_times();
 
-    // Compute expm matrices in higher precision.
     compute_expms();
-    // Prevent issues with mulithreaded access to members causing
-    // changes in derivative coherence.
-    std::vector<Matrix<T> > const& expm_prods_const = expm_prods;
-
     std::vector<int> avc_ip;
     for (T x : avg_coal_times)
     {

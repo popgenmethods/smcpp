@@ -30,15 +30,24 @@ void TransitionBundle::update(const Matrix<adouble> &new_T)
             const int span = it->first;
             const block_key key = it->second;
             const eigensystem eig = this->eigensystems.at(key);
-            Matrix<std::complex<double> > Q(M, M);
+            Matrix<double> Q(M, M);
             for (int a = 0; a < M; ++a)
-                for (int b = 0; b < M; ++b)
-                    if (a == b)
-                        Q(a, b) = std::pow(eig.d_scaled(a), span - 1) * (double)span;
-                    else
-                        Q(a, b) = (std::pow(eig.d_scaled(a), span) - 
-                                std::pow(eig.d_scaled(b), span)) / 
-                            (eig.d_scaled(a) - eig.d_scaled(b));
+            {
+                double d1 = eig.d_r_scaled(a);
+                Q(a, a) = std::pow(d1, span - 1) * (double)span;
+                for (int b = a + 1; b < M; ++b)
+                {
+                    d1 = eig.d_r_scaled(a);
+                    double d2 = eig.d_r_scaled(b);
+                    if (std::abs(d1) < std::abs(d2))
+                        std::swap(d1, d2);
+                    Q(a, b) = std::exp(
+                            (double)span * std::log(d1) + std::log1p(-std::pow(d2 / d1, span))
+                            );
+                    Q(a, b) /= d1 - d2;
+                    Q(b, a) = Q(a, b);
+                }
+            }
 //#pragma omp critical(emplace_Q)
             {
                 this->span_Qs.emplace(*it, Q);

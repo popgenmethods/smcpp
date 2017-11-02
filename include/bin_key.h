@@ -54,7 +54,7 @@ std::set<block_key> bin_key<1>::run(
     {
         ret.emplace(key);
         if (true) // or undistinguish)
-            for (int aa = 0; aa < 2; ++aa)
+            for (int aa = 0; aa <= na(0); ++aa)
             {
                 int bb = key(1) - aa;
                 tmp(0) = aa;

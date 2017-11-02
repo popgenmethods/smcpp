@@ -43,7 +43,7 @@ class TransitionBundle
     Matrix<double> Td;
     Eigen::VectorXcd d;
     Eigen::MatrixXcd P, Pinv;
-    std::map<std::pair<int, block_key>, Matrix<std::complex<double> > > span_Qs;
+    std::map<std::pair<int, block_key>, Matrix<double> > span_Qs;
     std::map<block_key, eigensystem> eigensystems;
 
     private:

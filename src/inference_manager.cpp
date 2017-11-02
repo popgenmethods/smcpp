@@ -409,13 +409,13 @@ void NPopInferenceManager<P>::recompute_emission_probs()
     const adouble one = zero + 1.;
     DEBUG1 << "bpm_keys";
 // #pragma omp parallel for
-    for (auto it = bpm_keys.begin(); it < bpm_keys.end(); ++it)
+    for (const block_key &k : bpm_keys)
     {
-        const block_key k = *it;
         std::array<std::set<FixedVector<int, 3> >, P> s;
         Vector<adouble> tmp(M);
         tmp.fill(zero);
         bool reduced = true;
+        bool miss = true;
         FixedVector<int, P> a, b, nb;
         for (unsigned int p = 0; p < P; ++p)
         {
@@ -423,27 +423,33 @@ void NPopInferenceManager<P>::recompute_emission_probs()
             b(p) = k(1 + 3 * p);
             nb(p) = k(2 + 3 * p);
             reduced &= nb(p) == 0;
+            if (na(p) > 0)
+                miss &= a(p) == -1;
         }
-        if (reduced and (a.isConstant(-1) or (a.minCoeff() >= 0)))
+        if (reduced and (miss or (a.minCoeff() >= 0)))
         {
-            if (a.isConstant(-1))
+            if (miss)
                 tmp.fill(one);
             else // if (a.minCoeff() >= 0)
                 tmp = e2.col(a.sum() % 2);
         }
         else
+        {
             for (const auto &p : bins.at(k))
                 tmp += p.second * tensorRef(p.first);
+        }
         if (tmp.maxCoeff() > 1.0 or tmp.minCoeff() <= 0.0)
         {
             std::cout << k << std::endl;
+            std::cout << miss << std::endl;
             std::cout << tmp.template cast<double>().transpose() << std::endl;
             std::cout << tmp.maxCoeff() << std::endl;
+            std::cout << bins.at(k) << std::endl;
             throw std::runtime_error("probability vector not in [0, 1]");
         }
         CHECK_NAN(tmp);
 // #pragma omp critical(write_ep)
-        this->emission_probs.at(k) = tmp;
+        this->emission_probs[k] = tmp;
     }
     DEBUG1 << "recompute done";
     std::map<block_key, Vector<adouble> > new_emission_probs;
