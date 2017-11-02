@@ -206,7 +206,7 @@ def realign(data, int w):
     return ret
 
 
-def windowed_mutations_helper(contig, int w):
+def windowed_mutation_counts(contig, int w):
     assert w > 0
     cdef int[:, :] cd = contig.data[::-1]
     cdef int seen, nmiss, mut, sp, span, extra, k
@@ -249,4 +249,4 @@ def windowed_mutations_helper(contig, int w):
                 for k in range(last.shape[0]):
                     last[k] = cd[i, k]
     ret[j] = [nmiss, mut]
-    return ret
+    return ret.T

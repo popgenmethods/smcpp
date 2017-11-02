@@ -11,7 +11,7 @@ import itertools
 
 from . import util, logging, model, defaults
 from .contig import Contig
-from ._estimation_tools import realign, thin_data, bin_observations, windowed_mutations_helper
+from ._estimation_tools import realign, thin_data, bin_observations, windowed_mutation_counts
 
 
 logger = logging.getLogger(__name__)
@@ -253,9 +253,3 @@ def load_data(files):
     with ProcessPoolExecutor(defaults.cores) as p:
         obs = list(p.map(_load_data_helper, files))
     return obs
-
-
-def windowed_mutations(contigs, w):
-    '''Return array [[window_length, num_mutations], ...] for each contig'''
-    with ThreadPoolExecutor(defaults.cores) as p:
-        return list(map(_estimation_tools._windowed_mutations_helper, contigs, itertools.repeat(w)))

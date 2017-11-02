@@ -33,7 +33,7 @@ class BaseAnalysis:
         self._theta = 2. * self._N0 * args.mu
         logger.info("theta: %f", self._theta)
         if args.r is not None:
-            self._rho = 2 * self._N0 * r
+            self._rho = 2 * self._N0 * args.r
         else:
             self._rho = self._theta
         self._cM = 1e-2 / (self._rho / (2 * self._N0))
@@ -60,10 +60,6 @@ class BaseAnalysis:
         pipe.add_filter(data_filter.DropSmallContigs(100000))
         pipe.add_filter(watterson=data_filter.Watterson())
         pipe.add_filter(mutation_counts=data_filter.CountMutations(w=args.w ** 2))
-        pipe.add_filter(data_filter.Thin(thinning=args.thinning))
-        pipe.add_filter(data_filter.Compress())
-        pipe.add_filter(data_filter.RecodeMonomorphic())
-        pipe.add_filter(data_filter.Validate())
 
 
     @property
@@ -194,10 +190,13 @@ class Analysis(BaseAnalysis):
     def __init__(self, files, args):
         super().__init__(files, args)
 
+        pipe = self._pipeline
+        pipe.add_filter(data_filter.Thin(thinning=args.thinning))
         pipe.add_filter(data_filter.BinObservations(w=args.w))
         pipe.add_filter(data_filter.RecodeMonomorphic())
         pipe.add_filter(data_filter.Compress())
         pipe.add_filter(data_filter.Validate())
+        pipe.add_filter(data_filter.Summarize())
 
         if self.npop != 1:
             logger.error("Please use 'smc++ split' to estimate two-population models")
@@ -246,8 +245,6 @@ class Analysis(BaseAnalysis):
                              args.algorithm, args.xtol, args.ftol,
                              learn_rho=True, single=args.no_multi)
         self._init_regularization(args)
-        self.E_step()
-
 
 
     def _init_model(self, N0, spline_class):
@@ -284,8 +281,6 @@ class SplitAnalysis(BaseAnalysis):
         BaseAnalysis.__init__(self, files, args)
         assert self.npop == 2
         self._init_model(args.pop1, args.pop2)
-        self._normalize_data(args.length_cutoff, not args.no_filter)
-        self._perform_thinning(args.thinning)
         # Further initialization
         self._init_inference_manager(args.polarization_error, self._hidden_states)
         self._init_optimizer(args.outdir, args.algorithm, args.xtol, args.ftol, single=True)

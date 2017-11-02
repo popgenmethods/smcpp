@@ -251,3 +251,9 @@ class RecodeMonomorphic(Filter):
             )
         c.data[w, 1::3] = c.data[w, 2::3] = 0
         return c
+
+class Summarize(Filter):
+    def run(self, contigs):
+        for c in contigs:
+            logger.debug(c.data[:10])
+        return contigs
