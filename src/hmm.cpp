@@ -9,7 +9,7 @@ HMM::HMM(const int hmm_num,
          const Eigen::Map<Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> > &obs,
          const InferenceBundle* ib) :
     hmm_num(hmm_num), obs(obs), ib(ib), M(ib->pi->rows()), L(obs.rows()), ll(0.),
-    alpha_hat(M, L + 1), xisum(M, M), gamma(M, 1), c(L + 1)
+    alpha_hat(M, L + 1), xisum(M, M), gamma(M, 1), log_c(L + 1)
     // Gamma has one column because gamma.col(0) will be set to calculate
     // the initial distribution term
 {
@@ -57,7 +57,7 @@ void HMM::Estep(bool fbOnly)
     int prog = (int)((double)L * 0.1);
     ll = 0.;
     alpha_hat.col(0) = ib->pi->template cast<double>().template cast<float>();
-    c(0) = 1.;
+    log_c(0) = 0.;
     for (int ell = 1; ell < L + 1; ++ell)
     {
         if (ell == prog)
@@ -76,7 +76,7 @@ void HMM::Estep(bool fbOnly)
                         (es.Pinv_r * alpha_hat.col(ell - 1).template cast<double>())));
             double s = a.sum();
             a /= s;
-            c(ell) = s * std::pow(es.scale, span);
+            log_c(ell) = std::log(s) + span * std::log(es.scale);
             alpha_hat.col(ell) = a.template cast<float>();
         }
         else
@@ -84,16 +84,17 @@ void HMM::Estep(bool fbOnly)
             // if (span != 1) throw std::runtime_error("span != 1");
             Matrix<double> M = (B * T.transpose()).pow(span);
             alpha_hat.col(ell) = M.template cast<float>() * alpha_hat.col(ell - 1);
-            c(ell) = alpha_hat.col(ell).sum();
-            alpha_hat.col(ell) /= c(ell);
+            double s = alpha_hat.col(ell).sum();
+            log_c(ell) = std::log(s);
+            alpha_hat.col(ell) /= s;
         }
         CHECK_NAN(alpha_hat.col(ell));
         alpha_hat.col(ell) = alpha_hat.col(ell).unaryExpr(
                 [] (const float &x) { if (x < 1e-10f) return 1e-10f; return x; }
             );
-        ll += log(c(ell));
+        ll += log_c(ell);
     }
-    Vector<double> beta = Vector<double>::Ones(M), v(M), alpha(M);
+    Vector<double> beta = Vector<double>::Ones(M), v(M), alpha(M), log_beta;
     xisum.setZero();
     Matrix<double> Q_r(M, M), sq(M, M), xis(M, M), xis1(M, M), tmp;
     double p, vM, log_C, log_p;
@@ -107,38 +108,38 @@ void HMM::Estep(bool fbOnly)
         if (span > 1 and tb->eigensystems.count(key) > 0)
         {
             const eigensystem es = tb->eigensystems.at(key);
-            p = std::pow(es.scale, span - 1);
             log_p = std::log(es.scale) * (span - 1);
             {
                 Q_r = es.Pinv_r * (alpha_hat.col(ell - 1).template cast<double>() * beta.transpose()) * es.P_r;
                 sq = tb->span_Qs.at({span,key});
                 Q_r = Q_r.cwiseProduct(sq);
                 v = ((es.P_r * es.d_r.asDiagonal() * Q_r * es.Pinv_r).diagonal().array().abs().log() - 
-                        std::log(c(ell)) + std::log(es.scale) * (span - 1));
+                        log_c(ell) + std::log(es.scale) * (span - 1));
                 vM = v.maxCoeff();
                 v = v.array() - vM;
                 log_C = std::log(span) - vM - std::log(v.array().exp().sum());
                 v = (v.array() + vM + log_C).exp();
-                xis = ((es.P_r * Q_r * es.Pinv_r * B).array().abs().log() - std::log(c(ell)) + log_p + log_C).exp();
-                beta = ((es.Pinv_r.transpose() * (es.d_r_scaled.array().pow(span).matrix().asDiagonal() * 
-                            (es.P_r.transpose() * beta))).array().log() + log_p + log_C + std::log(es.scale)).exp();
+                xis = ((es.P_r * Q_r * es.Pinv_r * B).array().abs().log() - log_c(ell) + log_p + log_C).exp();
+                log_beta = ((es.Pinv_r.transpose() * (es.d_r_scaled.array().pow(span).matrix().asDiagonal() *
+                            (es.P_r.transpose() * beta))).array().log() + log_p + log_C + std::log(es.scale));
+                vM = log_beta.maxCoeff();
+                log_beta = log_beta.array() - vM;
+                beta = log_beta.array().exp();
             }
-            double cf = span / v.cwiseAbs().sum();
-            CHECK_NAN(cf);
-            // v *= cf;
-            // xis *= cf;
-            // beta *= cf; // correction factor?
         }
         else
         {
             if (span != 1)
                 throw std::runtime_error("span");
             v = alpha_hat.col(ell).template cast<double>().cwiseProduct(beta);
-            xis = alpha_hat.col(ell - 1).template cast<double>() * beta.transpose() * B / c(ell);
+            p = v.sum();
+            v /= p;
+            xis = alpha_hat.col(ell - 1).template cast<double>() * beta.transpose() * B / exp(log_c(ell));
+            xis /= p;
             beta = T * (B * beta);
         }
         xisum += xis;
-        beta /= c(ell);
+        beta /= beta.sum();
         CHECK_NAN(xisum);
         CHECK_NAN(v);
         CHECK_NAN(beta);

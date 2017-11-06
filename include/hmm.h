@@ -33,7 +33,7 @@ class HMM
     double ll;
     Matrix<double> xisum, gamma;
     Matrix<float> alpha_hat;
-    Vector<double> c;
+    Vector<double> log_c;
     std::map<block_key, Vector<double> > gamma_sums;
 };
 
