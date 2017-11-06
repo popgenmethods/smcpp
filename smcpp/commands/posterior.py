@@ -89,11 +89,11 @@ class Posterior(command.Command, command.ConsoleCommand):
             all_obs = estimation_tools.thin_dataset(all_obs, [args.thinning] * len(all_obs))
         if npop == 1:
             im = _smcpp.PyOnePopInferenceManager(
-                n[0], all_obs, hidden_states, contig.key[0], args.polarization_error)
+                n[0], all_obs, hidden_states, contig.key[0])
         else:
             assert npop == 2
             im = _smcpp.PyTwoPopInferenceManager(
-                *n, *a, all_obs, hidden_states, contig.key[0], args.polarization_error)
+                *n, *a, all_obs, hidden_states, contig.key[0])
         im.theta = j['theta']
         im.rho = j['rho']
         im.alpha = j['alpha']
