@@ -1,20 +1,10 @@
 import numpy as np
-import functools
 import json
 import sys
-import os.path
-import ad
-import multiprocessing
-import os
-import scipy.stats
-import concurrent.futures as futures
-import itertools as it
-from scipy.stats.mstats import mquantiles
 
 from . import estimation_tools, _smcpp, util, logging, spline, data_filter, beta_de
 import smcpp.defaults
-from .contig import Contig
-from .model import SMCModel, SMCTwoPopulationModel, PiecewiseModel
+from .model import SMCModel, SMCTwoPopulationModel
 from smcpp.optimize.optimizers import SMCPPOptimizer, TwoPopulationOptimizer
 from smcpp.optimize.plugins import analysis_saver, parameter_optimizer
 
@@ -36,7 +26,6 @@ class BaseAnalysis:
             self._rho = 2 * self._N0 * args.r
         else:
             self._rho = self._theta
-        self._cM = 1e-2 / (self._rho / (2 * self._N0))
         assert np.all(np.isfinite([self._rho, self._theta]))
         logger.info("rho: %f", self._rho)
         self._penalty = 0.
@@ -110,7 +99,6 @@ class BaseAnalysis:
             im.alpha = self._alpha = 1
             im.polarization_error = polarization_error
             self._ims[pid] = im
-        self._max_n = np.max(list(map(sum, max_n.values())), axis=0)
 
     # @property
     # def _data(self):
@@ -236,7 +224,7 @@ class Analysis(BaseAnalysis):
 
         logger.debug("hidden states in coalescent scaling: %s", hs)
 
-        self._init_model(self._N0, args.spline)
+        self._init_model(args.spline)
         self._init_inference_manager(args.polarization_error, self._hidden_states)
         self.alpha = args.w
         self._model[:] = np.log(NeN0)
@@ -247,7 +235,7 @@ class Analysis(BaseAnalysis):
         self._init_regularization(args)
 
 
-    def _init_model(self, N0, spline_class):
+    def _init_model(self, spline_class):
         ## Initialize model
         logger.debug("knots in coalescent scaling:\n%s", str(self._knots))
         spline_class = {"cubic": spline.CubicSpline,
