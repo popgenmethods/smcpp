@@ -282,8 +282,9 @@ class SplitAnalysis(BaseAnalysis):
         assert self.npop == 2
         self._init_model(args.pop1, args.pop2)
         # Further initialization
-        self._init_inference_manager(args.polarization_error, self._hidden_states)
-        self._init_optimizer(args.outdir, args.algorithm, args.xtol, args.ftol, single=True)
+        hs = {k: np.array([0., np.inf]) for k in self._hidden_states}
+        self._init_inference_manager(args.polarization_error, hs)
+        self._init_optimizer(args.outdir, args.algorithm, args.xtol, args.ftol, single=False)
         self._niter = 1
 
     def _validate_data(self):

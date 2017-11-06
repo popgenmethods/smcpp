@@ -223,6 +223,7 @@ class TwoPopulationOptimizer(SMCPPOptimizer):
     'Model fitting for two populations.'
 
     def _coordinates(self):
+        return []
         coords = super()._coordinates()
         si = self._analysis.model.split_ind
         ret = []
