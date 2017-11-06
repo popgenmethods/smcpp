@@ -4,14 +4,15 @@ import numpy as np
 import sys
 import wrapt
 from concurrent.futures import ThreadPoolExecutor
-import multiprocessing
-import multiprocessing.dummy
 from collections import OrderedDict
 import contextlib
+import multiprocessing
+
 
 from . import logging, estimation_tools, defaults
 
 logger = logging.getLogger(__name__)
+mp_ctx = multiprocessing.get_context('forkserver')
 
 @attr.s
 class DataPipeline:
@@ -68,7 +69,7 @@ class ParallelFilter:
 
 @attr.s
 class ProcessParallelFilter(ParallelFilter):
-    Pool = multiprocessing.Pool
+    Pool = mp_ctx.Pool
 
 @attr.s
 class ThreadParallelFilter(ParallelFilter):

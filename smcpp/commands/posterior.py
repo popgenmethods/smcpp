@@ -8,7 +8,6 @@ import numpy as np
 import scipy.optimize
 import scipy.ndimage
 import pprint
-import multiprocessing
 import sys
 from collections import Counter
 import sys
