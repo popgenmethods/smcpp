@@ -8,33 +8,25 @@ source:
 requirements:
   build:
     - python {{ python }}
-    - nomkl
-    - gcc >=4.8.5
-    - libgcc 
-    - openblas {{ openblas }}
+    - {{ compiler('cxx') }}
     - git >=2.9.3
     - cython >=0.25
     - setuptools >=33.1
     - numpy >=1.10
     - gmp >=6.1.0
     - gsl >=2.2.1
-    - mpc >=1.0.3
     - mpfr >=3.1.5
     - setuptools_scm >=1.15
   run:
     - python
-    - nomkl
-    - libgcc
-    - openblas
-    - isl
-    - git >=2.9.3
+    - {{ pin_compatible('libgcc-ng') }}
+    - {{ pin_compatible('libstdcxx-ng') }}
     - cython >=0.25
     - setuptools >=33.1
     - numpy >=1.10
     - gnuplot >=4.6.0
     - gmp >=6.1.0
     - gsl >=2.2.1
-    - mpc >=1.0.3
     - mpfr >=3.1.5
     - setuptools_scm >=1.15
     - pysam >=0.11
