@@ -16,7 +16,8 @@ install:
   - conda update -q conda
   - conda info -a
   - conda install conda-build anaconda-client constructor git
-  - conda build -c terhorst -c conda-forge -c bioconda conda --output > .packages
+  - conda build -c terhorst -c conda-forge -c bioconda conda
+  - conda build -c terhorst -c conda-forge -c bioconda conda --output | tee .packages
   - conda/template.py conda/construct.tpl $VERSION > conda/construct.yaml
 
 before_deploy:
