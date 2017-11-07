@@ -9,7 +9,7 @@ whole genome sequence data.
 Quick start guide
 =================
 
-1. Download and install the `latest release`_.
+1. Follow the `installation instructions`_.
    
 2. Convert your VCF(s) to the SMC++ input format with vcf2smc_::
 
@@ -43,16 +43,8 @@ populations; see split_.
 Installation instructions
 =========================
 
-Installer binaries are available from the `releases page`_. Download
-the installer for your platform and then run it using ``bash``.
-The script will walk you through the installation process. You may
-need to ``source /path/to/smcpp/bin/activate`` before running
-``/path/to/smcpp/bin/smc++`` in order to prevent conflicts with your
-existing Python installation.
-
-The installers are based on the Anaconda_ scientific Python distribution.
-If Anaconda already exists on your machine, a more efficient way to
-install SMC++ is by using the ``conda`` command::
+SMC++ is distributed as an Anaconda_ package. Inside the Anaconda environment, install
+the precompiled binary using the command::
 
     $ conda install -c terhorst -c bioconda -c conda-forge smcpp
 
@@ -60,7 +52,7 @@ This will automatically download all necessary dependencies and create
 an ``smc++`` executable in the ``bin/`` folder of your Anaconda
 distribution.
 
-If neither of these options works for you, you may build the software
+You may also build the software
 from scratch using the `build instructions`_ provided in the next
 section.
 
@@ -71,7 +63,7 @@ Build instructions
 ==================
 SMC++ requires the following libraries and executables in order compile and run:
 
-- Python 3.3 or greater.
+- Python 3.5 or greater.
 - A C++-11 compiler (gcc 4.8 or later, for example).
 - gmp_, for some rational field computations.
 - mpfr_ (at least version 3.0.0), for some extended precision calculations.
