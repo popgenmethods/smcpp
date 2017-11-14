@@ -113,11 +113,12 @@ class Validate(ProcessParallelFilter):
                    np.all(c.data[:, 2::3] == c.data[:, 3::3], axis=1) &
                    np.any(c.data[:, 3::3] > 0, axis=1))
         if np.any(nonseg):
-            logger.error("In file %s, observations %s:", c.fn, np.where(nonseg)[0])
-            logger.error("Data set contains sites where every "
-                    "individual is homozygous for the derived allele. "
-                    "Please recode these as non-segregating (homozygous ancestral).")
-            raise RuntimeError("data validation failed")
+            logger.debug("In file %s, observations %s:", c.fn, np.where(nonseg)[0])
+            logger.debug("Data set contains sites where every "
+                    "individual is homozygous for the derived allele.")
+            a = c.data[nonseg, 1::3]
+            a[a >= 0] = 0
+            c.data[nonseg, 2::3] = 0
         bad = (c.data[:, 0] <= 0 |
                np.any(c.data[:, 1::3] > c.a[None, :], axis=1) |
                np.any(c.data[:, 2::3] > c.data[:, 3::3], axis=1) |
