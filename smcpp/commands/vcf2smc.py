@@ -156,8 +156,14 @@ class Vcf2Smc(command.Command, command.ConsoleCommand):
             # <span, dist gt, # undist gt, # undist, [...]>
             def rec2gt(rec):
                 ref = rec.alleles[0]
+                for di in dist:
+                    for d, i in di:
+                        if len(rec.samples[d]) != 2:
+                            raise RuntimeError(
+                                "Expected a diploid genotype at position {} "
+                                "for individual {} but found:\n{}".format(rec.pos, d, rec))
                 da = [[rec.samples[d].alleles[i]
-                       for d, i in di] for di in dist]
+                   for d, i in di] for di in dist]
                 a = [sum([x != ref for x in d])
                      if None not in d else -1 for d in da]
                 bs = [[rec.samples[d].alleles[i] != ref
