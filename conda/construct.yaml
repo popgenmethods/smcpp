@@ -1,12 +1,13 @@
 name: smcpp
-version: {version}
+version: 1.11.0dev
 channels:
   - http://repo.continuum.io/pkgs/main/
   - http://repo.continuum.io/pkgs/free/
   - http://conda.anaconda.org/bioconda
   - http://conda.anaconda.org/terhorst
 specs:
-  - smcpp {version}
+  - smcpp 1.11.0dev
   - python 3.6.*
 post_install: post_install.sh
 license_file: ../LICENSE
+

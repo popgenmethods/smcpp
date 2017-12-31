@@ -7,7 +7,7 @@ from smcpp.logging import getLogger
 logger = getLogger(__name__)
 
 class Debugger(OptimizerPlugin):
-    DISABLED = True
+    DISABLED = False
     @targets("post minimize")
     def update(self, message, *args, **kwargs):
         if os.environ.get("SMCPP_DEBUG"):

@@ -53,12 +53,24 @@ std::set<block_key> bin_key<1>::run(
     else
     {
         ret.emplace(key);
+        if (true) // or undistinguish)
+            for (int aa = 0; aa <= na(0); ++aa)
+            {
+                int bb = key(1) - aa;
+                tmp(0) = aa;
+                if ((aa + bb == key(0) + key(1)) and
+                        (0 <= bb) and
+                        (bb <= key(2)))
+                    ret.emplace(tmp);
+            }
+        /*
         if (nb > 0 and ((double)b / (double)nb > cutoff))
             for (int bb = (int)(cutoff * nb); bb <= nb; ++bb)
             {
                 tmp(1) = bb;
                 ret.emplace(tmp);
             }
+        */
     }
     return ret;
 }

@@ -178,12 +178,7 @@ HJTransition<T>::HJTransition(const PiecewiseConstantRateFunction<T> &eta, const
     const std::vector<T> ada = eta.getAda();
     const std::vector<T> avg_coal_times = eta.average_coal_times();
 
-    // Compute expm matrices in higher precision.
     compute_expms();
-    // Prevent issues with mulithreaded access to members causing
-    // changes in derivative coherence.
-    std::vector<Matrix<T> > const& expm_prods_const = expm_prods;
-
     std::vector<int> avc_ip;
     for (T x : avg_coal_times)
     {
@@ -243,18 +238,16 @@ HJTransition<T>::HJTransition(const PiecewiseConstantRateFunction<T> &eta, const
         this->Phi(j - 1, j - 1) = 0.;
         T s = this->Phi.row(j - 1).sum();
         this->Phi(j - 1, j - 1) = 1. - s;
-
     }
-    T small = eta.zero() + 1e-20;
-    this->Phi = this->Phi.unaryExpr([small] (const T &x) { if (x < 1e-20) return small; return x; });
+    // T small = eta.zero() + 1e-10;
+    // this->Phi = this->Phi.unaryExpr([small] (const T &x) { if (x < 1e-10) return small; return x; });
+    Matrix<double> unif = Matrix<double>::Ones(this->M, this->M);
+    unif /= (double)(this->M);
+    const double s = 1e-8;
+    this->Phi *= (1. - s);
+    this->Phi += s * unif;
     CHECK_NAN(this->Phi);
     return;
-    const double beta = 1e-5;
-    T p2 = eta.zero() + beta / this->M;
-    Matrix<T> Phi2(this->M, this->M);
-    Phi2.fill(p2);
-    this->Phi *= (1 - beta);
-    this->Phi += Phi2;
 }
 
 template <typename T>

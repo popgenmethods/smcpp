@@ -29,7 +29,7 @@ class AbstractOptimizer(Observable):
         self._single = single
 
     @abstractmethod
-    def _coordinates(self, i):
+    def _coordinates(self):
         'Return a list of groups of coordinates to be optimized at iteration i.'
         return []
 
@@ -223,6 +223,7 @@ class TwoPopulationOptimizer(SMCPPOptimizer):
     'Model fitting for two populations.'
 
     def _coordinates(self):
+        return []
         coords = super()._coordinates()
         si = self._analysis.model.split_ind
         ret = []

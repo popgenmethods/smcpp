@@ -37,6 +37,11 @@ class Estimate(command.EstimationCommand, command.ConsoleCommand):
         model.add_argument('--knots', type=int,
                            default=smcpp.defaults.knots,
                            help="number of knots to use in internal representation")
+        model.add_argument('--hs', type=int,
+                           default=2,
+                           help="ratio of (# hidden states) / (# knots). Must "
+                                "be an integer >= 1. Larger values will consume more "
+                                "memory and CPU but are potentially more accurate. ")
         model.add_argument('--spline',
                            choices=["cubic", "pchip"],
                            default=smcpp.defaults.spline,

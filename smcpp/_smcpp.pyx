@@ -1,3 +1,4 @@
+cimport openmp
 cimport numpy as np
 from libc.math cimport exp, log
 from cython.operator cimport dereference as deref, preincrement as inc
@@ -15,7 +16,7 @@ import os.path
 from appdirs import AppDirs
 from ad import adnumber, ADF
 
-from . import logging, version, util
+from . import logging, version, util, defaults
 from .observe import targets
 
 logger = logging.getLogger(__name__)
@@ -58,6 +59,11 @@ init_logger_cb(logger_cb);
 # Everything needs to be C-order contiguous to pass in as
 # flat arrays
 aca = np.ascontiguousarray
+
+def set_num_threads(k):
+    cdef int kk = k
+    with nogil:
+        openmp.omp_set_num_threads(kk)
 
 cdef ParameterVector make_params(a, s, dlist) except *:
     cdef ParameterVector ret
@@ -117,7 +123,7 @@ cdef _store_admatrix_helper(Matrix[adouble] &mat, dlist):
 
 cdef class _PyInferenceManager:
     cdef int _num_hmms
-    cdef object _model, _observations, _theta, _rho, _alpha, _im_id
+    cdef object _model, _observations, _theta, _rho, _alpha, _polarization_error, _im_id
     cdef public long long seed
     cdef vector[double] _hs
     cdef vector[int] _Ls
@@ -177,6 +183,15 @@ cdef class _PyInferenceManager:
         def __set__(self, alpha):
             self._alpha = alpha
             self._im.setAlpha(alpha)
+
+    property polarization_error:
+        def __get__(self):
+            return self._polarization_error
+
+        def __set__(self, pe):
+            self._polarization_error = pe
+            self._im.setPolarizationError(pe)
+
 
     def E_step(self, forward_backward_only=False):
         if None in (self.theta, self.rho, self.alpha):
@@ -305,11 +320,11 @@ cdef class _PyInferenceManager:
 
 cdef class PyOnePopInferenceManager(_PyInferenceManager):
 
-    def __cinit__(self, int n, observations, hidden_states, im_id, double polarization_error):
+    def __cinit__(self, int n, observations, hidden_states, im_id):
         # This is needed because cinit cannot be inherited
         self.__my_cinit__(observations, hidden_states, im_id)
         with nogil:
-            self._im = new OnePopInferenceManager(n, self._Ls, self._obs_ptrs, self._hs, polarization_error)
+            self._im = new OnePopInferenceManager(n, self._Ls, self._obs_ptrs, self._hs)
 
     @property
     def pid(self):
@@ -328,7 +343,7 @@ cdef class PyTwoPopInferenceManager(_PyInferenceManager):
     cdef TwoPopInferenceManager* _im2
     cdef int _a1
 
-    def __cinit__(self, int n1, int n2, int a1, int a2, observations, hidden_states, im_id, double polarization_error):
+    def __cinit__(self, int n1, int n2, int a1, int a2, observations, hidden_states, im_id):
         # This is needed because cinit cannot be inherited
         assert a1 + a2 == 2
         assert a1 in [1, 2]
@@ -337,7 +352,8 @@ cdef class PyTwoPopInferenceManager(_PyInferenceManager):
         self.__my_cinit__(observations, hidden_states, im_id)
         assert a1 in [1, 2], "a2=2 is not supported"
         with nogil:
-            self._im2 = new TwoPopInferenceManager(n1, n2, a1, a2, self._Ls, self._obs_ptrs, self._hs, polarization_error)
+            self._im2 = new TwoPopInferenceManager(n1, n2, a1, a2, self._Ls,
+                    self._obs_ptrs, self._hs)
             self._im = self._im2
 
     @targets("model update")
@@ -401,99 +417,6 @@ def raw_sfs(model, int n, double t1, double t2, below_only=False):
         dsfs = sfs_cython(n, pv, t1, t2, bo)
     _check_abort()
     return _store_admatrix_helper(dsfs, model.dlist)
-
-
-def thin_data(data, int thinning, int offset=0):
-    '''
-    Implement the thinning procedure needed to break up correlation
-    among the full SFS emissions.
-    '''
-    # Thinning
-    cdef int i = offset
-    out = []
-    cdef int[:, :] vdata = data
-    bases = data[:, 0].sum()
-    R = int((2 * np.ceil(data[offset:, 0] / thinning)).sum())
-    ret = np.zeros([R, data.shape[1]], dtype=np.int32)
-    cdef int j, n, v, span, sa
-    cdef int K = data.shape[0]
-    cdef int npop = (data.shape[1] - 1) / 3
-    a = np.zeros(npop, dtype=np.int32)
-    b = np.zeros_like(a)
-    nb = np.zeros_like(a)
-    thin = np.zeros(npop * 3, dtype=np.int32)
-    nonseg = np.zeros(npop * 3, dtype=np.int32)
-    cdef int[:] a_view = a, b_view = b, nb_view = nb, thin_view = thin, nonseg_view = nonseg
-    cdef int[:, :] vret = ret
-    cdef int r = 0
-    with nogil:
-        for j in range(K):
-            span = vdata[j, 0]
-            # a_view[:] = vdata[j, 1::3]
-            # b_view[:] = vdata[j, 2::3]
-            # nb_view[:] = vdata[j, 3::3]
-
-            # sa = sum_memview(vdata[j, 1::3])
-            # thin_view[::3] = a_view
-            sa = 0
-            for n in range(npop):
-                v = vdata[j, 1 + 3 * n]
-                sa += v
-                thin_view[3 * n] = v
-            if sa == 2:
-                for n in range(npop):
-                    thin_view[3 * n] = 0
-            while span > 0:
-                if i < thinning and i + span >= thinning:
-                    if thinning - i > 1:
-                        # out.append([thinning - i - 1] + list(thin_view))
-                        vret[r, 0] = thinning - i - 1
-                        for n in range(3 * npop):
-                            vret[r, 1 + n] = thin_view[n]
-                        r += 1
-                    if sa == 2 and all_eq_memview(b_view, nb_view):
-                        # nonseg_view[2::3] = nb_view
-                        for n in range(npop):
-                            nonseg_view[2 + 3 * n] = nb_view[n]
-                        # out.append([1] + list(nonseg_view))
-                        vret[r, 0] = 1
-                        for n in range(3 * npop):
-                            vret[r, 1 + n] = nonseg_view[n]
-                        r += 1
-                    else:
-                        # out.append([1] + list(vdata[j, 1:]))
-                        vret[r, 0] = 1
-                        for n in range(3 * npop):
-                            vret[r, 1 + n] = vdata[j, 1 + n]
-                        r += 1
-                    span -= thinning - i
-                    i = 0
-                else:
-                    # out.append([span] + list(thin_view))
-                    vret[r, 0] = span
-                    for n in range(3 * npop):
-                        vret[r, 1 + n] = thin_view[n]
-                    r += 1
-                    i += span
-                    break
-    ret = ret[:r]
-    # ret = np.array(out, dtype=np.int32)
-    assert ret[:, 0].sum() == data[:, 0].sum()
-    return ret
-
-
-cdef bint all_eq_memview(int[:] a, int[:] b) nogil:
-    for i in range(a.shape[0]):
-        if a[i] != b[i]:
-            return False
-    return True
-
-
-cdef int sum_memview(int[:] a) nogil:
-    cdef int ret = 0
-    for i in range(a.shape[0]):
-        ret += a[i]
-    return ret
 
 
 # Used for testing purposes only

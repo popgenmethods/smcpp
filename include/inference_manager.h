@@ -5,6 +5,7 @@
 #include <map>
 #include <utility>
 #include <memory>
+#include "sparsepp/spp.h"
 
 #include "common.h"
 #include "transition_bundle.h"
@@ -29,6 +30,7 @@ class InferenceManager
     void setRho(const double);
     void setTheta(const double);
     void setAlpha(const double);
+    void setPolarizationError(const double);
 
     void Estep(bool);
     std::vector<adouble> Q();
@@ -54,10 +56,8 @@ class InferenceManager
     void parallel_do(std::function<void(hmmptr &)>);
     template <typename T> std::vector<T> parallel_select(std::function<T(hmmptr &)>);
     void recompute_initial_distribution();
-    std::vector<Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> > 
-        map_obs(const std::vector<int*>&, const std::vector<int>&);
-    std::set<std::pair<int, block_key> > fill_targets();
-    void populate_emission_probs();
+    std::vector<Eigen::Map<Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> > > map_obs(const std::vector<int*>&, const std::vector<int>&);
+    spp::sparse_hash_set<std::pair<int, block_key> > fill_targets();
     void do_dirty_work();
 
     // These methods will differ according to number of populations and must be overridden.
@@ -65,14 +65,14 @@ class InferenceManager
 
     // Other members
     const int npop, sfs_dim, M;
-    std::vector<Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> > obs;
+    std::vector<Eigen::Map<Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> > > obs;
     std::unique_ptr<ConditionedSFS<adouble> > csfs;
-    double theta, rho, alpha;
+    double theta, rho, alpha, polarization_error;
     std::vector<hmmptr> hmms;
     Vector<adouble> pi;
     Matrix<adouble> transition, emission;
     std::vector<block_key> bpm_keys;
-    const std::set<std::pair<int, block_key> > targets;
+    const spp::sparse_hash_set<std::pair<int, block_key> > targets;
     TransitionBundle tb;
     std::vector<Matrix<adouble> > sfss;
 
@@ -92,20 +92,22 @@ class NPopInferenceManager : public InferenceManager
             const std::vector<int> obs_lengths,
             const std::vector<int*> observations,
             const std::vector<double> hidden_states,
-            ConditionedSFS<adouble> *csfs,
-            const double polarization_error) :
+            ConditionedSFS<adouble> *csfs) :
         InferenceManager(P,
                 (na.tail(na.size() - 1).array() + 1).prod() * (n.array() + 1).prod(),
                 obs_lengths, observations, hidden_states, csfs),
                 n(n), na(na), tensordims(make_tensordims()),
-                bins(construct_bins(polarization_error))
-    {}
+                bins(construct_bins())
+    {
+        populate_emission_probs();
+    }
 
     virtual ~NPopInferenceManager() = default;
 
 
     protected:
     // Virtual overrides
+    void populate_emission_probs();
     void recompute_emission_probs();
     bool is_monomorphic(const block_key&);
     block_key folded_key(const block_key&);
@@ -120,7 +122,7 @@ class NPopInferenceManager : public InferenceManager
     const FixedVector<int, P> na;
     const FixedVector<int, 2 * P> tensordims;
 
-    std::map<block_key, std::map<block_key, double> > construct_bins(const double);
+    std::map<block_key, std::map<block_key, double> > construct_bins();
     std::map<block_key, std::map<block_key, double> > bins;
 };
 
@@ -131,8 +133,7 @@ class OnePopInferenceManager final : public NPopInferenceManager<1>
             const int n,
             const std::vector<int> obs_lengths,
             const std::vector<int*> observations,
-            const std::vector<double> hidden_states,
-            const double);
+            const std::vector<double> hidden_states);
 };
 
 class TwoPopInferenceManager : public NPopInferenceManager<2>
@@ -143,8 +144,7 @@ class TwoPopInferenceManager : public NPopInferenceManager<2>
             const int a1, const int a2,
             const std::vector<int> obs_lengths,
             const std::vector<int*> observations,
-            const std::vector<double> hidden_states,
-            const double);
+            const std::vector<double> hidden_states);
                 
     void setParams(const ParameterVector&, const ParameterVector&, const ParameterVector&, const double);
 

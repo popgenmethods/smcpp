@@ -3,14 +3,15 @@ from __future__ import absolute_import, division, print_function
 import numpy as np
 import scipy.optimize
 import scipy.interpolate
-from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
+from concurrent.futures import ProcessPoolExecutor
 from collections import namedtuple
 import json
 import pandas as pd
 import itertools
 
-from . import _smcpp, util, logging, model
+from . import util, logging, model, defaults
 from .contig import Contig
+from ._estimation_tools import realign, thin_data, bin_observations, windowed_mutation_counts
 
 
 logger = logging.getLogger(__name__)
@@ -54,97 +55,92 @@ def compress_repeated_obs(dataset):
     return newob[:-1]
 
 
-def _thin_helper(args):
-    ds, th = args
-    thinned = ds
-    if th > 0:
-        try:
-            thinned = _smcpp.thin_data(ds, th)
-        except Exception as e:
-            logger.error(args)
-            raise
-    return compress_repeated_obs(thinned)
+def decompress_polymorphic_spans(dataset):
+    miss = (np.all(dataset[:, 1::3] == -1, axis=1) & 
+            np.all(dataset[:, 3::3] == 0, axis=1))
+    nonseg = (np.all(dataset[:, 1::3] == 0, axis=1) & 
+              (np.all(dataset[:, 2::3] == dataset[:, 3::3], axis=1) |
+               np.all(dataset[:, 2::3] == 0, axis=1)))
+    psp = np.where((dataset[:, 0] > 1) & (~nonseg) & (~miss))[0]
+    if not psp.size:
+        return dataset
+    last = 0
+    first = True
+    for i in psp:
+        row = dataset[i]
+        if first:
+            ret = np.r_[dataset[last:i], np.tile(np.r_[1, row[1:]], (row[0], 1))]
+            first = False
+        else:
+            ret = np.r_[ret, dataset[last:i], np.tile(np.r_[1, row[1:]], (row[0], 1))]
+        last = i + 1
+    ret = np.r_[ret, dataset[last:]]
+    return ret
 
 
-def thin_dataset(dataset, thinning):
-    '''Only emit full SFS every <thinning> sites'''
-    with ThreadPoolExecutor() as p:
-        return list(p.map(_thin_helper, zip(dataset, thinning)))
-
-
-def recode_nonseg(contigs, cutoff):
+def recode_nonseg(contig, cutoff):
     warn_only = False
     if cutoff is None:
-        cutoff = 100000
+        cutoff = 50000
         warn_only = True
-    for c in contigs:
-        d = c.data
-        runs = (
-            (d[:, 0] > cutoff) &
-            np.all(d[:, 1::3] == 0, axis=1) &
-            np.all(d[:, 2::3] == 0, axis=1)
-        )
-        if np.any(runs):
-            if warn_only:
-                f = logger.warning
-                txt = ""
-            else:
-                f = logger.debug
-                txt = " (converted to missing)"
-                d[runs, 1::3] = -1
-                d[runs, 3::3] = 0
-            f("Long runs of homozygosity%s in contig %s: \n%s", txt, c.fn, d[runs])
-    return contigs
+    d = contig.data
+    runs = (
+        (d[:, 0] > cutoff) &
+        np.all(d[:, 1::3] == 0, axis=1) &
+        np.all(d[:, 2::3] == 0, axis=1)
+    )
+    if np.any(runs):
+        if warn_only:
+            f = logger.warning
+            txt = ""
+        else:
+            f = logger.debug
+            txt = " (converted to missing)"
+            d[runs, 1::3] = -1
+            d[runs, 3::3] = 0
+        f("Long runs of homozygosity%s in contig %s: \n%s", txt, contig.fn, d[runs])
+    return contig
 
 
-def break_long_spans(contigs, length_cutoff):
+def break_long_spans(contig, span_cutoff):
     # Spans longer than this are broken up
-    # FIXME: should depend on rho
-    span_cutoff = 1000000
     contig_list = []
-    obs_attributes = {}
-    for i, contig in enumerate(contigs):
-        obs = contig.data
-        miss = np.zeros_like(obs[0])
-        miss[0] = 1
-        miss[1::3] = -1
-        long_spans = np.where(
-            (obs[:, 0] >= span_cutoff) &
-            np.all(obs[:, 1::3] == -1, axis=1) &
-            np.all(obs[:, 3::3] == 0, axis=1))[0]
-        cob = 0
-        if obs[long_spans].size:
-            logger.debug("Long missing spans: \n%s", (obs[long_spans]))
-        positions = np.insert(np.cumsum(obs[:, 0]), 0, 0)
-        for x in long_spans.tolist() + [None]:
-            s = obs[cob:x, 0].sum()
-            if s > length_cutoff:
-                contig_list.append(Contig(data=np.insert(obs[cob:x], 0, miss, 0),
-                                          pid=contig.pid, fn=contig.fn, n=contig.n, a=contig.a))
-                if contig.a[0] == 1:
-                    a_cols = [1, 4]
-                else:
-                    assert contig.a[0] == 2
-                    a_cols = [1]
-                last_data = contig_list[-1].data
-                l = last_data[:, 0].sum()
-                lda = last_data[:, a_cols]
-                s2 = lda[lda.min(axis=1) >= 0].sum()
-                assert s2 >= 0
-                obs_attributes.setdefault(i, []).append(
-                    (positions[cob],
-                     positions[x] if x is not None else positions[-1],
-                     l, 1. * s2 / l))
-            else:
-                if s > 0:
-                    logger.debug("omitting sequence of length %d "
-                                "as < length cutoff %d" %
-                                (s, length_cutoff))
-            try:
-                cob = x + 1
-            except TypeError:  # fails for final x=None
-                pass
-    return contig_list, obs_attributes
+    obs_attributes = []
+    obs = contig.data
+    miss = np.zeros_like(obs[0])
+    miss[0] = 1
+    miss[1::3] = -1
+    long_spans = np.where(
+        (obs[:, 0] >= span_cutoff) &
+        np.all(obs[:, 1::3] == -1, axis=1) &
+        np.all(obs[:, 3::3] == 0, axis=1))[0]
+    cob = 0
+    if obs[long_spans].size:
+        logger.debug("Long missing spans: \n%s", (obs[long_spans]))
+    positions = np.insert(np.cumsum(obs[:, 0]), 0, 0)
+    for x in long_spans.tolist() + [None]:
+        s = obs[cob:x, 0].sum()
+        contig_list.append(Contig(data=np.insert(obs[cob:x], 0, miss, 0),
+                                  pid=contig.pid, fn=contig.fn, n=contig.n, a=contig.a))
+        if contig.a[0] == 1:
+            a_cols = [1, 4]
+        else:
+            assert contig.a[0] == 2
+            a_cols = [1]
+        last_data = contig_list[-1].data
+        l = last_data[:, 0].sum()
+        lda = last_data[:, a_cols]
+        s2 = lda[lda.min(axis=1) >= 0].sum()
+        assert s2 >= 0
+        obs_attributes.append(
+            (positions[cob],
+             positions[x] if x is not None else positions[-1],
+             l, 1. * s2 / l))
+        try:
+            cob = x + 1
+        except TypeError:  # fails for final x=None
+            pass
+    return contig_list
 
 
 def balance_hidden_states(model, M):
@@ -155,8 +151,9 @@ def balance_hidden_states(model, M):
     generations.)
 
     """
+    import smcpp._smcpp
     M -= 1
-    eta = _smcpp.PyRateFunction(model, [])
+    eta = smcpp._smcpp.PyRateFunction(model, [])
     ret = [0.0]
     # ms = np.arange(0.1, 2.1, .1).tolist() + list(range(3, M))
     ms = range(1, M)
@@ -195,36 +192,14 @@ def model_from_coal_probs(t, p, N0, pid):
 
 
 def calculate_t1(model, n, q):
-    eta = _smcpp.PyRateFunction(model, [0., np.inf])
+    import smcpp._smcpp
+    eta = smcpp._smcpp.PyRateFunction(model, [0., np.inf])
     c = n * (n - 1) / 2
     def f(t):
         return np.expm1(-c * eta.R(t)) + q
     return scipy.optimize.brentq(f, 0., model.knots[-1])
 
 
-def watterson_estimator(contigs):
-    with ProcessPoolExecutor() as p:
-        num = denom = 0
-        for S, sample_sizes, spans in p.map(_watterson_helper, contigs):
-            num += S
-            non_missing = sample_sizes > 0
-            ss = sample_sizes[non_missing]
-            sp = spans[non_missing]
-            denom += (sp * (np.log(ss) + 0.5 / ss + 0.57721)).sum()
-    return num / denom
-
-
-def _watterson_helper(contig):
-    c = contig
-    shp = [x + 1 for na in zip(c.a, c.n) for x in na]
-    ret = np.zeros(shp, dtype=int)
-    spans = c.data[:, 0]
-    seg = (np.any(c.data[:, 1::3] >= 1, axis=1) |
-           np.any(c.data[:, 2::3] >  0, axis=1))
-    S = spans[seg].sum()
-    sample_sizes = (c.data[:, 3::3].sum(axis=1) +
-                    np.maximum(0, c.data[:, 1::3]).sum(axis=1))
-    return (S, sample_sizes, spans)
 
 def _load_data_helper(fn):
     try:
@@ -275,12 +250,6 @@ def files_from_command_line_args(args):
 
 
 def load_data(files):
-    with ProcessPoolExecutor() as p:
+    with ProcessPoolExecutor(defaults.cores) as p:
         obs = list(p.map(_load_data_helper, files))
     return obs
-
-
-def windowed_mutations(contigs, w):
-    '''Return array [[window_length, num_mutations], ...] for each contig'''
-    with ThreadPoolExecutor() as p:
-        return list(map(_smcpp._windowed_mutations_helper, contigs, itertools.repeat(w)))

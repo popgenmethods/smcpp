@@ -1,19 +1,21 @@
 #ifndef TRANSITION_BUNDLE_H
 #define TRANSITION_BUNDLE_H
 
+#include "sparsepp/spp.h"
+
 #include "common.h"
 #include "block_key.h"
 
 struct eigensystem
 {
-    Eigen::MatrixXcd P, Pinv;
-    Eigen::VectorXcd d;
-    Matrix<double> P_r, Pinv_r;
-    double scale;
-    Eigen::VectorXcd d_scaled;
-    Vector<double> d_r;
-    Vector<double> d_r_scaled;
-    bool cplx;
+    const Eigen::MatrixXcd P, Pinv;
+    const Eigen::VectorXcd d;
+    const Matrix<double> P_r, Pinv_r;
+    const double scale;
+    const Eigen::VectorXcd d_scaled;
+    const Vector<double> d_r;
+    const Vector<double> d_r_scaled;
+    const bool cplx;
     eigensystem(const Eigen::EigenSolver<Matrix<double> > &es) :
         P(es.eigenvectors()), Pinv(P.inverse()), d(es.eigenvalues()),
         P_r(P.real()), Pinv_r(Pinv.real()), 
@@ -31,9 +33,9 @@ class TransitionBundle
 {
     public:
     TransitionBundle(
-            const std::set<std::pair<int, block_key> > &targets_s,
+            const spp::sparse_hash_set<std::pair<int, block_key> > &targets,
             const std::map<block_key, Vector<adouble> >* emission_probs) : 
-        targets(targets_s.begin(), targets_s.end()),
+        targets(targets),
         emission_probs(emission_probs) {}
 
     void update(const Matrix<adouble> &new_T);
@@ -41,11 +43,11 @@ class TransitionBundle
     Matrix<double> Td;
     Eigen::VectorXcd d;
     Eigen::MatrixXcd P, Pinv;
-    std::map<std::pair<int, block_key>, Matrix<std::complex<double> > > span_Qs;
+    std::map<std::pair<int, block_key>, Matrix<double> > span_Qs;
     std::map<block_key, eigensystem> eigensystems;
 
     private:
-    const std::vector<std::pair<int, block_key> > targets;
+    const spp::sparse_hash_set<std::pair<int, block_key> > &targets;
     const std::map<block_key, Vector<adouble> >* emission_probs;
 };
 
