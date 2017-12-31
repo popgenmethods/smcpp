@@ -29,7 +29,7 @@ class AbstractOptimizer(Observable):
         self._single = single
 
     @abstractmethod
-    def _coordinates(self, i):
+    def _coordinates(self):
         'Return a list of groups of coordinates to be optimized at iteration i.'
         return []
 
@@ -104,7 +104,7 @@ class AbstractOptimizer(Observable):
             self._f_dict = {}
             self._last_f = None
             f0 = self._f(x0z, self._analysis, coords)[0]
-            if True or len(y) > 1:
+            if len(y) > 1:
                 res = scipy.optimize.minimize(self._f, x0z,
                         jac=True,
                         args=(self._analysis, coords),
