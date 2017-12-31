@@ -20,6 +20,8 @@ install:
   - conda build -c terhorst -c conda-forge -c bioconda conda --output > .packages
   - conda/template.py conda/construct.tpl $VERSION > conda/construct.yaml
 
+before_deploy:
+  - constructor conda
 deploy:
   - provider: script
     script: conda/deploy.sh
