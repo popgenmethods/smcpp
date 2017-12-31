@@ -14,6 +14,21 @@ struct block_key
     int operator()(int k) const { return vals(k); }
     int& operator()(int k) { return vals.coeffRef(k); }
 
+    block_key fold(const Vector<int> na) const
+    {
+        block_key ret(vals);
+        const unsigned int P = (ret.size() - 1) / 3;
+        for (unsigned int p = 0; p < P; ++p)
+        {
+            const int ind = 3 * p;
+            if (ret(ind) >= 0)
+                ret(ind) = na(p) - ret(ind);
+            if (0 < ret(ind + 1) and ret(ind + 1) < ret(ind + 2))
+                ret(ind + 1) = ret(ind + 2) - ret(ind + 1);
+        }
+        return ret;
+    }
+
     int size() const { return vals.size(); }
     int nb() const  // Number of undistinguished lineages for this key
     {
@@ -26,6 +41,11 @@ struct block_key
     {
         stream << bk.vals.transpose();
         return stream;
+    }
+
+    bool operator==(const block_key &other) const
+    {
+        return (vals - other.vals).norm() == 0;
     }
 
     bool operator<(const block_key &other) const

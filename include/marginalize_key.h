@@ -46,6 +46,7 @@ std::map<block_key, double> marginalize_key<1>::run(
         // Here we rely on ret[bk] default constructing with value 0.
         ret[block_key(v)] += gsl_ran_hypergeometric_pdf(b, n1, n2, nb);
     }
+    DEBUG1 << "key: " << key.transpose() << " ret:" << ret;
     return ret;
 }
 

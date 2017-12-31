@@ -11,10 +11,17 @@ class ParameterOptimizer(OptimizerPlugin):
         self._bounds = bounds
         self._target = target
 
+    @property
+    def bounds(self):
+        try:
+            return self._bounds()
+        except:
+            return self._bounds
+
     @targets("pre M-step", no_first=False)
     def update(self, message, *args, **kwargs):
         param = self._param
-        logger.info("Updating %s, bounds (%f, %f)", param, *self._bounds)
+        logger.info("Updating %s, bounds (%f, %f)", param, *self.bounds)
         tgt = kwargs[self._target]
         analysis = kwargs['analysis']
         if param not in ("theta", "rho", "split", "alpha"):
@@ -25,7 +32,7 @@ class ParameterOptimizer(OptimizerPlugin):
         res = scipy.optimize.minimize_scalar(self._f,
                                              args=(analysis, tgt, param),
                                              method='bounded',
-                                             bounds=self._bounds)
+                                             bounds=self.bounds)
         logger.info("New %s: %g", param, res.x)
         setattr(tgt, param, res.x)
 

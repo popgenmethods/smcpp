@@ -11,7 +11,9 @@ class HMM
     friend class InferenceManager;
 
     public:
-    HMM(const int hmm_num, const Matrix<int> &obs, const InferenceBundle *ib);
+    HMM(const int hmm_num,
+        const Eigen::Map<Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> > &obs,
+        const InferenceBundle *ib);
     void Estep(bool);
     double loglik(void);
     Vector<adouble> Q(void);
@@ -25,12 +27,13 @@ class HMM
 
     // Instance variables
     const int hmm_num;
-    const Matrix<int> obs;
+    const Eigen::Map<Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> > obs;
     const InferenceBundle *ib;
     const int M, L;
     double ll;
-    Matrix<double> alpha_hat, xisum, gamma;
-    Vector<double> c;
+    Matrix<double> xisum, gamma;
+    Matrix<float> alpha_hat;
+    Vector<double> log_c;
     std::map<block_key, Vector<double> > gamma_sums;
 };
 

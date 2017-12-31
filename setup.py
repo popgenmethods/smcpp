@@ -12,11 +12,11 @@ from Cython.Build import cythonize
 import numpy as np
 
 if True:
-    extra_compile_args = ["-O2", "-std=c++11", "-Wno-deprecated-declarations", "-DNO_CHECK_NAN", 
-                          '-fopenmp']
+    extra_compile_args = ["-O2", "-std=c++11", "-Wno-deprecated-declarations", '-DNO_CHECK_NAN',
+                          '-fopenmp', '-g', '-DEIGEN_DONT_PARALLELIZE']
 else:
-    extra_compile_args = ["-O0", "-g", "-std=c++11", "-Wno-deprecated-declarations",
-                          "-D_GLIBCXX_DEBUG", "-Wfatal-errors"]
+    extra_compile_args = ["-O0", "-g", "-std=c++11", "-Wno-deprecated-declarations", "-fopenmp",
+                          "-D_GLIBCXX_DEBUG", "-Wfatal-errors", "-DEIGEN_DONT_PARALLELIZE"]
 
 extra_link_args=['-fopenmp']
 libraries = ['mpfr', 'gmp', 'gmpxx', 'gsl', 'gslcblas']
@@ -33,12 +33,18 @@ extensions = [
             libraries=libraries,
             extra_compile_args=extra_compile_args,
             extra_link_args=extra_link_args
-            )]
+            ),
+        Extension(
+            "smcpp._estimation_tools",
+            sources=["smcpp/_estimation_tools.pyx"],
+            include_dirs=[np.get_include()],
+            )
+        ]
 
 setup(name='smcpp',
         description='SMC++',
         author='Jonathan Terhorst, Jack Kamm, Yun S. Song',
-        author_email='terhorst@stat.berkeley.edu',
+        author_email='jonth@umich.edu',
         url='https://github.com/popgenmethods/smc++',
         ext_modules=cythonize(extensions),
         packages=find_packages(),

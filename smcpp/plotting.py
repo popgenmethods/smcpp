@@ -39,6 +39,7 @@ def plot_psfs(psfs, xlim, ylim, xlabel, knots=False, logy=False):
     saver.plot_num = 0
     my_axplot = saver(ax.plot, "path")
     my_axstep = saver(ax.step, "step")
+    vlines = []
     for i, (d, off) in enumerate(psfs):
         g = d.get('g') or 1
         if 'b' in d:
@@ -78,6 +79,14 @@ def plot_psfs(psfs, xlim, ylim, xlabel, knots=False, logy=False):
                 y = m.stepwise_values().astype('float')
                 x = np.insert(x, 0, 0)
                 y = np.insert(y, 0, y[0])
+                if split and l == mb.pids[-1]:
+                    vlines.append(mb.split * 2 * m.N0 * g)
+                    xf = x < mb.split
+                    x = x[xf]
+                    x = np.r_[x, mb.split]
+                    y = y[xf]
+                    y = np.r_[y, y[-1]]
+                    split = False
                 series.append([l, x, y, my_axplot, off, m.N0, g])
                 if knots and hasattr(m, '_knots'):
                     knots = m._knots[:-ak]
@@ -109,6 +118,8 @@ def plot_psfs(psfs, xlim, ylim, xlabel, knots=False, logy=False):
         xmax = max(xmax, np.max(xp))
     if labels:
         first_legend = ax.legend(handles=labels, loc=9, ncol=4, prop={'size':8})
+    for x in vlines:
+        ax.axvline(x)
     ax.set_xscale('log')
     ax.set_ylabel(r'$N_e$')
     if logy:

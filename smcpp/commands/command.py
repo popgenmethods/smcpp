@@ -5,10 +5,16 @@ import os
 import os.path
 import sys
 
-from .. import logging
+from .. import logging, _smcpp
 import smcpp.defaults
 
 logger = logging.getLogger(__name__)
+
+def check_positive(value):
+    ivalue = int(value)
+    if ivalue <= 0:
+         raise argparse.ArgumentTypeError("%s is an invalid positive int value" % value)
+    return ivalue
 
 class ConsoleCommand:
     def __init__(self, parser):
@@ -20,10 +26,14 @@ class Command:
         parser.add_argument('-v', '--verbose', action='count', default=0,
                 help="increase debugging output, specify multiply times for more")
         parser.add_argument('--seed', type=int, default=0, help=argparse.SUPPRESS)
+        parser.add_argument('--cores', type=int, default=None, 
+                help="Number of worker processes / threads "
+                     "to use in parallel calculations")
 
     def main(self, args):
         np.random.seed(args.seed)
         logging.setup_logging(args.verbose)
+        smcpp.defaults.cores = args.cores
 
 class EstimationCommand(Command):
     def __init__(self, parser):
@@ -44,19 +54,14 @@ class EstimationCommand(Command):
 def add_common_estimation_args(parser):
     parser.add_argument("-o", "--outdir", help="output directory", default=".")
     data = parser.add_argument_group('data parameters')
+    data.add_argument('--length-cutoff', help=argparse.SUPPRESS, type=int, default=None)
     data.add_argument('--nonseg-cutoff', '-c',
                       help="recode nonsegregating spans > cutoff as missing. "
                       "default: do not recode.",
                       type=int)
-    data.add_argument('--length-cutoff',
-                      help="omit sequences < cutoff. default: 10000", default=10000, type=int)
-    data.add_argument('--thinning', help="only emit full SFS every <k>th site. default: 500 * n.",
-                      default=None, type=int, metavar="k")
-    data.add_argument('--w', help=argparse.SUPPRESS, type=int)
-    data.add_argument('--no-filter',
-                      help="do not filter out contigs that are >3 s.d. "
-                           "from mean heterozygosity",
-                      action="store_true", default=False)
+    data.add_argument('--thinning', help="only emit full SFS every <k>th site. (k > 0)",
+                      default=None, type=check_positive, metavar="k")
+    data.add_argument('--w', default=100, help=argparse.SUPPRESS, type=int)
     optimizer = parser.add_argument_group("Optimization parameters")
     optimizer.add_argument("--no-initialize", action="store_true", default=False, help=argparse.SUPPRESS)
     optimizer.add_argument('--em-iterations', type=int,

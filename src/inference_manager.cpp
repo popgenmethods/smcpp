@@ -47,12 +47,10 @@ InferenceManager::InferenceManager(
 #pragma omp parallel for
     for (unsigned int i = 0; i < obs.size(); ++i)
     {
-        DEBUG1 << "creating HMM";
+        DEBUG1 << "creating HMM i: " << i << " L:" <<
+                  this->obs.at(i).rows() << " M:" << ibp->pi->rows();
         hmms.at(i).reset(new HMM(i, this->obs.at(i), ibp));
     }
-
-    // Collect all the block keys for recomputation later
-    populate_emission_probs();
 }
 
 void InferenceManager::recompute_initial_distribution()
@@ -74,6 +72,12 @@ void InferenceManager::setRho(const double rho)
 {
     this->rho = rho;
     dirty.rho = true;
+}
+
+void InferenceManager::setPolarizationError(double pe)
+{
+    this->polarization_error = pe;
+    dirty.theta = true;
 }
 
 void InferenceManager::setAlpha(const double alpha)
@@ -178,24 +182,25 @@ std::vector<double> InferenceManager::loglik(void)
 }
 
 // Begin stuff for NPop inference manager
-std::vector<Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> > 
+std::vector<Eigen::Map<Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> > >
     InferenceManager::map_obs(const std::vector<int*> &observations, const std::vector<int> &obs_lengths)
 {
-    std::vector<Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> > ret;
+    std::vector<Eigen::Map<Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> > > ret;
     for (unsigned int i = 0; i < observations.size(); ++i)
         ret.push_back(Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>::Map(
                     observations[i], obs_lengths[i], 1 + 3 * npop));
     return ret;
 }
 
-void InferenceManager::populate_emission_probs()
+template <size_t P>
+void NPopInferenceManager<P>::populate_emission_probs()
 {
     std::vector<std::map<block_key, Vector<adouble> > > eps(obs.size());
-#pragma omp parallel for
+// #pragma omp parallel for
     for (unsigned int j = 0; j < obs.size(); ++j)
     {
         const Vector<adouble> tmp;
-        const Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> ob = obs[j];
+        const Eigen::Map<Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> > ob = obs[j];
         const int q = ob.cols() - 1;
         for (int i = 0; i < ob.rows(); ++i)
         {
@@ -207,7 +212,10 @@ void InferenceManager::populate_emission_probs()
     for (const std::map<block_key, Vector<adouble> > &ep : eps)
         emission_probs.insert(ep.begin(), ep.end());
     for (const auto p : emission_probs)
+    {
         bpm_keys.push_back(p.first);
+        bpm_keys.push_back(p.first.fold(na));
+    }
 }
 
 void InferenceManager::do_dirty_work()
@@ -229,14 +237,14 @@ void InferenceManager::do_dirty_work()
 }
 
 
-std::set<std::pair<int, block_key> > InferenceManager::fill_targets()
+spp::sparse_hash_set<std::pair<int, block_key> > InferenceManager::fill_targets()
 {
     DEBUG1 << "parallel filling targets";
-    std::vector<std::set<std::pair<int, block_key> > > v(obs.size());
+    std::vector<spp::sparse_hash_set<std::pair<int, block_key> > > v(obs.size());
 #pragma omp parallel for
     for (unsigned int j = 0; j < obs.size(); ++j)
     {
-        const Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> ob = obs.at(j);
+        const Eigen::Map<Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> > ob = obs.at(j);
         const int q = ob.cols() - 1;
         for (int i = 0; i < ob.rows(); ++i)
         {
@@ -246,9 +254,9 @@ std::set<std::pair<int, block_key> > InferenceManager::fill_targets()
                 v.at(j).insert({ob(i, 0), block_key(ob.row(i).tail(q).transpose())});
         }
     }
-    std::set<std::pair<int, block_key> > ret;
+    spp::sparse_hash_set<std::pair<int, block_key> > ret;
     DEBUG1 << "reducing targets";
-    for (const std::set<std::pair<int, block_key> > s : v)
+    for (const spp::sparse_hash_set<std::pair<int, block_key> > &s : v)
         ret.insert(s.begin(), s.end());
     return ret;
 }
@@ -297,20 +305,6 @@ bool NPopInferenceManager<P>::is_monomorphic(const block_key &bk)
 }
 
 template <size_t P>
-block_key NPopInferenceManager<P>::folded_key(const block_key &bk)
-{
-    block_key ret = bk;
-    for (unsigned int p = 0; p < P; ++p)
-    {
-        const int ind = 3 * p;
-        ret(ind) = na(p) - bk(ind);
-        ret(ind + 1) = bk(ind + 2) - bk(ind + 1);
-        ret(ind + 2) = bk(ind + 2);
-    }
-    return ret;
-}
-
-template <size_t P>
 block_key_prob_map NPopInferenceManager<P>::merge_monomorphic(const block_key_prob_map &bpm)
 {
     block_key_prob_map ret;
@@ -332,51 +326,38 @@ block_key_prob_map NPopInferenceManager<P>::merge_monomorphic(const block_key_pr
 
 template <size_t P>
 std::map<block_key, block_key_prob_map>
-NPopInferenceManager<P>::construct_bins(const double polarization_error)
+NPopInferenceManager<P>::construct_bins()
 {
     std::vector<std::set<block_key> > bks(obs.size());
-#pragma omp parallel for
     for (unsigned int j = 0; j < obs.size(); ++j)
     {
         const Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> ob = obs.at(j);
         const int q = ob.cols() - 1;
         for (int i = 0; i < ob.rows(); ++i)
-            bks.at(j).emplace(ob.row(i).tail(q).transpose());
+        {
+            block_key bk = block_key(ob.row(i).tail(q).transpose());
+            bks.at(j).emplace(bk.vals);
+            bks.at(j).emplace(bk.fold(na).vals);
+        }
     }
     std::set<block_key> bksc;
     for (const std::set<block_key> &sbk : bks)
         bksc.insert(sbk.begin(), sbk.end());
     const std::vector<block_key> vbk(bksc.begin(), bksc.end());
     std::map<block_key, block_key_prob_map> ret;
-#pragma omp parallel for
     for (auto it = vbk.begin(); it < vbk.end(); ++it)
     {
         block_key bk = *it;
-        block_key_prob_map m, m2;
         const std::set<block_key> bins = bin_key<P>::run(bk, na, 1.0);
+        DEBUG1 << "block_key: " << bk << " bins:" << bins;
+        block_key_prob_map bkpm;
         for (const block_key &k : bins)
         {
             const std::map<block_key, double> probs =
                 marginalize_key<P>::run(k.vals, n, na);
             for (const auto &p : probs)
-            {
-                m[p.first] += (1. - polarization_error) * p.second;
-                m[folded_key(p.first)] += polarization_error * p.second;
-            }
+                bkpm[bk_to_map_key(p.first)] += p.second;
         }
-        double s = 0.0;
-        for (const auto &p : m)
-            if (p.second > 0 and not is_monomorphic(p.first))
-            {
-                m2[p.first] = p.second;
-                s += p.second;
-            }
-        block_key_prob_map bkpm;
-        if (s <= 0)
-            throw std::runtime_error("s<=0");
-        for (const auto &p : m2)
-            bkpm[bk_to_map_key(p.first)] += p.second / s;
-#pragma omp critical(insert_ret_bkpm)
         ret.emplace(bk, bkpm);
     }
     return ret;
@@ -420,20 +401,21 @@ void NPopInferenceManager<P>::recompute_emission_probs()
         }
         else
         {
-            e2(m, 0) = alpha + (1 - alpha) * exp(-2. * theta * avg_ct.at(m));
+            e2(m, 0) = exp(-2. * alpha * theta * avg_ct.at(m));
             e2(m, 1) = 1. - e2(m, 0);
         }
     }
     const adouble zero = eta->zero();
     const adouble one = zero + 1.;
-#pragma omp parallel for
-    for (auto it = bpm_keys.begin(); it < bpm_keys.end(); ++it)
+    DEBUG1 << "bpm_keys";
+// #pragma omp parallel for
+    for (const block_key &k : bpm_keys)
     {
-        const block_key k = *it;
         std::array<std::set<FixedVector<int, 3> >, P> s;
         Vector<adouble> tmp(M);
         tmp.fill(zero);
         bool reduced = true;
+        bool miss = true;
         FixedVector<int, P> a, b, nb;
         for (unsigned int p = 0; p < P; ++p)
         {
@@ -441,10 +423,12 @@ void NPopInferenceManager<P>::recompute_emission_probs()
             b(p) = k(1 + 3 * p);
             nb(p) = k(2 + 3 * p);
             reduced &= nb(p) == 0;
+            if (na(p) > 0)
+                miss &= a(p) == -1;
         }
-        if (reduced and (a.isConstant(-1) or (a.minCoeff() >= 0)))
+        if (reduced and (miss or (a.minCoeff() >= 0)))
         {
-            if (a.isConstant(-1))
+            if (miss)
                 tmp.fill(one);
             else // if (a.minCoeff() >= 0)
                 tmp = e2.col(a.sum() % 2);
@@ -457,14 +441,26 @@ void NPopInferenceManager<P>::recompute_emission_probs()
         if (tmp.maxCoeff() > 1.0 or tmp.minCoeff() <= 0.0)
         {
             std::cout << k << std::endl;
+            std::cout << miss << std::endl;
             std::cout << tmp.template cast<double>().transpose() << std::endl;
             std::cout << tmp.maxCoeff() << std::endl;
+            std::cout << bins.at(k) << std::endl;
             throw std::runtime_error("probability vector not in [0, 1]");
         }
         CHECK_NAN(tmp);
-        this->emission_probs.at(k) = tmp;
+// #pragma omp critical(write_ep)
+        this->emission_probs[k] = tmp;
     }
     DEBUG1 << "recompute done";
+    std::map<block_key, Vector<adouble> > new_emission_probs;
+    // folded with polarization error
+    for (auto p : emission_probs)
+    {
+        new_emission_probs.emplace(p.first, (1. - polarization_error) * p.second);
+        new_emission_probs.at(p.first) += polarization_error * 
+            emission_probs.at(p.first.fold(na));
+    }
+    emission_probs = new_emission_probs;
 }
 
 
@@ -493,14 +489,12 @@ OnePopInferenceManager::OnePopInferenceManager(
             const int n,
             const std::vector<int> obs_lengths,
             const std::vector<int*> observations,
-            const std::vector<double> hidden_states,
-            const double polarization_error) :
+            const std::vector<double> hidden_states) :
         NPopInferenceManager(
                 FixedVector<int, 1>::Constant(n),
                 FixedVector<int, 1>::Constant(2),
                 obs_lengths, observations, hidden_states, 
-                new OnePopConditionedSFS<adouble>(n),
-                polarization_error) {}
+                new OnePopConditionedSFS<adouble>(n)) {}
 
 JointCSFS<adouble>* create_jcsfs(int n1, int n2, int a1, int a2, const std::vector<double> &hidden_states)
 {
@@ -514,14 +508,12 @@ TwoPopInferenceManager::TwoPopInferenceManager(
             const int a1, const int a2,
             const std::vector<int> obs_lengths,
             const std::vector<int*> observations,
-            const std::vector<double> hidden_states,
-            const double polarization_error) :
+            const std::vector<double> hidden_states) :
         NPopInferenceManager(
                 (FixedVector<int, 2>() << n1, n2).finished(),
                 (FixedVector<int, 2>() << a1, a2).finished(),
                 obs_lengths, observations, hidden_states, 
-                create_jcsfs(n1, n2, a1, a2, hidden_states),
-                polarization_error), a1(a1), a2(a2)
+                create_jcsfs(n1, n2, a1, a2, hidden_states)), a1(a1), a2(a2)
 {
     if (a1 + a2 != 2)
         throw std::runtime_error("configuration not supported");

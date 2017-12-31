@@ -1,7 +1,6 @@
-import multiprocessing as mp
 from argparse import ArgumentParser
 
-from .. import commands, logging, version
+from .. import commands, logging, version, defaults, _smcpp
 
 def init_subparsers(subparsers_obj):
     from .. import commands
@@ -19,7 +18,6 @@ def main():
     logging.init_logging()
     logger = logging.getLogger(__name__)
     logger.debug("SMC++ " + version.version)
-    mp.set_start_method('forkserver')
     parser = ArgumentParser()
     subparsers = parser.add_subparsers(dest='command')
     subparsers.required = True

@@ -5,7 +5,7 @@ from libcpp cimport bool
 from libcpp.memory cimport unique_ptr
 from libcpp.string cimport string
 
-cdef extern from "gsl/gsl_sf_gamma.h":
+cdef extern from "<gsl/gsl_sf_gamma.h>":
     double gsl_sf_lnbeta(double, double) nogil
 
 cdef extern from "common.h":
@@ -49,6 +49,7 @@ cdef extern from "inference_manager.h":
         void setTheta(const double)
         void setRho(const double)
         void setAlpha(const double)
+        void setPolarizationError(const double)
         void Estep(bool)
         void setParams(const ParameterVector &) except +
         vector[double] loglik()
@@ -65,10 +66,10 @@ cdef extern from "inference_manager.h":
         map[block_key, Vector[adouble]]& getEmissionProbs()
     cdef cppclass OnePopInferenceManager(InferenceManager) nogil:
         OnePopInferenceManager(const int, const vector[int],
-                const vector[int*], const vector[double], const double) except +
+                const vector[int*], const vector[double]) except +
     cdef cppclass TwoPopInferenceManager(InferenceManager) nogil:
         TwoPopInferenceManager(const int, const int, const int, const int,
-                const vector[int], const vector[int*], const vector[double], const double) except +
+                const vector[int], const vector[int*], const vector[double]) except +
         void setParams(const ParameterVector&, const ParameterVector&, const ParameterVector&, const double)
     Matrix[adouble] sfs_cython(const int, const ParameterVector, const double, const double, bool) nogil
 

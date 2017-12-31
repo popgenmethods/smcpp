@@ -180,22 +180,28 @@ void check_nan(const Eigen::DenseBase<Derived> &M, const char* file, const int l
         }
 }
 
-template <typename T>
-void check_negative(const T x, const char* file, const int line)
+void check_negative(const adouble x, const char* file, const int line);
+void check_negative(const double x, const char* file, const int line);
+
+template <typename Derived>
+void check_negative(const Eigen::DenseBase<Derived> &M, const char* file, const int line)
 {
-    if (x > -1e-16)
-        return;
-    std::string s = "negative value detected at ";
-    s += file;
-    s += ":";
-    s += std::to_string(line);
-#pragma omp critical(stacktrace)
-    {
-        CRITICAL << s;
-        print_stacktrace();
-    }
-    throw std::runtime_error(s);
+    for (int i = 0; i < M.rows(); ++i)
+        for (int j = 0; j < M.cols(); ++j)
+        {
+            try 
+            {
+                check_negative(M.coeff(i, j), file, line);
+            }
+            catch (std::runtime_error)
+            {
+                CRITICAL << "rows:" << M.rows() << " cols:" << M.cols() 
+                         << " M(" << i << "," << j << ")=" << M.coeff(i, j);
+                throw;
+            }
+        }
 }
+
 
 inline adouble double_vec_to_adouble(const double &x, const std::vector<double> &dx)
 {
