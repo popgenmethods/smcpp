@@ -158,10 +158,11 @@ class Vcf2Smc(command.Command, command.ConsoleCommand):
                 ref = rec.alleles[0]
                 for di in dist:
                     for d, i in di:
-                        if len(rec.samples[d]) != 2:
+                        if len(rec.samples[d].alleles) != 2:
                             raise RuntimeError(
                                 "Expected a diploid genotype at position {} "
-                                "for individual {} but found:\n{}".format(rec.pos, d, rec))
+                                "for individual {} but found:\n{}".format(rec.pos, d,
+                                    list(rec.samples[d].alleles)))
                 da = [[rec.samples[d].alleles[i]
                    for d, i in di] for di in dist]
                 a = [sum([x != ref for x in d])

@@ -4,7 +4,7 @@ set -e
 $SMC vcf2smc -v example/example.vcf.gz /tmp/example.1.smc.gz 1 msp1:msp_0,msp_1,msp_2
 $SMC vcf2smc -d msp_0 msp_0 example/example.vcf.gz /tmp/example.2.smc.gz 1 msp2:msp_0,msp_3,msp_4
 $SMC vcf2smc -d msp_1 msp_1 example/example.vcf.gz /tmp/example.12.smc.gz 1 msp1:msp_1,msp_2 msp2:msp_3,msp_4,msp_0
-$SMC estimate -o /tmp/out/1 --unfold --knots 5 --no-multi --em-iterations 1 1.25e-8 /tmp/example.1.smc.gz
+$SMC estimate -o /tmp/out/1 --unfold --knots 5 --em-iterations 1 1.25e-8 /tmp/example.1.smc.gz
 $SMC estimate -p 0.01 -r 1e-8 -o /tmp/out/2 --knots 5 --em-iterations 1 1.25e-8 /tmp/example.2.smc.gz
 $SMC split -o /tmp/out/split --em-iterations 1 \
     /tmp/out/1/model.final.json \
