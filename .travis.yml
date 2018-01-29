@@ -3,7 +3,7 @@ sudo: false
 
 os:
   - linux
-  # - osx
+  - osx
 
 install:
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then export OS=MacOSX; else export OS=Linux; fi
@@ -15,8 +15,7 @@ install:
   - conda update -y conda python
   - conda info -a
   - conda install conda-build anaconda-client constructor git
-  - git describe --tags
-  - conda build -c terhorst -c bioconda conda --debug
+  - conda build -c terhorst -c bioconda conda
   - conda build -c terhorst -c bioconda conda --output | tee .packages
   - conda/template.py conda/construct.tpl $VERSION > conda/construct.yaml
 
