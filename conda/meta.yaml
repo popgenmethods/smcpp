@@ -1,6 +1,9 @@
 package:
   name: smcpp
-  version: {{ environ['GIT_DESCRIBE_TAG'].lstrip("v") }}
+  version: {{ GIT_DESCRIBE_TAG.lstrip('v') }}
+
+build:
+  number: {{ GIT_DESCRIBE_NUMBER }}
 
 source:
   git_url: ../

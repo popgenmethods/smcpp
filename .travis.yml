@@ -1,5 +1,4 @@
 language: generic
-dist: precise
 sudo: false
 
 os:
