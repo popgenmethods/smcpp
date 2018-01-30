@@ -11,9 +11,9 @@ source:
 requirements:
   build:
     - {{ compiler('cxx') }}
+    - llvm-openmp  # [osx]
   host:
     - python {{ python }}
-    - llvm-openmp  # [osx]
     - git >=2.9.3
     - cython >=0.25
     - setuptools >=33.1
