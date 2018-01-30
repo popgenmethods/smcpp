@@ -24,7 +24,7 @@ requirements:
     - setuptools_scm >=1.15
   run:
     - python
-    - {{ pin_compatible('llvm-openmp') }}  # [osx]
+    - llvm-openmp  # [osx]
     - cython >=0.25
     - setuptools >=33.1
     - numpy >=1.10
