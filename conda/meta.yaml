@@ -23,8 +23,6 @@ requirements:
     - setuptools_scm >=1.15
   run:
     - python
-    - {{ pin_compatible('libgcc-ng') }}
-    - {{ pin_compatible('libstdcxx-ng') }}
     - cython >=0.25
     - setuptools >=33.1
     - numpy >=1.10
