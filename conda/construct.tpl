@@ -8,5 +8,6 @@ channels:
 specs:
   - smcpp {version}
   - python 3.6.*
+  - conda
 post_install: post_install.sh
 license_file: ../LICENSE

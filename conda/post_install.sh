@@ -2,5 +2,6 @@
 echo ""
 echo "SMC++ has been installed to $PREFIX. To run it, type:"
 echo ""
-echo "    $ $PREFIX/bin/smc++"
+echo "    $ source $PREFIX/bin/activate"
+echo "    $ smc++"
 echo ""
