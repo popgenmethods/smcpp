@@ -61,7 +61,11 @@ def add_common_estimation_args(parser):
                       type=int)
     data.add_argument('--thinning', help="only emit full SFS every <k>th site. (k > 0)",
                       default=None, type=check_positive, metavar="k")
-    data.add_argument('--w', default=100, help=argparse.SUPPRESS, type=int)
+    data.add_argument('-w', default=100, help="window size. sites are grouped into blocks of size <w>. "
+                      "each block is coded as polymorphic or nonpolymorphic. "
+                      "the default w=100 matches PSMC. setting w=1 performs no windowing "
+                      "but may be more susceptible to model violations, in particular tracts "
+                      " of hypermutated sites.", type=int)
     optimizer = parser.add_argument_group("Optimization parameters")
     optimizer.add_argument("--no-initialize", action="store_true", default=False, help=argparse.SUPPRESS)
     optimizer.add_argument('--em-iterations', type=int,
