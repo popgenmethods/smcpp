@@ -214,6 +214,7 @@ class Analysis(BaseAnalysis):
             if args.t1 is None:
                 n = np.average([c.n[0] for c in self.contigs], 
                         weights=[len(c) for c in self.contigs])
+                n += 2  # distinguished lineages
                 args.t1 = 2. * NeN0 * self._N0 * -np.log(.001) / (n * (n - 1) / 2)
                 logger.info("calculated t1: %f gens", args.t1)
             rt1 = self.rescale(args.t1)
