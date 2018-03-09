@@ -43,9 +43,10 @@ class Estimate(command.EstimationCommand, command.ConsoleCommand):
                                 "be an integer >= 1. Larger values will consume more "
                                 "memory and CPU but are potentially more accurate. ")
         model.add_argument('--spline',
-                           choices=["cubic", "pchip"],
+                           choices=["cubic", "pchip", "piecewise"],
                            default=smcpp.defaults.spline,
-                           help="type of spline representation to use in model")
+                           help="type of model representation "
+                                "(smooth spline or piecewise constant) to use")
         pop_params = parser.add_argument_group('Population-genetic parameters')
         pop_params.add_argument('mu', type=float,
                                 help="mutation rate per base pair per generation")

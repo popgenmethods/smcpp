@@ -242,7 +242,8 @@ class Analysis(BaseAnalysis):
         spline_class = {"cubic": spline.CubicSpline,
                         "bspline": spline.BSpline,
                         "akima": spline.AkimaSpline,
-                        "pchip": spline.PChipSpline}[spline_class]
+                        "pchip": spline.PChipSpline,
+                        "piecewise": spline.Piecewise}[spline_class]
         assert self.npop == 1
         self._model = SMCModel(
             self._knots, self._N0,

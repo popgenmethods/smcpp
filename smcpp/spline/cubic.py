@@ -5,15 +5,7 @@ import sys
 import wrapt
 
 from .common import smooth_abs, polyval
-
-def after(meth):
-    @wrapt.decorator
-    def wrapper(wrapped, instance, args, kwargs):
-        ret = wrapped(*args, **kwargs)
-        getattr(instance, meth)()
-        return ret
-    return wrapper
-
+from .spline import Spline
 
 def _TDMASolve(a, b, c, d):
     # a, b, c == diag(-1, 0, 1)
@@ -26,14 +18,13 @@ def _TDMASolve(a, b, c, d):
     return [d[i] / b[i] for i in range(n)]
 
 
-class CubicSpline:
-    'A C2 spline.'
+class CubicSpline(Spline):
+    'A spline.'
     def __init__(self, x, y=None):
-        self._x = np.array(x)
         if y is None:
             y = np.zeros_like(x, dtype='object')
-        self._y = y
-        self._fit()
+        Spline.__init__(self, 3, x, y)
+
 
     def _fit(self):
         x = self._x
@@ -60,13 +51,6 @@ class CubicSpline:
         cc = np.append(cc, 3. * ca[-2] * h[1]**2 + 2 * cb[-2] * h[-1] + cc[-1])
         self._coef = np.array([ca, cb, cc, y])
 
-    @after('_fit')
-    def __setitem__(self, item, x):
-        self._y[item] = x
-
-    def __getitem__(self, item):
-        return self._y[item]
-
     def tv(self):
         'Integral of absolute value of first derivative.'
         s = 0.
@@ -83,44 +67,6 @@ class CubicSpline:
         xi = np.diff(self._x)
         return (12 * a**2 * xi**3 + 12 * a * b * xi**2 + 4 * b**2 * xi).sum()
 
-    def integrated_curvature(self):
-        '''Integral of curvature:
-
-            \int |f''| / (1 + (f')^2)^(3/2)
-
-        This cannot be evaluated analytically, so the integral is
-        numeric.
-        '''
-        s = 0.
-        for c, x1, x2 in zip(self._coef.T, self._x[:-1], self._x[1:]):
-            x = np.linspace(x1, x2, 50)
-            d2 = polyval(np.polyder(c, 2), x)
-            d1 = polyval(np.polyder(c, 1), x)
-            y = smooth_abs(d2) * (1. + d1**2)**(-1.5)
-            s += np.trapz(y, x)
-        return s
-
-    def squared_d2(self):
-        '''Array of numpy.poly1d representing the squared second
-        derivative of self.
-        '''
-        d2 = [np.poly1d(y).deriv(2)**2 for y in self._coef.T]
-        return (self._x, d2)
-
-    def __call__(self, points):
-        'Evaluate at points.'
-        points = np.atleast_1d(points)
-        ip = np.searchsorted(self._x, points, side="right") - 1
-        ret = np.zeros(len(points), dtype=object)
-        # The spline is constrained to be flat outside of the knot range
-        ret[ip < 0] = self._coef[-1, 0]
-        ret[ip >= len(self._x) - 1] = self._coef[-1, -1]
-        good = (0 <= ip) & (ip < len(self._x) - 1)
-        ipg = ip[good]
-        p = np.arange(4)[::-1, None]
-        xi = (points[good] - self._x[ipg]) ** p
-        ret[good] = (self._coef[:, ipg] * xi).sum(axis=0)
-        return ret
 
     def dump(self, file=sys.stderr):
         s = "Piecewise[{"
