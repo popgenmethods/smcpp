@@ -48,7 +48,7 @@ class BaseAnalysis:
         pipe.add_filter(data_filter.BreakLongSpans(cutoff=100000))
         pipe.add_filter(data_filter.DropSmallContigs(100000))
         pipe.add_filter(watterson=data_filter.Watterson())
-        pipe.add_filter(mutation_counts=data_filter.CountMutations(w=args.w ** 2))
+        pipe.add_filter(mutation_counts=data_filter.CountMutations(w=int(1e-2 / self._rho)))
 
 
     @property
