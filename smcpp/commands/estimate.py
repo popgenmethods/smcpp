@@ -28,12 +28,12 @@ class Estimate(command.EstimationCommand, command.ConsoleCommand):
         '''Configure parser and parse args.'''
         model = parser.add_argument_group('Model parameters')
         model.add_argument("--initial-model", help=argparse.SUPPRESS)
-        model.add_argument('--t1', type=float, 
-                           default=smcpp.defaults.t1,
-                           help="starting point of first piece, in generations")
-        model.add_argument('--tK', type=float,
-                           help="end-point of last piece, in generations",
-                           default=smcpp.defaults.tK)
+        model.add_argument('--timepoints', type=str, default="h",
+                           help="starting and ending time points of model. "
+                                "this can be either a comma separated list of two numbers `t1,tK`"
+                                "indicating starting and ending generations, or the special value 'h' "
+                                "indicating that they should be determined based on the data using an "
+                                "heuristic calculation.")
         model.add_argument('--knots', type=int,
                            default=smcpp.defaults.knots,
                            help="number of knots to use in internal representation")

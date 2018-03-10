@@ -399,15 +399,16 @@ good estimates*.
   this has worked well for sample sizes on the order of ``20 <= n <= 200`` but you
   may need to experiment a bit.
 
-- ``--t1``, ``--tK``: These specify the starting and ending points (in generations) for the
-  size history; outside of these intervals, the size history is assumed to be constant with
-  value equal to that of the corresponding end point. SMC++ uses a heuristic based on sample 
-  to set ``t1``; larger samples are needed to obtain accurate inferences in the recent past. You
-  may override ``t1``, but setting it too small could lead to instability.
+- ``--timepoints``: This command specifies the starting and ending time points
+  of the model.  It accepts either a comma-separated list of two numbers
+  `t1,tK` specifying the starting and ending time points of the model (in
+  generations), or the default setting `h`. If `h` is specified, SMC++ will use
+  an experimental heuristic to calculate the model time points points
+  automatically.
 
 - ``--regularization-penalty``: This parameter penalizes curvature in
   the estimated size history. The default value of this parameter is
-  ``9.0``. Lower values of the penalty shrink the estimated
+  ``6.0``. Lower values of the penalty shrink the estimated
   size history towards a line. If your estimates exhibit too much
   oscillation, try decreasing the value of this parameter. (Note that this
   behavior is different than in versions 1.7.0 and earlier.)
