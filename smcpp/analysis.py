@@ -238,7 +238,8 @@ class Analysis(BaseAnalysis):
         self._model.randomize()
         self._init_optimizer(args.outdir,
                              args.algorithm, args.xtol, args.ftol,
-                             learn_rho=True, single=not args.multi)
+                             learn_rho=args.r is None,
+                             single=not args.multi)
         self._init_regularization(args)
 
 
