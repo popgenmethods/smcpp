@@ -232,7 +232,7 @@ Caveats
 users. In particular, you should be aware that:
 
 - The ancestral allele is assumed to be the reference allele.
-- The FILTER column is ignored.
+- The FILTER and QUAL columns are ignored.
 - Indels, structural variants, and any non-SNP data are ignored.
 - For sites containing multiple entries in the VCF, all but the first
   entry is ignored.
