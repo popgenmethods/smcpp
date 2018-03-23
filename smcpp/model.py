@@ -257,11 +257,12 @@ class SMCTwoPopulationModel(Observable, Observer):
             assert self.model1.N0 == self.model2.N0
             assert self.model1._spline_class is self.model2._spline_class
             k1, k2 = [np.searchsorted(m.knots, self.split) for m in (self.model1, self.model2)]
-            kts = np.r_[self.model2.knots[:k2], [self.split], self.model1.knots[k1 + 1:]]
+            kts = np.unique(np.sort(np.r_[self.model1.knots, self.model2.knots, self.split]))
+            i = np.searchsorted(kts, self.split)
             m = SMCModel(kts, self.model1.N0, self.model2._spline_class, self.model2.pid)
-            m[:k2] = self.model2[:k2]
-            m[k2] = ad.admath.log(self.model1(self.split).item())
-            m[k2 + 1:] = self.model1[k1 + 1:]
+            m[:i] = self.model2(kts[:i])
+            m[i] = ad.admath.log(self.model1(self.split).item())
+            m[i + 1:] = self.model1(kts[i + 1:])
             return m
             # return _concat_models(self.model1, self.model2, self.split)
 
