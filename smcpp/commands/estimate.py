@@ -11,7 +11,7 @@ import os.path
 
 # Package imports
 from ..logging import getLogger
-from ..analysis import Analysis
+from smcpp.analysis.analysis import Analysis
 from . import command
 import smcpp.defaults
 

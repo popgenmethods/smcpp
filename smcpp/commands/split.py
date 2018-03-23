@@ -13,7 +13,7 @@ import json
 
 # Package imports
 from ..logging import getLogger, add_debug_log
-from ..analysis import SplitAnalysis
+from smcpp.analysis.split import SplitAnalysis
 from . import command
 
 logger = getLogger(__name__)
