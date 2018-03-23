@@ -3,7 +3,7 @@
 import numpy as np
 import argparse
 
-from smcpp.estimation_tools import load_data, thin_dataset
+from smcpp.estimation_tools import load_data
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
