@@ -9,7 +9,6 @@ import smcpp.defaults
 from smcpp.observe import Observable
 from smcpp.logging import getLogger
 from smcpp.optimize.plugins.optimizer_plugin import OptimizerPlugin
-import smcpp.optimize.algorithms
 from .exceptions import *
 
 logger = getLogger(__name__)
@@ -78,10 +77,10 @@ class AbstractOptimizer(Observable):
     def _minimize(self, x0, coords):
         self._xk = self._k = self._delta = None
         try:
-            try:  # Adam/AdaMax
-                alg = getattr(smcpp.optimize.algorithms, self._algorithm)
-            except AttributeError:
-                alg = self._algorithm
+            alg = self._algorithm
+            if alg == 'Powell':
+                self._prepare_x = lambda self, x: map(ad.adnumber, x)
+
             options = {
                     # 'xtol': self._xtol, 'ftol': self._ftol, 'disp': True
                     }
@@ -121,6 +120,7 @@ class AbstractOptimizer(Observable):
                         args=(self._analysis, coords),
                         method='bounded')
                 res.x = np.array([res.x])
+            logger.debug(res)
             improv = (f0 - res.fun) / abs(f0)
             logger.debug("%% improvement in f=%f", improv)
             # if improv < self._ftol:

@@ -35,6 +35,9 @@ class BaseModel(Observable):
     def pid(self):
         return self._pid
 
+    def __len__(self):
+        return len(self[:])
+
     @returns_ad
     def regularizer(self):
         # curvature
