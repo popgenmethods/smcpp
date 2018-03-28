@@ -78,7 +78,7 @@ class Analysis(base.BaseAnalysis):
         self._init_optimizer(args.outdir,
                              args.algorithm, args.xtol, args.ftol,
                              learn_rho=args.r is None,
-                             single=not args.multi)
+                             single=args.no_multi)
         self._init_regularization(args)
 
 
