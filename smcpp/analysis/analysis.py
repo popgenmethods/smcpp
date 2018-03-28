@@ -33,10 +33,11 @@ class Analysis(base.BaseAnalysis):
         # Optionally initialize from pre-specified model
         if args.initial_model:
             d = json.load(open(args.initial_model, "rt"))
+            logger.debug("Import model:\n%s", d)
             self._theta = d['theta']
             self._rho = d['rho']
             self._model = base._model_cls_d[d['model']['class']].from_dict(d['model'])
-            hs = self.rescale(smcpp.estimation_tools.balance_hidden_states(self._model, args.knots))
+            hs = self.rescale(smcpp.estimation_tools.balance_hidden_states(self._model, len(self._model) + 2))
             self._hidden_states = {k: hs for k in self.populations}
             self._knots = hs[1:-1]
             logger.debug("rebalanced hidden states: %s", self._hidden_states)

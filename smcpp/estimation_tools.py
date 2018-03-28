@@ -98,7 +98,7 @@ def recode_nonseg(contig, cutoff):
             txt = " (converted to missing)"
             d[runs, 1::3] = -1
             d[runs, 3::3] = 0
-        f("Long runs of homozygosity%s in contig %s: \n%s", txt, contig.fn, d[runs])
+        f("Long runs of homozygosity%s in contig %s: \n%s (base pairs)", txt, contig.fn, d[runs, 0])
     return contig
 
 
@@ -116,7 +116,7 @@ def break_long_spans(contig, span_cutoff):
         np.all(obs[:, 3::3] == 0, axis=1))[0]
     cob = 0
     if obs[long_spans].size:
-        logger.debug("Long missing spans: \n%s", (obs[long_spans]))
+        logger.debug("Long missing spans:\n%s (base pairs)", (obs[long_spans, 0]))
     positions = np.insert(np.cumsum(obs[:, 0]), 0, 0)
     for x in long_spans.tolist() + [None]:
         s = obs[cob:x, 0].sum()
