@@ -292,7 +292,7 @@ cdef class _PyInferenceManager:
                 ad_rets = self._im.Q()
         except RuntimeError as e:
             if str(e) == "SFS is not a probability distribution":
-                logger.debug("Model does not induce a valid probability distribution")
+                logger.warn("Model does not induce a valid probability distribution")
                 return adnumber(-np.inf)
             raise
         _check_abort()

@@ -108,13 +108,6 @@ EIGEN_AUTODIFF_DECLARE_GLOBAL_UNARY(log1p,
 
 inline void init_eigen() { Eigen::initParallel(); }
 
-inline void fill_jacobian(const adouble &ll, double* outjac)
-{
-    adouble_t d = ll.derivatives();
-    Eigen::Map<Eigen::Matrix<double, Eigen::Dynamic, 1>, Eigen::RowMajor> _jac(outjac, d.rows());
-    _jac = d.template cast<double>();
-}
-
 void store_matrix(const Matrix<double> &M, double* out);
 void store_matrix(const Matrix<adouble> &M, double* out);
 void store_matrix(const Matrix<adouble> &M, double *out, double *jac);
@@ -157,6 +150,13 @@ struct Logger
 #define CHECK_NAN(x) check_nan(x, __FILE__, __LINE__)
 #define CHECK_NAN_OR_NEGATIVE(x) check_nan(x, __FILE__, __LINE__); check_negative(x, __FILE__, __LINE__);
 #endif
+
+inline void fill_jacobian(const adouble &ll, double* outjac)
+{
+    adouble_t d = ll.derivatives();
+    Eigen::Map<Eigen::Matrix<double, Eigen::Dynamic, 1>, Eigen::RowMajor> _jac(outjac, d.rows());
+    _jac = d.template cast<double>();
+}
 
 void check_nan(const double x, const char* file, const int line);
 void check_nan(const adouble &x, const char* file, const int line);
