@@ -79,7 +79,7 @@ class AbstractOptimizer(Observable):
         try:
             alg = self._algorithm
             if alg == 'Powell':
-                self._prepare_x = lambda self, x: map(ad.adnumber, x)
+                self._prepare_x = lambda x: list(map(ad.adnumber, x))
 
             options = {
                     # 'xtol': self._xtol, 'ftol': self._ftol, 'disp': True
