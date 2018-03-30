@@ -7,7 +7,7 @@ class Spline:
         self._p = p
         self._x = x
         self._y = y
-        self._coef = np.zeros([p + 1, len(x)])
+        self._coef = np.zeros([p + 1, len(x)], dtype=object)
         self._fit()
 
     def __setitem__(self, item, x):
