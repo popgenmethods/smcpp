@@ -206,13 +206,33 @@ class BreakLongSpans(Filter):
 
 
 @attr.s
+class DropUninformativeContigs(Filter):
+    def _n_variable_sites(self, c):
+        d = c.data
+        return ((d[:, 1::3].sum(axis=1) > 0) | (d[:, 2::3].sum(axis=1) > 0)).sum()
+
+    def run(self, contigs):
+        ret = []
+        for c in contigs:
+            if self._n_variable_sites(c):
+                ret.append(c)
+            else:
+                logger.debug("Dropping a contig derived from %s which has no mutations.", c.fn)
+        if len(ret) == 0:
+            logger.error("No contigs have mutation data. Inference is impossible.")
+            raise RuntimeError()
+        return ret
+
+
+@attr.s
 class DropSmallContigs(Filter):
     cutoff = attr.ib()
 
     def run(self, contigs):
         ret = [c for c in contigs if len(c) > self.cutoff]
         if len(ret) == 0:
-            logger.error("All contigs are <.01cM (estimated). Please double check your data")
+            logger.error("All contigs are <.01cM (estimated). "
+                         "Please double check your data.")
             raise RuntimeError()
         return ret
 

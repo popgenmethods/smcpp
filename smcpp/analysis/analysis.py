@@ -22,6 +22,7 @@ class Analysis(base.BaseAnalysis):
         pipe.add_filter(data_filter.RecodeMonomorphic())
         pipe.add_filter(data_filter.Compress())
         pipe.add_filter(data_filter.Validate())
+        pipe.add_filter(data_filter.DropUninformativeContigs())
         pipe.add_filter(data_filter.Summarize())
 
         if self.npop != 1:
@@ -45,6 +46,11 @@ class Analysis(base.BaseAnalysis):
             if args.timepoints == "h":
                 mc = self._pipeline['mutation_counts'].counts
                 w = self._pipeline['mutation_counts'].w
+                if np.all(mc == 0):
+                    logger.error("Heuristic used to calculate time points has failed, "
+                                 "possibly due to having a lot of missing data. Please "
+                                 "set the --timepoints option manually.")
+                    raise RuntimeError()
                 q = smcpp.beta_de.quantile(mc / w, 1. / w, np.geomspace(1e-2, .99, args.knots))
                 tau = q / (2. * self._theta)
                 self._knots = tau
