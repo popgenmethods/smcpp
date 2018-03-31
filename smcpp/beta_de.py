@@ -20,9 +20,8 @@ def harmonic_number(x):
 def quantile(X, h, q):
     # def g(y):
     #     return scipy.stats.beta.pdf(X[None, :], 1. + y / h, 1. + (1. - y) / h).mean(axis=1)
-    import smcpp._smcpp
     x = np.linspace(0, 1., 10000)[1:]
-    y = smcpp._smcpp.beta_de_avg_pdf(X, x, h)
+    y = estimation_tools.beta_de_avg_pdf(X, x, h)  # this is implemented in cython
     x = np.r_[0, x]
     y = np.cumsum(np.r_[0, y])
     y /= y[-1]
@@ -54,10 +53,11 @@ def sample_beta_kernel(X, mu, h):
 
     def g(y):
         return scipy.stats.beta.logpdf(X, 1. + y / h, 1. + (1. - y) / h)
+
     def dg(y):
         '(Sign of) dg/dy'
-        return (harmonic_number((1 - y) / h) - 
-                harmonic_number(y / h) - 
+        return (harmonic_number((1 - y) / h) -
+                harmonic_number(y / h) -
                 np.log(1 / X - 1))
 
     # Slice sample from unimodal density g.
@@ -71,6 +71,7 @@ def sample_beta_kernel(X, mu, h):
     else:
         assert dg(0) > 0 and dg(1) < 0
         mid = scipy.optimize.brentq(dg, 0, 1)
+
         def sl(z):
             l, _ = positive_part(lambda y: g(y) - z, 0, mid)
             l1, _ = positive_part(lambda y: g(1 - y) - z, 0, 1 - mid)

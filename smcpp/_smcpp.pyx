@@ -2,7 +2,6 @@ cimport openmp
 cimport numpy as np
 from libc.math cimport exp, log
 from cython.operator cimport dereference as deref, preincrement as inc
-from cython.parallel import prange
 
 import random
 import sys
@@ -481,19 +480,3 @@ def realign(contig, int w):
     contig.data = ret
 
 
-def beta_de_avg_pdf(double[:] X, double[:] y, double h):
-    ret = np.zeros(y.shape[0])
-    cdef double[:] vret = ret
-    cdef int i, j
-    cdef double a, b, ln_B
-    for j in prange(y.shape[0], nogil=True):
-        a = 1. + y[j] / h
-        b = 1. + (1. - y[j]) / h
-        ln_B = gsl_sf_lnbeta(a, b)
-        for i in range(X.shape[0]):
-            if (a == 1 and X[i] == 0.) or (b == 1 and X[i] == 1.):
-                vret[j] += exp(-ln_B)
-            if 0. < X[i] < 1.:
-                vret[j] += exp((a - 1.) * log(X[i]) + (b - 1.) * log(1. - X[i]) - ln_B)
-    ret /= len(X)
-    return ret

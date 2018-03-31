@@ -1,6 +1,9 @@
+from cython.parallel import prange
 from libc.math cimport exp, log
 import numpy as np
 
+cdef extern from "<gsl/gsl_sf_gamma.h>":
+    double gsl_sf_lnbeta(double, double) nogil
 
 def thin_data(data, int thinning, int offset=0):
     '''
@@ -250,3 +253,21 @@ def windowed_mutation_counts(contig, int w):
                     last[k] = cd[i, k]
     ret[j] = [nmiss, mut]
     return ret.T
+
+
+def beta_de_avg_pdf(double[:] X, double[:] y, double h):
+    ret = np.zeros(y.shape[0])
+    cdef double[:] vret = ret
+    cdef int i, j
+    cdef double a, b, ln_B
+    for j in prange(y.shape[0], nogil=True):
+        a = 1. + y[j] / h
+        b = 1. + (1. - y[j]) / h
+        ln_B = gsl_sf_lnbeta(a, b)
+        for i in range(X.shape[0]):
+            if (a == 1 and X[i] == 0.) or (b == 1 and X[i] == 1.):
+                vret[j] += exp(-ln_B)
+            if 0. < X[i] < 1.:
+                vret[j] += exp((a - 1.) * log(X[i]) + (b - 1.) * log(1. - X[i]) - ln_B)
+    ret /= len(X)
+    return ret

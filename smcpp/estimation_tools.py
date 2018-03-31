@@ -11,7 +11,7 @@ import itertools
 
 from . import util, logging, model, defaults
 from .contig import Contig
-from ._estimation_tools import realign, thin_data, bin_observations, windowed_mutation_counts
+from ._estimation_tools import realign, thin_data, bin_observations, windowed_mutation_counts, beta_de_avg_pdf
 
 
 logger = logging.getLogger(__name__)
@@ -56,9 +56,9 @@ def compress_repeated_obs(dataset):
 
 
 def decompress_polymorphic_spans(dataset):
-    miss = (np.all(dataset[:, 1::3] == -1, axis=1) & 
+    miss = (np.all(dataset[:, 1::3] == -1, axis=1) &
             np.all(dataset[:, 3::3] == 0, axis=1))
-    nonseg = (np.all(dataset[:, 1::3] == 0, axis=1) & 
+    nonseg = (np.all(dataset[:, 1::3] == 0, axis=1) &
               (np.all(dataset[:, 2::3] == dataset[:, 3::3], axis=1) |
                np.all(dataset[:, 2::3] == 0, axis=1)))
     psp = np.where((dataset[:, 0] > 1) & (~nonseg) & (~miss))[0]
@@ -69,10 +69,12 @@ def decompress_polymorphic_spans(dataset):
     for i in psp:
         row = dataset[i]
         if first:
-            ret = np.r_[dataset[last:i], np.tile(np.r_[1, row[1:]], (row[0], 1))]
+            ret = np.r_[dataset[last:i], np.tile(
+                np.r_[1, row[1:]], (row[0], 1))]
             first = False
         else:
-            ret = np.r_[ret, dataset[last:i], np.tile(np.r_[1, row[1:]], (row[0], 1))]
+            ret = np.r_[ret, dataset[last:i], np.tile(
+                np.r_[1, row[1:]], (row[0], 1))]
         last = i + 1
     ret = np.r_[ret, dataset[last:]]
     return ret
@@ -98,7 +100,8 @@ def recode_nonseg(contig, cutoff):
             txt = " (converted to missing)"
             d[runs, 1::3] = -1
             d[runs, 3::3] = 0
-        f("Long runs of homozygosity%s in contig %s: \n%s (base pairs)", txt, contig.fn, d[runs, 0])
+        f("Long runs of homozygosity%s in contig %s: \n%s (base pairs)",
+          txt, contig.fn, d[runs, 0])
     return contig
 
 
@@ -116,7 +119,8 @@ def break_long_spans(contig, span_cutoff):
         np.all(obs[:, 3::3] == 0, axis=1))[0]
     cob = 0
     if obs[long_spans].size:
-        logger.debug("Long missing spans:\n%s (base pairs)", (obs[long_spans, 0]))
+        logger.debug("Long missing spans:\n%s (base pairs)",
+                     (obs[long_spans, 0]))
     positions = np.insert(np.cumsum(obs[:, 0]), 0, 0)
     for x in long_spans.tolist() + [None]:
         s = obs[cob:x, 0].sum()
@@ -195,10 +199,10 @@ def calculate_t1(model, n, q):
     import smcpp._smcpp
     eta = smcpp._smcpp.PyRateFunction(model, [0., np.inf])
     c = n * (n - 1) / 2
+
     def f(t):
         return np.expm1(-c * eta.R(t)) + q
     return scipy.optimize.brentq(f, 0., model.knots[-1])
-
 
 
 def _load_data_helper(fn):
@@ -219,7 +223,7 @@ def _load_data_helper(fn):
             attrs = json.loads(first_line[7:])
             a = [len(a) for a in attrs['dist']]
             n = [len(u) for u in attrs['undist']]
-            if "pids" not in attrs:  
+            if "pids" not in attrs:
                 # FIXME this code really only exists to analyze old data sets (before the fmt changed)
                 # it should probably be removed
                 attrs["pids"] = ["pop%d" % i for i, _ in enumerate(a, 1)]

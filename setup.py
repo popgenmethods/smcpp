@@ -38,6 +38,7 @@ extensions = [
             "smcpp._estimation_tools",
             sources=["smcpp/_estimation_tools.pyx"],
             include_dirs=[np.get_include()],
+            libraries=libraries
             )
         ]
 

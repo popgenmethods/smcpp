@@ -5,9 +5,6 @@ from libcpp cimport bool
 from libcpp.memory cimport unique_ptr
 from libcpp.string cimport string
 
-cdef extern from "<gsl/gsl_sf_gamma.h>":
-    double gsl_sf_lnbeta(double, double) nogil
-
 cdef extern from "common.h":
     ctypedef vector[vector[adouble]] ParameterVector
     cdef cppclass Vector[T]:
