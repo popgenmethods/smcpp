@@ -172,7 +172,7 @@ class CountMutations(Filter):
                     estimation_tools.windowed_mutation_counts, 
                     contigs,
                     (self.w for _ in iter(int, 1)))
-            mc = np.array([m for nmiss, muts in bincounts 
+            mc = np.array([m * self.w / nm for nmiss, muts in bincounts
                     for m, nm in zip(muts, nmiss)
                     if nm > .5 * self.w])
         res = scipy.stats.mstats.mquantiles(mc, [0, .05, .95, 1])
