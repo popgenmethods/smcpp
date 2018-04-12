@@ -263,9 +263,9 @@ class SMCTwoPopulationModel(Observable, Observer):
             kts = np.unique(np.sort(np.r_[self.model1.knots, self.model2.knots, self.split]))
             i = np.searchsorted(kts, self.split)
             m = SMCModel(kts, self.model1.N0, self.model2._spline_class, self.model2.pid)
-            m[:i] = self.model2(kts[:i])
+            m[:i] = ad.admath.log(self.model2(kts[:i]))
             m[i] = ad.admath.log(self.model1(self.split).item())
-            m[i + 1:] = self.model1(kts[i + 1:])
+            m[i + 1:] = ad.admath.log(self.model1(kts[i + 1:]))
             return m
             # return _concat_models(self.model1, self.model2, self.split)
 
