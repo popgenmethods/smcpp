@@ -46,10 +46,13 @@ class BaseModel(Observable):
         rd = smcpp.defaults.regularization_degree
         cs = np.cumsum(self.s)[:-rd]
         d1 = np.diff(y, rd)
-        r1 = abs(d1 ** rd).sum() ** (1. / rd)
+        if rd == 1:
+            r1 = abs(d1).sum()
+        else:
+            r1 = abs(d1 ** rd).sum() ** (1. / rd)
         r2 = self._spline.roughness() ** .5
         logger.debug("r1:%f r2:%f", float(r1), float(r2))
-        return r2
+        return r1
 
 
 # Dummy class used for JCSFS and a few other places
