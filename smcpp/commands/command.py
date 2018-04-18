@@ -84,6 +84,12 @@ def add_common_estimation_args(parser):
                            default=smcpp.defaults.xtol,
                            help=r"x tolerance for optimizer. "
                            "optimizer will stop when |x' - x|_\infty < xtol")
+    optimizer.add_argument('--Nmax', type=float,
+            default=smcpp.defaults.maximum_population_size,
+            help="upper bound on scaled effective population size")
+    optimizer.add_argument('--Nmin', type=float,
+            default=smcpp.defaults.minimum_population_size,
+            help="lower bound on scaled effective population size")
     optimizer.add_argument('--regularization-penalty', '-rp',
                            type=float, help="regularization penalty",
                            default=smcpp.defaults.regularization_penalty)

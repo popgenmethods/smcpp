@@ -187,7 +187,11 @@ class SMCModel(BaseModel):
         self[:] = res.x
 
     def stepwise_values(self):
-        return self(np.cumsum(self.s))
+        ret = np.clip(self(np.cumsum(self.s)),
+                smcpp.defaults.minimum_population_size,
+                smcpp.defaults.maximum_population_size)
+        # logger.debug("self[:]: %s\ns: %s\nstep(): %s", self[:], self.s, ret)
+        return ret
 
     def reset(self):
         self[:] = 0.
