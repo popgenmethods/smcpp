@@ -435,11 +435,11 @@ requires additional regularization.
 
 Frequently asked questions
 ==========================
-The binary installer dies with the error message:: 
+1.  *The binary installer dies with the error message*:: 
 
-    ImportError: /lib64/libc.so.6: version `GLIBC_2.14' not found (required by ...).
+      ImportError: /lib64/libc.so.6: version `GLIBC_2.14' not found (required by ...).
     
-How can I fix this?
+    *How can I fix this*?
 
     This is due to a ``glibc`` version mismatch between your system and
     the build server I use to create the binary installers. Unfortunately,
@@ -450,8 +450,8 @@ How can I fix this?
     linking a different version of ``glibc`` at runtime is **not** supported, 
     and will likely cause random crashes.
 
-SMC++ claims that my population crashed in the very recent past. What's
-going on?
+2.  *SMC++ claims that my population crashed in the very recent past. What's
+    going on*?
 
     Typically this is due to long runs of homozygosity (ROH) in the data, which can arise for
     one of several reasons:
@@ -461,7 +461,13 @@ going on?
     3. Uncalled regions in your VCF were not marked as such before running vcf2smc_. 
 
     #1 represents real signal, while #2 and #3 should be filtered out using the ``-m`` 
-    option of vcf2smc_ and/or the ``-c`` option of estimate_.
+    option of vcf2smc_ and/or the ``-c`` option of estimate_.-
+    
+3.  *How do I get the estimated recombination rate*?
+    
+    The ``model.final.json`` output file contains fields named ``rho`` and ``N0``. ``rho`` is 
+    the estimated population-scaled recombination rate per base-pair. 
+    To convert it to units of generations, multiply by ``2 * N0``.
 
     
 What to do if you encounter trouble
