@@ -31,7 +31,9 @@ class Estimate(command.EstimationCommand, command.ConsoleCommand):
         model.add_argument('--timepoints', type=str, default="h",
                            help="starting and ending time points of model. "
                                 "this can be either a comma separated list of two numbers `t1,tK`"
-                                "indicating starting and ending generations, or the special value 'h' "
+                                "indicating starting and ending generations, "
+                                "a single value, indicating the starting time point, "
+                                "or the special value 'h' "
                                 "indicating that they should be determined based on the data using an "
                                 "heuristic calculation.")
         model.add_argument('--knots', type=int,

@@ -38,43 +38,51 @@ class Analysis(base.BaseAnalysis):
             self._theta = d['theta']
             self._rho = d['rho']
             self._model = base._model_cls_d[d['model']['class']].from_dict(d['model'])
-            hs = self.rescale(smcpp.estimation_tools.balance_hidden_states(self._model, len(self._model) + 2))
+            hs = self.rescale(
+                smcpp.estimation_tools.balance_hidden_states(self._model,
+                                                             len(self._model) + 2))[1:-1]
             self._hidden_states = {k: hs for k in self.populations}
-            self._knots = hs[1:-1]
+            self._knots = hs
             logger.debug("rebalanced hidden states: %s", self._hidden_states)
         else:
-            if args.timepoints == "h":
-                mc = self._pipeline['mutation_counts'].counts
-                w = self._pipeline['mutation_counts'].w
-                if np.all(mc == 0):
-                    logger.error("Heuristic used to calculate time points has failed, "
-                                 "possibly due to having a lot of missing data. Please "
-                                 "set the --timepoints option manually.")
-                    raise RuntimeError()
-                q = smcpp.beta_de.quantile(mc / w, 1. / w, np.geomspace(1e-2, .99, args.knots))
-                tau = q / (2. * self._theta)
-                self._knots = tau
-                n = np.average([c.n[0] for c in self.contigs], 
-                        weights=[len(c) for c in self.contigs])
-                if n > 0:
+            mc = self._pipeline['mutation_counts'].counts
+            w = self._pipeline['mutation_counts'].w
+            if np.all(mc == 0):
+                logger.error("Heuristic used to calculate time points has failed, "
+                             "possibly due to having a lot of missing data. Please "
+                             "set the --timepoints option manually.")
+                raise RuntimeError()
+            q = smcpp.beta_de.quantile(mc / w, 1. / w, np.geomspace(1e-2, .999, args.knots))
+            tau = q / (2. * self._theta)
+            # Assign hidden states based on estimated coalescence quantiles
+            self._hidden_states = {k: tau for k in self.populations}
+            logger.debug("hidden states in coalescent scaling: %s", tau)
+            self._knots = tau
+        if any([args.timepoints == "h", "," not in args.timepoints]):
+            n = np.average([c.n[0] for c in self.contigs],
+                    weights=[len(c) for c in self.contigs])
+            if n > 0 or args.timepoints != "h":
+                if args.timepoints != "h":
+                    try:
+                        t1 = float(args.timepoints)
+                    except:
+                        logger.error("Could not parse --timepoints; see --help.")
+                        sys.exit(1)
+                else:
                     t1 = 2. * NeN0 * self._N0 * -np.log(.001) / (n * (n - 1) / 2)
                     logger.info("calculated t1: %f gens", t1)
-                    rt1 = self.rescale(t1)
-                    if rt1 < self._knots[0]:
-                        self._knots = np.r_[np.geomspace(rt1, self._knots[0], args.knots // 4, False), self._knots]
-                logger.debug("Determined knots heuristically to be: %s", self._knots)
-            else:
-                try:
-                    t1, tK = [float(x) / 2. / self._N0 for x in args.timepoints.split(",")]
-                    self._knots = np.geomspace(t1, tK, args.knots, False)
-                    logger.debug("Knots are: %s", self._knots)
-                except:
-                    raise RuntimeError("Could not parse time points. "
-                                       "See documentation for --timepoints option.")
-            hs = np.r_[0., self._knots, np.inf]
-            self._hidden_states = {k: hs for k in self.populations}
-
-        logger.debug("hidden states in coalescent scaling: %s", hs)
+                rt1 = self.rescale(t1)
+                if rt1 < self._knots[0]:
+                    self._knots = np.r_[np.geomspace(rt1, self._knots[0], args.knots // 4, False), self._knots]
+            logger.debug("Determined knots heuristically to be: %s", self._knots)
+        else:
+            try:
+                t1, tK = [float(x) / 2. / self._N0 for x in args.timepoints.split(",")]
+                self._knots = np.geomspace(t1, tK, args.knots, False)
+                logger.debug("Knots are: %s", self._knots)
+            except:
+                raise RuntimeError("Could not parse time points. "
+                                   "See documentation for --timepoints option.")
 
         self._init_model(args.spline)
         self._init_inference_manager(args.polarization_error, self._hidden_states)

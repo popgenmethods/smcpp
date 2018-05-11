@@ -72,7 +72,9 @@ def add_common_estimation_args(parser):
                            help="number of EM steps to perform", default=20)
     optimizer.add_argument('--algorithm',
                            choices=["Powell", "L-BFGS-B", "TNC"],
-                           default="Powell", help=argparse.SUPPRESS)
+                           default="L-BFGS-B", help="optimization algorithm. Powell's method "
+                                   "is used by {P,MS}MC and does not require gradients. It may "
+                                   "be faster in some cases.")
     optimizer.add_argument('--no-multi', default=False, action="store_true",
                            help="do not update multiple blocks of coordinates at once")
     optimizer.add_argument("--ftol", type=float,
