@@ -40,19 +40,24 @@ class BaseModel(Observable):
 
     @returns_ad
     def regularizer(self):
-        # curvature
-        a = self.stepwise_values()
-        y = ad.admath.log(a)
         rd = smcpp.defaults.regularization_degree
-        cs = np.cumsum(self.s)[:-rd]
-        d1 = np.diff(y, rd)
-        if rd == 1:
-            r1 = abs(d1).sum()
-        else:
-            r1 = abs(d1 ** rd).sum() ** (1. / rd)
-        r2 = self._spline.roughness() ** .5
-        logger.debug("r1:%f r2:%f", float(r1), float(r2))
-        return r1
+        def f(x):
+            if rd == 1:
+                return abs(x)
+            else:
+                return x ** rd
+        return f(np.diff(self[:], rd)).sum() ** (1. / rd)
+        y = self[:]
+        dx2 = np.diff(np.log(np.r_[1e-5, self.knots])) ** rd
+        seq = [(-1) ** j * scipy.misc.comb(rd, j) for j in range(rd + 1)]
+        u = np.convolve(y, seq, 'valid')
+        v = dx2[rd:]
+        if len(v) != len(u):
+            return 0.
+        # logger.debug(u)
+        # logger.debug(v)
+        # logger.debug(u / v)
+        return f(u / v).sum() ** (1. / rd)
 
 
 # Dummy class used for JCSFS and a few other places
@@ -62,6 +67,10 @@ class PiecewiseModel(BaseModel):
         assert len(a) == len(s)
         self.s = np.array(s)
         self.a = np.array(a)
+
+    @property
+    def knots(self):
+        return np.cumsum(self.s)
 
     @property
     def distinguished_model(self):
@@ -85,6 +94,11 @@ class PiecewiseModel(BaseModel):
             except AttributeError:
                 pass
         return tag_sort(ret)
+
+
+    def for_pop(self, pop):
+        assert pop == self.pid
+        return self
 
 
 class OldStyleModel(PiecewiseModel):
@@ -111,14 +125,6 @@ class SMCModel(BaseModel):
         super().__init__(N0, pid)
         self._spline_class = spline_class
         self._knots = np.array(knots)
-        self._s = np.r_[
-                self._knots[:1],
-                np.diff(
-                    np.logspace(np.log10(self._knots[0]),
-                                np.log10(self._knots[-1]),
-                                smcpp.defaults.pieces)
-                    )
-                ]
         self._trans = np.log
         # self._trans = lambda x: x
         self._spline = self._spline_class(self.transformed_knots)
@@ -129,7 +135,14 @@ class SMCModel(BaseModel):
 
     @property
     def s(self):
-        return self._s
+        return np.r_[
+                self._knots[0],
+                np.diff(
+                    np.logspace(np.log10(self._knots[0]),
+                                np.log10(self._knots[-1]),
+                                smcpp.defaults.pieces)
+                    )
+                ]
 
     @property
     def K(self):
@@ -190,7 +203,10 @@ class SMCModel(BaseModel):
         ret = np.clip(self(np.cumsum(self.s)),
                 smcpp.defaults.minimum_population_size,
                 smcpp.defaults.maximum_population_size)
-        # logger.debug("self[:]: %s\ns: %s\nstep(): %s", self[:], self.s, ret)
+        # logger.debug("self[:]: %s\ncs: %s\nstep(): %s",
+        #         self[:].astype(float).round(2),
+        #         np.cumsum(self.s).astype(float).round(2),
+        #         ret.astype(float).round(2))
         return ret
 
     def reset(self):
