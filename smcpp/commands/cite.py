@@ -16,7 +16,7 @@ BIBTEX = """@article{smc++,
 PLAIN = """
 J. Terhorst, J. A. Kamm, and Y. S. Song. Robust and scalable inference
 of population history from hundreds of unphased whole genomes. Nature
-Genetics, 49(2):303–309, 2017.
+Genetics, 49(2):303-309, 2017.
 """
 
 
