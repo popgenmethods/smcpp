@@ -110,3 +110,37 @@ def add_hmm_args(parser):
                               help="uncertainty parameter for polarized SFS: observation (a,b) "
                               "has probability [(1-p)*CSFS_{a,b} + p*CSFS_{2-a,n-2-b}]. "
                               "default: 0.5")
+
+def add_model_parameters(parser):
+    model = parser.add_argument_group('Model parameters')
+    model.add_argument('--timepoints', type=str, default="h",
+                       help="starting and ending time points of model. "
+                            "this can be either a comma separated list of two numbers `t1,tK`"
+                            "indicating starting and ending generations, "
+                            "a single value, indicating the starting time point, "
+                            "or the special value 'h' "
+                            "indicating that they should be determined based on the data using an "
+                            "heuristic calculation.")
+    model.add_argument('--knots', type=int,
+                       default=smcpp.defaults.knots,
+                       help="number of knots to use in internal representation")
+    model.add_argument('--hs', type=int,
+                       default=2,
+                       help="ratio of (# hidden states) / (# knots). Must "
+                            "be an integer >= 1. Larger values will consume more "
+                            "memory and CPU but are potentially more accurate. ")
+    model.add_argument('--spline',
+                       choices=["cubic", "pchip", "piecewise"],
+                       default=smcpp.defaults.spline,
+                       help="type of model representation "
+                            "(smooth spline or piecewise constant) to use")
+    return model
+
+def add_pop_parameters(parser):
+    pop_params = parser.add_argument_group('Population-genetic parameters')
+    pop_params.add_argument('mu', type=float,
+                            help="mutation rate per base pair per generation")
+    pop_params.add_argument('-r', type=float,
+                            help="recombination rate per base pair per generation. "
+                                 "default: estimate from data.")
+    return pop_params

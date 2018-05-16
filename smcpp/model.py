@@ -1,9 +1,10 @@
-from textwrap import dedent
 import numpy as np
 import ad.admath
 import os
 import wrapt
 import scipy.optimize
+import msprime as msp
+from textwrap import dedent
 
 from . import spline, logging, util
 from .observe import Observable, Observer, targets
