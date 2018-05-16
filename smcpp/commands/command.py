@@ -51,6 +51,7 @@ class EstimationCommand(Command):
         logger.debug(sys.argv)
         logger.debug(args)
 
+
 def add_common_estimation_args(parser):
     parser.add_argument("-o", "--outdir", help="output directory", default=".")
     data = parser.add_argument_group('data parameters')

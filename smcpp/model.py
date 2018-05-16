@@ -122,6 +122,7 @@ class OldStyleModel(PiecewiseModel):
 
 
 class SMCModel(BaseModel):
+    NPOP = 1
     def __init__(self, knots, N0, spline_class=spline.CubicSpline, pid=None):
         super().__init__(N0, pid)
         self._spline_class = spline_class
@@ -248,15 +249,30 @@ class SMCModel(BaseModel):
     def copy(self):
         return SMCModel.from_dict(self.to_dict())
 
+    def to_msp(self):
+        'return msprime events for simulating from this model'
+        a = self.stepwise_values().astype('float') * 2 * self.N0
+        cs = np.r_[0, np.cumsum(self.s)] * 2 * self.N0
+        return [msp.PopulationParametersChange(
+            time=t, initial_size=aa, 
+            growth_rate=0, population_id=0)
+            for t, aa in zip(cs, a)]
+
+
 
 class SMCTwoPopulationModel(Observable, Observer):
-
+    NPOP = 2
     def __init__(self, model1, model2, split):
         Observable.__init__(self)
         self._models = [model1, model2]
         model1.register(self)
         model2.register(self)
         self._split = split
+
+    @property
+    def N0(self):
+        assert self.model1.N0 == self.model2.N0
+        return self.model1.N0
 
     @property
     def distinguished_model(self):
@@ -392,6 +408,20 @@ class SMCTwoPopulationModel(Observable, Observer):
         a, cc = coords
         # This will generate 'model updated' messages in the submodels.
         self._models[a][cc] = x
+
+    def to_msp(self):
+        'return msprime events for simulating from this model'
+        ret = []
+        sp = 2 * self.N0 * self.split
+        m1 = self.for_pop(self.pids[0]).to_msp()
+        m2 = [ev for ev in self.for_pop(self.pids[1]).to_msp()
+              if ev.time < 2 * self.N0 * self.split]
+        for ev in m2:
+            ev.population = 1
+        return sorted(
+                m1 + m2 + 
+                [msp.MassMigration(time=sp, source=1, dest=0)],
+            key=lambda ev: ev.time)
 
 
 def _concat_models(m1, m2, t):

@@ -17,6 +17,8 @@ $SMC split --polarization-error .02 -o /tmp/out/split --em-iterations 1 \
     /tmp/example.*.smc.gz
 $SMC posterior /tmp/out/1/model.final.json \
     /tmp/matrix.npz /tmp/example.1.smc.gz /tmp/example.1.smc.gz
+$SMC simulate /tmp/out/1/model.final.json 2 1 /tmp/out/1/sim.vcf
+$SMC simulate /tmp/out/split/model.final.json 2 1 /tmp/out/split/sim.vcf
 $SMC posterior --colorbar -v \
     --heatmap /tmp/plot.png \
     /tmp/out/1/model.final.json \
