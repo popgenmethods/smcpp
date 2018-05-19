@@ -24,7 +24,7 @@ Quick start guide
 
      $ smc++ estimate -o analysis/ 1.25e-8 out/example.chr*.smc.gz
 
-   The first mandatory argument, ``1.25e-8``, is the per-generation
+   The first mandatory argument, ``1.25e-8``, is the per-generation
    mutation rate. The remaining arguments are the data files generated
    in the previous step. Depending on sample size and your machine,
    the fitting procedure should take between a few minutes and a
@@ -46,7 +46,7 @@ Installation instructions
 SMC++ is distributed as an Anaconda_ package. Inside the Anaconda environment, install
 the precompiled binary using the command::
 
-    $ conda install -c terhorst -c bioconda -c conda-forge smcpp
+    $ conda install -c terhorst -c bioconda smcpp
 
 This will automatically download all necessary dependencies and create
 an ``smc++`` executable in the ``bin/`` folder of your Anaconda
