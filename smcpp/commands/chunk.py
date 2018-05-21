@@ -16,7 +16,7 @@ class Chunk(command.Command, command.ConsoleCommand):
         parser.add_argument("chunk_size", type=int, default=int(5e6),
                             help="Size of each chunk")
         parser.add_argument("prefix", help="Prefix. Chunks will be sequentially numbered "
-                            "<prefix>1.smc.gz, <prefix>2.smc.gz, etc.",
+                            "<prefix>0.smc.gz, <prefix>1.smc.gz, etc.",
                             default="chunk")
         parser.add_argument('data', nargs="+",
                             help="data file(s) in SMC++ format")
