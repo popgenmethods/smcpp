@@ -44,4 +44,4 @@ class Chunk(command.Command, command.ConsoleCommand):
 
 
 def _chunk_helper(fn, X, fmt, hdr):
-    np.savetxt(fname=fn, X=X, fmt=fmt, header=hdr)
+    np.savetxt(fname=fn, X=X, fmt=fmt, header=hdr, comments="")
