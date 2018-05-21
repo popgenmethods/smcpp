@@ -1,13 +1,13 @@
 'Miscellaneous estimation and data-massaging functions.'
-from __future__ import absolute_import, division, print_function
-import numpy as np
-import scipy.optimize
-import scipy.interpolate
-from concurrent.futures import ProcessPoolExecutor
 from collections import namedtuple
-import json
-import pandas as pd
+from concurrent.futures import ProcessPoolExecutor
 import itertools
+import json
+import numpy as np
+import pandas as pd
+import scipy.interpolate
+import scipy.optimize
+import sys
 
 from . import util, logging, model, defaults
 from .contig import Contig
@@ -228,10 +228,8 @@ def _load_data_helper(fn):
                 # it should probably be removed
                 attrs["pids"] = ["pop%d" % i for i, _ in enumerate(a, 1)]
         else:
-            npop = (A.shape[1] - 1) // 3
-            attrs = {'pids': ['pop%d' % i for i in range(1, npop + 1)]}
-            a = A[:, 1::3].max(axis=0)
-            n = A[:, 3::3].max(axis=0)
+            logger.error("Data file is not in SMC++ format: ", fn)
+            sys.exit(1)
     pid = tuple(attrs['pids'])
     # Internally we always put the population with the distinguished lineage first.
     if len(a) == 2 and a[0] == 0 and a[1] == 2:
