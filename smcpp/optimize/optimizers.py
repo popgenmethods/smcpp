@@ -117,7 +117,7 @@ class AbstractOptimizer(Observable):
                                           'method': self._algorithm,
                                           'jac': True,
                                           'options': {'disp': False}},
-                        disp=True,
+                        disp=False,
                         niter=20)
             else:
                 def _f_scalar(x, *args, **kwargs):
