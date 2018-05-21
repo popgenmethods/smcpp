@@ -20,9 +20,9 @@ Quick start guide
    should run this once for each independent contig in your dataset,
    producing one SMC++ output file per contig.
 
-3. Fit the model using estimate_::
+3. Fit the model using twostep_::
 
-     $ smc++ estimate -o analysis/ 1.25e-8 out/example.chr*.smc.gz
+     $ smc++ twostep -o analysis/ 1.25e-8 out/example.chr*.smc.gz
 
    The first mandatory argument, ``1.25e-8``, is the per-generation
    mutation rate. The remaining arguments are the data files generated
@@ -250,6 +250,9 @@ is::
 
     $ smc++ estimate <mutation rate> <data file> [<data file> ...]
 
+*Please note that, in contrast to earlier versions, the recommended way to 
+estimate size history is now via the twostep_ command*.
+
 Required arguments
 ^^^^^^^^^^^^^^^^^^
 
@@ -274,6 +277,17 @@ Optional arguments
 
 A number of other arguments concerning technical aspects of the fitting
 procedure exist. To see them, pass the ``-h`` option to ``estimate``.
+
+twostep
+-------
+
+This command is similar to estimate_, with the difference that it uses a
+heuristic, two-pass procedure to obtain sensible model parameters for use
+during estimation. *As of version 1.14, this is the recommended way to run
+SMC++*. The syntax and options for this command are nearly identical to
+estimate_:
+
+    $ smc++ twostep <mutation rate> <data file> [<data file> ...]
 
 plot
 ----
