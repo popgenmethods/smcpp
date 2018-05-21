@@ -162,6 +162,15 @@ class Realign(ThreadParallelFilter):
         return c
 
 @attr.s
+class Chunk(ThreadParallelFilter):
+    w = attr.ib()
+
+    def run(self, c):
+        d = estimation_tools.realign(c.data, self.w)
+        inds = np.where(np.cumsum(d[:, 0]) % self.w == 0)[0]
+        return [x for x in np.split(d, 1 + inds) if x[:, 0].sum() == self.w]
+
+@attr.s
 class CountMutations(Filter):
     w = attr.ib()
 
