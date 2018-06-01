@@ -6,8 +6,10 @@ from smcpp.logging import getLogger
 
 logger = getLogger(__name__)
 
+
 class ScaleOptimizer(OptimizerPlugin):
     DISABLED = False
+
     def _f(self, alpha, x0, analysis):
         analysis.model[:] = x0 + alpha
         ret = float(analysis.Q())
@@ -16,11 +18,12 @@ class ScaleOptimizer(OptimizerPlugin):
 
     @targets("pre M-step")
     def update(self, message, *args, **kwargs):
-        analysis = kwargs['analysis']
+        analysis = kwargs["analysis"]
         x0 = analysis.model[:]
         res = scipy.optimize.minimize_scalar(
             self._f,
-            args=(x0.astype('float'), analysis),
-            method='bounded',
-            bounds=(-1, 1))
+            args=(x0.astype("float"), analysis),
+            method="bounded",
+            bounds=(-1, 1),
+        )
         analysis.model[:] = x0 + res.x

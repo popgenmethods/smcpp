@@ -9,16 +9,18 @@ import smcpp.defaults
 
 logger = getLogger(__name__)
 
+
 class AsciiPlotter(OptimizerPlugin):
+
     def __init__(self):
-        self._gnuplot_path = shutil.which('gnuplot')
+        self._gnuplot_path = shutil.which("gnuplot")
 
     @targets(["post M-step", "post mini M-step"])
     def update(self, message, *args, **kwargs):
         if not self._gnuplot_path:
             return
-        model = kwargs['model']
-        two_pop = hasattr(model, 'split')
+        model = kwargs["model"]
+        two_pop = hasattr(model, "split")
         can_plot_2 = two_pop and (model.split > model.model2.s[0])
         if two_pop:
             # plot split models
@@ -28,14 +30,18 @@ class AsciiPlotter(OptimizerPlugin):
             data = "\n".join([",".join(map(str, row)) for row in zip(x, y)])
             if can_plot_2:
                 data += "\n" * 3
-                data += "\n".join([",".join(map(str, row)) 
-                    for row in zip(x, z) 
-                    if row[0] <= 2 * model.model1.N0 * model.split])
+                data += "\n".join(
+                    [
+                        ",".join(map(str, row))
+                        for row in zip(x, z)
+                        if row[0] <= 2 * model.model1.N0 * model.split
+                    ]
+                )
         else:
             x = np.cumsum(model.s) * 2 * model.N0
             y = model.stepwise_values() * model.N0
             u = model._knots * 2 * model.N0
-            v = np.exp(model[:].astype('float')) * model.N0
+            v = np.exp(model[:].astype("float")) * model.N0
             data = "\n".join([",".join(map(str, row)) for row in zip(x, y)])
             data += "\n" * 3
             data += "\n".join([",".join(map(str, row)) for row in zip(u, v)])
@@ -43,9 +49,10 @@ class AsciiPlotter(OptimizerPlugin):
         graphs = ""
         for log_y in [True]:
             # Fire up the plot process and let'er rip.
-            gnuplot = subprocess.Popen([self._gnuplot_path],
-                                       stdin=subprocess.PIPE,
-                                       stdout=subprocess.PIPE)
+            gnuplot = subprocess.Popen(
+                [self._gnuplot_path], stdin=subprocess.PIPE, stdout=subprocess.PIPE
+            )
+
             def write(x):
                 x += "\n"
                 gnuplot.stdin.write(x.encode())
@@ -54,12 +61,13 @@ class AsciiPlotter(OptimizerPlugin):
             width = columns - 2
             height = lines * 4 // 5
             write("set term dumb {} {}".format(width, height))
-            write("set datafile separator \",\"")
-            write("set xlabel \"Generations\"")
-            write("set ylabel \"N_e\"")
-            xr = [model.distinguished_model.knots[i] * 
-                    2 * model.distinguished_model.N0 
-                  for i in [0, -(len(smcpp.defaults.additional_knots) + 1)]]
+            write('set datafile separator ","')
+            write('set xlabel "Generations"')
+            write('set ylabel "N_e"')
+            xr = [
+                model.distinguished_model.knots[i] * 2 * model.distinguished_model.N0
+                for i in [0, -(len(smcpp.defaults.additional_knots) + 1)]
+            ]
             write("set xrange [%f:%f]" % tuple(xr))
             if log_y:
                 write("set logscale xy")

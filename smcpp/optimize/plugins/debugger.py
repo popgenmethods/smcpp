@@ -6,14 +6,16 @@ from smcpp.logging import getLogger
 
 logger = getLogger(__name__)
 
+
 class Debugger(OptimizerPlugin):
     DISABLED = False
+
     @targets("post minimize")
     def update(self, message, *args, **kwargs):
         if os.environ.get("SMCPP_DEBUG"):
             y = input("Break? ")
             if len(y) and y[0] == "y":
-                im = next(iter(kwargs['analysis']._ims.values()))
+                im = next(iter(kwargs["analysis"]._ims.values()))
                 gs = im.gamma_sums
                 z = np.zeros_like(list(gs[0].values())[0])
                 d = {}
@@ -24,4 +26,5 @@ class Debugger(OptimizerPlugin):
                 gs = d
                 xis = np.sum(im.xisums, axis=0)
                 import ipdb
+
                 ipdb.set_trace()

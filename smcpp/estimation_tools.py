@@ -1,4 +1,4 @@
-'Miscellaneous estimation and data-massaging functions.'
+"Miscellaneous estimation and data-massaging functions."
 from collections import namedtuple
 from concurrent.futures import ProcessPoolExecutor
 import itertools
@@ -11,7 +11,13 @@ import sys
 
 from . import util, logging, model, defaults
 from .contig import Contig
-from ._estimation_tools import realign, thin_data, bin_observations, windowed_mutation_counts, beta_de_avg_pdf
+from ._estimation_tools import (
+    realign,
+    thin_data,
+    bin_observations,
+    windowed_mutation_counts,
+    beta_de_avg_pdf,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -19,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 # Construct time intervals stuff
 def extract_pieces(piece_str):
-    '''Convert PSMC-style piece string to model representation.'''
+    """Convert PSMC-style piece string to model representation."""
     pieces = []
     for piece in piece_str.split("+"):
         try:
@@ -32,13 +38,11 @@ def extract_pieces(piece_str):
 
 
 def construct_time_points(t1, tK, pieces, offset):
-    s = np.diff(np.logspace(np.log10(offset + t1),
-                            np.log10(tK),
-                            sum(pieces) + 1))
+    s = np.diff(np.logspace(np.log10(offset + t1), np.log10(tK), sum(pieces) + 1))
     time_points = np.zeros(len(pieces))
     count = 0
     for i, p in enumerate(pieces):
-        time_points[i] = s[count:(count + p)].sum()
+        time_points[i] = s[count : (count + p)].sum()
         count += p
     return np.concatenate([[t1], time_points])
 
@@ -56,11 +60,13 @@ def compress_repeated_obs(dataset):
 
 
 def decompress_polymorphic_spans(dataset):
-    miss = (np.all(dataset[:, 1::3] == -1, axis=1) &
-            np.all(dataset[:, 3::3] == 0, axis=1))
-    nonseg = (np.all(dataset[:, 1::3] == 0, axis=1) &
-              (np.all(dataset[:, 2::3] == dataset[:, 3::3], axis=1) |
-               np.all(dataset[:, 2::3] == 0, axis=1)))
+    miss = np.all(dataset[:, 1::3] == -1, axis=1) & np.all(
+        dataset[:, 3::3] == 0, axis=1
+    )
+    nonseg = np.all(dataset[:, 1::3] == 0, axis=1) & (
+        np.all(dataset[:, 2::3] == dataset[:, 3::3], axis=1)
+        | np.all(dataset[:, 2::3] == 0, axis=1)
+    )
     psp = np.where((dataset[:, 0] > 1) & (~nonseg) & (~miss))[0]
     if not psp.size:
         return dataset
@@ -69,12 +75,10 @@ def decompress_polymorphic_spans(dataset):
     for i in psp:
         row = dataset[i]
         if first:
-            ret = np.r_[dataset[last:i], np.tile(
-                np.r_[1, row[1:]], (row[0], 1))]
+            ret = np.r_[dataset[last:i], np.tile(np.r_[1, row[1:]], (row[0], 1))]
             first = False
         else:
-            ret = np.r_[ret, dataset[last:i], np.tile(
-                np.r_[1, row[1:]], (row[0], 1))]
+            ret = np.r_[ret, dataset[last:i], np.tile(np.r_[1, row[1:]], (row[0], 1))]
         last = i + 1
     ret = np.r_[ret, dataset[last:]]
     return ret
@@ -87,9 +91,9 @@ def recode_nonseg(contig, cutoff):
         warn_only = True
     d = contig.data
     runs = (
-        (d[:, 0] > cutoff) &
-        np.all(d[:, 1::3] == 0, axis=1) &
-        np.all(d[:, 2::3] == 0, axis=1)
+        (d[:, 0] > cutoff)
+        & np.all(d[:, 1::3] == 0, axis=1)
+        & np.all(d[:, 2::3] == 0, axis=1)
     )
     if np.any(runs):
         if warn_only:
@@ -100,8 +104,12 @@ def recode_nonseg(contig, cutoff):
             txt = " (converted to missing)"
             d[runs, 1::3] = -1
             d[runs, 3::3] = 0
-        f("Long runs of homozygosity%s in contig %s: \n%s (base pairs)",
-          txt, contig.fn, d[runs, 0])
+        f(
+            "Long runs of homozygosity%s in contig %s: \n%s (base pairs)",
+            txt,
+            contig.fn,
+            d[runs, 0],
+        )
     return contig
 
 
@@ -114,18 +122,25 @@ def break_long_spans(contig, span_cutoff):
     miss[0] = 1
     miss[1::3] = -1
     long_spans = np.where(
-        (obs[:, 0] >= span_cutoff) &
-        np.all(obs[:, 1::3] == -1, axis=1) &
-        np.all(obs[:, 3::3] == 0, axis=1))[0]
+        (obs[:, 0] >= span_cutoff)
+        & np.all(obs[:, 1::3] == -1, axis=1)
+        & np.all(obs[:, 3::3] == 0, axis=1)
+    )[0]
     cob = 0
     if obs[long_spans].size:
-        logger.debug("Long missing spans:\n%s (base pairs)",
-                     (obs[long_spans, 0]))
+        logger.debug("Long missing spans:\n%s (base pairs)", (obs[long_spans, 0]))
     positions = np.insert(np.cumsum(obs[:, 0]), 0, 0)
     for x in long_spans.tolist() + [None]:
         s = obs[cob:x, 0].sum()
-        contig_list.append(Contig(data=np.insert(obs[cob:x], 0, miss, 0),
-                                  pid=contig.pid, fn=contig.fn, n=contig.n, a=contig.a))
+        contig_list.append(
+            Contig(
+                data=np.insert(obs[cob:x], 0, miss, 0),
+                pid=contig.pid,
+                fn=contig.fn,
+                n=contig.n,
+                a=contig.a,
+            )
+        )
         if contig.a[0] == 1:
             a_cols = [1, 4]
         else:
@@ -137,9 +152,13 @@ def break_long_spans(contig, span_cutoff):
         s2 = lda[lda.min(axis=1) >= 0].sum()
         assert s2 >= 0
         obs_attributes.append(
-            (positions[cob],
-             positions[x] if x is not None else positions[-1],
-             l, 1. * s2 / l))
+            (
+                positions[cob],
+                positions[x] if x is not None else positions[-1],
+                l,
+                1. * s2 / l,
+            )
+        )
         try:
             cob = x + 1
         except TypeError:  # fails for final x=None
@@ -156,15 +175,18 @@ def balance_hidden_states(model, M):
 
     """
     import smcpp._smcpp
+
     M -= 1
     eta = smcpp._smcpp.PyRateFunction(model, [])
     ret = [0.0]
     # ms = np.arange(0.1, 2.1, .1).tolist() + list(range(3, M))
     ms = range(1, M)
     for m in ms:
+
         def f(t):
             Rt = float(eta.R(t))
             return np.exp(-Rt) - 1.0 * (M - m) / M
+
         res = scipy.optimize.brentq(f, ret[-1], 1000.)
         ret.append(res)
     ret.append(np.inf)
@@ -172,12 +194,12 @@ def balance_hidden_states(model, M):
 
 
 def model_from_coal_probs(t, p, N0, pid):
-    '''
+    """
     Returns a piecewise constant model such that 
 
         P(Coal \in [t[i], t[i + 1])) = p[i]
 
-    '''
+    """
     Rt = 0
     t0 = t[0]
     a = []
@@ -197,18 +219,20 @@ def model_from_coal_probs(t, p, N0, pid):
 
 def calculate_t1(model, n, q):
     import smcpp._smcpp
+
     eta = smcpp._smcpp.PyRateFunction(model, [0., np.inf])
     c = n * (n - 1) / 2
 
     def f(t):
         return np.expm1(-c * eta.R(t)) + q
+
     return scipy.optimize.brentq(f, 0., model.knots[-1])
 
 
 def _load_data_helper(fn):
     try:
         # This parser is way faster than np.loadtxt
-        A = pd.read_csv(fn, sep=' ', comment="#", header=None).values
+        A = pd.read_csv(fn, sep=" ", comment="#", header=None).values
     except ImportError as e:
         logger.debug(e)
         A = np.loadtxt(fn, dtype=np.int32)
@@ -221,23 +245,21 @@ def _load_data_helper(fn):
         first_line = next(f).strip()
         if first_line.startswith("# SMC++"):
             attrs = json.loads(first_line[7:])
-            a = [len(a) for a in attrs['dist']]
-            n = [len(u) for u in attrs['undist']]
+            a = [len(a) for a in attrs["dist"]]
+            n = [len(u) for u in attrs["undist"]]
             if "pids" not in attrs:
-                # FIXME this code really only exists to analyze old data sets (before the fmt changed)
-                # it should probably be removed
-                attrs["pids"] = ["pop%d" % i for i, _ in enumerate(a, 1)]
+                raise RuntimeError("Data format is too old. Re-run VCF2SMC.")
         else:
             logger.error("Data file is not in SMC++ format: ", fn)
             sys.exit(1)
-    pid = tuple(attrs['pids'])
+    pid = tuple(attrs["pids"])
     # Internally we always put the population with the distinguished lineage first.
     if len(a) == 2 and a[0] == 0 and a[1] == 2:
         n = n[::-1]
         a = a[::-1]
         pid = pid[::-1]
         A = A[:, [0, 4, 5, 6, 1, 2, 3]]
-    data = np.ascontiguousarray(A, dtype='int32')
+    data = np.ascontiguousarray(A, dtype="int32")
     return Contig(pid=pid, data=data, n=n, a=a, fn=fn)
 
 
