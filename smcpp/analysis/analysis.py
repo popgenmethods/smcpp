@@ -100,7 +100,6 @@ class Analysis(base.BaseAnalysis):
 
         self._init_model(args.spline)
         self._init_inference_manager(args.polarization_error, self._hidden_states)
-        self.alpha = args.w
         self._model[:] = np.log(NeN0)
         self._model.randomize()
         self._init_optimizer(

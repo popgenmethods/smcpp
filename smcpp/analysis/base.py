@@ -101,7 +101,6 @@ class BaseAnalysis:
             im.model = self._model
             im.theta = self._theta
             im.rho = self._rho
-            im.alpha = self._alpha = 1
             im.polarization_error = polarization_error
             self._ims[pid] = im
 
@@ -142,16 +141,6 @@ class BaseAnalysis:
         return self._model
 
     @property
-    def alpha(self):
-        return self._alpha
-
-    @alpha.setter
-    def alpha(self, a):
-        self._alpha = a
-        for im in self._ims.values():
-            im.alpha = a
-
-    @property
     def rho(self):
         return self._rho
 
@@ -172,7 +161,7 @@ class BaseAnalysis:
 
     def dump(self, filename):
         "Dump result of this analysis to :filename:."
-        d = {"theta": self._theta, "rho": self._rho, "alpha": self._alpha}
+        d = {"theta": self._theta, "rho": self._rho}
         d["model"] = self.model.to_dict()
         d["hidden_states"] = {k: list(v) for k, v in self._hidden_states.items()}
         json.dump(d, open(filename + ".json", "wt"), sort_keys=True, indent=4)

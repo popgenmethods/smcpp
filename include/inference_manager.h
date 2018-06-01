@@ -67,7 +67,7 @@ class InferenceManager
     const int npop, sfs_dim, M;
     std::vector<Eigen::Map<Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> > > obs;
     std::unique_ptr<ConditionedSFS<adouble> > csfs;
-    double theta, rho, alpha, polarization_error;
+    double theta, rho, polarization_error;
     std::vector<hmmptr> hmms;
     Vector<adouble> pi;
     Matrix<adouble> transition, emission;
