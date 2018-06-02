@@ -187,7 +187,10 @@ def balance_hidden_states(model, M):
             Rt = float(eta.R(t))
             return np.exp(-Rt) - 1.0 * (M - m) / M
 
-        res = scipy.optimize.brentq(f, ret[-1], 1000.)
+        a = b = ret[-1]
+        while f(a) * f(b) >= 0:
+            b = 2 * (b + 1)
+        res = scipy.optimize.brentq(f, a, b)
         ret.append(res)
     ret.append(np.inf)
     return np.array(ret) * 2 * model.N0  # return in generations
