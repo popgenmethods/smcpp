@@ -26,7 +26,7 @@ class ParameterOptimizer(OptimizerPlugin):
         logger.info("Updating %s, bounds (%f, %f)", param, *self.bounds)
         tgt = kwargs[self._target]
         analysis = kwargs["analysis"]
-        if param not in ("theta", "rho", "split"):
+        if param not in ("theta", "rho", "split", "alpha"):
             raise RuntimeError("unrecognized param")
         x0 = getattr(tgt, param)
         logger.debug("Old %s: Q(%f)=%f", param, x0, self._f(x0, analysis, tgt, param))

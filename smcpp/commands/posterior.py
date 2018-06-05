@@ -95,6 +95,7 @@ class Posterior(command.Command, command.ConsoleCommand):
                 *n, *a, all_obs, hidden_states, contig.key[0])
         im.theta = j['theta']
         im.rho = j['rho']
+        im.alpha = j['alpha']
         im.save_gamma = True
         im.model = m
         im.E_step()

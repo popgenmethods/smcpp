@@ -80,6 +80,12 @@ void InferenceManager::setPolarizationError(double pe)
     dirty.theta = true;
 }
 
+void InferenceManager::setAlpha(const double alpha)
+{
+    this->alpha = alpha;
+    dirty.theta = true;
+}
+
 void InferenceManager::setTheta(const double theta)
 {
     this->theta = theta;
@@ -395,7 +401,7 @@ void NPopInferenceManager<P>::recompute_emission_probs()
         }
         else
         {
-            e2(m, 0) = exp(-2. * theta * avg_ct.at(m));
+            e2(m, 0) = exp(-2. * alpha * theta * avg_ct.at(m));
             e2(m, 1) = 1. - e2(m, 0);
         }
     }
