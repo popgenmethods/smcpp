@@ -22,7 +22,10 @@ def pretty_plot():
     return fig, ax
 
 
-def plot_psfs(psfs, xlim, ylim, xlabel, knots=False, logy=False):
+def plot_psfs(psfs, xlim, ylim, xlabel, 
+        knots=False, 
+        logy=False,
+        stats={}):
     fig, ax = pretty_plot()
     xmax = ymax = 0.
     xmin = ymin = np.inf
@@ -48,6 +51,7 @@ def plot_psfs(psfs, xlim, ylim, xlabel, knots=False, logy=False):
     my_axplot = saver(ax.plot, "path")
     my_axstep = saver(ax.step, "step")
     vlines = []
+    models = []
     for i, (d, off) in enumerate(psfs):
         g = d.get("g") or 1
         if "b" in d:
@@ -73,6 +77,7 @@ def plot_psfs(psfs, xlim, ylim, xlabel, knots=False, logy=False):
         elif "model" in d:
             cls = getattr(model, d["model"]["class"])
             mb = cls.from_dict(d["model"])
+            models.append(mb)
             split = False
             if isinstance(mb, model.SMCTwoPopulationModel):
                 split = True
@@ -107,6 +112,17 @@ def plot_psfs(psfs, xlim, ylim, xlabel, knots=False, logy=False):
             x = np.insert(x, 0, 0)[:-1]
             y = d["a"]
             series.append((None, x, y, my_axstep, off, N0, g))
+    for statname in stats:
+        magg = model.aggregate(*models, stat=stats[statname])
+        series.append([
+            statname, 
+            np.cumsum(magg.s), 
+            magg.stepwise_values().astype("float"),
+            my_axplot,
+            0.,
+            magg.N0,
+            g
+            ])
     labels = []
     NUM_COLORS = len({label for label, *_ in series})
     cm = matplotlib.cm.get_cmap("gist_rainbow")
