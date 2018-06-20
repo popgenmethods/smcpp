@@ -17,7 +17,7 @@ class Simulate(command.ConsoleCommand):
                 metavar="model.final.json",
                 help="fitted model.json file")
         parser.add_argument('n', help='diploid sample size', type=int)
-        parser.add_argument('length', help='chromosome length (megabases)', type=int)
+        parser.add_argument('length', help='chromosome length (megabases)', type=float)
         parser.add_argument('output', metavar="out.vcf", help='output vcf')
         parser.add_argument('--contig_id', help="contig name in resulting VCF", default="1")
         parser.add_argument('-r', type=float, help="override per-generation recombination rate")
@@ -32,7 +32,7 @@ class Simulate(command.ConsoleCommand):
         args.r = args.r or d['rho'] / 2 / m.N0
         args.u = args.u or d['theta'] / 2 / m.N0
         pc = [msp.PopulationConfiguration(args.n) for _ in range(m.NPOP)]
-        sim = msp.simulate(length=args.length * 1000000,
+        sim = msp.simulate(length=int(args.length * 1e6),
                            recombination_rate=args.r,
                            mutation_rate=args.u,
                            population_configurations=pc,

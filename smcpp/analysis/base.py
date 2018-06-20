@@ -60,6 +60,15 @@ class BaseAnalysis:
         )
 
     @property
+    def hidden_states(self):
+        return self._hs
+
+    @hidden_states.setter
+    def hidden_states(self, hs):
+        hs = np.array(hs)
+        self._hs = {pop: hs for pop in self.populations}
+
+    @property
     def populations(self):
         return self._pipeline["load_data"].populations
 

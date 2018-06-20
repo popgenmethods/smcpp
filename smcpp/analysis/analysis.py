@@ -114,15 +114,6 @@ class Analysis(base.BaseAnalysis):
         )
         self._init_regularization(args)
 
-    @property
-    def hidden_states(self):
-        return self._hs
-
-    @hidden_states.setter
-    def hidden_states(self, hs):
-        hs = np.array(hs)
-        self._hs = {pop: hs for pop in self.populations}
-
     def _init_model(self, spline_class):
         ## Initialize model
         logger.debug("knots in coalescent scaling:\n%s", str(self._knots))
