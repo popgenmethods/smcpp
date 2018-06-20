@@ -164,7 +164,7 @@ class Thin(ThreadParallelFilter):
     def run(self, c):
         thinning = self.thinning
         if thinning is None:
-            thinning = (1000 * np.log(2 + c.n[0])).astype("int")  # 500  * ns
+            thinning = (500 * np.log(2 + c.n[0])).astype("int")  # 500  * ns
         if thinning > 1:
             logger.debug("Thinning interval: %d", thinning)
             new_data = estimation_tools.thin_data(c.data, thinning)

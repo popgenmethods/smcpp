@@ -105,25 +105,25 @@ class AbstractOptimizer(Observable):
             self._last_f = None
             f0 = self._f(x0z, self._analysis, coords)[0]
             if len(y) > 1:
-                # res = scipy.optimize.minimize(self._f, x0z,
-                #         jac=True,
-                #         args=(self._analysis, coords),
-                #         options=options,
-                #         bounds=self._bounds,
-                #         # callback=self._callback,
-                #         method=alg)
-                res = scipy.optimize.basinhopping(
-                    self._f,
-                    x0z,
-                    minimizer_kwargs={
-                        "args": (self._analysis, coords),
-                        "method": self._algorithm,
-                        "jac": True,
-                        "options": {"disp": False},
-                    },
-                    disp=False,
-                    niter=20,
-                )
+                res = scipy.optimize.minimize(self._f, x0z,
+                        jac=True,
+                        args=(self._analysis, coords),
+                        options=options,
+                        bounds=self._bounds,
+                        # callback=self._callback,
+                        method=alg)
+                # res = scipy.optimize.basinhopping(
+                #     self._f,
+                #     x0z,
+                #     minimizer_kwargs={
+                #         "args": (self._analysis, coords),
+                #         "method": self._algorithm,
+                #         "jac": True,
+                #         "options": {"disp": False},
+                #     },
+                #     disp=False,
+                #     niter=20,
+                # )
             else:
 
                 def _f_scalar(x, *args, **kwargs):

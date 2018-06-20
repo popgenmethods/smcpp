@@ -245,18 +245,14 @@ class SMCModel(BaseModel):
         return "\n" + "\n".join(ret)
 
     def to_dict(self):
-        d = {}
-        d.update(
-            {
-                "class": self.__class__.__name__,
-                "knots": list(self._knots),
-                "N0": self.N0,
-                "spline_class": self._spline_class.__name__,
-                "y": self[:].astype("float").tolist(),
-                "pid": self.pid,
-            }
-        )
-        return d
+        return {
+            "class": self.__class__.__name__,
+            "knots": list(self._knots),
+            "N0": self.N0,
+            "spline_class": self._spline_class.__name__,
+            "y": self[:].astype("float").tolist(),
+            "pid": self.pid,
+        }
 
     @classmethod
     def from_dict(cls, d):
