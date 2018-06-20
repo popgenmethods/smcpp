@@ -42,12 +42,12 @@ class Analysis(base.BaseAnalysis):
             self._model = base._model_cls_d[d["model"]["class"]].from_dict(d["model"])
             hs = self.rescale(
                 smcpp.estimation_tools.balance_hidden_states(
-                    self._model, len(self._model) + 2
+                    self._model, args.hs * len(self._model)
                 )
-            )[1:-1]
-            self._hidden_states = {k: hs for k in self.populations}
-            self._knots = hs
-            logger.debug("rebalanced hidden states: %s", self._hidden_states)
+            )
+            self.hidden_states = hs
+            self._knots = hs[1:-1][::args.hs]
+            logger.debug("rebalanced hidden states: %s", self.hidden_states)
         else:
             mc = self._pipeline["mutation_counts"].counts
             w = self._pipeline["mutation_counts"].w
@@ -57,15 +57,15 @@ class Analysis(base.BaseAnalysis):
                     "possibly due to having a lot of missing data. Please "
                     "set the --timepoints option manually."
                 )
-                raise RuntimeError()
+                sys.exit(1)
             q = smcpp.beta_de.quantile(
-                mc / w, 1. / w, np.geomspace(1e-2, .999, args.knots)
+                mc / w, 1. / w, np.geomspace(1e-2, .999, args.hs * args.knots)
             )
-            tau = q / (2. * self._theta)
+            tau = np.r_[0., q / (2. * self._theta), np.inf]
             # Assign hidden states based on estimated coalescence quantiles
-            self._hidden_states = {k: tau for k in self.populations}
+            self.hidden_states = tau
             logger.debug("hidden states in coalescent scaling: %s", tau)
-            self._knots = tau
+            self._knots = tau[1:-1][::args.hs]
         if any([args.timepoints == "h", "," not in args.timepoints]):
             n = np.average(
                 [c.n[0] for c in self.contigs], weights=[len(c) for c in self.contigs]
@@ -82,15 +82,16 @@ class Analysis(base.BaseAnalysis):
                     logger.info("calculated t1: %f gens", t1)
                 rt1 = self.rescale(t1)
                 if rt1 < self._knots[0]:
-                    self._knots = np.r_[
-                        np.geomspace(rt1, self._knots[0], args.knots // 4, False),
-                        self._knots,
-                    ]
+                    additional_knots = np.geomspace(rt1, self._knots[0], args.knots // 4, False)
+                    logger.debug("Adding additional knots: %s", additional_knots)
+                    self._knots = np.r_[additional_knots, self._knots]
             logger.debug("Determined knots heuristically to be: %s", self._knots)
         else:
             try:
                 t1, tK = [float(x) / 2. / self._N0 for x in args.timepoints.split(",")]
-                self._knots = np.geomspace(t1, tK, args.knots, False)
+                hs = np.r_[0., np.geomspace(t1, tK, args.hs * args.knots, False), np.inf]
+                self.hidden_states = hs
+                self._knots = hs[1:-1][::args.hs]
                 logger.debug("Knots are: %s", self._knots)
             except:
                 raise RuntimeError(
@@ -99,7 +100,7 @@ class Analysis(base.BaseAnalysis):
                 )
 
         self._init_model(args.spline)
-        self._init_inference_manager(args.polarization_error, self._hidden_states)
+        self._init_inference_manager(args.polarization_error, self.hidden_states)
         self.alpha = args.w
         self._model[:] = np.log(NeN0)
         self._model.randomize()
@@ -112,6 +113,15 @@ class Analysis(base.BaseAnalysis):
             single=args.no_multi,
         )
         self._init_regularization(args)
+
+    @property
+    def hidden_states(self):
+        return self._hs
+
+    @hidden_states.setter
+    def hidden_states(self, hs):
+        hs = np.array(hs)
+        self._hs = {pop: hs for pop in self.populations}
 
     def _init_model(self, spline_class):
         ## Initialize model

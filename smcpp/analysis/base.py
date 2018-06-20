@@ -130,16 +130,22 @@ class BaseAnalysis:
             self._ims[pop].E_step()
         logger.info("E-step completed")
 
-    def loglik(self):
+    def loglik(self, reg=True):
         "Log-likelihood of data after most recent E-step."
-        ll = 0
-        for pop in self._ims:
-            ll += self._ims[pop].loglik()
-        return ll - self._penalty * float(self.model.regularizer())
+        ll = sum([im.loglik() for im in self._ims.values()])
+        if reg:
+            ll -= self._penalty * float(self.model.regularizer())
+        return ll
 
     @property
     def model(self):
         return self._model
+
+    @model.setter
+    def model(self, m):
+        self._model = m
+        for im in self._ims.values():
+            im.model = m
 
     @property
     def alpha(self):
@@ -174,5 +180,5 @@ class BaseAnalysis:
         "Dump result of this analysis to :filename:."
         d = {"theta": self._theta, "rho": self._rho, "alpha": self._alpha}
         d["model"] = self.model.to_dict()
-        d["hidden_states"] = {k: list(v) for k, v in self._hidden_states.items()}
+        d["hidden_states"] = {k: list(v) for k, v in self.hidden_states.items()}
         json.dump(d, open(filename + ".json", "wt"), sort_keys=True, indent=4)
