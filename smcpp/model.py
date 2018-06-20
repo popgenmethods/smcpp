@@ -67,9 +67,12 @@ class BaseModel(Observable):
         return f(u / v).sum() ** (1. / rd)
 
 
-def average(*models):
+def aggregate(*models, stat=np.mean):
     x = np.unique(np.sort([k for m in models for k in m.knots]))
-    yavg = np.array([m(x) * 2 * m.N0 for m in models]).astype('float').mean(axis=0)
+    yavg = stat(
+        np.array([m(x) * 2 * m.N0 for m in models]).astype('float'),
+        axis=0
+    )
     ret = SMCModel(x, models[0].N0, spline.Piecewise, models[0].pid)
     ret[:] = np.log(yavg / (2 * models[0].N0))
     return ret
