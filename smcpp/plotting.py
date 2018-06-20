@@ -22,10 +22,7 @@ def pretty_plot():
     return fig, ax
 
 
-def plot_psfs(psfs, xlim, ylim, xlabel, 
-        knots=False, 
-        logy=False,
-        stats={}):
+def plot_psfs(psfs, xlim, ylim, xlabel, knots=False, logy=False, stats={}):
     fig, ax = pretty_plot()
     xmax = ymax = 0.
     xmin = ymin = np.inf
@@ -114,15 +111,17 @@ def plot_psfs(psfs, xlim, ylim, xlabel,
             series.append((None, x, y, my_axstep, off, N0, g))
     for statname in stats:
         magg = model.aggregate(*models, stat=stats[statname])
-        series.append([
-            statname, 
-            np.cumsum(magg.s), 
-            magg.stepwise_values().astype("float"),
-            my_axplot,
-            0.,
-            magg.N0,
-            g
-            ])
+        series.append(
+            [
+                statname,
+                np.cumsum(magg.s),
+                magg.stepwise_values().astype("float"),
+                my_axplot,
+                0.,
+                magg.N0,
+                g,
+            ]
+        )
     labels = []
     NUM_COLORS = len({label for label, *_ in series})
     cm = matplotlib.cm.get_cmap("gist_rainbow")
