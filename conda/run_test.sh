@@ -9,13 +9,13 @@ $SMC vcf2smc -d msp_1 msp_1 example/example.vcf.gz $TMP/example.12.smc.gz 1 msp1
 $SMC chunk 10 200000 $TMP/chunk.1. $TMP/example.1.smc.gz
 $SMC chunk 10 200000 $TMP/chunk.2. $TMP/example.2.smc.gz
 $SMC chunk 10 200000 $TMP/chunk.12. $TMP/example.12.smc.gz
-$SMC estimate -o $TMP/out/1 --unfold --knots 5 --em-iterations 1 1.25e-8 $TMP/example.1.smc.gz
-$SMC estimate -o $TMP/out/1 --unfold --knots 5 --timepoints 33,1000 --em-iterations 1 1.25e-8 $TMP/example.1.smc.gz
-$SMC estimate -p 0.01 -r 1e-8 -o $TMP/out/2 --knots 5 --em-iterations 1 1.25e-8 $TMP/example.2.smc.gz
-$SMC cv --folds 2 -o $TMP/out/cv --fold 0 1e-8 $TMP/example.1.smc.gz $TMP/example.11.smc.gz
-$SMC cv --folds 2 -o $TMP/out/cv --fold 1 1e-8 $TMP/example.1.smc.gz $TMP/example.11.smc.gz
-$SMC cv --folds 2 -o $TMP/out/cv 1e-8 $TMP/example.1.smc.gz $TMP/example.11.smc.gz
-$SMC cv --folds 2 -o $TMP/out/cv1 1e-8 $TMP/example.1.smc.gz $TMP/example.11.smc.gz
+$SMC estimate --em-iterations 1 -o $TMP/out/1 --unfold --knots 5 --em-iterations 1 1.25e-8 $TMP/example.1.smc.gz
+$SMC estimate --em-iterations 1 -o $TMP/out/1 --unfold --knots 5 --timepoints 33,1000 --em-iterations 1 1.25e-8 $TMP/example.1.smc.gz
+$SMC estimate --em-iterations 1 -p 0.01 -r 1e-8 -o $TMP/out/2 --knots 5 --em-iterations 1 1.25e-8 $TMP/example.2.smc.gz
+$SMC cv --em-iterations 1 --folds 2 -o $TMP/out/cv --fold 0 1e-8 $TMP/example.1.smc.gz $TMP/example.11.smc.gz
+$SMC cv --em-iterations 1 --folds 2 -o $TMP/out/cv --fold 1 1e-8 $TMP/example.1.smc.gz $TMP/example.11.smc.gz
+$SMC cv --em-iterations 1 --folds 2 -o $TMP/out/cv 1e-8 $TMP/example.1.smc.gz $TMP/example.11.smc.gz
+$SMC cv --em-iterations 1 --folds 2 -o $TMP/out/cv1 1e-8 $TMP/example.1.smc.gz $TMP/example.11.smc.gz
 $SMC split -o $TMP/out/split --em-iterations 1 \
     $TMP/out/1/model.final.json \
     $TMP/out/2/model.final.json \
