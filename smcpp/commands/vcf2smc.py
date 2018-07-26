@@ -224,8 +224,8 @@ class Vcf2Smc(command.Command, command.ConsoleCommand):
                         if csnp.pos < cmask[1]:
                             yield "snp", csnp
                             csnp = next(snps_only, None)
-                        elif csnp.pos <= cmask[2]:
-                            while csnp is not None and csnp.pos <= cmask[2]:
+                        elif csnp.pos < cmask[2]:
+                            while csnp is not None and csnp.pos < cmask[2]:
                                 csnp = next(snps_only, None)
                             yield "mask", cmask
                             cmask = next(mask_iterator, None)
