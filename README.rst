@@ -440,7 +440,7 @@ good estimates*.
 
 - ``--knots``: This parameter specifies the number of spline knots 
   used in the underlying representation of the size history. The default
-  value is ``32``. Using fewer knots can lead to smoother fits, however
+  value is ``8``. Using fewer knots can lead to smoother fits, however
   underspecifying this parameter may smooth out interesting features of
   the size history.
 
