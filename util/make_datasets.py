@@ -1,4 +1,4 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env python3
 '''Generate simulated data sets for the various inference packages.'''
 
 import numpy as np
