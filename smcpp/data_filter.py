@@ -269,7 +269,7 @@ class DropUninformativeContigs(Filter):
     def run(self, contigs):
         ret = []
         for c in contigs:
-            if self._n_variable_sites(c):
+            if self._n_variable_sites(c) > 0:
                 ret.append(c)
             else:
                 logger.debug(
