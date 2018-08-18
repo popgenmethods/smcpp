@@ -54,6 +54,8 @@ class EstimationCommand(Command):
 
 def add_common_estimation_args(parser):
     parser.add_argument("-o", "--outdir", help="output directory", default=".")
+    parser.add_argument('--timepoints', type=float, default=None, nargs=2,
+                        help="start time of model (in generations)")
     data = parser.add_argument_group('data parameters')
     data.add_argument('--length-cutoff', help=argparse.SUPPRESS, type=int, default=None)
     data.add_argument('--nonseg-cutoff', '-c',
@@ -114,22 +116,22 @@ def add_hmm_args(parser):
 
 def add_model_parameters(parser):
     model = parser.add_argument_group('Model parameters')
-    model.add_argument('--timepoints', type=str, default="h",
-                       help="starting and ending time points of model. "
-                            "this can be either a comma separated list of two numbers `t1,tK`"
-                            "indicating starting and ending generations, "
-                            "a single value, indicating the starting time point, "
-                            "or the special value 'h' "
-                            "indicating that they should be determined based on the data using an "
-                            "heuristic calculation.")
+    # model.add_argument('--timepoints', type=str, default="h",
+    #                    help="starting and ending time points of model. "
+    #                         "this can be either a comma separated list of two numbers `t1,tK`"
+    #                         "indicating starting and ending generations, "
+    #                         "a single value, indicating the starting time point, "
+    #                         "or the special value 'h' "
+    #                         "indicating that they should be determined based on the data using an "
+    #                         "heuristic calculation.")
     model.add_argument('--knots', type=int,
                        default=smcpp.defaults.knots,
                        help="number of knots to use in internal representation")
-    model.add_argument('--hs', type=int,
-                       default=2,
-                       help="ratio of (# hidden states) / (# knots). Must "
-                            "be an integer >= 1. Larger values will consume more "
-                            "memory and CPU but are potentially more accurate. ")
+    # model.add_argument('--hs', type=int,
+    #                    default=2,
+    #                    help="ratio of (# hidden states) / (# knots). Must "
+    #                         "be an integer >= 1. Larger values will consume more "
+    #                         "memory and CPU but are potentially more accurate. ")
     model.add_argument('--spline',
                        choices=["cubic", "pchip", "piecewise"],
                        default=smcpp.defaults.spline,

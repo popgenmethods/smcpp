@@ -32,72 +32,16 @@ class Analysis(base.BaseAnalysis):
             sys.exit(1)
 
         NeN0 = self._pipeline["watterson"].theta_hat / (2. * args.mu * self._N0)
-
-        # Optionally initialize from pre-specified model
-        if args.initial_model:
-            d = json.load(open(args.initial_model, "rt"))
-            logger.debug("Import model:\n%s", d)
-            self._theta = d["theta"]
-            self._rho = d["rho"]
-            self._model = base._model_cls_d[d["model"]["class"]].from_dict(d["model"])
-            hs = self.rescale(
-                smcpp.estimation_tools.balance_hidden_states(
-                    self._model, args.hs * len(self._model)
-                )
-            )
-            self.hidden_states = hs
-            self._knots = hs[1:-1][::args.hs]
-            logger.debug("rebalanced hidden states: %s", self.hidden_states)
-        else:
-            mc = self._pipeline["mutation_counts"].counts
-            w = self._pipeline["mutation_counts"].w
-            if np.all(mc == 0):
-                logger.error(
-                    "Heuristic used to calculate time points has failed, "
-                    "possibly due to having a lot of missing data. Please "
-                    "set the --timepoints option manually."
-                )
-                sys.exit(1)
-            q = smcpp.beta_de.quantile(
-                mc / w, 1. / w, np.geomspace(1e-2, .999, args.hs * args.knots)
-            )
-            tau = np.r_[0., q / (2. * self._theta), np.inf]
-            # Assign hidden states based on estimated coalescence quantiles
-            self.hidden_states = tau
-            logger.debug("hidden states in coalescent scaling: %s", tau)
-            self._knots = tau[1:-1][::args.hs]
-        if any([args.timepoints == "h", "," not in args.timepoints]):
-            n = np.average(
-                [c.n[0] for c in self.contigs], weights=[len(c) for c in self.contigs]
-            )
-            if n > 0 or args.timepoints != "h":
-                if args.timepoints != "h":
-                    try:
-                        t1 = float(args.timepoints)
-                    except:
-                        logger.error("Could not parse --timepoints; see --help.")
-                        sys.exit(1)
-                else:
-                    t1 = 2. * NeN0 * self._N0 * -np.log(.001) / (n * (n - 1) / 2)
-                    logger.info("calculated t1: %f gens", t1)
-                rt1 = self.rescale(t1)
-                if rt1 < self._knots[0]:
-                    additional_knots = np.geomspace(rt1, self._knots[0], args.knots // 4, False)
-                    logger.debug("Adding additional knots: %s", additional_knots)
-                    self._knots = np.r_[additional_knots, self._knots]
-            logger.debug("Determined knots heuristically to be: %s", self._knots)
-        else:
-            try:
-                t1, tK = [float(x) / 2. / self._N0 for x in args.timepoints.split(",")]
-                hs = np.r_[0., np.geomspace(t1, tK, args.hs * args.knots, False), np.inf]
-                self.hidden_states = hs
-                self._knots = hs[1:-1][::args.hs]
-                logger.debug("Knots are: %s", self._knots)
-            except:
-                raise RuntimeError(
-                    "Could not parse time points. "
-                    "See documentation for --timepoints option."
-                )
+        m = SMCModel([1.], self._N0, spline.Piecewise, None)
+        m[:] = np.log(NeN0)
+        hs = estimation_tools.balance_hidden_states(m, args.knots)
+        if args.timepoints is not None:
+            hs = np.geomspace(args.timepoints[0], args.timepoints[1], args.knots)
+        hs /= (2 * self._N0)
+        hs = np.r_[0., hs, np.inf]
+        self.hidden_states = hs
+        self._knots = hs[1:-1]
+        logger.debug("Knots are: %s", self._knots)
 
         self._init_model(args.spline)
         self._init_inference_manager(args.polarization_error, self.hidden_states)

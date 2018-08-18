@@ -417,13 +417,12 @@ good estimates*.
   may need to experiment a bit.
 
 - ``--timepoints``: This command specifies the starting and ending time points
-  of the model.  It accepts either a comma-separated list of two numbers
-  `t1,tK` specifying the starting and ending time points of the model (in
-  generations), or the default setting `h`. If `h` is specified, SMC++ will use
-  an experimental heuristic to calculate the model time points points
+  of the model.  It accepts two numbers `t1 tK` specifying the starting and
+  ending time points of the model (in generations). If not specified, SMC++
+  will use an heuristic to calculate the model time points points
   automatically.
 
-- ``--regularization-penalty``: This parameter penalizes curvature in
+- ``--regularization-penalty``, ``-rp``: This parameter penalizes curvature in
   the estimated size history. The default value of this parameter is
   ``6.0``. Lower values of the penalty shrink the estimated
   size history towards a line. If your estimates exhibit too much

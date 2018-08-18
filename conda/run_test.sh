@@ -10,7 +10,7 @@ $SMC chunk 10 200000 $TMP/chunk.1. $TMP/example.1.smc.gz
 $SMC chunk 10 200000 $TMP/chunk.2. $TMP/example.2.smc.gz
 $SMC chunk 10 200000 $TMP/chunk.12. $TMP/example.12.smc.gz
 $SMC estimate --em-iterations 1 -o $TMP/out/1 --unfold --knots 5 --em-iterations 1 1.25e-8 $TMP/example.1.smc.gz
-$SMC estimate --em-iterations 1 -o $TMP/out/1 --unfold --knots 5 --timepoints 33,1000 --em-iterations 1 1.25e-8 $TMP/example.1.smc.gz
+$SMC estimate --em-iterations 1 -o $TMP/out/1 --unfold --knots 5 --timepoints 33 1000 --em-iterations 1 1.25e-8 $TMP/example.1.smc.gz
 $SMC estimate --em-iterations 1 -p 0.01 -r 1e-8 -o $TMP/out/2 --knots 5 --em-iterations 1 1.25e-8 $TMP/example.2.smc.gz
 $SMC cv --em-iterations 1 --folds 2 -o $TMP/out/cv --fold 0 1e-8 $TMP/example.1.smc.gz $TMP/example.11.smc.gz
 $SMC cv --em-iterations 1 --folds 2 -o $TMP/out/cv --fold 1 1e-8 $TMP/example.1.smc.gz $TMP/example.11.smc.gz

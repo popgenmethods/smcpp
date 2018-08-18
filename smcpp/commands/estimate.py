@@ -28,7 +28,6 @@ class Estimate(command.EstimationCommand, command.ConsoleCommand):
         '''Configure parser and parse args.'''
         command.add_pop_parameters(parser)
         model = command.add_model_parameters(parser)
-        model.add_argument("--initial-model", help=argparse.SUPPRESS)
         parser.add_argument('data', nargs="+",
                             help="data file(s) in SMC++ format")
 
