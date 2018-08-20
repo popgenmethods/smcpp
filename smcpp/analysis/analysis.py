@@ -38,7 +38,6 @@ class Analysis(base.BaseAnalysis):
         if args.timepoints is not None:
             hs = np.geomspace(args.timepoints[0], args.timepoints[1], args.knots)
         hs /= (2 * self._N0)
-        hs = np.r_[0., hs, np.inf]
         self.hidden_states = hs
         self._knots = hs[1:-1]
         logger.debug("Knots are: %s", self._knots)
