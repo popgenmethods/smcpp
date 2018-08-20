@@ -53,7 +53,7 @@ class Analysis(base.BaseAnalysis):
             args.xtol,
             args.ftol,
             learn_rho=args.r is None,
-            single=args.no_multi,
+            single=not args.multi,
         )
         self._init_regularization(args)
 

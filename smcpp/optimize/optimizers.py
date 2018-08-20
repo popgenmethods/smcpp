@@ -237,9 +237,10 @@ class SMCPPOptimizer(AbstractOptimizer):
 
     def _coordinates(self):
         model = self._analysis.model
+        ret = [range(model.K)]
         if self._single:
-            return [[k] for k in range(model.K)][::-1]  # + [list(range(K // 3))]
-        return [range(model.K)]
+            ret = [[k] for k in range(model.K)][::-1]  # + [list(range(K // 3))]
+        return ret
 
 
 class TwoPopulationOptimizer(SMCPPOptimizer):

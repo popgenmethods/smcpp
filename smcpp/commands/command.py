@@ -78,8 +78,8 @@ def add_common_estimation_args(parser):
                            default="L-BFGS-B", help="optimization algorithm. Powell's method "
                                    "is used by {P,MS}MC and does not require gradients. It may "
                                    "be faster in some cases.")
-    optimizer.add_argument('--no-multi', default=False, action="store_true",
-                           help="do not update multiple blocks of coordinates at once")
+    optimizer.add_argument('--multi', default=False, action="store_true",
+                           help="update multiple blocks of coordinates at once")
     optimizer.add_argument("--ftol", type=float,
                            default=smcpp.defaults.ftol,
                            help="stopping criterion for relative improvement in loglik "
