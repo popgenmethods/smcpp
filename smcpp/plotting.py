@@ -70,7 +70,7 @@ def plot_psfs(psfs, xlim, ylim, xlabel, knots=False, logy=False, stats={}):
             y = np.concatenate([y, [a[-1], a[-1]]])
             # if not logy:
             #     y *= 1e-3
-            series.append((fn, x, y, my_axplot, off, N0, g))
+            series.append((None, x, y, my_axplot, off, N0, g))
         elif "model" in d:
             cls = getattr(model, d["model"]["class"])
             mb = cls.from_dict(d["model"])

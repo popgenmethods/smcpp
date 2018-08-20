@@ -7,10 +7,9 @@ import sys
 sys.path.append("util/")
 import multiprocessing
 import argparse
-import cPickle as pickle
+import pickle
 import os.path
 import vcf
-import cStringIO
 from collections import Counter
 
 import scrm, smcpp.util

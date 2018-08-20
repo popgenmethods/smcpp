@@ -74,18 +74,24 @@ class Plot(command.Command, command.ConsoleCommand):
             if len(args.offsets) != len(args.model):
                 raise RuntimeError("Please specify one offset per model")
         for fn, off in zip_longest(args.model, args.offsets, fillvalue=None):
-            if not os.path.exists(fn):
-                sys.exit("File not found: %s" % fn)
-            res = json.load(open(fn, "rt"))
-            if args.step_function:
-                mod = res["model"]
-                klass = getattr(model, mod["class"])
-                m = klass.from_dict(mod)
-                a = m.stepwise_values().astype("float")
-                s = m.s
-                d = {"a": m.stepwise_values(), "s": m.s, "N0": mod["N0"]}
+            if fn in ["human", "sawtooth"]:
+                label = None
+                p = getattr(util, fn)
+                d = {k: p[k] for k in "abs"}
+                d['N0'] = p['N0']
             else:
-                d = res
+                if not os.path.exists(fn):
+                    sys.exit("File not found: %s" % fn)
+                res = json.load(open(fn, "rt"))
+                if args.step_function:
+                    mod = res["model"]
+                    klass = getattr(model, mod["class"])
+                    m = klass.from_dict(mod)
+                    a = m.stepwise_values().astype("float")
+                    s = m.s
+                    d = {"a": m.stepwise_values(), "s": m.s, "N0": mod["N0"]}
+                else:
+                    d = res
             d["g"] = args.g
             psfs.append((d, off or 0))
         fig, series = plotting.plot_psfs(
