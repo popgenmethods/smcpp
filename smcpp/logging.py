@@ -8,6 +8,7 @@ from logging import INFO, ERROR, WARNING, DEBUG, NOTSET, CRITICAL
 
 
 class _SMCPPFilter:
+
     def filter(self, record):
         return record.name.startswith("smcpp")
 
@@ -17,9 +18,10 @@ def init_logging():
     root = logging.getLogger()
     while len(root.handlers) > 0:
         root.removeHandler(logging.root.handlers[-1])
-    logging.addLevelName(logging.DEBUG - 1, 'DEBUG1')
+    logging.addLevelName(logging.DEBUG - 1, "DEBUG1")
     fmt = logging.Formatter(
-        '%(relativeCreated)d %(name)-12s %(levelname)-1s %(message)s')
+        "%(relativeCreated)d %(name)-12s %(levelname)-1s %(message)s"
+    )
     sh = logging.StreamHandler()
     sh.setFormatter(fmt)
     sh.setLevel(logging.INFO)
@@ -37,6 +39,7 @@ def setup_logging(verbosity):
     sh = root.handlers[0]
     sh.setLevel([INFO, DEBUG, DEBUG - 1][verbosity])
     logging.captureWarnings(True)
+
 
 def add_debug_log(debug_log):
     fh = logging.FileHandler(debug_log, "wt")

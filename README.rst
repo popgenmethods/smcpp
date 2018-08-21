@@ -20,9 +20,9 @@ Quick start guide
    should run this once for each independent contig in your dataset,
    producing one SMC++ output file per contig.
 
-3. Fit the model using estimate_::
+3. Fit the model using cv_::
 
-     $ smc++ estimate -o analysis/ 1.25e-8 out/example.chr*.smc.gz
+     $ smc++ cv -o analysis/ 1.25e-8 out/example.chr*.smc.gz
 
    The first mandatory argument, ``1.25e-8``, is the per-generation
    mutation rate. The remaining arguments are the data files generated
@@ -250,6 +250,9 @@ is::
 
     $ smc++ estimate <mutation rate> <data file> [<data file> ...]
 
+*Please note that, in contrast to earlier versions, the recommended way to 
+estimate size history is now via the cv_ command*.
+
 Required arguments
 ^^^^^^^^^^^^^^^^^^
 
@@ -274,6 +277,20 @@ Optional arguments
 
 A number of other arguments concerning technical aspects of the fitting
 procedure exist. To see them, pass the ``-h`` option to ``estimate``.
+
+cv
+--
+
+This command is similar to estimate_, with the difference that it uses
+cross-validation to obtain sensible model parameters for use during estimation.
+*As of version 1.15, this is the recommended way to run SMC++*. The syntax and
+options for this command are nearly identical to estimate_:
+
+    $ smc++ cv <mutation rate> <data file> [<data file> ...]
+
+The optional `--folds` parameter can be used to specify the number of folds
+used for performing `k`-fold cross validation. The default is `2` and should be
+set higher in cases where you have more data.
 
 plot
 ----
@@ -400,13 +417,12 @@ good estimates*.
   may need to experiment a bit.
 
 - ``--timepoints``: This command specifies the starting and ending time points
-  of the model.  It accepts either a comma-separated list of two numbers
-  `t1,tK` specifying the starting and ending time points of the model (in
-  generations), or the default setting `h`. If `h` is specified, SMC++ will use
-  an experimental heuristic to calculate the model time points points
+  of the model.  It accepts two numbers `t1 tK` specifying the starting and
+  ending time points of the model (in generations). If not specified, SMC++
+  will use an heuristic to calculate the model time points points
   automatically.
 
-- ``--regularization-penalty``: This parameter penalizes curvature in
+- ``--regularization-penalty``, ``-rp``: This parameter penalizes curvature in
   the estimated size history. The default value of this parameter is
   ``6.0``. Lower values of the penalty shrink the estimated
   size history towards a line. If your estimates exhibit too much
@@ -423,7 +439,7 @@ good estimates*.
 
 - ``--knots``: This parameter specifies the number of spline knots 
   used in the underlying representation of the size history. The default
-  value is ``32``. Using fewer knots can lead to smoother fits, however
+  value is ``8``. Using fewer knots can lead to smoother fits, however
   underspecifying this parameter may smooth out interesting features of
   the size history.
 

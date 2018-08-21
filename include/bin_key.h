@@ -53,6 +53,7 @@ std::set<block_key> bin_key<1>::run(
     else
     {
         ret.emplace(key);
+        /*
         if (true) // or undistinguish)
             for (int aa = 0; aa <= na(0); ++aa)
             {
@@ -63,7 +64,6 @@ std::set<block_key> bin_key<1>::run(
                         (bb <= key(2)))
                     ret.emplace(tmp);
             }
-        /*
         if (nb > 0 and ((double)b / (double)nb > cutoff))
             for (int bb = (int)(cutoff * nb); bb <= nb; ++bb)
             {

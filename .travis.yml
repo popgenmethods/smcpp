@@ -14,8 +14,8 @@ install:
   - conda config --set always_yes yes --set changeps1 no
   - conda update -y conda python
   - conda info -a
-  - conda install conda-build anaconda-client git ruamel_yaml pip
-  - pip install git+https://github.com/conda/constructor@6cf619d47
+  - conda install conda-build anaconda-client git pip constructor
+  # - pip install git+https://github.com/conda/constructor@6cf619d47
   - conda build -c terhorst -c bioconda conda
   - conda build -c terhorst -c bioconda conda --output | tee .packages
   - conda/template.py conda/construct.tpl $VERSION > conda/construct.yaml

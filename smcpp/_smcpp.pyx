@@ -324,6 +324,11 @@ cdef class PyOnePopInferenceManager(_PyInferenceManager):
         self.__my_cinit__(observations, hidden_states, im_id)
         with nogil:
             self._im = new OnePopInferenceManager(n, self._Ls, self._obs_ptrs, self._hs)
+        # Make some sensible defaults
+        self.polarization_error = 0
+        self.alpha = 1
+        self.theta = 1e-4
+        self.rho = 1e-4
 
     @property
     def pid(self):

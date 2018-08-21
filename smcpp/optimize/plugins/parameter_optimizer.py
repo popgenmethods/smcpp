@@ -5,7 +5,9 @@ from smcpp.logging import getLogger
 
 logger = getLogger(__name__)
 
+
 class ParameterOptimizer(OptimizerPlugin):
+
     def __init__(self, param, bounds, target="analysis"):
         self._param = param
         self._bounds = bounds
@@ -23,16 +25,14 @@ class ParameterOptimizer(OptimizerPlugin):
         param = self._param
         logger.info("Updating %s, bounds (%f, %f)", param, *self.bounds)
         tgt = kwargs[self._target]
-        analysis = kwargs['analysis']
+        analysis = kwargs["analysis"]
         if param not in ("theta", "rho", "split", "alpha"):
             raise RuntimeError("unrecognized param")
         x0 = getattr(tgt, param)
-        logger.debug("Old %s: Q(%f)=%f", param, x0,
-                     self._f(x0, analysis, tgt, param))
-        res = scipy.optimize.minimize_scalar(self._f,
-                                             args=(analysis, tgt, param),
-                                             method='bounded',
-                                             bounds=self.bounds)
+        logger.debug("Old %s: Q(%f)=%f", param, x0, self._f(x0, analysis, tgt, param))
+        res = scipy.optimize.minimize_scalar(
+            self._f, args=(analysis, tgt, param), method="bounded", bounds=self.bounds
+        )
         logger.info("New %s: %g", param, res.x)
         setattr(tgt, param, res.x)
 

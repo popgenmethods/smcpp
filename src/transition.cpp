@@ -177,6 +177,7 @@ HJTransition<T>::HJTransition(const PiecewiseConstantRateFunction<T> &eta, const
     const std::vector<T> Rrng = eta.getRrng();
     const std::vector<T> ada = eta.getAda();
     const std::vector<T> avg_coal_times = eta.average_coal_times();
+    const std::vector<double> hidden_states = eta.getHiddenStates();
 
     compute_expms();
     std::vector<int> avc_ip;
@@ -230,7 +231,7 @@ HJTransition<T>::HJTransition(const PiecewiseConstantRateFunction<T> &eta, const
                     inc += ada[jj] * (ts[jj + 1] - ts[jj]);
                 T p_coal = exp(-Rjk1);
                 Rjk1 += inc;
-                if (k < this->M - 1)
+                if (! std::isinf(toDouble(inc)))
                     p_coal *= -expm1(-inc);
                 this->Phi(j - 1, k - 1) += p_float * p_coal / S;
             }

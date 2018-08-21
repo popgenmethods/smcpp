@@ -62,7 +62,8 @@ setup(name='smcpp',
             "matplotlib>=1.5",
             "pysam>=0.9",
             "attrs>=17.2.0",
-            "pandas"],
+            "pandas",
+            "msprime>=0.5.0"],
         entry_points = {
             'console_scripts': ['smc++ = smcpp.frontend.console:main'],
             }

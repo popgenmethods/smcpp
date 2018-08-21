@@ -401,8 +401,9 @@ void NPopInferenceManager<P>::recompute_emission_probs()
         }
         else
         {
-            e2(m, 0) = exp(-2. * alpha * theta * avg_ct.at(m));
-            e2(m, 1) = 1. - e2(m, 0);
+            adouble log_e2m = -2. * alpha * theta * avg_ct.at(m);
+            e2(m, 0) = exp(log_e2m);
+            e2(m, 1) = -expm1(log_e2m);
         }
     }
     const adouble zero = eta->zero();

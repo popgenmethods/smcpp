@@ -15,9 +15,10 @@ logger = getLogger(__name__)
 
 
 class AbstractOptimizer(Observable):
-    '''
+    """
     Abstract representation of the execution flow of the optimizer.
-    '''
+    """
+
     def __init__(self, analysis, algorithm, xtol, ftol, single):
         Observable.__init__(self)
         self._plugins = []
@@ -29,7 +30,7 @@ class AbstractOptimizer(Observable):
 
     @abstractmethod
     def _coordinates(self):
-        'Return a list of groups of coordinates to be optimized at iteration i.'
+        "Return a list of groups of coordinates to be optimized at iteration i."
         return []
 
     def __getitem__(self, coords):
@@ -57,7 +58,6 @@ class AbstractOptimizer(Observable):
         s = np.array(s)
         return (B - b) * s + b
 
-
     def _f(self, x, analysis, coords):
         x = self._prepare_x(x)  # do not change this line
         xs = self._sigmoid(x)
@@ -69,22 +69,23 @@ class AbstractOptimizer(Observable):
             return [np.inf, np.zeros(len(x))]
         q = -q
         ret = [q.x, np.array(list(map(q.d, x)))]
-        if not hasattr(self, '_f_dict'):
+        if not hasattr(self, "_f_dict"):
             self._f_dict = {}
-        self._f_dict[tuple(np.array(x).astype('float').tolist())] = q.x
+        self._f_dict[tuple(np.array(x).astype("float").tolist())] = q.x
         return ret
 
     def _minimize(self, x0, coords):
         self._xk = self._k = self._delta = None
         try:
             alg = self._algorithm
-            if alg == 'Powell':
+            if alg == "Powell":
                 self._prepare_x = lambda x: list(map(ad.adnumber, x))
 
             options = {
-                    # 'xtol': self._xtol, 'ftol': self._ftol, 'disp': True
-                    }
-            x0z = x0 
+                # 'xtol': self._xtol, 'ftol': self._ftol,
+                "disp": True
+            }
+            x0z = x0
             # preconditioner
             # self._scale = 1.
             # f, dq = self._f(x0z, self._analysis, coords)
@@ -111,14 +112,30 @@ class AbstractOptimizer(Observable):
                         bounds=self._bounds,
                         # callback=self._callback,
                         method=alg)
+                # res = scipy.optimize.basinhopping(
+                #     self._f,
+                #     x0z,
+                #     minimizer_kwargs={
+                #         "args": (self._analysis, coords),
+                #         "method": self._algorithm,
+                #         "jac": True,
+                #         "options": {"disp": False},
+                #     },
+                #     disp=False,
+                #     niter=20,
+                # )
             else:
+
                 def _f_scalar(x, *args, **kwargs):
                     return self._f(np.array([x]), *args, **kwargs)[0]
-                res = scipy.optimize.minimize_scalar(_f_scalar,
-                        bounds=self._bounds[0],
-                        options={'xtol': self._xtol, 'ftol': self._ftol},
-                        args=(self._analysis, coords),
-                        method='bounded')
+
+                res = scipy.optimize.minimize_scalar(
+                    _f_scalar,
+                    bounds=self._bounds[0],
+                    options={"xtol": self._xtol, "ftol": self._ftol},
+                    args=(self._analysis, coords),
+                    method="bounded",
+                )
                 res.x = np.array([res.x])
             logger.debug(res)
             improv = (f0 - res.fun) / abs(f0)
@@ -131,42 +148,44 @@ class AbstractOptimizer(Observable):
         except ConvergedException as ce:
             logger.debug("Converged: %s", str(ce))
             return scipy.optimize.OptimizeResult(
-                {'x': self._sigmoid(self._xk),
-                 'fun': self._f_dict[self._xk]}
-                )
+                {"x": self._sigmoid(self._xk), "fun": self._f_dict[self._xk]}
+            )
 
     def run(self, niter):
-        self.update_observers('begin')
+        self.update_observers("begin")
         try:
             for i in range(niter):
                 # Perform E-step
-                kwargs = {'i': i, 'niter': niter}
-                self.update_observers('pre E-step', **kwargs)
+                kwargs = {"i": i, "niter": niter}
+                self.update_observers("pre E-step", **kwargs)
                 self._analysis.E_step()
-                self.update_observers('post E-step', **kwargs)
+                self.update_observers("post E-step", **kwargs)
                 # Perform M-step
-                self.update_observers('pre M-step', **kwargs)
+                self.update_observers("pre M-step", **kwargs)
                 coord_list = self._coordinates()
                 for coords in coord_list:
-                    self.update_observers('M step', coords=coords, **kwargs)
+                    self.update_observers("M step", coords=coords, **kwargs)
                     x0 = self[coords]
                     self._bounds = np.transpose(
-                        [np.maximum(x0 - 3., np.log(smcpp.defaults.minimum)),
-                         np.minimum(x0 + 3., np.log(smcpp.defaults.maximum))])
+                        [
+                            np.maximum(x0 - 3., np.log(smcpp.defaults.minimum)),
+                            np.minimum(x0 + 3., np.log(smcpp.defaults.maximum)),
+                        ]
+                    )
                     logger.debug("bounds: %s", self._bounds)
                     res = self._minimize(x0, coords)
-                    self.update_observers('post minimize',
-                                          coords=coords,
-                                          res=res, **kwargs)
+                    self.update_observers(
+                        "post minimize", coords=coords, res=res, **kwargs
+                    )
                     self[coords] = res.x
-                    self.update_observers('post mini M-step',
-                                          coords=coords,
-                                          res=res, **kwargs)
-                self.update_observers('post M-step', **kwargs)
+                    self.update_observers(
+                        "post mini M-step", coords=coords, res=res, **kwargs
+                    )
+                self.update_observers("post M-step", **kwargs)
         except EMTerminationException:
             pass
         # Conclude the optimization and perform any necessary callbacks.
-        self.update_observers('optimization finished')
+        self.update_observers("optimization finished")
 
     def _callback(self, xk):
         return
@@ -193,15 +212,18 @@ class AbstractOptimizer(Observable):
         self.register(p)
 
     def update_observers(self, *args, **kwargs):
-        kwargs.update({
-            'optimizer': self,
-            'analysis': self._analysis,
-            'model': self._analysis.model})
+        kwargs.update(
+            {
+                "optimizer": self,
+                "analysis": self._analysis,
+                "model": self._analysis.model,
+            }
+        )
         Observable.update_observers(self, *args, **kwargs)
 
 
 class SMCPPOptimizer(AbstractOptimizer):
-    'Model fitting for one population.'
+    "Model fitting for one population."
 
     def __init__(self, analysis, algorithm, xtol, ftol, single):
         AbstractOptimizer.__init__(self, analysis, algorithm, xtol, ftol, single)
@@ -215,12 +237,14 @@ class SMCPPOptimizer(AbstractOptimizer):
 
     def _coordinates(self):
         model = self._analysis.model
+        ret = [range(model.K)]
         if self._single:
-            return [[k] for k in range(model.K)][::-1] # + [list(range(K // 3))]
-        return [range(model.K)]
+            ret = [[k] for k in range(model.K)][::-1]  # + [list(range(K // 3))]
+        return ret
+
 
 class TwoPopulationOptimizer(SMCPPOptimizer):
-    'Model fitting for two populations.'
+    "Model fitting for two populations."
 
     def _coordinates(self):
         return []

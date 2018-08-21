@@ -5,13 +5,14 @@ from smcpp.logging import getLogger
 
 logger = getLogger(__name__)
 
+
 class KnotOptimizer:  # (OptimizerPlugin):
     DISABLED = True
 
     @targets("pre M-step")
     def update(self, message, *args, **kwargs):
         # pick a random knot and optimize
-        model = kwargs['model']
+        model = kwargs["model"]
         knots = model._knots
         inds = np.arange(1, len(knots) - 1)  # hold first and last knots fixed
         for i in np.random.choice(inds, size=int(len(inds) * .2), replace=False):
@@ -21,16 +22,17 @@ class KnotOptimizer:  # (OptimizerPlugin):
                 bounds = (1.1 * knots[-2], 2 * knots[-1])
             else:
                 bounds = (knots[i - 1] * 1.1, knots[i + 1] * 0.9)
-            analysis = kwargs['analysis']
-            opt = kwargs['optimizer']
+            analysis = kwargs["analysis"]
+            opt = kwargs["optimizer"]
             bounds = (bounds, opt._bounds([i])[0])
             x0 = (knots[i], model[i])
-            logger.info("Old knot %d=(%f,%f) Q=%f", i, x0[0], x0[1], self._f(x0, analysis, i))
+            logger.info(
+                "Old knot %d=(%f,%f) Q=%f", i, x0[0], x0[1], self._f(x0, analysis, i)
+            )
             logger.debug("Bounds: %s", bounds)
-            res = scipy.optimize.minimize(self._f,
-                                          x0=x0,
-                                          args=(analysis, i),
-                                          bounds=bounds)
+            res = scipy.optimize.minimize(
+                self._f, x0=x0, args=(analysis, i), bounds=bounds
+            )
             logger.info("New knot %d=(%f,%f) Q=%f", i, res.x[0], res.x[1], res.fun)
             knots[i] = res.x[0]
             model[i] = res.x[1]
