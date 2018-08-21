@@ -7,7 +7,7 @@ build:
 
 source:
   git_url: ../
-  git_tag: devel
+  # git_tag: devel
 
 requirements:
   build:
