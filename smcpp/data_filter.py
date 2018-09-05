@@ -35,6 +35,7 @@ class DataPipeline:
             self._filters.update(kwargs)
         else:
             self._filters["filter%d" % len(self._filters)] = args[0]
+        self._results = None
 
     def run(self):
         if self._results is not None:

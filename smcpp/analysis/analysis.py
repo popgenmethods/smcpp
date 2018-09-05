@@ -18,15 +18,6 @@ class Analysis(base.BaseAnalysis):
     def __init__(self, files, args):
         super().__init__(files, args)
 
-        pipe = self._pipeline
-        pipe.add_filter(data_filter.Thin(thinning=args.thinning))
-        pipe.add_filter(data_filter.BinObservations(w=args.w))
-        pipe.add_filter(data_filter.RecodeMonomorphic())
-        pipe.add_filter(data_filter.Compress())
-        pipe.add_filter(data_filter.Validate())
-        pipe.add_filter(data_filter.DropUninformativeContigs())
-        pipe.add_filter(data_filter.Summarize())
-
         if self.npop != 1:
             logger.error("Please use 'smc++ split' to estimate two-population models")
             sys.exit(1)
@@ -34,7 +25,7 @@ class Analysis(base.BaseAnalysis):
         NeN0 = self._pipeline["watterson"].theta_hat / (2. * args.mu * self._N0)
         m = SMCModel([1.], self._N0, spline.Piecewise, None)
         m[:] = np.log(NeN0)
-        hs = estimation_tools.balance_hidden_states(m, args.knots)
+        hs = estimation_tools.balance_hidden_states(m, 2 + args.knots)
         if args.timepoints is not None:
             hs = np.geomspace(args.timepoints[0], args.timepoints[1], args.knots)
         hs /= (2 * self._N0)
@@ -43,10 +34,35 @@ class Analysis(base.BaseAnalysis):
         logger.debug("Knots are: %s", self._knots)
 
         self._init_model(args.spline)
+        hs0 = hs
+        self.hidden_states = [0., np.inf]
         self._init_inference_manager(args.polarization_error, self.hidden_states)
-        self.alpha = args.w
+        self.alpha = 1
         self._model[:] = np.log(NeN0)
         self._model.randomize()
+        self._init_optimizer(
+            args.outdir,
+            args.algorithm,
+            args.xtol,
+            args.ftol,
+            learn_rho=args.r is None,
+            single=False
+        )
+        self._init_regularization(args)
+        self.run(1)
+
+        pipe = self._pipeline
+        pipe.add_filter(data_filter.Thin(thinning=args.thinning))
+        # pipe.add_filter(data_filter.BinObservations(w=args.w))
+        pipe.add_filter(data_filter.RecodeMonomorphic())
+        pipe.add_filter(data_filter.Compress())
+        pipe.add_filter(data_filter.Validate())
+        pipe.add_filter(data_filter.DropUninformativeContigs())
+        pipe.add_filter(data_filter.Summarize())
+
+        self.hidden_states = hs0
+        self._init_inference_manager(args.polarization_error, self.hidden_states)
+        self.alpha = 1
         self._init_optimizer(
             args.outdir,
             args.algorithm,
