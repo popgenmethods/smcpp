@@ -45,26 +45,7 @@ class BaseModel(Observable):
 
     @returns_ad
     def regularizer(self):
-        rd = smcpp.defaults.regularization_degree
-
-        def f(x):
-            if rd == 1:
-                return abs(x)
-            else:
-                return x ** rd
-
-        return f(np.diff(self[:], rd)).sum() ** (1. / rd)
-        y = self[:]
-        dx2 = np.diff(np.log(np.r_[1e-5, self.knots])) ** rd
-        seq = [(-1) ** j * scipy.misc.comb(rd, j) for j in range(rd + 1)]
-        u = np.convolve(y, seq, "valid")
-        v = dx2[rd:]
-        if len(v) != len(u):
-            return 0.
-        # logger.debug(u)
-        # logger.debug(v)
-        # logger.debug(u / v)
-        return f(u / v).sum() ** (1. / rd)
+        return self._spline.roughness()
 
 
 def aggregate(*models, stat=np.mean):

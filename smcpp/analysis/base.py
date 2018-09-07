@@ -42,8 +42,6 @@ class BaseAnalysis:
             )
         if args.polarization_error > 0.:
             logger.debug("Polarization error p=%f", args.polarization_error)
-        smcpp.defaults.regularization_degree = args.regularization_degree
-        logger.debug("regularization degree=%d", smcpp.defaults.regularization_degree)
 
         # Load data and apply transformations to normalize
         pipe = self._pipeline = data_filter.DataPipeline(files)

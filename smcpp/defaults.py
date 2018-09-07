@@ -6,7 +6,6 @@ pieces = 100
 knots = 8
 minimum = 1e-4
 maximum = 1e4
-regularization_degree = 2
 spline = "piecewise"
 cores = None
 perplexity_threshold = .5
