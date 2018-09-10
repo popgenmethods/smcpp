@@ -38,7 +38,7 @@ class TransitionBundle
         targets(targets),
         emission_probs(emission_probs) {}
 
-    void update(const Matrix<adouble> &new_T);
+    void update(const Matrix<adouble> &new_T, const bool);
     Matrix<adouble> T;
     Matrix<double> Td;
     Eigen::VectorXcd d;

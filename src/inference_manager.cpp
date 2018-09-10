@@ -115,6 +115,7 @@ void InferenceManager::Estep(bool fbonly)
 {
     DEBUG1 << "E step";
     do_dirty_work();
+    tb.update(transition, true);
     parallel_do([fbonly] (hmmptr &hmm) { hmm->Estep(fbonly); });
 }
 
@@ -231,7 +232,7 @@ void InferenceManager::do_dirty_work()
     if (dirty.eta or dirty.rho)
         transition = compute_transition(*eta, rho);
     if (dirty.theta or dirty.eta or dirty.rho)
-        tb.update(transition);
+        tb.update(transition, false);
     // restore pristine status
     dirty = {false, false, false};
 }
@@ -409,9 +410,10 @@ void NPopInferenceManager<P>::recompute_emission_probs()
     const adouble zero = eta->zero();
     const adouble one = zero + 1.;
     DEBUG1 << "bpm_keys";
-// #pragma omp parallel for
-    for (const block_key &k : bpm_keys)
+#pragma omp parallel for
+for (auto it = bpm_keys.begin(); it < bpm_keys.end(); ++it)
     {
+        const block_key k = *it;
         std::array<std::set<FixedVector<int, 3> >, P> s;
         Vector<adouble> tmp(M);
         tmp.fill(zero);
@@ -449,8 +451,7 @@ void NPopInferenceManager<P>::recompute_emission_probs()
             throw std::runtime_error("probability vector not in [0, 1]");
         }
         CHECK_NAN(tmp);
-// #pragma omp critical(write_ep)
-        this->emission_probs[k] = tmp;
+        this->emission_probs.at(k) = tmp;
     }
     DEBUG1 << "recompute done";
     std::map<block_key, Vector<adouble> > new_emission_probs;

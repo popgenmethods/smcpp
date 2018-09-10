@@ -1,13 +1,16 @@
 #include "transition_bundle.h"
 
-void TransitionBundle::update(const Matrix<adouble> &new_T)
+void TransitionBundle::update(const Matrix<adouble> &new_T, const bool recompute_eigs)
 {
     T = new_T;
     Td = T.template cast<double>();
-    const int M = T.rows();
+    if (! recompute_eigs) return;
     eigensystems.clear();
+    const int M = T.rows();
     span_Qs.clear();
     Matrix<double> tmp;
+
+    eigensystems.clear();
     for (auto it = targets.begin(); it != targets.end(); ++it)
     {
         block_key key = it->second;
