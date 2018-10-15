@@ -97,14 +97,14 @@ class Analysis(base.BaseAnalysis):
     def _init_knots(self, hs, t1, tK):
         self._knots = hs[1:-1:2]
         mult = np.mean(self._knots[1:] / self._knots[:-1])
-        t = t1
         k0 = self._knots[0]
+        t = t1 or k0
         a = []
         while t < k0:
             a = np.r_[a, t]
             t *= mult
         self._knots = np.r_[a, self._knots]
-        if tK > self._knots[-1]:
+        if tK is not None and tK > self._knots[-1]:
             self._knots = np.r_[self._knots, tK]
         logger.debug("Knots are: %s", self._knots)
 
