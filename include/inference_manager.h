@@ -30,7 +30,6 @@ class InferenceManager
     void setRho(const double);
     void setTheta(const double);
     void setAlpha(const double);
-    void setPolarizationError(const double);
 
     void Estep(bool);
     std::vector<adouble> Q();
@@ -67,7 +66,7 @@ class InferenceManager
     const int npop, sfs_dim, M;
     std::vector<Eigen::Map<Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> > > obs;
     std::unique_ptr<ConditionedSFS<adouble> > csfs;
-    double theta, rho, alpha, polarization_error;
+    double theta, rho, alpha;
     std::vector<hmmptr> hmms;
     Vector<adouble> pi;
     Matrix<adouble> transition, emission;
@@ -92,12 +91,13 @@ class NPopInferenceManager : public InferenceManager
             const std::vector<int> obs_lengths,
             const std::vector<int*> observations,
             const std::vector<double> hidden_states,
+            const double polarization_error,
             ConditionedSFS<adouble> *csfs) :
         InferenceManager(P,
                 (na.tail(na.size() - 1).array() + 1).prod() * (n.array() + 1).prod(),
                 obs_lengths, observations, hidden_states, csfs),
                 n(n), na(na), tensordims(make_tensordims()),
-                bins(construct_bins())
+                bins(construct_bins(polarization_error))
     {
         populate_emission_probs();
     }
@@ -122,7 +122,7 @@ class NPopInferenceManager : public InferenceManager
     const FixedVector<int, P> na;
     const FixedVector<int, 2 * P> tensordims;
 
-    std::map<block_key, std::map<block_key, double> > construct_bins();
+    std::map<block_key, std::map<block_key, double> > construct_bins(const double);
     std::map<block_key, std::map<block_key, double> > bins;
 };
 
@@ -133,7 +133,8 @@ class OnePopInferenceManager final : public NPopInferenceManager<1>
             const int n,
             const std::vector<int> obs_lengths,
             const std::vector<int*> observations,
-            const std::vector<double> hidden_states);
+            const std::vector<double> hidden_states,
+            const double polarization_error);
 };
 
 class TwoPopInferenceManager : public NPopInferenceManager<2>
@@ -144,7 +145,8 @@ class TwoPopInferenceManager : public NPopInferenceManager<2>
             const int a1, const int a2,
             const std::vector<int> obs_lengths,
             const std::vector<int*> observations,
-            const std::vector<double> hidden_states);
+            const std::vector<double> hidden_states,
+            const double polarization_error);
                 
     void setParams(const ParameterVector&, const ParameterVector&, const ParameterVector&, const double);
 

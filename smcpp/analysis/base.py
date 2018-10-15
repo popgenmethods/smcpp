@@ -97,19 +97,18 @@ class BaseAnalysis:
             logger.debug("Creating inference manager for %s", pid)
             data = [c.data for c in d[pid]]
             if len(pid) == 1:
-                im = _smcpp.PyOnePopInferenceManager(max_n[pid], data, hs[pid[0]], pid)
+                im = _smcpp.PyOnePopInferenceManager(max_n[pid], data, hs[pid[0]], pid, polarization_error)
             else:
                 assert len(pid) == 2
                 s = set(a[pid])
                 assert len(s) == 1
                 im = _smcpp.PyTwoPopInferenceManager(
-                    *(max_n[pid]), *s.pop(), data, hs[pid[0]], pid
+                    *(max_n[pid]), *s.pop(), data, hs[pid[0]], pid, polarization_error
                 )
             im.model = self._model
             im.theta = self._theta
             im.rho = self._rho
             im.alpha = self._alpha = 1
-            im.polarization_error = polarization_error
             self._ims[pid] = im
 
     # @property

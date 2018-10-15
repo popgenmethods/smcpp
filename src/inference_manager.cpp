@@ -74,12 +74,6 @@ void InferenceManager::setRho(const double rho)
     dirty.rho = true;
 }
 
-void InferenceManager::setPolarizationError(double pe)
-{
-    this->polarization_error = pe;
-    dirty.theta = true;
-}
-
 void InferenceManager::setAlpha(const double alpha)
 {
     this->alpha = alpha;
@@ -491,11 +485,12 @@ OnePopInferenceManager::OnePopInferenceManager(
             const int n,
             const std::vector<int> obs_lengths,
             const std::vector<int*> observations,
-            const std::vector<double> hidden_states) :
+            const std::vector<double> hidden_states,
+            const double polarization_error) :
         NPopInferenceManager(
                 FixedVector<int, 1>::Constant(n),
                 FixedVector<int, 1>::Constant(2),
-                obs_lengths, observations, hidden_states, 
+                obs_lengths, observations, hidden_states, polarization_error,
                 new OnePopConditionedSFS<adouble>(n)) {}
 
 JointCSFS<adouble>* create_jcsfs(int n1, int n2, int a1, int a2, const std::vector<double> &hidden_states)
@@ -510,11 +505,12 @@ TwoPopInferenceManager::TwoPopInferenceManager(
             const int a1, const int a2,
             const std::vector<int> obs_lengths,
             const std::vector<int*> observations,
-            const std::vector<double> hidden_states) :
+            const std::vector<double> hidden_states,
+            const double polarization_error) :
         NPopInferenceManager(
                 (FixedVector<int, 2>() << n1, n2).finished(),
                 (FixedVector<int, 2>() << a1, a2).finished(),
-                obs_lengths, observations, hidden_states, 
+                obs_lengths, observations, hidden_states, polarization_error,
                 create_jcsfs(n1, n2, a1, a2, hidden_states)), a1(a1), a2(a2)
 {
     if (a1 + a2 != 2)
