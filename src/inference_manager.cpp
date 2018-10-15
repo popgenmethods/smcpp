@@ -207,10 +207,7 @@ void NPopInferenceManager<P>::populate_emission_probs()
     for (const std::map<block_key, Vector<adouble> > &ep : eps)
         emission_probs.insert(ep.begin(), ep.end());
     for (const auto p : emission_probs)
-    {
         bpm_keys.push_back(p.first);
-        bpm_keys.push_back(p.first.fold(na));
-    }
 }
 
 void InferenceManager::do_dirty_work()
@@ -300,6 +297,20 @@ bool NPopInferenceManager<P>::is_monomorphic(const block_key &bk)
 }
 
 template <size_t P>
+block_key NPopInferenceManager<P>::folded_key(const block_key &bk)
+{
+    block_key ret = bk;
+    for (unsigned int p = 0; p < P; ++p)
+    {
+        const int ind = 3 * p;
+        ret(ind) = na(p) - bk(ind);
+        ret(ind + 1) = bk(ind + 2) - bk(ind + 1);
+        ret(ind + 2) = bk(ind + 2);
+    }
+    return ret;
+}
+
+template <size_t P>
 block_key_prob_map NPopInferenceManager<P>::merge_monomorphic(const block_key_prob_map &bpm)
 {
     block_key_prob_map ret;
@@ -321,19 +332,17 @@ block_key_prob_map NPopInferenceManager<P>::merge_monomorphic(const block_key_pr
 
 template <size_t P>
 std::map<block_key, block_key_prob_map>
-NPopInferenceManager<P>::construct_bins()
+NPopInferenceManager<P>::construct_bins(const double polarization_error)
 {
+    assert(polarization_error >= 0.);
+    assert(polarization_error <= 1.);
     std::vector<std::set<block_key> > bks(obs.size());
     for (unsigned int j = 0; j < obs.size(); ++j)
     {
         const Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> ob = obs.at(j);
         const int q = ob.cols() - 1;
         for (int i = 0; i < ob.rows(); ++i)
-        {
-            block_key bk = block_key(ob.row(i).tail(q).transpose());
-            bks.at(j).emplace(bk.vals);
-            bks.at(j).emplace(bk.fold(na).vals);
-        }
+            bks.at(j).emplace(ob.row(i).tail(q).transpose());
     }
     std::set<block_key> bksc;
     for (const std::set<block_key> &sbk : bks)
@@ -343,20 +352,40 @@ NPopInferenceManager<P>::construct_bins()
     for (auto it = vbk.begin(); it < vbk.end(); ++it)
     {
         block_key bk = *it;
+        block_key_prob_map m, m2;
         const std::set<block_key> bins = bin_key<P>::run(bk, na, 1.0);
         DEBUG1 << "block_key: " << bk << " bins:" << bins;
-        block_key_prob_map bkpm;
         for (const block_key &k : bins)
         {
             const std::map<block_key, double> probs =
                 marginalize_key<P>::run(k.vals, n, na);
             for (const auto &p : probs)
-                bkpm[bk_to_map_key(p.first)] += p.second;
+            {
+                m[p.first] += (1. - polarization_error) * p.second;
+                m[folded_key(p.first)] += polarization_error * p.second;
+            }
         }
+        double s = 0.0;
+        DEBUG1 << "polarization error: " << polarization_error;
+        for (const auto &p : m)
+        {
+            m2[p.first] = p.second;
+            s += p.second;
+        }
+        block_key_prob_map bkpm;
+        if (s <= 0)
+        {
+            DEBUG1 << bk;
+            throw std::runtime_error("s<=0");
+        }
+        for (const auto &p : m2)
+            bkpm[bk_to_map_key(p.first)] += p.second / s;
         ret.emplace(bk, bkpm);
     }
+    DEBUG1 << ret;
     return ret;
 }
+
 
 template <size_t P>
 void NPopInferenceManager<P>::recompute_emission_probs()
@@ -445,18 +474,12 @@ for (auto it = bpm_keys.begin(); it < bpm_keys.end(); ++it)
             throw std::runtime_error("probability vector not in [0, 1]");
         }
         CHECK_NAN(tmp);
-        this->emission_probs.at(k) = tmp;
+#pragma omp critical(assign_emission_probs)
+        {
+            this->emission_probs.at(k) = tmp;
+        }
     }
     DEBUG1 << "recompute done";
-    std::map<block_key, Vector<adouble> > new_emission_probs;
-    // folded with polarization error
-    for (auto p : emission_probs)
-    {
-        new_emission_probs.emplace(p.first, (1. - polarization_error) * p.second);
-        new_emission_probs.at(p.first) += polarization_error * 
-            emission_probs.at(p.first.fold(na));
-    }
-    emission_probs = new_emission_probs;
 }
 
 
