@@ -229,7 +229,7 @@ class CountMutations(Filter):
             "mutation counts in %dbp windows: min=%d .05=%d .95=%d max=%d", self.w, *res
         )
         self.counts = mc
-        return Compress()(contigs)
+        return contigs
 
 
 @attr.s
