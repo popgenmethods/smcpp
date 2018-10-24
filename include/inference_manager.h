@@ -109,11 +109,12 @@ class NPopInferenceManager : public InferenceManager
     // Virtual overrides
     void populate_emission_probs();
     void recompute_emission_probs();
-    bool is_monomorphic(const block_key&);
     block_key folded_key(const block_key&);
     block_key_prob_map merge_monomorphic(const block_key_prob_map&);
     FixedVector<int, 2 * P> make_tensordims();
-    block_key bk_to_map_key(const block_key &bk);
+    block_key bk_to_map_key(const block_key&);
+    bool is_monomorphic(const block_key&);
+    block_key convert_monomorphic(const block_key&);
 
     Vector<adouble> tensorRef(const block_key &bk);
 

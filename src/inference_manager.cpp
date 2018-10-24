@@ -297,6 +297,22 @@ bool NPopInferenceManager<P>::is_monomorphic(const block_key &bk)
 }
 
 template <size_t P>
+block_key NPopInferenceManager<P>::convert_monomorphic(const block_key &bk)
+{
+    if (!is_monomorphic(bk)) return bk;
+    Vector<int> ret(3 * P);
+    for (unsigned int p = 0; p < P; ++p)
+    {
+        const int ind = 3 * p;
+        ret(ind) = 0;
+        ret(ind + 1) = 0;
+        ret(ind + 2) = bk(ind + 2);
+    }
+    return block_key(ret);
+}
+
+
+template <size_t P>
 block_key NPopInferenceManager<P>::folded_key(const block_key &bk)
 {
     block_key ret = bk;
@@ -306,26 +322,6 @@ block_key NPopInferenceManager<P>::folded_key(const block_key &bk)
         ret(ind) = na(p) - bk(ind);
         ret(ind + 1) = bk(ind + 2) - bk(ind + 1);
         ret(ind + 2) = bk(ind + 2);
-    }
-    return ret;
-}
-
-template <size_t P>
-block_key_prob_map NPopInferenceManager<P>::merge_monomorphic(const block_key_prob_map &bpm)
-{
-    block_key_prob_map ret;
-    for (std::pair<block_key, double> pb : bpm)
-    {
-        if (is_monomorphic(pb.first))
-        {
-            for (unsigned int p = 0; p < P; ++p)
-            {
-                const int ind = 3 * p;
-                pb.first(ind) = 0;
-                pb.first(ind + 1) = 0;
-            }
-        }
-        ret[pb.first] += pb.second;
     }
     return ret;
 }
@@ -361,14 +357,17 @@ NPopInferenceManager<P>::construct_bins(const double polarization_error)
                 marginalize_key<P>::run(k.vals, n, na);
             for (const auto &p : probs)
             {
-                m[p.first] += (1. - polarization_error) * p.second;
-                m[folded_key(p.first)] += polarization_error * p.second;
+                const block_key mbk = convert_monomorphic(p.first);
+                m[mbk] += (1. - polarization_error) * p.second;
+                m[folded_key(mbk)] += polarization_error * p.second;
             }
         }
         double s = 0.0;
         DEBUG1 << "polarization error: " << polarization_error;
         for (const auto &p : m)
         {
+            if (p.second <= 0 or is_monomorphic(p.first))
+                continue;
             m2[p.first] = p.second;
             s += p.second;
         }
