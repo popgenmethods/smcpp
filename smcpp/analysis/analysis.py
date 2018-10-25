@@ -45,6 +45,7 @@ class Analysis(base.BaseAnalysis):
         self._model.randomize()
         self._init_optimizer(
             args.outdir,
+            args.base,
             args.algorithm,
             args.xtol,
             args.ftol,
@@ -77,6 +78,7 @@ class Analysis(base.BaseAnalysis):
         self.alpha = args.w
         self._init_optimizer(
             args.outdir,
+            args.base,
             args.algorithm,
             args.xtol,
             args.ftol,
@@ -121,8 +123,8 @@ class Analysis(base.BaseAnalysis):
 
     _OPTIMIZER_CLS = SMCPPOptimizer
 
-    def _init_optimizer(self, outdir, algorithm, xtol, ftol, learn_rho, single):
-        super()._init_optimizer(outdir, algorithm, xtol, ftol, single)
+    def _init_optimizer(self, outdir, base, algorithm, xtol, ftol, learn_rho, single):
+        super()._init_optimizer(outdir, base, algorithm, xtol, ftol, single)
         if learn_rho:
             rho_bounds = lambda: (self._theta / 100, 100 * self._theta)
             self._optimizer.register_plugin(

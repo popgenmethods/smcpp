@@ -22,7 +22,7 @@ class SplitAnalysis(base.BaseAnalysis):
         hs = {k: np.array([0., np.inf]) for k in self.hidden_states}
         self._init_inference_manager(args.polarization_error, hs)
         self._init_optimizer(
-            args.outdir, args.algorithm, args.xtol, args.ftol, single=False
+            args.outdir, args.base, args.algorithm, args.xtol, args.ftol, single=False
         )
         self._niter = 1
 
@@ -37,8 +37,8 @@ class SplitAnalysis(base.BaseAnalysis):
 
     _OPTIMIZER_CLS = TwoPopulationOptimizer
 
-    def _init_optimizer(self, outdir, algorithm, xtol, ftol, single):
-        super()._init_optimizer(outdir, algorithm, xtol, ftol, single)
+    def _init_optimizer(self, outdir, base, algorithm, xtol, ftol, single):
+        super()._init_optimizer(outdir, base, algorithm, xtol, ftol, single)
         self._optimizer.register_plugin(
             parameter_optimizer.ParameterOptimizer(
                 "split", (0., self._max_split), "model"

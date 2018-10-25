@@ -70,10 +70,10 @@ class BaseAnalysis:
     def populations(self):
         return self._pipeline["load_data"].populations
 
-    def _init_optimizer(self, outdir, algorithm, xtol, ftol, single):
+    def _init_optimizer(self, outdir, base, algorithm, xtol, ftol, single):
         self._optimizer = self._OPTIMIZER_CLS(self, algorithm, xtol, ftol, single)
         if outdir:
-            self._optimizer.register_plugin(analysis_saver.AnalysisSaver(outdir))
+            self._optimizer.register_plugin(analysis_saver.AnalysisSaver(outdir, base))
 
     def rescale(self, x):
         return x / (2. * self._N0)
