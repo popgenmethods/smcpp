@@ -67,7 +67,8 @@ class Cv(command.EstimationCommand, command.ConsoleCommand):
                 if p.exists():
                     logger.debug("Skipping fold %d (encountered %s)", i, p)
                     with open(os.path.join(fp, "model.best.json"), "rt") as f:
-                        best_models[i] = model.SMCModel.from_dict(json.load(f)['model'])
+                        d = json.load(f)
+                        best_models[i] = model.SMCModel.from_dict(d['model'])
                     continue
                 args.outdir = fp
                 os.makedirs(args.outdir, exist_ok=True)
@@ -89,10 +90,13 @@ class Cv(command.EstimationCommand, command.ConsoleCommand):
                     )
                     if test.loglik(False) > best:
                         best_models[i] = train.model
+                        f = os.path.join(args.outdir, "model.best.json")
                         shutil.copyfile(
                             os.path.join(args.outdir, "model.final.json"),
-                            os.path.join(args.outdir, "model.best.json"),
+                            f
                         )
+                        d = json.load(open(f, "rt"))
+
         if args.fold is not None:
             sys.exit(0)
         missing = [i for i in range(args.folds) 
@@ -103,7 +107,7 @@ class Cv(command.EstimationCommand, command.ConsoleCommand):
         logger.info("Averaging over folds")
         # STEP 2
         mavg = model.aggregate(*best_models)
-        d = {"model": mavg.to_dict()}
+        d.update({"model": mavg.to_dict()})
         json.dump(
             d,
             open(os.path.join(basedir, "model.final.json"), "wt"),
