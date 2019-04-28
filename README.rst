@@ -419,7 +419,7 @@ good estimates*.
 - ``--spline``: Controls the functional form used to fit the model. 
   The default value in recent versions is ``piecewise`` to better match the output from
   `{P,M}SMC`. To enable cubic splines (what is used in the paper), use ``--spline cubic`` or ``--spline pchip``.
-  (For details on the differences between cubic and pchip splines see `here <https://blogs.mathworks.com/cleve/2012/07/16/splines-and-pchips/#98ccb1df-b614-41d4-b1b5-e090a87e0d46>`_.
+  (For details on the differences between cubic and pchip splines see `here <https://blogs.mathworks.com/cleve/2012/07/16/splines-and-pchips/#98ccb1df-b614-41d4-b1b5-e090a87e0d46>`_.)
 
 - ``--timepoints``: This command specifies the starting and ending time points
   of the model.  It accepts two numbers `t1 tK` specifying the starting and
