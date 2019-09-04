@@ -63,6 +63,7 @@ setup(name='smcpp',
             "pysam>=0.9",
             "attrs>=17.2.0",
             "pandas",
+            "scikit-learn>=0.19",
             "msprime>=0.5.0"],
         entry_points = {
             'console_scripts': ['smc++ = smcpp.frontend.console:main'],
