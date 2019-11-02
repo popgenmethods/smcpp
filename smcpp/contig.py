@@ -1,14 +1,19 @@
 import numpy as np
-import attr
+from dataclasses import dataclass
+from typing import Tuple
 
 
-@attr.s
+@dataclass
 class Contig:
-    pid = attr.ib()
-    data = attr.ib()
-    n = attr.ib(convert=np.array)
-    a = attr.ib(convert=np.array)
-    fn = attr.ib(default=None)
+    pid: Tuple
+    data: np.ndarray
+    n: int
+    a: int
+    fn: str = None
+
+    def __post_init__(self):
+        self.n = np.array(self.n)
+        self.a = np.array(self.a)
 
     @property
     def npop(self):

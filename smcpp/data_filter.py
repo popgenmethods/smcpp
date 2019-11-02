@@ -1,4 +1,5 @@
-import attr
+from dataclasses import dataclass, field
+from typing import Sequence, List
 import functools
 import numpy as np
 import sys
@@ -14,12 +15,20 @@ from . import logging, estimation_tools, defaults
 logger = logging.getLogger(__name__)
 mp_ctx = multiprocessing.get_context("forkserver")
 
+@dataclass
+class Filter:
 
-@attr.s
+    def __call__(self, contigs):
+        logger.debug(self)
+        return self.run(contigs)
+
+
+
+@dataclass
 class DataPipeline:
-    _files = attr.ib()
-    _filters = attr.ib(init=False, default=attr.Factory(OrderedDict))
-    _results = attr.ib(init=False, default=None)
+    files: Sequence[str]
+    _filters: OrderedDict = field(init=None, default_factory=OrderedDict)
+    _results: List = None
 
     def __getitem__(self, key):
         self.run()
@@ -40,21 +49,13 @@ class DataPipeline:
     def run(self):
         if self._results is not None:
             return self._results
-        self._results = self._files
+        self._results = self.files
         for f in self._filters.values():
             self._results = f(self._results)
         return self._results
 
     def results(self):
         yield from iter(self.run())
-
-
-@attr.s
-class Filter:
-
-    def __call__(self, contigs):
-        logger.debug(self)
-        return self.run(contigs)
 
 
 @contextlib.contextmanager
@@ -67,7 +68,7 @@ def DummyPool(*args):
     yield f
 
 
-@attr.s
+@dataclass
 class ParallelFilter:
     Pool = DummyPool
 
@@ -77,17 +78,17 @@ class ParallelFilter:
             return list(p.map(self.run, contigs))
 
 
-@attr.s
+@dataclass
 class ProcessParallelFilter(ParallelFilter):
     Pool = mp_ctx.Pool
 
 
-@attr.s
+@dataclass
 class ThreadParallelFilter(ParallelFilter):
     Pool = ThreadPoolExecutor
 
 
-@attr.s
+@dataclass
 class LoadData(Filter):
 
     def run(self, files):
@@ -120,7 +121,7 @@ class LoadData(Filter):
         return contigs
 
 
-@attr.s
+@dataclass
 class Validate(ProcessParallelFilter):
 
     def run(self, c):
@@ -158,9 +159,9 @@ class Validate(ProcessParallelFilter):
         return c
 
 
-@attr.s
+@dataclass
 class Thin(ThreadParallelFilter):
-    thinning = attr.ib(default=None)
+    thinning: int = None
 
     def run(self, c):
         thinning = self.thinning
@@ -173,9 +174,9 @@ class Thin(ThreadParallelFilter):
         return c
 
 
-@attr.s
+@dataclass
 class BinObservations(ThreadParallelFilter):
-    w = attr.ib()
+    w: int
 
     def run(self, c):
         new_data = estimation_tools.bin_observations(c, self.w)
@@ -183,9 +184,9 @@ class BinObservations(ThreadParallelFilter):
         return c
 
 
-@attr.s
+@dataclass
 class Realign(ThreadParallelFilter):
-    w = attr.ib()
+    w: int
 
     def run(self, c):
         real = estimation_tools.realign(c.data, self.w)
@@ -193,9 +194,9 @@ class Realign(ThreadParallelFilter):
         return c
 
 
-@attr.s
+@dataclass
 class Chunk(ThreadParallelFilter):
-    w = attr.ib()
+    w: int
 
     def run(self, c):
         d = estimation_tools.realign(c.data, self.w)
@@ -203,9 +204,9 @@ class Chunk(ThreadParallelFilter):
         return [x for x in np.split(d, 1 + inds) if x[:, 0].sum() == self.w]
 
 
-@attr.s
+@dataclass
 class CountMutations(Filter):
-    w = attr.ib()
+    w: int
 
     def run(self, contigs):
         import scipy.stats.mstats
@@ -232,15 +233,15 @@ class CountMutations(Filter):
         return contigs
 
 
-@attr.s
+@dataclass
 class RecodeNonseg(Filter):
-    cutoff = attr.ib()
+    cutoff: int
 
     def run(self, contigs):
         return [estimation_tools.recode_nonseg(c, self.cutoff) for c in contigs]
 
 
-@attr.s
+@dataclass
 class Compress(ProcessParallelFilter):
 
     def run(self, c):
@@ -248,9 +249,9 @@ class Compress(ProcessParallelFilter):
         return c
 
 
-@attr.s
+@dataclass
 class BreakLongSpans(Filter):
-    cutoff = attr.ib()
+    cutoff: int
 
     def run(self, contigs):
         return [
@@ -260,7 +261,7 @@ class BreakLongSpans(Filter):
         ]
 
 
-@attr.s
+@dataclass
 class DropUninformativeContigs(Filter):
 
     def _n_variable_sites(self, c):
@@ -282,9 +283,9 @@ class DropUninformativeContigs(Filter):
         return ret
 
 
-@attr.s
+@dataclass
 class DropSmallContigs(Filter):
-    cutoff = attr.ib()
+    cutoff: int
 
     def run(self, contigs):
         ret = [c for c in contigs if len(c) > self.cutoff]
@@ -296,7 +297,7 @@ class DropSmallContigs(Filter):
         return ret
 
 
-@attr.s
+@dataclass
 class Watterson(Filter):
 
     def run(self, contigs):
@@ -321,6 +322,7 @@ class Watterson(Filter):
         return (S, sample_sizes, spans)
 
 
+@dataclass
 class RecodeMonomorphic(Filter):
 
     def run(self, contigs):
@@ -334,6 +336,7 @@ class RecodeMonomorphic(Filter):
         return c
 
 
+@dataclass
 class Summarize(Filter):
 
     def run(self, contigs):
