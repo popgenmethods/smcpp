@@ -12,16 +12,15 @@ source:
 requirements:
   build:
     - {{ compiler('cxx') }}
+    - setuptools_scm
+    - cython
+    - git
   host:
     - python
     - numpy
     - gmp
     - gsl
     - mpfr
-    - setuptools_scm
-    - cython
-    - git
-    - pip
   run:
     - python
     - numpy 
