@@ -22,7 +22,6 @@ dist/
 .eggs
 smcpp.egg-info
 .cache
-smcpp/version.py
 smcpp/_estimation_tools.c
 <<<<<<< HEAD
 src/.release_time

@@ -1,4 +1,4 @@
-from ..version import version
+from .. import version
 
 from . import command
 
@@ -6,4 +6,4 @@ class Version(command.ConsoleCommand):
     'Print version string'
 
     def main(self, args):
-        print("SMC++ v%s" % version)
+        print("SMC++ v%s" % version.version)
