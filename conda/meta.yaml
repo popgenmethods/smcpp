@@ -14,36 +14,30 @@ requirements:
     - {{ compiler('cxx') }}
   host:
     - python
-    - git
-    - cython
-    - setuptools
     - numpy
     - gmp
     - gsl
     - mpfr
     - setuptools_scm
+    - cython
+    - git
+    - pip
   run:
     - python
-    - cython 
-    - setuptools
     - numpy 
     - gnuplot
     - gmp
     - gsl
     - mpfr
-    - setuptools_scm
     - pysam
     - matplotlib
     - pandas
-    - python-dateutil
     - scikit-learn
     - scipy
-    - six
     - appdirs
     - tqdm
     - wrapt 
     - ad
-    - readline
     - msprime
 
 about:

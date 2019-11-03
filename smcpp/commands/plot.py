@@ -5,7 +5,7 @@ import numpy as np
 import itertools as it
 import json
 import csv
-from six.moves import zip_longest
+from itertools import zip_longest
 from .. import util, plotting, model
 
 from . import command

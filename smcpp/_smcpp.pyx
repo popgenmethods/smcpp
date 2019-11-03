@@ -10,7 +10,6 @@ import collections
 import scipy.optimize
 import collections
 import wrapt
-import six
 import os.path
 from appdirs import AppDirs
 from ad import adnumber, ADF
@@ -392,7 +391,7 @@ cdef class PyRateFunction:
         times = []
         for _ in range(K):
             ary = []
-            t = self._eta.get().random_time(t1, t2, np.random.randint(six.MAXSIZE))
+            t = self._eta.get().random_time(t1, t2, np.random.randint(sys.maxsize))
             ary = [_adouble_to_ad(t, self._model.dlist)]
             t = self._eta.get().R(t)
             ary.append(_adouble_to_ad(t, self._model.dlist))
