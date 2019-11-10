@@ -18,3 +18,4 @@ $SMC posterior $TMP/out/1/model.final.json \
 $SMC plot -c -g 29 $TMP/1.png $TMP/out/1/model.final.json
 $SMC plot $TMP/2.pdf $TMP/out/2/pop2.final.json
 $SMC plot -c $TMP/12.png $TMP/out/split/model.final.json
+$SMC version

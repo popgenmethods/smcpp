@@ -3,7 +3,6 @@ from typing import Sequence, List
 import functools
 import numpy as np
 import sys
-import wrapt
 from concurrent.futures import ThreadPoolExecutor
 from collections import OrderedDict
 import contextlib

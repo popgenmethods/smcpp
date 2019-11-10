@@ -11,8 +11,7 @@ import logging
 import sys
 from collections import Counter
 import re
-import six
-from six.moves import cStringIO as StringIO
+import StringIO
 
 import smcpp.util
 
@@ -121,7 +120,7 @@ def parse_scrm(n, L, output, include_trees):
 
 def simulate(n, N0, theta, rho, L, include_trees=False, scrm_args=[]):
     # scrm will emit positions in [0, L] (inclusive).
-    seeds = np.random.randint(0, six.MAXSIZE, size=3)
+    seeds = np.random.randint(0, sys.maxsize, size=3)
     r = 4 * N0 * rho * (L - 1)
     t = 4 * N0 * theta * L
     args = [n, 1, '-p', int(math.log10(L)) + 2, '-t', t, '-r', r, L, '-seeds'] + list(seeds) + scrm_args
@@ -141,7 +140,7 @@ def simulate(n, N0, theta, rho, L, include_trees=False, scrm_args=[]):
 
 
 def distinguished_sfs(n, M, N0, theta, demography, t0=0.0, t1=np.inf):
-    seeds = np.random.randint(0, six.MAXSIZE, size=3)
+    seeds = np.random.randint(0, sys.maxsize, size=3)
     t = 4 * N0 * theta
     args = [n + 2, M, '-t', t, '-seeds'] + list(seeds) + demography
     if t0 > 0.0 or t1 < np.inf:

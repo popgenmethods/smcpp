@@ -1,4 +1,4 @@
-import ad
+import smcpp.ad as ad
 import os
 import numpy as np
 import scipy.optimize

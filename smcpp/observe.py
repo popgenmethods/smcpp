@@ -1,7 +1,7 @@
 from __future__ import absolute_import
 from abc import ABCMeta, abstractmethod
-import wrapt
 import weakref
+import functools
 
 
 # Decorator to target specific messages.
@@ -9,13 +9,15 @@ def targets(target_messages, no_first=False):
     if isinstance(target_messages, str):
         target_messages = [target_messages]
 
-    @wrapt.decorator
-    def wrapper(wrapped, instance, args, kwargs):
-        message = args[0]
-        if message in target_messages:
-            if no_first and kwargs["i"] == 0:
-                return
-            wrapped(*args, **kwargs)
+    def wrapper(f):
+        @functools.wraps(f)
+        def _(self, *args, **kwargs):
+            message = args[0]
+            if message in target_messages:
+                if no_first and kwargs["i"] == 0:
+                    return
+                f(self, *args, **kwargs)
+        return _
 
     return wrapper
 

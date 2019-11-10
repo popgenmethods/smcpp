@@ -12,32 +12,32 @@ source:
 requirements:
   build:
     - {{ compiler('cxx') }}
-    - setuptools_scm
-    - cython
     - git
+    - numpy >=1.11
   host:
-    - python
-    - numpy
+    - python {{ python }}
+    - cython
+    - numpy >=1.11
     - gmp
-    - gsl
+    - gsl <=2.5
     - mpfr
+    - setuptools_scm
   run:
-    - python
-    - numpy 
+    - python 
+    - {{ pin_compatible('numpy') }}
     - gnuplot
     - gmp
-    - gsl
+    - gsl <=2.5
     - mpfr
-    - pysam
+    - pysam >=0.11
     - matplotlib
     - pandas
     - scikit-learn
-    - scipy
+    - scipy >=1.1.0
     - appdirs
     - tqdm
-    - wrapt 
-    - ad
-    - msprime
+    - msprime >=0.5
+    - seaborn
 
 about:
     home: https://github.com/popgenmethods/smcpp

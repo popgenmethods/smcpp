@@ -1,4 +1,4 @@
-import ad
+import smcpp.ad as ad
 import numbers
 import numpy as np
 import warnings

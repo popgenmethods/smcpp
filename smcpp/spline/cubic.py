@@ -2,7 +2,6 @@ from __future__ import absolute_import, division, print_function
 import numpy as np
 import re
 import sys
-import wrapt
 
 from .common import smooth_abs, polyval
 from .spline import Spline

@@ -1,9 +1,10 @@
 import numpy as np
-import ad.admath
+import smcpp.ad.admath as admath
+import smcpp.ad as ad
 import os
-import wrapt
 import scipy.optimize
 import msprime as msp
+from functools import wraps
 from textwrap import dedent
 
 from . import spline, logging, util
@@ -15,14 +16,6 @@ logger = logging.getLogger(__name__)
 
 def tag_sort(s):
     return sorted(set(s), key=lambda x: x.tag)
-
-
-@wrapt.decorator
-def returns_ad(wrapped, instance, args, kwargs):
-    ret = wrapped(*args, **kwargs)
-    if not isinstance(ret, ad.ADF):
-        ret = ad.adnumber(ret)
-    return ret
 
 
 class BaseModel(Observable):
@@ -43,9 +36,11 @@ class BaseModel(Observable):
     def __len__(self):
         return len(self[:])
 
-    @returns_ad
     def regularizer(self):
-        return self._spline.roughness()
+        ret = self._spline.roughness()
+        if not isinstance(ret, ad.ADF):
+            ret = ad.adnumber(ret)
+        return ret
 
 
 def aggregate(*models, stat=np.mean):
@@ -184,7 +179,7 @@ class SMCModel(BaseModel):
 
     def __call__(self, x):
         "Evaluate :self: at points x."
-        ret = np.array(ad.admath.exp(self._spline(self._trans(x))))
+        ret = np.array(admath.exp(self._spline(self._trans(x))))
         return ret
 
     def match(self, other_model):
@@ -311,9 +306,9 @@ class SMCTwoPopulationModel(Observable, Observer):
             m = SMCModel(
                 kts, self.model1.N0, self.model2._spline_class, self.model2.pid
             )
-            m[:i] = ad.admath.log(self.model2(kts[:i]))
-            m[i] = ad.admath.log(self.model1(self.split).item())
-            m[i + 1 :] = ad.admath.log(self.model1(kts[i + 1 :]))
+            m[:i] = admath.log(self.model2(kts[:i]))
+            m[i] = admath.log(self.model1(self.split).item())
+            m[i + 1 :] = admath.log(self.model1(kts[i + 1 :]))
             return m
             # return _concat_models(self.model1, self.model2, self.split)
 
@@ -395,9 +390,11 @@ class SMCTwoPopulationModel(Observable, Observer):
         )
 
     # FIXME this counts the part before the split twice
-    @returns_ad
     def regularizer(self):
-        return sum([self.for_pop(pid).regularizer() for pid in self.pids])
+        ret = sum([self.for_pop(pid).regularizer() for pid in self.pids])
+        if not isinstance(ret, ad.ADF):
+            ret = ad.adnumber(ret)
+        return ret
 
     def __getitem__(self, coords):
         if isinstance(coords, slice):

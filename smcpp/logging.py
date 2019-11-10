@@ -2,7 +2,6 @@ from __future__ import absolute_import, division, print_function
 import os
 import logging
 import multiprocessing
-import wrapt
 
 from logging import INFO, ERROR, WARNING, DEBUG, NOTSET, CRITICAL
 

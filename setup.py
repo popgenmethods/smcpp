@@ -54,8 +54,6 @@ setup(name='smcpp',
         install_requires=[
             "tqdm",
             "appdirs",
-            "wrapt>=1.10",
-            "ad>=1.3.2",
             "scipy>=0.16",
             "numpy>=1.9",
             "matplotlib>=1.5",

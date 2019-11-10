@@ -9,10 +9,9 @@ import numpy as np
 import collections
 import scipy.optimize
 import collections
-import wrapt
 import os.path
 from appdirs import AppDirs
-from ad import adnumber, ADF
+from smcpp.ad import adnumber, ADF
 
 from . import logging, version, util, defaults
 from .observe import targets
