@@ -43,14 +43,14 @@ populations; see split_.
 Installation instructions
 =========================
 
-SMC++ is distributed as an Anaconda_ package. Inside the Anaconda environment, install
-the precompiled binary using the command::
+SMC++ is distributed as an Anaconda_ package. It is recommended that you install it into
+a new Anaconda environment via::
 
-    $ conda install -c terhorst -c bioconda smcpp
+    $ conda create -n smcpp -c conda-forge -c terhorst smcpp
 
-This will automatically download all necessary dependencies and create
-an ``smc++`` executable in the ``bin/`` folder of your Anaconda
-distribution.
+This will automatically download the latest version, and place
+an ``smc++`` executable in the ``bin/`` folder of the newly created
+environment.
 
 You may also build the software
 from scratch using the `build instructions`_ provided in the next
@@ -63,7 +63,7 @@ Build instructions
 ==================
 SMC++ requires the following libraries and executables in order compile and run:
 
-- Python 3.5 or greater.
+- Python 3.7 or greater.
 - A C++-11 compiler (gcc 4.8 or later, for example).
 - gmp_, for some rational field computations.
 - mpfr_ (at least version 3.0.0), for some extended precision calculations.
