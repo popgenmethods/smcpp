@@ -54,7 +54,8 @@ environment.
 
 You may also build the software
 from scratch using the `build instructions`_ provided in the next
-section.
+section, or create a Docker image following the `Docker instructions`_
+in the subsequent section.
 
 .. _releases page: https://github.com/popgenmethods/smcpp/releases/latest
 .. _Anaconda: https://www.continuum.io/downloads
@@ -116,6 +117,18 @@ environment::
 Then, install SMC++ as described above.
 
 .. _virtual environment: http://docs.python-guide.org/en/latest/dev/virtualenvs/
+
+Docker instructions
+==================
+
+As an alternative to the Anaconda package and building from scratch in
+the host environment, a Docker image for smc++ can be built:
+
+    docker build -t smcpp .
+
+Subsequently, smc++ can be run in a container:
+
+    docker run --rm -v $PWD:/mnt smcpp [ARGUMENTS]
 
 Usage
 =====
