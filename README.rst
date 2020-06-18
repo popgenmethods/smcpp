@@ -43,22 +43,15 @@ populations; see split_.
 Installation instructions
 =========================
 
-SMC++ is distributed as an Anaconda_ package. It is recommended that you install it into
-a new Anaconda environment via::
+Beginning with v1.15.4, SMC++ is distributed as a Docker image. (Anaconda
+support has been discontinued.) To run the latest version of the program,
+type 
 
-    $ conda create -n smcpp -c conda-forge -c terhorst smcpp
+   docker run --rm -v $PWD:/mnt terhorst/smcpp:latest [ARGUMENTS]
 
-This will automatically download the latest version, and place
-an ``smc++`` executable in the ``bin/`` folder of the newly created
-environment.
-
-You may also build the software
-from scratch using the `build instructions`_ provided in the next
-section, or create a Docker image following the `Docker instructions`_
-in the subsequent section.
-
-.. _releases page: https://github.com/popgenmethods/smcpp/releases/latest
-.. _Anaconda: https://www.continuum.io/downloads
+To run a specific version of the program, change `latest` to the version
+string. For example, to run v1.15.4, type 
+   docker run --rm -v $PWD:/mnt terhorst/smcpp:v1.15.4 [ARGUMENTS]
 
 Build instructions
 ==================
@@ -73,7 +66,7 @@ SMC++ requires the following libraries and executables in order compile and run:
 On Ubuntu (or Debian) Linux, the library requirements may be installed
 using the commmand::
 
-    $ sudo apt-get install -y libgmp-dev libmpfr-dev libgsl0-dev
+    $ sudo apt-get install -y python3-dev libgmp-dev libmpfr-dev libgsl0-dev
 
 On OS X, the easiest way to install them is using Homebrew_::
 
@@ -117,18 +110,6 @@ environment::
 Then, install SMC++ as described above.
 
 .. _virtual environment: http://docs.python-guide.org/en/latest/dev/virtualenvs/
-
-Docker instructions
-==================
-
-As an alternative to the Anaconda package and building from scratch in
-the host environment, a Docker image for smc++ can be built:
-
-    docker build -t smcpp .
-
-Subsequently, smc++ can be run in a container:
-
-    docker run --rm -v $PWD:/mnt smcpp [ARGUMENTS]
 
 Usage
 =====
