@@ -23,5 +23,4 @@ dist/
 smcpp.egg-info
 .cache
 smcpp/_estimation_tools.c
-<<<<<<< HEAD
 src/.release_time
