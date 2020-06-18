@@ -54,7 +54,8 @@ environment.
 
 You may also build the software
 from scratch using the `build instructions`_ provided in the next
-section.
+section, or create a Docker image following the `Docker instructions`_
+in the subsequent section.
 
 .. _releases page: https://github.com/popgenmethods/smcpp/releases/latest
 .. _Anaconda: https://www.continuum.io/downloads
@@ -116,6 +117,18 @@ environment::
 Then, install SMC++ as described above.
 
 .. _virtual environment: http://docs.python-guide.org/en/latest/dev/virtualenvs/
+
+Docker instructions
+==================
+
+As an alternative to the Anaconda package and building from scratch in
+the host environment, a Docker image for smc++ can be built:
+
+    docker build -t smcpp .
+
+Subsequently, smc++ can be run in a container:
+
+    docker run --rm -v $PWD:/mnt smcpp [ARGUMENTS]
 
 Usage
 =====
@@ -462,9 +475,10 @@ Frequently asked questions
     
     *How can I fix this*?
 
-    This is due to a ``glibc`` version mismatch between your system and
-    the build server I use to create the binary installers. Unfortunately,
-    I am unable to create binaries for older versions of ``glibc``. Your
+    Users of RedHat/CentOS clusters commonly report this error. It is due 
+    to a ``glibc`` version mismatch between your system and
+    the build server used to create the binary installers.
+    We are not able to create binaries for older versions of ``glibc``. Your
     options are to either a) upgrade ``glibc`` on your system (which would
     probably require upgrading your operating system); or b) build SMC++
     yourself by following the `build instructions`_. Please note that
@@ -482,7 +496,7 @@ Frequently asked questions
     3. Uncalled regions in your VCF were not marked as such before running vcf2smc_. 
 
     #1 represents real signal, while #2 and #3 should be filtered out using the ``-m`` 
-    option of vcf2smc_ and/or the ``-c`` option of estimate_.-
+    option of vcf2smc_ and/or the ``-c`` option of estimate_.
     
 3.  *How do I get the estimated recombination rate*?
     
