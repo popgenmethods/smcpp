@@ -1,4 +1,4 @@
 sut:
   build: .
   entrypoint: /bin/sh
-  command: test/run_tests.sh
+  command: /src/test/run_tests.sh
