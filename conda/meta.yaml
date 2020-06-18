@@ -1,6 +1,6 @@
 package:
   name: smcpp
-  version: {{ GIT_DESCRIBE_TAG }}
+  version: {{ environ.get('GIT_DESCRIBE_TAG', 'default').lstrip('v') }}
 
 source:
   git_url: ../
