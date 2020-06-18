@@ -49,9 +49,10 @@ type
 
    docker run --rm -v $PWD:/mnt terhorst/smcpp:latest [ARGUMENTS]
 
-To run a specific version of the program, change `latest` to the version
-string. For example, to run v1.15.4, type 
-   docker run --rm -v $PWD:/mnt terhorst/smcpp:v1.15.4 [ARGUMENTS]
+To run a specific version of the program, change `latest` to `version-` followed
+by the version number. For example, to run v1.15.4, type 
+
+   docker run --rm -v $PWD:/mnt terhorst/smcpp:version-1.15.4 [ARGUMENTS]
 
 Build instructions
 ==================
