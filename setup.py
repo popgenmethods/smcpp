@@ -20,7 +20,6 @@ if True:
         "-DNO_CHECK_NAN",
         "-fopenmp",
         "-DEIGEN_DONT_PARALLELIZE",
-        "-Wint-in-bool-context",
     ]
 else:
     extra_compile_args = [

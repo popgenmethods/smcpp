@@ -34,6 +34,7 @@ RUN python3 setup.py install
 
 FROM deps
 COPY --from=builder /usr/local/ /usr/local/
+COPY --from=builder /src /src
 WORKDIR /mnt
 
 ENTRYPOINT ["/usr/local/bin/smc++"]

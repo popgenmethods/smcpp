@@ -20,9 +20,9 @@ Quick start guide
    should run this once for each independent contig in your dataset,
    producing one SMC++ output file per contig.
 
-3. Fit the model using cv_::
+3. Fit the model using estimate_::
 
-     $ smc++ cv -o analysis/ 1.25e-8 out/example.chr*.smc.gz
+     $ smc++ estimate -o analysis/ 1.25e-8 out/example.chr*.smc.gz
 
    The first mandatory argument, ``1.25e-8``, is the per-generation
    mutation rate. The remaining arguments are the data files generated
@@ -245,8 +245,6 @@ is::
 
     $ smc++ estimate <mutation rate> <data file> [<data file> ...]
 
-*Please note that, in contrast to earlier versions, the recommended way to 
-estimate size history is now via the cv_ command*.
 
 Required arguments
 ^^^^^^^^^^^^^^^^^^
@@ -278,14 +276,17 @@ cv
 
 This command is similar to estimate_, with the difference that it uses
 cross-validation to obtain sensible model parameters for use during estimation.
-*As of version 1.15, this is the recommended way to run SMC++*. The syntax and
-options for this command are nearly identical to estimate_:
+The syntax and options for this command are nearly identical to estimate_:
 
     $ smc++ cv <mutation rate> <data file> [<data file> ...]
 
 The optional `--folds` parameter can be used to specify the number of folds
 used for performing `k`-fold cross validation. The default is `2` and should be
 set higher in cases where you have more data.
+
+**Important**: The `cv` command was not part of the original paper; in
+particular, it has not been peer-reviewed. Although it has proved useful in some
+contexts, manual parameter tuning may still be necessary.
 
 plot
 ----
