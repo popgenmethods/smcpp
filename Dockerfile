@@ -14,7 +14,7 @@ RUN apt update \
   python3-setuptools \
   python3-sklearn \
   python3-tqdm \
-  gnuplot \
+  gnuplot-nox \
   && rm -rf /var/lib/apt/lists/*
 
 FROM deps AS builder
