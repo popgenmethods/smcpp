@@ -45,14 +45,14 @@ Installation instructions
 
 Beginning with v1.15.4, SMC++ is distributed as a Docker image. (Anaconda
 support has been discontinued.) To run the latest version of the program,
-type 
+type::
 
-   docker run --rm -v $PWD:/mnt terhorst/smcpp:latest [ARGUMENTS]
+    $ docker run --rm -v $PWD:/mnt terhorst/smcpp:latest [ARGUMENTS]
 
 To run a specific version of the program, change `latest` to `version-` followed
-by the version number. For example, to run v1.15.4, type 
+by the version number. For example, to run v1.15.4, type::
 
-   docker run --rm -v $PWD:/mnt terhorst/smcpp:version-1.15.4 [ARGUMENTS]
+    $ docker run --rm -v $PWD:/mnt terhorst/smcpp:version-1.15.4 [ARGUMENTS]
 
 Build instructions
 ==================
