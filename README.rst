@@ -53,6 +53,11 @@ To run a specific version of the program, change `latest` to `version-` followed
 by the version number. For example, to run v1.15.4, type::
 
     $ docker run --rm -v $PWD:/mnt terhorst/smcpp:version-1.15.4 [ARGUMENTS]
+    
+If ``docker`` is unavailable (for example, in a cluster environment where you do not
+have admin privileges), some users have reported success using singularity_ instead.
+
+.. _singularity: https://sylabs.io/guides/3.7/user-guide/
 
 Build instructions
 ==================
