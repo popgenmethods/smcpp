@@ -4,13 +4,14 @@ import scipy.stats.mstats
 import sklearn.mixture
 import sys
 
-from .. import estimation_tools, _smcpp, util, logging, spline, data_filter, beta_de
+from .. import estimation_tools, _smcpp, util, spline, data_filter, beta_de
 from ..model import SMCModel
 from . import base
 import smcpp.defaults
 from smcpp.optimize.optimizers import SMCPPOptimizer
 from smcpp.optimize.plugins import analysis_saver, parameter_optimizer
 
+import logging
 logger = logging.getLogger(__name__)
 
 

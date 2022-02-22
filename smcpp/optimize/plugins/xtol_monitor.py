@@ -1,6 +1,6 @@
 from smcpp.optimize.exceptions import EMTerminationException
 from .optimizer_plugin import *
-from smcpp.logging import getLogger
+from logging import getLogger
 
 logger = getLogger(__name__)
 

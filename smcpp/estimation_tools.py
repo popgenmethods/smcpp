@@ -9,7 +9,7 @@ import scipy.interpolate
 import scipy.optimize
 import sys
 
-from . import util, logging, model, defaults
+from . import util, model, defaults
 from .contig import Contig
 from ._estimation_tools import (
     realign,
@@ -20,6 +20,7 @@ from ._estimation_tools import (
 )
 
 
+import logging
 logger = logging.getLogger(__name__)
 
 

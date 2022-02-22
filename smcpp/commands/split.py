@@ -10,9 +10,10 @@ import sys
 import time
 import os
 import json
+from logging import getLogger
 
 # Package imports
-from ..logging import getLogger, add_debug_log
+from ..log import add_debug_log
 from smcpp.analysis.split import SplitAnalysis
 from . import command
 

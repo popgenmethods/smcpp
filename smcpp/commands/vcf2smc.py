@@ -10,7 +10,7 @@ from collections import Counter, namedtuple
 import tqdm
 logger = getLogger(__name__)
 
-from ..logging import setup_logging
+from ..log import setup_logging
 from ..util import optional_gzip, RepeatingWriter
 from ..version import version
 from . import command

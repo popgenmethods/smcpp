@@ -4,8 +4,10 @@ import argparse
 import os
 import os.path
 import sys
+import logging
 
-from .. import logging, _smcpp
+from .. import _smcpp
+from ..log import setup_logging, add_debug_log
 import smcpp.defaults
 
 logger = logging.getLogger(__name__)
@@ -32,7 +34,7 @@ class Command:
 
     def main(self, args):
         np.random.seed(args.seed)
-        logging.setup_logging(args.verbose)
+        setup_logging(args.verbose)
         smcpp.defaults.cores = args.cores
 
 class EstimationCommand(Command):
@@ -46,7 +48,7 @@ class EstimationCommand(Command):
         # Initialize the logger
         # Do this before calling super().main() so that
         # any debugging output generated there gets logged
-        logging.add_debug_log(os.path.join(args.outdir, ".debug.txt"))
+        add_debug_log(os.path.join(args.outdir, ".debug.txt"))
         super().main(args)
         logger.debug(sys.argv)
         logger.debug(args)

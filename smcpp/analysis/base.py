@@ -2,11 +2,12 @@ import numpy as np
 import json
 import sys
 
-from .. import _smcpp, util, logging, data_filter
+from .. import _smcpp, util, data_filter
 import smcpp.defaults
 from smcpp.optimize.optimizers import SMCPPOptimizer, TwoPopulationOptimizer
 from smcpp.optimize.plugins import analysis_saver, parameter_optimizer
 
+import logging
 logger = logging.getLogger(__name__)
 
 from ..model import SMCModel, SMCTwoPopulationModel

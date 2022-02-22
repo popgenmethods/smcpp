@@ -1,7 +1,7 @@
 import numpy
 
 from .optimizer_plugin import OptimizerPlugin, targets
-from smcpp.logging import getLogger
+from logging import getLogger
 
 logger = getLogger(__name__)
 

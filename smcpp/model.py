@@ -3,14 +3,14 @@ import smcpp.ad.admath as admath
 import smcpp.ad as ad
 import os
 import scipy.optimize
-import msprime as msp
 from functools import wraps
 from textwrap import dedent
 
-from . import spline, logging, util
+from . import spline, util
 from .observe import Observable, Observer, targets
 import smcpp.defaults
 
+import logging
 logger = logging.getLogger(__name__)
 
 
@@ -246,6 +246,7 @@ class SMCModel(BaseModel):
 
     def to_msp(self):
         "return msprime events for simulating from this model"
+        import msprime as msp
         a = self.stepwise_values().astype("float") * 2 * self.N0
         cs = np.r_[0, np.cumsum(self.s)] * 2 * self.N0
         return [
@@ -418,6 +419,7 @@ class SMCTwoPopulationModel(Observable, Observer):
 
     def to_msp(self):
         "return msprime events for simulating from this model"
+        import msprime as msp
         ret = []
         sp = 2 * self.N0 * self.split
         m1 = self.for_pop(self.pids[0]).to_msp()

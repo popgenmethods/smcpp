@@ -4,10 +4,10 @@ import numpy as np
 import scipy.optimize
 import itertools
 from abc import abstractmethod
+from logging import getLogger
 
 import smcpp.defaults
 from smcpp.observe import Observable
-from smcpp.logging import getLogger
 from smcpp.optimize.plugins.optimizer_plugin import OptimizerPlugin
 from .exceptions import *
 

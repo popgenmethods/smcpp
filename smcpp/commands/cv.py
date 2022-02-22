@@ -8,9 +8,9 @@ from pathlib import Path
 import shutil
 import sys
 from types import SimpleNamespace
+from logging import getLogger
 
 from . import estimate, command
-from ..logging import getLogger
 from .. import model
 from smcpp.analysis.analysis import Analysis
 

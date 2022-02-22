@@ -1,11 +1,10 @@
 import json
-import msprime as msp
 import os.path
 import sys
+from logging import getLogger
 
 from . import command
 from .. import model
-from ..logging import getLogger
 
 logger = getLogger(__name__)
 
@@ -24,6 +23,7 @@ class Simulate(command.ConsoleCommand):
         parser.add_argument('-u', type=float, help="override per-generation mutation rate")
 
     def main(self, args):
+        import msprime as msp
         d = json.load(open(args.model, "rt"))
         logger.debug("Import model:\n%s", d)
         model_cls = d['model']['class']

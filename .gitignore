@@ -3,7 +3,6 @@ __pycache__
 *.swp
 archive
 _smcpp.so
-_smcpp.cpp
 test_sfs
 test_sfs_dbg
 build/
@@ -11,7 +10,6 @@ build/
 *.so
 build/
 src/*.o
-smcpp/*.cpp
 valgrind-python.supp
 environ.sh
 .nfs*
@@ -22,5 +20,4 @@ dist/
 .eggs
 smcpp.egg-info
 .cache
-smcpp/_estimation_tools.c
 src/.release_time

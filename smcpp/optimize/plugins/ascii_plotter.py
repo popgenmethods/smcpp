@@ -2,9 +2,9 @@ import numpy as np
 import shutil
 import subprocess
 import tempfile
+from logging import getLogger
 
 from .optimizer_plugin import OptimizerPlugin, targets
-from smcpp.logging import getLogger
 import smcpp.defaults
 
 logger = getLogger(__name__)

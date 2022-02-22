@@ -2,13 +2,13 @@ import numpy as np
 import json
 import sys
 
-from .. import logging
 from ..model import SMCTwoPopulationModel
 from smcpp.optimize.optimizers import TwoPopulationOptimizer
 from smcpp.optimize.plugins import parameter_optimizer
 import smcpp.defaults
 from . import base
 
+import logging
 logger = logging.getLogger(__name__)
 
 

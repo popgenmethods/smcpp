@@ -9,8 +9,9 @@ import contextlib
 import multiprocessing
 
 
-from . import logging, estimation_tools, defaults
+from . import estimation_tools, defaults
 
+import logging
 logger = logging.getLogger(__name__)
 mp_ctx = multiprocessing.get_context("forkserver")
 

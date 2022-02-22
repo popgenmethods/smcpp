@@ -13,10 +13,10 @@ from collections import Counter
 import sys
 import json
 import os
+from logging import getLogger
 
 from .. import _smcpp, util, model, estimation_tools
 from . import command
-from smcpp.logging import getLogger
 logger = getLogger(__name__)
 
 class Posterior(command.Command, command.ConsoleCommand):

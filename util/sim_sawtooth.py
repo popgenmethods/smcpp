@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
-
-import msprime as msp
 from smcpp.util import sawtooth
 import sys
 
 if __name__ == "__main__":
+    import msprime as msp
     sawtooth_events = [
         (.000582262, 1318.18),
         (.00232905, -329.546),

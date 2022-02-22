@@ -7,8 +7,7 @@ import multiprocessing
 import os
 from itertools import zip_longest
 
-from . import logging
-
+import logging
 logger = logging.getLogger(__name__)
 
 

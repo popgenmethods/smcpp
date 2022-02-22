@@ -8,9 +8,9 @@ import sys
 import time
 import os
 import os.path
+from logging import getLogger
 
 # Package imports
-from ..logging import getLogger
 from smcpp.analysis.analysis import Analysis
 from . import command
 import smcpp.defaults

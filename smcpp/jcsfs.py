@@ -7,11 +7,11 @@ from __future__ import absolute_import, division, print_function
 import scipy.linalg, scipy.stats
 import numpy as np
 from collections import namedtuple
-
-from . import model, logging, _smcpp, util
-from .moran_eigensystem import MoranEigensystem
-
+import logging
 import time
+
+from . import model, _smcpp, util
+from .moran_eigensystem import MoranEigensystem
 
 class Timer:    
     def __enter__(self):

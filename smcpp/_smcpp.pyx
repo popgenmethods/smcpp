@@ -13,9 +13,10 @@ import os.path
 from appdirs import AppDirs
 from smcpp.ad import adnumber, ADF
 
-from . import logging, version, util, defaults
+from . import version, util, defaults
 from .observe import targets
 
+import logging
 logger = logging.getLogger(__name__)
 
 init_eigen()

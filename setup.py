@@ -8,7 +8,6 @@ import tempfile
 import subprocess
 import shutil
 import warnings
-from Cython.Build import cythonize
 import numpy as np
 
 if True:
@@ -46,7 +45,7 @@ cpps = [
 extensions = [
     Extension(
         "smcpp._smcpp",
-        sources=["smcpp/_smcpp.pyx"] + cpps,
+        sources=["smcpp/_smcpp.cpp"] + cpps,
         language="c++",
         include_dirs=[np.get_include(), "include", "include/eigen3"],
         libraries=libraries,
@@ -55,7 +54,7 @@ extensions = [
     ),
     Extension(
         "smcpp._estimation_tools",
-        sources=["smcpp/_estimation_tools.pyx"],
+        sources=["smcpp/_estimation_tools.c"],
         include_dirs=[np.get_include()],
         libraries=libraries,
     ),
@@ -67,20 +66,17 @@ setup(
     author="Jonathan Terhorst, Jack Kamm, Yun S. Song",
     author_email="jonth@umich.edu",
     url="https://github.com/popgenmethods/smc++",
-    ext_modules=cythonize(extensions),
+    ext_modules=extensions,
     packages=find_packages(),
-    setup_requires=["cython>=0.25", "setuptools_scm"],
-    use_scm_version=True,
     install_requires=[
         "tqdm",
         "appdirs",
-        "scipy>=0.16",
-        "numpy>=1.9",
-        "matplotlib>=1.5",
-        "pysam>=0.9",
-        "pandas",
-        "scikit-learn>=0.19",
-        "msprime>=0.5.0",
+        "scipy>=1.8",
+        "numpy>=1.18",
+        "matplotlib>=3",
+        "pysam>=0.18",
+        "pandas >=1.4",
+        "scikit-learn>=1",
     ],
     entry_points={"console_scripts": ["smc++ = smcpp.frontend.console:main"],},
 )

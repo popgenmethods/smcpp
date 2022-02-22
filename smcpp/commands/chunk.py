@@ -1,8 +1,8 @@
 import concurrent.futures
 import numpy as np
+from logging import getLogger
 
 from . import command
-from ..logging import getLogger
 from .. import data_filter, util
 
 logger = getLogger(__name__)

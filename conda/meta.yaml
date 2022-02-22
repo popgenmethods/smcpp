@@ -1,0 +1,47 @@
+package:
+  name: smcpp
+  version: {{ environ.get('GIT_DESCRIBE_TAG', 'default').lstrip('v') }}
+
+source:
+  git_url: ../
+  git_rev: v1.15.4
+
+requirements:
+  build:
+    - {{ compiler('cxx') }}
+    - git
+  host:
+    - python {{ python }}
+    - gmp
+    - gsl
+    - numpy {{ numpy }}
+    - mpfr
+  run:
+    - python {{ python }}
+    - {{ pin_compatible('numpy') }}
+    - gnuplot
+    - gmp
+    - gsl
+    - mpfr
+    - pysam >=0.18
+    - matplotlib >=3
+    - pandas >=1.4
+    - scikit-learn >=1
+    - scipy >=1.8
+    - appdirs
+    - tqdm
+    - seaborn
+    - setuptools_scm
+
+about:
+    home: https://github.com/popgenmethods/smcpp
+    license: BSD
+    license_file: LICENSE
+
+test:
+    imports:
+        - smcpp
+        - smcpp._smcpp
+    source_files:
+        - example/example.vcf.gz
+        - example/example.vcf.gz.csi

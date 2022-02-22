@@ -1,6 +1,8 @@
 from argparse import ArgumentParser
+import logging
 
-from .. import commands, logging, version, defaults, _smcpp
+from .. import commands, version, defaults, _smcpp
+from ..log import init_logging
 
 def init_subparsers(subparsers_obj):
     from .. import commands
@@ -15,7 +17,7 @@ def init_subparsers(subparsers_obj):
 
 
 def main():
-    logging.init_logging()
+    init_logging()
     logger = logging.getLogger(__name__)
     logger.debug("SMC++ " + version.version)
     parser = ArgumentParser()
