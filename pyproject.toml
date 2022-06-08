@@ -1,6 +1,6 @@
 # pyproject.toml
 [build-system]
-requires = ["setuptools>=45", "wheel", "setuptools_scm>=6.2"]
+requires = ["setuptools>=45", "wheel", "setuptools_scm>=6.2", "oldest-supported-numpy"]
 
 [tool.setuptools_scm]
 write_to = "smcpp/_version.py"
