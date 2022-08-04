@@ -7,6 +7,7 @@ RUN apt update \
   libmpfr-dev \
   libgsl-dev \
   libbz2-dev \
+  liblzma-dev \
   python3-appdirs \
   python3-matplotlib \
   python3-pandas \
