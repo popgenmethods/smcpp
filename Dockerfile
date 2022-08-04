@@ -6,6 +6,7 @@ RUN apt update \
   libgmp-dev \
   libmpfr-dev \
   libgsl-dev \
+  libbz2-dev \
   python3-appdirs \
   python3-matplotlib \
   python3-pandas \
