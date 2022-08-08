@@ -8,6 +8,9 @@ RUN apt update \
   libgsl-dev \
   libbz2-dev \
   liblzma-dev \
+  libcurl4-openssl-dev \
+  libssl-dev \
+  make \
   python3-appdirs \
   python3-matplotlib \
   python3-pandas \
