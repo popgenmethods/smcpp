@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+
+    - name: Install dependencies
+      run: sudo apt-get update -q -y && sudo apt-get install -q -y python3-dev libgmp-dev libmpfr-dev libgsl0-dev
+
+    - name: Build
+      run:  pip3 install .
+
+    - name: Test
+      run: ./conda/run_test.sh
+
+  build-aarch64:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+
+    - name: Build
+      uses: uraimo/run-on-arch-action@v2
+      with:
+        arch: aarch64
+        distro: ubuntu20.04
+        githubToken: ${{ github.token }}
+        dockerRunArgs: |
+          --volume "${PWD}:/smcpp"
+        install: |
+          apt-get update -q -y
+          apt-get install -q -y git python3-pip python3-dev libgmp-dev libmpfr-dev libgsl0-dev libbz2-dev liblzma-dev
+        run: |
+          cd /smcpp
+          echo "Building..."
+          echo "Preload libgomp to avoid error: cannot allocate memory in static TLS block"
+          export LD_PRELOAD=/usr/local/lib/python3.8/dist-packages/sklearn/__check_build/../../scikit_learn.libs/libgomp-d22c30c5.so.1.0.0
+          pip3 install .
+          echo "Running the tests..."
+          ./conda/run_test.sh
