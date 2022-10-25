@@ -1,0 +1,38 @@
+name: Upload Docker images
+
+on:
+  push:
+    branches:
+      - 'master'
+
+jobs:
+  docker-push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+        with:
+          platforms: arm64
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Login to Github Docker Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set variables
+        id: vars
+        run: echo "::set-output name=date_tag::$(date +%y%m%d-%H%M)"
+
+      - name: Docker Buildx Create
+        run: docker buildx create --use
+
+      - name: Build and push smcpp
+        run: docker buildx build --platform=linux/amd64 --platform=linux/arm64 -t ghcr.io/${{ github.repository_owner }}/smcpp:${{ steps.vars.outputs.date_tag }} --push .
