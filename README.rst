@@ -393,7 +393,7 @@ cite
 This command prints plain- and BibTex-formatted citation information for
 the `accompanying paper`_ to the console.
 
-.. _accompanying paper: http://www.nature.com/ng/journal/vaop/ncurrent/ng.3748
+.. _accompanying paper: https://www.nature.com/articles/ng.3748
 
 
 Tips for using SMC++
