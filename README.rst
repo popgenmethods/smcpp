@@ -13,7 +13,7 @@ Quick start guide
    
 2. Convert your VCF(s) to the SMC++ input format with vcf2smc_::
 
-     $ smc++ vcf2smc my.data.vcf.gz out/chr1.smc.gz chr1 Pop1:S1,S2
+     $ smc++ vcf2smc my.data.vcf.gz out/example.chr1.smc.gz chr1 Pop1:S1,S2
 
    This command will parse data for the contig ``chr1`` for samples
    ``S1`` and ``S2`` which are members of population ``Pop1``. You
@@ -325,21 +325,21 @@ This command fits two-population clean split models using marginal
 estimates produced by estimate_. To use ``split``, first estimate each
 population marginally using ``estimate``::
 
-    $ smc++ vcf2smc my.vcf.gz data/pop1.smc.gz <contig> pop1:ind1_1,ind1_2
-    $ smc++ vcf2smc my.vcf.gz data/pop2.smc.gz <contig> pop2:ind2_1,ind2_2
-    $ smc++ estimate -o pop1/ <mu> data/pop1.smc.gz
-    $ smc++ estimate -o pop2/ <mu> data/pop2.smc.gz
+    $ smc++ vcf2smc my.vcf.gz data/pop1.<contig>.smc.gz <contig> pop1:ind1_1,ind1_2
+    $ smc++ vcf2smc my.vcf.gz data/pop2.<contig>.smc.gz <contig> pop2:ind2_1,ind2_2
+    $ smc++ estimate -o pop1/ <mu> data/pop1.chr*.smc.gz
+    $ smc++ estimate -o pop2/ <mu> data/pop2.chr*.smc.gz
 
 Next, create datasets containing the joint frequency spectrum for both
 populations::
 
-    $ smc++ vcf2smc my.vcf.gz data/pop12.smc.gz <contig> pop1:ind1_1,ind1_2 pop2:ind2_1,ind2_2
-    $ smc++ vcf2smc my.vcf.gz data/pop21.smc.gz <contig> pop2:ind2_1,ind2_2 pop1:ind1_1,ind1_2
+    $ smc++ vcf2smc my.vcf.gz data/pop12.<contig>.smc.gz <contig> pop1:ind1_1,ind1_2 pop2:ind2_1,ind2_2
+    $ smc++ vcf2smc my.vcf.gz data/pop21.<contig>.smc.gz <contig> pop2:ind2_1,ind2_2 pop1:ind1_1,ind1_2
 
 Finally, run ``split`` to refine the marginal estimates into an estimate
-of the joint demography::
+of the joint demography using 4 sets of vcf2smc outputs. ::
 
-    $ smc++ split -o split/ pop1/model.final.json pop2/model.final.json data/*.smc.gz
+    $ smc++ split -o split/ pop1/model.final.json pop2/model.final.json data/pop[12]*.chr*.smc.gz
     $ smc++ plot joint.pdf split/model.final.json
 
 posterior
