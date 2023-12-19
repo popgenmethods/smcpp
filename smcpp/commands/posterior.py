@@ -1,6 +1,5 @@
 import matplotlib
 import matplotlib.style
-matplotlib.style.use('seaborn-ticks')
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib.image import NonUniformImage
