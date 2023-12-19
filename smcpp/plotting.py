@@ -3,7 +3,6 @@ import json
 import matplotlib, matplotlib.style, matplotlib.cm
 
 matplotlib.use("Agg")
-matplotlib.style.use("seaborn-ticks")
 import numpy as np
 from numpy import array
 from collections import defaultdict
