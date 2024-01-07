@@ -42,6 +42,13 @@ populations; see split_.
 
 Installation instructions
 =========================
+1) If you dont have docker or singularity on your HPC, just install with the released sh script, type::
+
+    $ wget https://github.com/popgenmethods/smcpp/releases/download/v1.15.2/smcpp-1.15.2-Linux-x86_64.sh
+    $ chmod 755 smcpp-1.15.2-Linux-x86_64.sh
+    $ ./smcpp-1.15.2-Linux-x86_64.sh
+
+2) If you have docker or singularity:
 
 Beginning with v1.15.4, SMC++ is distributed as a Docker image. (Anaconda
 support has been discontinued.) To run the latest version of the program,
