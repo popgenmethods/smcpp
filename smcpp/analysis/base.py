@@ -25,13 +25,11 @@ class BaseAnalysis:
             _smcpp.set_num_threads(args.cores)
         self._N0 = .5e-4 / args.mu  # .0001 = args.mu * 2 * N0
         self._theta = 2. * self._N0 * args.mu
-        logger.info("theta: %f", self._theta)
         if args.r is not None:
             self._rho = 2 * self._N0 * args.r
         else:
             self._rho = self._theta
         assert np.all(np.isfinite([self._rho, self._theta]))
-        logger.info("rho: %f", self._rho)
         self._penalty = 0.
         self._niter = args.em_iterations
         if args.unfold:

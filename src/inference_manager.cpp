@@ -424,7 +424,7 @@ void NPopInferenceManager<P>::recompute_emission_probs()
         }
         else
         {
-            adouble log_e2m = -2. * alpha * theta * avg_ct.at(m);
+            adouble log_e2m = -alpha * theta * avg_ct.at(m);
             e2(m, 0) = exp(log_e2m);
             e2(m, 1) = -expm1(log_e2m);
         }

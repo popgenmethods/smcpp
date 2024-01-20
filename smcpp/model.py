@@ -201,11 +201,15 @@ class SMCModel(BaseModel):
         self[:] = res.x
 
     def stepwise_values(self):
-        ret = np.clip(
-            self(np.cumsum(self.s)),
-            smcpp.defaults.minimum_population_size,
-            smcpp.defaults.maximum_population_size,
-        )
+        try:
+            ret = np.clip(
+                self(np.cumsum(self.s)),
+                smcpp.defaults.minimum_population_size,
+                smcpp.defaults.maximum_population_size,
+            )
+        except:
+            breakpoint()
+            print("ah")
         return ret
 
     def reset(self):

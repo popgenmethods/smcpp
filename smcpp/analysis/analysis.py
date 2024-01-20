@@ -24,37 +24,29 @@ class Analysis(base.BaseAnalysis):
         if self.npop != 1:
             logger.error("Please use 'smc++ split' to estimate two-population models")
             sys.exit(1)
-
-        NeN0 = self._pipeline["watterson"].theta_hat / (2. * args.mu * self._N0)
-        m = SMCModel([1.], self._N0, spline.Piecewise, None)
-        m[:] = np.log(NeN0)
-        hs = estimation_tools.balance_hidden_states(m, 2 + args.knots)
-        if args.timepoints is not None:
-            t1, tK = [x / 2 / self._N0 for x in args.timepoints]
+        self._theta = self._pipeline["watterson"].theta_hat 
+        self._N0 = self._theta / 4 / args.mu
+        if args.r is not None:
+            self._rho = 2 * self._N0 * args.r
         else:
-            t1 = tK = None
-        hs /= (2 * self._N0)
-        self.hidden_states = hs
-        self._init_knots(hs, t1, tK)
+            self._rho = self._theta
 
-        self._init_model(args.spline)
-        hs0 = hs
-        self.hidden_states = [0., np.inf]
-        self._init_inference_manager(args.polarization_error, self.hidden_states)
-        self.alpha = 1
-        self._model[:] = np.log(NeN0)
-        self._model.randomize()
-        self._init_optimizer(
-            args.outdir,
-            args.base,
-            args.algorithm,
-            args.xtol,
-            args.ftol,
-            learn_rho=False,
-            single=False
-        )
-        self._init_regularization(args)
-        self.run(1)
+        logger.info("theta: %f", self._theta)
+        logger.info("rho: %f", self._rho)
+
+        if args.timepoints is not None:
+            # allow for directly setting timepoints
+            tp = np.array(args.timepoints) / 2 / self._N0
+            assert (tp >= 0.).all(), 'timepoints should be non-negative'
+            if np.isclose(tp[0], 0.):
+                self.hidden_states = tp
+                self._knots = tp[1:]
+            else:
+                self._knots = tp
+                self.hidden_states = np.insert(tp, 0, 0.)
+        else:
+            self._knots = np.geomspace(1e1, 1e5, args.knots) / 2 / self._N0
+            self.hidden_states = np.r_[0., self._knots]
 
         pipe = self._pipeline
         pipe.add_filter(data_filter.Thin(thinning=args.thinning))
@@ -64,17 +56,9 @@ class Analysis(base.BaseAnalysis):
         pipe.add_filter(data_filter.Validate())
         pipe.add_filter(data_filter.DropUninformativeContigs())
         pipe.add_filter(data_filter.Summarize())
-        try:
-            self._empirical_tmrca(2 * args.knots)
-            hs = np.r_[0., self._etmrca_quantiles, np.inf]
-        except Exception as e:
-            logger.warn("Mixture model failed for setting hidden states. Error was: %s", e)
-            hs = estimation_tools.balance_hidden_states(m, 2 * args.knots) / 2 / self._N0
-        self.hidden_states = hs
-        self._init_knots(hs, t1, tK)
-        m = self._model
+
         self._init_model(args.spline)
-        self._model[:] = np.log(m(self._knots))
+        self._model[:] = np.log(self._model(self._knots))
         self._init_inference_manager(args.polarization_error, self.hidden_states)
         self.alpha = args.w
         self._init_optimizer(
@@ -91,6 +75,7 @@ class Analysis(base.BaseAnalysis):
     def _init_model(self, spline_class):
         ## Initialize model
         logger.debug("knots in coalescent scaling:\n%s", str(self._knots))
+        logger.debug("hidden states in coalescent scaling:\n%s", str(self.hidden_states))
         spline_class = {
             "cubic": spline.CubicSpline,
             "bspline": spline.BSpline,
@@ -100,20 +85,6 @@ class Analysis(base.BaseAnalysis):
         }[spline_class]
         assert self.npop == 1
         self._model = SMCModel(self._knots, self._N0, spline_class, self.populations[0])
-
-    def _init_knots(self, hs, t1, tK):
-        self._knots = hs[1:-1:2]
-        mult = np.mean(self._knots[1:] / self._knots[:-1])
-        k0 = self._knots[0]
-        t = t1 or k0
-        a = []
-        while t < k0:
-            a = np.r_[a, t]
-            t *= mult
-        self._knots = np.r_[a, self._knots]
-        if tK is not None and tK > self._knots[-1]:
-            self._knots = np.r_[self._knots, tK]
-        logger.debug("Knots are: %s", self._knots)
 
     def _init_regularization(self, args):
         if self._args.lambda_:
@@ -132,22 +103,4 @@ class Analysis(base.BaseAnalysis):
                 parameter_optimizer.ParameterOptimizer("rho", rho_bounds)
             )
 
-
-    def _empirical_tmrca(self, k):
-        '''Calculate the empirical distribution of TMRCA in the
-        distinguished lineages by counting mutations'''
-        w = self._pipeline['mutation_counts'].w
-        X = self._pipeline['mutation_counts'].counts
-        logger.debug("Computing quantiles of TMRCA distribution from M=%d TMRCA samples", len(X))
-        logger.debug("Unresampled quantiles (0/10/25/50/75/100): %s",
-                     scipy.stats.mstats.mquantiles(X, [0, .1, .25, .5, .75, 1.]))
-        # fit a k-poisson mixture model
-        gmm = sklearn.mixture.GaussianMixture(n_components=k).fit(X[:, None])
-        Y = gmm.sample(n_samples=100000)[0]
-        p = np.logspace(np.log10(.01), np.log10(.99), k)
-        q = scipy.stats.mstats.mquantiles(Y[Y>0], p) / (2 * self._theta * w)
-        logger.debug("Quantiles: %s", " ".join("F(%g)=%g" % c for c in zip(q, p)))
-        # 2 * E(TMRCA) * self._theta ~= q
-        logger.debug("empirical TMRCA distribution: %s", q)
-        self._etmrca_quantiles = q
 

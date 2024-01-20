@@ -117,7 +117,7 @@ std::vector<Matrix<T> > incorporate_theta(const std::vector<Matrix<T> > &csfs, d
         try
         {
             CHECK_NAN(tauh);
-            ret[i] = csfs[i] * -expm1(-theta * tauh) / tauh;
+            ret[i] = csfs[i] / tauh;
             CHECK_NAN(ret[i]);
         }
         catch (std::runtime_error)
@@ -129,8 +129,8 @@ std::vector<Matrix<T> > incorporate_theta(const std::vector<Matrix<T> > &csfs, d
         }
         T tiny = tauh - tauh + 1e-10;
         CHECK_NAN(ret[i]);
-        tauh = ret[i].sum();
-        ret[i](0, 0) = 1. - tauh;
+        // tauh = ret[i].sum();
+        // ret[i](0, 0) = 1. - tauh;
         ret[i] = ret[i].unaryExpr([=](const T x) { if (x < 1e-10) return tiny; if (x < -1e-8) throw std::domain_error("very negative sfs"); return x; });
         try { CHECK_NAN(ret[i]); }
         catch (std::runtime_error)

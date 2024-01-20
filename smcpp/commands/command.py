@@ -58,7 +58,7 @@ def add_common_estimation_args(parser):
     parser.add_argument("-o", "--outdir", help="output directory", default=".")
     parser.add_argument("--base", help="base for file output. outputted files will have the form {base}.final.json, etc.", 
                         default="model")
-    parser.add_argument('--timepoints', type=float, default=None, nargs=2,
+    parser.add_argument('--timepoints', type=float, default=None, nargs='+',
                         help="start time of model (in generations)")
     data = parser.add_argument_group('data parameters')
     data.add_argument('--length-cutoff', help=argparse.SUPPRESS, type=int, default=None)
