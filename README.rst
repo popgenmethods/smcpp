@@ -72,7 +72,7 @@ SMC++ requires the following libraries and executables in order compile and run:
 On Ubuntu (or Debian) Linux, the library requirements may be installed
 using the commmand::
 
-    $ sudo apt-get install -y python3-dev libgmp-dev libmpfr-dev libgsl0-dev
+    $ sudo apt-get install -y python3-dev libgmp-dev libmpfr-dev libgsl0-dev libomp-dev
 
 On OS X, the easiest way to install them is using Homebrew_::
 
