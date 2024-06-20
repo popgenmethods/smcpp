@@ -29,7 +29,7 @@ jobs:
 
       - name: Set variables
         id: vars
-        run: echo "::set-output name=date_tag::$(date +%y%m%d-%H%M)"
+        run: echo "date_tag=$(date +%y%m%d-%H%M)" >> $GITHUB_OUTPUT
 
       - name: Docker Buildx Create
         run: docker buildx create --use
