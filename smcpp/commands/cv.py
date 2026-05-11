@@ -64,6 +64,7 @@ class Cv(command.EstimationCommand, command.ConsoleCommand):
                 logger.debug("Skipping fold %d since '--fold %d' was specified", i, args.fold)
                 continue
             fp = fold_path(i)
+            logger.debug("CV fold %d: %s" % (i, fp))
             with mark_completed(fp) as p:
                 if p.exists():
                     logger.debug("Skipping fold %d (encountered %s)", i, p)
@@ -75,6 +76,7 @@ class Cv(command.EstimationCommand, command.ConsoleCommand):
                 os.makedirs(args.outdir, exist_ok=True)
                 test = Analysis([args.data[j] for j in range(L) if j in fold], args)
                 best = float("-Inf")
+                best_rp = None
                 for j in range(2, 10):
                     args.regularization_penalty = j
                     train = Analysis(
@@ -97,6 +99,9 @@ class Cv(command.EstimationCommand, command.ConsoleCommand):
                             f
                         )
                         d = json.load(open(f, "rt"))
+                        best = test.loglik(False)
+                        best_rp = j
+                logger.info("CV fold %d: best regularization penalty = %d" % i, best_rp)
 
         if args.fold is not None:
             sys.exit(0)
