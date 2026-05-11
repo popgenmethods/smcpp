@@ -55,6 +55,7 @@ class Cv(command.EstimationCommand, command.ConsoleCommand):
             sys.exit(1)
         folds = np.array_split(np.arange(L), args.folds)
         basedir = args.outdir
+        basename = args.base
         best_models = [None] * len(folds)
         def fold_path(i):
             return os.path.join(basedir, "fold{}".format(i))
@@ -66,7 +67,7 @@ class Cv(command.EstimationCommand, command.ConsoleCommand):
             with mark_completed(fp) as p:
                 if p.exists():
                     logger.debug("Skipping fold %d (encountered %s)", i, p)
-                    with open(os.path.join(fp, "model.best.json"), "rt") as f:
+                    with open(os.path.join(fp, basename + ".best.json"), "rt") as f:
                         d = json.load(f)
                         best_models[i] = model.SMCModel.from_dict(d['model'])
                     continue
@@ -90,9 +91,9 @@ class Cv(command.EstimationCommand, command.ConsoleCommand):
                     )
                     if test.loglik(False) > best:
                         best_models[i] = train.model
-                        f = os.path.join(args.outdir, "model.best.json")
+                        f = os.path.join(args.outdir, basename + ".best.json")
                         shutil.copyfile(
-                            os.path.join(args.outdir, "model.final.json"),
+                            os.path.join(args.outdir, basename + ".final.json"),
                             f
                         )
                         d = json.load(open(f, "rt"))
@@ -110,7 +111,7 @@ class Cv(command.EstimationCommand, command.ConsoleCommand):
         d.update({"model": mavg.to_dict()})
         json.dump(
             d,
-            open(os.path.join(basedir, "model.final.json"), "wt"),
+            open(os.path.join(basedir, basename + ".final.json"), "wt"),
             sort_keys=True,
             indent=4,
         )
